@@ -1,7 +1,16 @@
 node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
 .env
+.env.local
+.env.*.local
+
 __pycache__/
 *.pyc
+
+mock-server/data.db
+
 .reasonix/
 reasonix.toml
-mock-server/data.db

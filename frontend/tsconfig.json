@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+
+  "//": "只检查 TypeScript 文件。队友的 .jsx/.js 不纳入类型检查，两种文件在 Vite 下可以共存，不需要任何一方改写。",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

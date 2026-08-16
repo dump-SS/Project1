@@ -1,0 +1,28 @@
+/**
+ * 全局字体定义。
+ * 组件里一律通过 var(--font-title) / var(--font-body) 引用，不要写死 font-family。
+ */
+
+:root {
+  /* 标题栏 + 页面大标题 · 衬线体 */
+  --font-title: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+
+  /* 正文 + 卡片内容 · 非衬线细体 */
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* 字重 · 文艺风正文偏细，关键数据才加粗 */
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* 字号 */
+  --size-page-title: 30px;
+  --size-section-title: 19px;
+  --size-body: 14px;
+  --size-caption: 12px;
+  --size-metric: 40px;
+
+  /* 行高 · 文艺风需要大行高 */
+  --line-height: 1.75;
+}

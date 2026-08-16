@@ -1,0 +1,158 @@
+.row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.cell:hover {
+  background: #f7fbfe;
+}
+
+.cellActive {
+  background: #f2f9fe;
+  border-color: #e8f4fd;
+}
+
+.weekday {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  letter-spacing: 0.5px;
+}
+
+.dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.cellChecked .dot {
+  background: #b5dffa;
+  border: 1px solid #7ec8e3;
+}
+
+.cellEmpty .dot {
+  background: transparent;
+  border: 1px dashed #d4e2ec;
+}
+
+.cell:hover .dot {
+  transform: scale(1.08);
+}
+
+.cellActive .dot {
+  box-shadow: 0 0 0 4px rgba(126, 200, 227, 0.18);
+}
+
+.cellToday .dot {
+  border-width: 2px;
+  border-style: solid;
+  border-color: #5ba3c4;
+}
+
+.date {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+}
+
+.cellChecked .date {
+  color: #5ba3c4;
+  font-weight: var(--weight-regular);
+}
+
+.detail {
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: #f7fbfe;
+  border-radius: 12px;
+  border: 1px solid #e8f4fd;
+}
+
+.detailMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+}
+
+.detailDate {
+  color: #5ba3c4;
+  font-weight: var(--weight-medium);
+}
+
+.detailDivider {
+  width: 1px;
+  height: 10px;
+  background: #d4e2ec;
+}
+
+.detailSummary {
+  margin: 12px 0 0;
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  line-height: var(--line-height);
+  color: #2c3e50;
+}
+
+.detailPending,
+.detailEmpty {
+  margin: 12px 0 0;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  line-height: var(--line-height);
+  color: #a9bcca;
+  font-style: italic;
+}
+
+.detailEmpty {
+  margin: 0;
+}
+
+.footer {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid #e8f4fd;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  letter-spacing: 0.6px;
+  color: #8ca3b5;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .row {
+    gap: 6px;
+  }
+
+  .cell {
+    padding: 12px 2px;
+  }
+
+  .dot {
+    width: 20px;
+    height: 20px;
+  }
+}
