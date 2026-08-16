@@ -102,6 +102,14 @@ frontend/src/
 | 文件 | 引用方式 | 说明 |
 |---|---|---|
 | `frontend/public/bg-sky.jpg` | `/bg-sky.jpg` | 天空背景图，1280×960 / 40 KB，色调与主题色板一致 |
+| `frontend/public/brand/logo-mark-on-light.png` | `/brand/logo-mark-on-light.png` | 品牌图标（仅 EX 标记），黑色墨色，用在浅色背景上 |
+| `frontend/public/brand/logo-mark-on-dark.png` | `/brand/logo-mark-on-dark.png` | 品牌图标（仅 EX 标记），白色墨色，用在深色背景上 |
+| `frontend/public/brand/logo-full-on-light.png` | `/brand/logo-full-on-light.png` | 品牌全称版（EX 标记 + EpochX 文字），黑色墨色，用在浅色背景上 |
+| `frontend/public/brand/logo-full-on-dark.png` | `/brand/logo-full-on-dark.png` | 品牌全称版（EX 标记 + EpochX 文字），白色墨色，用在深色背景上 |
+
+品牌四图均为 1000×1000、真透明背景（PNG RGBA），可以直接叠加在任何底色上，不会出现白边。
+命名规则是「用在什么背景上」而不是「墨色是什么颜色」——避免「白版」到底指白色文字还是白色背景的歧义。
+选错一律会在浅色背景上看到几乎隐形的白字，或在深色背景上看到几乎隐形的黑字，遇到「logo 好像没显示」先检查是不是拿反了。
 
 放 `public/` 而不是 `src/assets/` 是为了让所有页面都能直接引用——`src/assets/` 需要 `import` 且路径随目录层级变化。
 文件名一律用 ASCII，中文名在 URL 里需要百分号编码，容易踩坑。
