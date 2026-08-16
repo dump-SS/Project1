@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import dotenv from 'dotenv'
 import nodemailer from 'nodemailer'
+import { EMAIL_LOGO_DATA_URI } from './email-logo.b64.js'
 
 dotenv.config({ path: fileURLToPath(new URL('./.env', import.meta.url)) })
 
@@ -127,8 +128,15 @@ function buildEmailHtml(type, code) {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
           <tr>
             <td style="background:#ffffff;border-radius:16px;padding:40px 36px 36px;border:1px solid #e8f6fc;">
-              <div style="font-family:Georgia,'Noto Serif SC','Songti SC',serif;font-size:22px;font-weight:bold;color:#2c3e50;letter-spacing:1px;">${copy.title}</div>
-              <div style="width:44px;height:4px;background:#4AD1FF;border-radius:2px;margin:14px 0 26px;"></div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;">
+                <tr>
+                  <td align="left" valign="top" style="font-family:Georgia,'Noto Serif SC','Songti SC',serif;font-size:22px;font-weight:bold;color:#2c3e50;letter-spacing:1px;">${copy.title}</td>
+                  <td align="right" valign="top" style="width:52px;">
+                    <img src="${EMAIL_LOGO_DATA_URI}" alt="EpochX" width="44" height="44" style="display:block;border:0;outline:none;" />
+                  </td>
+                </tr>
+              </table>
+              <div style="width:44px;height:4px;background:#4AD1FF;border-radius:2px;margin:0 0 26px;"></div>
               <p style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:14px;color:#5a6b7a;line-height:1.8;margin:0 0 26px;">${copy.greeting}</p>
               <div style="background:#eaf7ff;border:1px solid #cdeeff;border-radius:12px;padding:22px 16px;text-align:center;margin:0 0 26px;">
                 <div style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:12px;color:#7a8a99;letter-spacing:3px;margin-bottom:10px;">验 证 码</div>
@@ -327,11 +335,11 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/v1/auth/send-register-code' && req.method === 'POST') {
       const { email } = body
       if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (existing) return err(res, 409, 'EMAIL_ALREADY_REGISTERED', '该邮箱已注册，请直接登录', 'email')
       const ip = clientIp(req)
       if (!allow('ip:' + ip, 20, 3600_000)) return err(res, 429, 'RATE_LIMITED', '请求过于频繁，请稍后再试')
       if (!allow('code:' + email, 1, 60_000)) return err(res, 429, 'RATE_LIMITED', '验证码发送过于频繁，请稍后再试')
-      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
-      if (existing) return err(res, 409, 'EMAIL_ALREADY_REGISTERED', '该邮箱已注册，请直接登录', 'email')
       await setCode('register', email)
       return json(res, 200, { ok: true, sent: true })
     }
@@ -340,11 +348,11 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/v1/auth/send-reset-code' && req.method === 'POST') {
       const { email } = body
       if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
       const ip = clientIp(req)
       if (!allow('ip:' + ip, 20, 3600_000)) return err(res, 429, 'RATE_LIMITED', '请求过于频繁，请稍后再试')
       if (!allow('code:' + email, 1, 60_000)) return err(res, 429, 'RATE_LIMITED', '验证码发送过于频繁，请稍后再试')
-      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
-      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
       await setCode('reset', email)
       return json(res, 200, { ok: true, sent: true })
     }
@@ -353,11 +361,11 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/v1/auth/send-login-code' && req.method === 'POST') {
       const { email } = body
       if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
       const ip = clientIp(req)
       if (!allow('ip:' + ip, 20, 3600_000)) return err(res, 429, 'RATE_LIMITED', '请求过于频繁，请稍后再试')
       if (!allow('code:' + email, 1, 60_000)) return err(res, 429, 'RATE_LIMITED', '验证码发送过于频繁，请稍后再试')
-      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
-      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
       await setCode('login', email)
       return json(res, 200, { ok: true, sent: true })
     }

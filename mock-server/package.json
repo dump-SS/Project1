@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:logo": "node generate-email-logo.mjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
