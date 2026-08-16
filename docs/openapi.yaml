@@ -1,0 +1,2402 @@
+openapi: 3.0.3
+info:
+  title: 学习状态智能助手 API（板块一 MVP）
+  version: 1.0.0
+  description: |
+    中学学情导学与状态评估 API。
+
+    来源：`docs/api-design-unified.md`（唯一生效版本），对应 `PRD-学习状态智能助手-v1.3.md`。
+    本文件严格按该设计文档生成，未引入文档之外的字段。
+
+    主流程：创建目标 ① → 生成计划 ② → 提交学习记录 ③ → 计算状态 ④ → 返回建议 ⑤（外加周期复盘与反馈回路）。
+
+    约定要点：
+    - 所有资源以当前 token 用户为作用域，不设 userId 路径参数，不存在跨用户读取接口。
+    - 写接口可选携带 `Idempotency-Key` 头，24 小时内重复键直接返回首次结果。
+    - 建议与复盘为异步生成：POST 返回 202 + `generation.status = pending`，前端轮询 GET 获取结果。
+    - 监护人授权失效时所有写接口返回 403 `GUARDIAN_AUTHORIZATION_EXPIRED`，读接口不受影响。
+
+servers:
+  - url: /api/v1
+    description: 基础路径，下文所有 URL 均省略此前缀
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: 用户与设置
+    description: 用户资料、AI 相关开关、监护人授权（合规底线，PRD 8.1）
+  - name: 学习目标
+    description: 流程环节 ① 创建目标
+  - name: 学习计划
+    description: 流程环节 ② 生成计划（规则引擎同步返回，不走 LLM）
+  - name: 学习记录
+    description: 流程环节 ③ 提交学习记录（同步回状态快照 + 建议句柄）
+  - name: 状态评估
+    description: 流程环节 ④ 计算状态（派生资源，无 POST 手动计算接口）
+  - name: 个性化建议
+    description: 流程环节 ⑤ 返回建议（异步生成 + 模板兜底）
+  - name: 学习总结与复盘
+    description: 周期复盘（异步生成，不做模板兜底）
+
+paths:
+  /me:
+    get:
+      tags: [用户与设置]
+      operationId: getMe
+      summary: 获取当前用户资料
+      description: 前端据此判断是否需要引导建档。
+      responses:
+        '200':
+          description: 用户资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                userId: u_10237
+                stage: senior
+                grade: 高二
+                subjects: [math, english, physics]
+                guardianAuthorization:
+                  status: active
+                  expiresAt: '2026-09-10T00:00:00+08:00'
+                onboardingCompleted: true
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    put:
+      tags: [用户与设置]
+      operationId: putMe
+      summary: 初始化用户资料（幂等建档，字段全必填）
+      description: 新用户 onboarding 的全量建档语义。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfilePut'
+            example:
+              stage: senior
+              grade: 高二
+              subjects: [math, english, physics]
+      responses:
+        '200':
+          description: 建档后的用户对象
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                userId: u_10237
+                stage: senior
+                grade: 高二
+                subjects: [math, english, physics]
+                guardianAuthorization:
+                  status: active
+                  expiresAt: '2026-09-10T00:00:00+08:00'
+                onboardingCompleted: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+    patch:
+      tags: [用户与设置]
+      operationId: patchMe
+      summary: 更新用户资料（局部更新，字段全可选）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfilePatch'
+            example:
+              subjects: [math, english, physics, chemistry]
+      responses:
+        '200':
+          description: 更新后的用户对象
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                userId: u_10237
+                stage: senior
+                grade: 高二
+                subjects: [math, english, physics, chemistry]
+                guardianAuthorization:
+                  status: active
+                  expiresAt: '2026-09-10T00:00:00+08:00'
+                onboardingCompleted: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+
+  /me/settings:
+    get:
+      tags: [用户与设置]
+      operationId: getSettings
+      summary: 读取用户设置
+      description: |
+        承载 PRD 5.2「关闭 AI 自动调权」与 6.2「不发送我的文字内容」两个必须的用户开关。
+        权重数值（α、β 及各子权重）不通过任何用户侧接口暴露。
+      responses:
+        '200':
+          description: 当前设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+              example:
+                aiWeightTuningEnabled: true
+                sendTextToAI: false
+                updatedAt: '2026-08-16T09:12:00+08:00'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    patch:
+      tags: [用户与设置]
+      operationId: patchSettings
+      summary: 更新用户设置（至少传一项）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdate'
+            example:
+              sendTextToAI: true
+      responses:
+        '200':
+          description: 更新后的设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+              example:
+                aiWeightTuningEnabled: true
+                sendTextToAI: true
+                updatedAt: '2026-08-16T09:30:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+
+  /me/guardian-authorization:
+    post:
+      tags: [用户与设置]
+      operationId: submitGuardianAuthorization
+      summary: 提交监护人联系方式并发送确认请求
+      description: 监护人邮箱与手机号二选一必填（PRD 8.1 合规底线）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardianAuthorizationRequest'
+            example:
+              guardianEmail: guardian@example.com
+      responses:
+        '202':
+          description: 确认请求已发送，等待监护人点击链接确认
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    delete:
+      tags: [用户与设置]
+      operationId: revokeGuardianAuthorization
+      summary: 撤销监护人授权（账号进入只读）
+      responses:
+        '204':
+          description: 已撤销，账号进入只读状态
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /guardian-authorization/confirm:
+    get:
+      tags: [用户与设置]
+      operationId: confirmGuardianAuthorization
+      summary: 监护人点击链接确认授权（无需登录）
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: 确认链接中的一次性令牌
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 授权确认成功
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /goals:
+    post:
+      tags: [学习目标]
+      operationId: createGoal
+      summary: 创建学习目标 ①
+      description: 目标独立成资源，一个用户可同时持有多个短期与长期目标，计划生成按 goalId 引用。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalCreate'
+            example:
+              type: short_term
+              subject: math
+              title: 两周后期中考试数学 120+
+              description: 函数和数列这两章不太熟，想重点补
+              targetDate: '2026-08-30'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+              example:
+                goalId: g_5501
+                type: short_term
+                subject: math
+                title: 两周后期中考试数学 120+
+                description: 函数和数列这两章不太熟，想重点补
+                targetDate: '2026-08-30'
+                status: active
+                progress:
+                  plannedTasks: 0
+                  completedTasks: 0
+                  ratio: 0
+                createdAt: '2026-08-16T09:20:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+    get:
+      tags: [学习目标]
+      operationId: listGoals
+      summary: 目标列表（含进度）
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 默认 active
+          schema:
+            type: string
+            enum: [active, archived, all]
+            default: active
+        - name: subject
+          in: query
+          required: false
+          description: 按学科过滤
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 目标列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalList'
+              example:
+                items:
+                  - goalId: g_5501
+                    type: short_term
+                    subject: math
+                    title: 两周后期中考试数学 120+
+                    targetDate: '2026-08-30'
+                    status: active
+                    progress:
+                      plannedTasks: 12
+                      completedTasks: 7
+                      ratio: 0.58
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 3
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /goals/{goalId}:
+    patch:
+      tags: [学习目标]
+      operationId: updateGoal
+      summary: 更新 / 归档目标
+      description: 归档代替删除，保留历史数据供复盘引用。
+      parameters:
+        - $ref: '#/components/parameters/GoalId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalUpdate'
+            example:
+              targetDate: '2026-09-05'
+              status: active
+      responses:
+        '200':
+          description: 完整目标对象
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+              example:
+                goalId: g_5501
+                type: short_term
+                subject: math
+                title: 两周后期中考试数学 120+
+                description: 函数和数列这两章不太熟，想重点补
+                targetDate: '2026-09-05'
+                status: active
+                progress:
+                  plannedTasks: 12
+                  completedTasks: 7
+                  ratio: 0.58
+                createdAt: '2026-08-16T09:20:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /plans:
+    post:
+      tags: [学习计划]
+      operationId: createPlan
+      summary: 生成学习计划 ②
+      description: |
+        语义是「请求生成一份计划」。服务端规则引擎结合最近一次状态评估决定任务强度，同步返回，不走 LLM
+        （PRD 8.2：AI 不可用时仍能看计划）。同一 planDate 已有计划时返回 409，可传 regenerate=true 覆盖。
+        新用户无历史数据时 adaptedFrom 为 null，走规则模板生成。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanCreate'
+            example:
+              planDate: '2026-08-16'
+              availableMinutes: 120
+              goalIds: [g_5501]
+      responses:
+        '201':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                planId: p_9001
+                planDate: '2026-08-16'
+                availableMinutes: 120
+                adaptedFrom:
+                  assessmentId: a_7742
+                  stateLabel: fatigue_warning
+                  adjustment: reduce_load
+                  note: 最近状态偏疲劳，本次总时长下调，单任务时长缩短并增加间隔
+                tasks:
+                  - taskId: t_30011
+                    subject: math
+                    topic: 函数图像与性质 · 巩固已学
+                    estimatedMinutes: 40
+                    priority: 1
+                    status: pending
+                    goalId: g_5501
+                  - taskId: t_30012
+                    subject: english
+                    topic: 单词短时高频复习
+                    estimatedMinutes: 20
+                    priority: 2
+                    status: pending
+                    goalId: null
+                createdAt: '2026-08-16T18:00:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '409':
+          description: 同一 planDate 已存在计划，可传 regenerate=true 覆盖
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: STATE_CONFLICT
+                  message: 当日已存在计划，如需覆盖请传 regenerate=true
+    get:
+      tags: [学习计划]
+      operationId: listPlans
+      summary: 计划列表
+      parameters:
+        - name: dateFrom
+          in: query
+          required: false
+          description: 默认最近 7 天
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          description: 默认最近 7 天
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 计划列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanList'
+              example:
+                items:
+                  - planId: p_9001
+                    planDate: '2026-08-16'
+                    availableMinutes: 120
+                    adaptedFrom: null
+                    tasks:
+                      - taskId: t_30011
+                        subject: math
+                        topic: 函数图像与性质 · 巩固已学
+                        estimatedMinutes: 40
+                        priority: 1
+                        status: pending
+                        goalId: g_5501
+                    createdAt: '2026-08-16T18:00:00+08:00'
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 7
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /plans/{planId}:
+    get:
+      tags: [学习计划]
+      operationId: getPlan
+      summary: 计划详情
+      parameters:
+        - $ref: '#/components/parameters/PlanId'
+      responses:
+        '200':
+          description: 计划详情，结构同生成计划的响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                planId: p_9001
+                planDate: '2026-08-16'
+                availableMinutes: 120
+                adaptedFrom:
+                  assessmentId: a_7742
+                  stateLabel: fatigue_warning
+                  adjustment: reduce_load
+                  note: 最近状态偏疲劳，本次总时长下调，单任务时长缩短并增加间隔
+                tasks:
+                  - taskId: t_30011
+                    subject: math
+                    topic: 函数图像与性质 · 巩固已学
+                    estimatedMinutes: 40
+                    priority: 1
+                    status: pending
+                    goalId: g_5501
+                createdAt: '2026-08-16T18:00:00+08:00'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /plans/{planId}/tasks/{taskId}:
+    patch:
+      tags: [学习计划]
+      operationId: updatePlanTask
+      summary: 调整任务 / 确认完成情况
+      description: |
+        改时长、删任务、标完成度都走这里；每次调整记为算法反馈信号（PRD 5.1 交互要点），
+        响应回显 userAdjusted。请求至少传一项字段。
+      parameters:
+        - $ref: '#/components/parameters/PlanId'
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTaskUpdate'
+            example:
+              estimatedMinutes: 30
+              status: partial
+      responses:
+        '200':
+          description: 更新后的任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanTaskDetail'
+              example:
+                taskId: t_30011
+                subject: math
+                topic: 函数图像与性质 · 巩固已学
+                estimatedMinutes: 30
+                priority: 1
+                status: partial
+                removed: false
+                userAdjusted: true
+                updatedAt: '2026-08-16T21:05:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /learning-records:
+    post:
+      tags: [学习记录]
+      operationId: createLearningRecord
+      summary: 提交学习记录（核心接口）③④
+      description: |
+        行为数据 + 10 秒内可完成的自评一次性提交。状态分是确定性规则计算（PRD 5.2），
+        同步重算并在响应中带回状态快照；同时自动创建一条 post_session 建议生成任务，
+        返回其 recommendationId（pending），前端拿着它去 GET /recommendations/{id} 轮询即可。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordInput'
+            example:
+              subject: math
+              startedAt: '2026-08-16T19:00:00+08:00'
+              durationMinutes: 45
+              planTaskId: t_30011
+              behavior:
+                completion: partial
+                accuracy: 0.62
+                interruptions: 3
+                blurCount: 5
+              selfReport:
+                focus: 2
+                fatigue: 4
+                emotion: negative
+                difficultyFeel: hard
+              note: 函数图像那块看不太进去
+      responses:
+        '201':
+          description: 提交成功，含同步重算的状态快照与建议句柄
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningRecordCreated'
+              example:
+                recordId: r_88012
+                subject: math
+                startedAt: '2026-08-16T19:00:00+08:00'
+                durationMinutes: 45
+                planTaskId: t_30011
+                behavior:
+                  completion: partial
+                  accuracy: 0.62
+                  interruptions: 3
+                  blurCount: 5
+                selfReport:
+                  focus: 2
+                  fatigue: 4
+                  emotion: negative
+                  difficultyFeel: hard
+                assessment:
+                  assessmentId: a_7742
+                  subject: math
+                  windowScore: 0.48
+                  trend: down
+                  stateLabel: fatigue_warning
+                  dataSufficient: true
+                  recordCount: 7
+                recommendation:
+                  recommendationId: rec_20301
+                  status: pending
+                createdAt: '2026-08-16T19:46:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+    get:
+      tags: [学习记录]
+      operationId: listLearningRecords
+      summary: 学习记录列表
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          description: 按学科过滤
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - name: dateFrom
+          in: query
+          required: false
+          description: 默认最近 30 天
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          description: 默认最近 30 天
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 记录列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningRecordList'
+              example:
+                items:
+                  - recordId: r_88012
+                    subject: math
+                    startedAt: '2026-08-16T19:00:00+08:00'
+                    durationMinutes: 45
+                    planTaskId: t_30011
+                    behavior:
+                      completion: partial
+                      accuracy: 0.62
+                      interruptions: 3
+                      blurCount: 5
+                    selfReport:
+                      focus: 2
+                      fatigue: 4
+                      emotion: negative
+                      difficultyFeel: hard
+                    createdAt: '2026-08-16T19:46:00+08:00'
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 34
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /learning-records/{recordId}:
+    delete:
+      tags: [学习记录]
+      operationId: deleteLearningRecord
+      summary: 删除学习记录并重算当前窗口
+      description: |
+        对应 PRD 5.2 边界场景「记录删除回溯」：删除后立即重算当前窗口，历史评估快照保留不改写。
+      parameters:
+        - $ref: '#/components/parameters/RecordId'
+      responses:
+        '200':
+          description: 删除成功，返回重算后的状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningRecordDeleted'
+              example:
+                deleted: true
+                recordId: r_88012
+                recalculatedAssessment:
+                  assessmentId: a_7751
+                  subject: math
+                  windowScore: 0.53
+                  trend: flat
+                  stateLabel: insufficient_data
+                  dataSufficient: false
+                  recordCount: 2
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /assessments/current:
+    get:
+      tags: [状态评估]
+      operationId: getCurrentAssessments
+      summary: 获取当前状态与标签 ④
+      description: |
+        状态分是记录的派生资源，不提供 POST 手动计算接口——提交/删除记录时自动重算，
+        保证「分数始终由固定公式计算」（PRD 6.1），也避免前端伪造触发。
+        不传 subject 时返回全部学科的数组（PRD 5.2：不做跨学科加权综合）。
+        basedOn 落实 PRD 8.3 可解释性，但不暴露权重与公式；冷启动时输出 insufficient_data，不下结论。
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          description: 不传返回全部学科
+          schema:
+            $ref: '#/components/schemas/Subject'
+      responses:
+        '200':
+          description: 当前状态列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateResultList'
+              example:
+                items:
+                  - assessmentId: a_7742
+                    subject: math
+                    windowScore: 0.48
+                    trend: down
+                    stateLabel: fatigue_warning
+                    displayText: 最近几次数学状态有点走低，疲劳感比较明显
+                    dataSufficient: true
+                    recordCount: 7
+                    windowSize: 7
+                    basedOn:
+                      recordIds: [r_88012, r_87990, r_87944]
+                      signals:
+                        - 自评疲劳度连续 3 次 ≥4
+                        - 练习正确率较上周下降
+                    computedAt: '2026-08-16T19:46:00+08:00'
+                  - assessmentId: null
+                    subject: english
+                    stateLabel: insufficient_data
+                    displayText: 数据积累中，再记录几次就能给出判断
+                    dataSufficient: false
+                    recordCount: 2
+                    windowSize: 7
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /assessments:
+    get:
+      tags: [状态评估]
+      operationId: listAssessmentHistory
+      summary: 状态历史（趋势曲线）
+      parameters:
+        - name: subject
+          in: query
+          required: true
+          description: 历史按单学科查询
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - name: dateFrom
+          in: query
+          required: false
+          description: 默认最近 30 天
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          description: 默认最近 30 天
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 状态历史序列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentHistory'
+              example:
+                subject: math
+                items:
+                  - date: '2026-08-14'
+                    windowScore: 0.61
+                    stateLabel: efficient_stable
+                    trend: flat
+                  - date: '2026-08-15'
+                    windowScore: 0.55
+                    stateLabel: fluctuating_up
+                    trend: down
+                  - date: '2026-08-16'
+                    windowScore: 0.48
+                    stateLabel: fatigue_warning
+                    trend: down
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /assessments/{assessmentId}/feedback:
+    put:
+      tags: [状态评估]
+      operationId: putAssessmentFeedback
+      summary: 提交「这个判断准不准」反馈
+      description: PRD 第 9 节指标；一条评估至多一份反馈，PUT 幂等可覆盖。
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentFeedback'
+            example:
+              accurate: true
+      responses:
+        '204':
+          description: 反馈已记录
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recommendations:
+    post:
+      tags: [个性化建议]
+      operationId: createRecommendation
+      summary: 手动请求生成建议
+      description: |
+        常规路径由 POST /learning-records 自动创建，本接口仅用于手动刷新或阶段回顾；超频返回 429
+        （PRD 6.4 控成本）。异步生成：返回 202 + generation.status = pending。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationCreate'
+            example:
+              scene: post_session
+              subject: math
+              recordId: r_88012
+      responses:
+        '202':
+          description: 生成任务已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationPending'
+              example:
+                recommendationId: rec_20301
+                scene: post_session
+                subject: math
+                generation:
+                  status: pending
+                createdAt: '2026-08-16T19:46:02+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      tags: [个性化建议]
+      operationId: listRecommendations
+      summary: 建议列表
+      parameters:
+        - name: scene
+          in: query
+          required: false
+          description: 场景过滤
+          schema:
+            $ref: '#/components/schemas/RecScene'
+        - name: subject
+          in: query
+          required: false
+          description: 学科过滤
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - name: status
+          in: query
+          required: false
+          description: 默认 ready
+          schema:
+            type: string
+            enum: [ready, all]
+            default: ready
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 建议列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationList'
+              example:
+                items:
+                  - recommendationId: rec_20301
+                    scene: post_session
+                    subject: math
+                    generation:
+                      status: ready
+                      source: llm
+                      completedAt: '2026-08-16T19:46:09+08:00'
+                    items:
+                      - title: 把单次时长压到 25 分钟
+                        content: 这次函数练了 45 分钟但中断了 3 次，后半程正确率明显掉下来了。下次试试练 25 分钟就停，中间歇 5 分钟。
+                    basedOn:
+                      assessmentId: a_7742
+                      recordId: r_88012
+                      stateLabel: fatigue_warning
+                      explain: 依据最近 7 次数学记录的疲劳自评与正确率变化
+                    feedback: null
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 12
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /recommendations/{recommendationId}:
+    get:
+      tags: [个性化建议]
+      operationId: getRecommendation
+      summary: 获取建议内容 ⑤
+      description: |
+        生成中时 generation.status 为 pending、items 为 null。
+        LLM 失败走兜底时 generation.source 为 template，其余结构完全一致，前端无需第二套渲染逻辑
+        （对应 PRD 9 验收标准「API 全部不可用时核心流程不受影响」）。
+      parameters:
+        - $ref: '#/components/parameters/RecommendationId'
+      responses:
+        '200':
+          description: 建议详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recommendation'
+              examples:
+                ready_llm:
+                  summary: 生成完成（LLM）
+                  value:
+                    recommendationId: rec_20301
+                    scene: post_session
+                    subject: math
+                    generation:
+                      status: ready
+                      source: llm
+                      completedAt: '2026-08-16T19:46:09+08:00'
+                    items:
+                      - title: 把单次时长压到 25 分钟
+                        content: 这次函数练了 45 分钟但中断了 3 次，后半程正确率明显掉下来了。下次试试练 25 分钟就停，中间歇 5 分钟。
+                      - title: 先巩固再上新
+                        content: 今天难度感受偏难，暂时别急着推进新内容，明天先把函数图像的已掌握题型过一遍找回手感。
+                    basedOn:
+                      assessmentId: a_7742
+                      recordId: r_88012
+                      stateLabel: fatigue_warning
+                      explain: 依据最近 7 次数学记录的疲劳自评与正确率变化
+                    feedback: null
+                pending:
+                  summary: 生成中
+                  value:
+                    recommendationId: rec_20301
+                    scene: post_session
+                    subject: math
+                    generation:
+                      status: pending
+                    items: null
+                    feedback: null
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recommendations/{recommendationId}/feedback:
+    put:
+      tags: [个性化建议]
+      operationId: putRecommendationFeedback
+      summary: 提交建议反馈
+      description: 一条建议至多一份反馈，用户改主意即覆盖，PUT 幂等（PRD 6.5、第 9 节指标）。
+      parameters:
+        - $ref: '#/components/parameters/RecommendationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingFeedback'
+            example:
+              rating: useful
+      responses:
+        '200':
+          description: 反馈已记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationFeedbackResult'
+              example:
+                recommendationId: rec_20301
+                feedback:
+                  rating: useful
+                  reason: null
+                  submittedAt: '2026-08-16T19:50:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /summaries:
+    post:
+      tags: [学习总结与复盘]
+      operationId: createSummary
+      summary: 手动触发生成复盘
+      description: |
+        周复盘由后台定时任务自动创建，无需客户端调用；本接口供用户手动生成指定区间的总结，
+        有每日次数上限，超限 429（PRD 5.4 控成本）。复盘不做模板兜底，失败即 failed。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummaryCreate'
+            example:
+              periodStart: '2026-08-10'
+              periodEnd: '2026-08-16'
+      responses:
+        '202':
+          description: 生成任务已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryPending'
+              example:
+                summaryId: sum_4402
+                periodStart: '2026-08-10'
+                periodEnd: '2026-08-16'
+                generation:
+                  status: pending
+                createdAt: '2026-08-16T22:00:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      tags: [学习总结与复盘]
+      operationId: listSummaries
+      summary: 复盘列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 复盘列表，按 periodEnd 倒序
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryList'
+              example:
+                items:
+                  - summaryId: sum_4402
+                    periodStart: '2026-08-10'
+                    periodEnd: '2026-08-16'
+                    generation:
+                      status: ready
+                      source: llm
+                      completedAt: '2026-08-16T22:00:12+08:00'
+                    content:
+                      overview: 这周数学从「高效稳定」滑到了「疲劳预警」，主要发生在周四之后；英语记录太少，暂时看不出趋势。
+                      patterns:
+                        - 数学安排在 21 点后的 3 次记录，完成度都是部分完成，而下午的 2 次都完成了
+                      suggestions:
+                        - 把数学挪到下午或晚饭后早一点的时段试一周
+                        - 下周数学总时长先降到本周的 80%，稳住再加
+                      encouragement: 状态有起伏很正常，你这周把 7 次记录都填完了，这个坚持挺难得。
+                    dataPoints:
+                      recordCount: 9
+                      subjects: [math, english]
+                      planCompletionRatio: 0.61
+                      referencedAssessmentIds: [a_7742, a_7710]
+                    feedback: null
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 4
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /summaries/{summaryId}:
+    get:
+      tags: [学习总结与复盘]
+      operationId: getSummary
+      summary: 获取复盘详情
+      description: 固定输出框架（PRD 5.4）。数据不足时不硬凑，status 为 insufficient_data 且 content 为 null。
+      parameters:
+        - $ref: '#/components/parameters/SummaryId'
+      responses:
+        '200':
+          description: 复盘详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+              examples:
+                ready:
+                  summary: 生成完成
+                  value:
+                    summaryId: sum_4402
+                    periodStart: '2026-08-10'
+                    periodEnd: '2026-08-16'
+                    generation:
+                      status: ready
+                      source: llm
+                      completedAt: '2026-08-16T22:00:12+08:00'
+                    content:
+                      overview: 这周数学从「高效稳定」滑到了「疲劳预警」，主要发生在周四之后；英语记录太少，暂时看不出趋势。
+                      patterns:
+                        - 数学安排在 21 点后的 3 次记录，完成度都是部分完成，而下午的 2 次都完成了
+                      suggestions:
+                        - 把数学挪到下午或晚饭后早一点的时段试一周
+                        - 下周数学总时长先降到本周的 80%，稳住再加
+                      encouragement: 状态有起伏很正常，你这周把 7 次记录都填完了，这个坚持挺难得。
+                    dataPoints:
+                      recordCount: 9
+                      subjects: [math, english]
+                      planCompletionRatio: 0.61
+                      referencedAssessmentIds: [a_7742, a_7710]
+                    feedback: null
+                insufficient_data:
+                  summary: 数据不足
+                  value:
+                    summaryId: sum_4403
+                    generation:
+                      status: insufficient_data
+                      completedAt: '2026-08-16T22:00:03+08:00'
+                    content: null
+                    dataPoints:
+                      recordCount: 2
+                      minRequired: 5
+                    message: 本周记录较少，暂不生成完整复盘
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /summaries/{summaryId}/feedback:
+    put:
+      tags: [学习总结与复盘]
+      operationId: putSummaryFeedback
+      summary: 提交复盘反馈
+      parameters:
+        - $ref: '#/components/parameters/SummaryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingFeedback'
+            example:
+              rating: useful
+              reason: 观察到的时段规律挺准
+      responses:
+        '200':
+          description: 反馈已记录，结构同建议反馈
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryFeedbackResult'
+              example:
+                summaryId: sum_4402
+                feedback:
+                  rating: useful
+                  reason: 观察到的时段规律挺准
+                  submittedAt: '2026-08-16T22:10:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 'Authorization: Bearer <token>；MVP 不设计登录/注册接口，假定已有账号体系'
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 页码，默认 1
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: 每页条数，默认 20，上限 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 可选幂等键，24 小时内重复键直接返回首次结果（用于弱网下重复提交学习记录）
+      schema:
+        type: string
+    GoalId:
+      name: goalId
+      in: path
+      required: true
+      description: 目标 ID
+      schema:
+        type: string
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      description: 计划 ID
+      schema:
+        type: string
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      description: 计划内任务 ID
+      schema:
+        type: string
+    RecordId:
+      name: recordId
+      in: path
+      required: true
+      description: 学习记录 ID
+      schema:
+        type: string
+    AssessmentId:
+      name: assessmentId
+      in: path
+      required: true
+      description: 状态评估 ID
+      schema:
+        type: string
+    RecommendationId:
+      name: recommendationId
+      in: path
+      required: true
+      description: 建议 ID
+      schema:
+        type: string
+    SummaryId:
+      name: summaryId
+      in: path
+      required: true
+      description: 复盘 ID
+      schema:
+        type: string
+
+  responses:
+    ValidationFailed:
+      description: 参数缺失或取值越界
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: VALIDATION_FAILED
+              message: 自评专注度必须为 1-5 的整数
+              field: selfReport.focus
+    Unauthenticated:
+      description: token 缺失或过期
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: UNAUTHENTICATED
+              message: 登录状态已失效，请重新登录
+    GuardianAuthorizationExpired:
+      description: 监护人授权失效，账号只读（PRD 8.1），仅 GET 可用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: GUARDIAN_AUTHORIZATION_EXPIRED
+              message: 监护人授权已过期，请重新确认后继续使用
+    NotFound:
+      description: 资源不存在或不属于当前用户
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: RESOURCE_NOT_FOUND
+              message: 资源不存在
+    RateLimited:
+      description: 手动触发 AI 生成超频（PRD 6.4 控成本）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: RATE_LIMITED
+              message: 今日手动生成次数已达上限，请明天再试
+
+  schemas:
+    # ---------- 枚举字典（PRD 0.4） ----------
+    Subject:
+      type: string
+      description: 学科枚举
+      enum: [chinese, math, english, physics, chemistry, biology, history, geography, politics, other]
+    Stage:
+      type: string
+      description: 学段：junior=初中，senior=高中
+      enum: [junior, senior]
+    GoalType:
+      type: string
+      description: 目标类型
+      enum: [short_term, long_term]
+    TaskStatus:
+      type: string
+      description: 任务状态
+      enum: [pending, completed, partial, abandoned]
+    Completion:
+      type: string
+      description: 任务完成度（无 pending）
+      enum: [completed, partial, abandoned]
+    Emotion:
+      type: string
+      description: 情绪状态
+      enum: [positive, neutral, negative]
+    DifficultyFeel:
+      type: string
+      description: 难度主观感受
+      enum: [easy, moderate, hard]
+    Trend:
+      type: string
+      description: 状态变化趋势
+      enum: [up, flat, down]
+    StateLabel:
+      type: string
+      description: 状态标签；insufficient_data 表示数据不足不下结论
+      enum: [efficient_stable, fatigue_warning, emotion_blocked, fluctuating_up, insufficient_data]
+    RecScene:
+      type: string
+      description: 建议场景：post_session=单次学习后，weekly_review=阶段回顾
+      enum: [post_session, weekly_review]
+    GenerationSource:
+      type: string
+      description: 生成来源：llm=模型生成，template=模板兜底
+      enum: [llm, template]
+    Rating:
+      type: string
+      description: 有用性评级
+      enum: [useful, neutral, not_useful]
+
+    # ---------- 通用结构 ----------
+    Error:
+      type: object
+      description: 统一错误格式
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: 错误码
+            message:
+              type: string
+              description: 可展示的错误说明
+            field:
+              type: string
+              description: 校验失败的字段路径，仅参数校验错误时出现
+    Pagination:
+      type: object
+      description: 列表响应的分页信息
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+          description: 当前页码
+        pageSize:
+          type: integer
+          description: 每页条数
+        total:
+          type: integer
+          description: 总条数
+    GenerationStatus:
+      type: object
+      description: |
+        AI 异步生成状态。终态为 ready / insufficient_data / failed；
+        建议在 LLM 失败时降级为 template 兜底并仍返回 ready，复盘不做兜底。
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: 生成状态
+          enum: [pending, ready, insufficient_data, failed]
+        source:
+          $ref: '#/components/schemas/GenerationSource'
+        completedAt:
+          type: string
+          format: date-time
+          description: 生成完成时间，终态时出现
+    RatingFeedback:
+      type: object
+      description: 建议 / 复盘的有用性反馈请求体
+      required: [rating]
+      properties:
+        rating:
+          $ref: '#/components/schemas/Rating'
+        reason:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: 可选，≤100 字，补充为什么不准
+    FeedbackRecord:
+      type: object
+      description: 已提交的反馈
+      required: [rating, submittedAt]
+      properties:
+        rating:
+          $ref: '#/components/schemas/Rating'
+        reason:
+          type: string
+          nullable: true
+          description: 用户补充说明
+        submittedAt:
+          type: string
+          format: date-time
+          description: 提交时间
+
+    # ---------- 用户与设置 ----------
+    User:
+      type: object
+      description: 当前用户资料
+      required: [userId, stage, grade, subjects, guardianAuthorization, onboardingCompleted]
+      properties:
+        userId:
+          type: string
+          description: 用户 ID
+        stage:
+          $ref: '#/components/schemas/Stage'
+        grade:
+          type: string
+          description: 年级，如「初二」「高二」
+        subjects:
+          type: array
+          description: 学科列表
+          items:
+            $ref: '#/components/schemas/Subject'
+        guardianAuthorization:
+          type: object
+          description: 监护人授权状态
+          required: [status]
+          properties:
+            status:
+              type: string
+              description: 授权状态
+            expiresAt:
+              type: string
+              format: date-time
+              description: 授权到期时间
+        onboardingCompleted:
+          type: boolean
+          description: 是否已完成建档引导
+    UserProfilePut:
+      type: object
+      description: 幂等建档请求体，字段全必填
+      required: [stage, grade, subjects]
+      properties:
+        stage:
+          $ref: '#/components/schemas/Stage'
+        grade:
+          type: string
+          description: 年级，如「初二」「高二」
+        subjects:
+          type: array
+          description: 学科枚举数组，1-9 项
+          minItems: 1
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/Subject'
+    UserProfilePatch:
+      type: object
+      description: 局部更新请求体，字段全可选
+      properties:
+        stage:
+          $ref: '#/components/schemas/Stage'
+        grade:
+          type: string
+          description: 年级，如「初二」「高二」
+        subjects:
+          type: array
+          description: 学科枚举数组，1-9 项
+          minItems: 1
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/Subject'
+    Settings:
+      type: object
+      description: 用户设置。权重数值（α、β 及各子权重）不通过任何用户侧接口暴露（PRD 5.2）
+      required: [aiWeightTuningEnabled, sendTextToAI, updatedAt]
+      properties:
+        aiWeightTuningEnabled:
+          type: boolean
+          description: 是否启用 AI 自动调权，默认 true；关闭后固定使用默认权重
+        sendTextToAI:
+          type: boolean
+          description: 是否允许自由文本出域，默认 false；关闭时仅用结构化特征生成
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间
+    SettingsUpdate:
+      type: object
+      description: 设置更新请求体，至少传一项
+      minProperties: 1
+      properties:
+        aiWeightTuningEnabled:
+          type: boolean
+          description: 默认 true；关闭后固定使用默认权重
+        sendTextToAI:
+          type: boolean
+          description: 默认 false；关闭时目标描述等自由文本不出域，仅用结构化特征生成
+    GuardianAuthorizationRequest:
+      type: object
+      description: 监护人邮箱与手机号二选一必填
+      minProperties: 1
+      properties:
+        guardianEmail:
+          type: string
+          description: 监护人邮箱（与 guardianPhone 二选一）
+        guardianPhone:
+          type: string
+          description: 监护人手机号（与 guardianEmail 二选一）
+
+    # ---------- 学习目标 ----------
+    GoalProgress:
+      type: object
+      description: 目标进度
+      required: [plannedTasks, completedTasks, ratio]
+      properties:
+        plannedTasks:
+          type: integer
+          description: 已规划任务数
+        completedTasks:
+          type: integer
+          description: 已完成任务数
+        ratio:
+          type: number
+          description: 完成比例
+    Goal:
+      type: object
+      description: 学习目标
+      required: [goalId, type, subject, title, status, progress, createdAt]
+      properties:
+        goalId:
+          type: string
+          description: 目标 ID
+        type:
+          $ref: '#/components/schemas/GoalType'
+        subject:
+          $ref: '#/components/schemas/Subject'
+        title:
+          type: string
+          description: 目标标题
+        description:
+          type: string
+          nullable: true
+          description: 目标补充描述
+        targetDate:
+          type: string
+          format: date
+          nullable: true
+          description: 目标日期
+        status:
+          type: string
+          description: 目标状态
+          enum: [active, archived]
+        progress:
+          $ref: '#/components/schemas/GoalProgress'
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+    GoalSummary:
+      type: object
+      description: 列表中的目标条目
+      required: [goalId, type, subject, title, status, progress]
+      properties:
+        goalId:
+          type: string
+          description: 目标 ID
+        type:
+          $ref: '#/components/schemas/GoalType'
+        subject:
+          $ref: '#/components/schemas/Subject'
+        title:
+          type: string
+          description: 目标标题
+        targetDate:
+          type: string
+          format: date
+          nullable: true
+          description: 目标日期
+        status:
+          type: string
+          description: 目标状态
+          enum: [active, archived]
+        progress:
+          $ref: '#/components/schemas/GoalProgress'
+    GoalCreate:
+      type: object
+      description: 创建目标请求体
+      required: [type, subject, title]
+      properties:
+        type:
+          $ref: '#/components/schemas/GoalType'
+        subject:
+          allOf:
+            - $ref: '#/components/schemas/Subject'
+          description: 所属学科，跨学科目标填 other
+        title:
+          type: string
+          maxLength: 50
+          description: ≤50 字，如「两周后期中考试数学 120+」
+        description:
+          type: string
+          maxLength: 200
+          description: 可选，≤200 字自由文本，出域受 sendTextToAI 控制
+        targetDate:
+          type: string
+          format: date
+          description: 可选，短期目标建议必填
+        templateId:
+          type: string
+          description: 可选，从预设模板创建时带上
+    GoalUpdate:
+      type: object
+      description: 更新 / 归档目标请求体，字段全可选
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          maxLength: 50
+          description: 目标标题
+        description:
+          type: string
+          maxLength: 200
+          description: 目标补充描述
+        targetDate:
+          type: string
+          format: date
+          description: 目标日期
+        status:
+          type: string
+          description: active / archived（归档代替删除）
+          enum: [active, archived]
+    GoalList:
+      type: object
+      description: 目标列表响应
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ---------- 学习计划 ----------
+    PlanTask:
+      type: object
+      description: 计划内的单个任务
+      required: [taskId, subject, topic, estimatedMinutes, priority, status]
+      properties:
+        taskId:
+          type: string
+          description: 任务 ID
+        subject:
+          $ref: '#/components/schemas/Subject'
+        topic:
+          type: string
+          description: 内容方向，颗粒度到「学科 + 方向」，不含具体题目
+        estimatedMinutes:
+          type: integer
+          description: 预计时长（分钟）
+        priority:
+          type: integer
+          description: 优先级，数字越小越靠前
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        goalId:
+          type: string
+          nullable: true
+          description: 关联目标 ID；无关联时为 null
+    PlanTaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/PlanTask'
+        - type: object
+          description: 任务调整后的返回结构
+          required: [removed, userAdjusted, updatedAt]
+          properties:
+            removed:
+              type: boolean
+              description: 是否已被用户删除（软删除，保留反馈信号）
+            userAdjusted:
+              type: boolean
+              description: 是否被用户手动调整过，作为算法反馈信号
+            updatedAt:
+              type: string
+              format: date-time
+              description: 更新时间
+    PlanTaskUpdate:
+      type: object
+      description: 调整任务请求体，至少传一项
+      minProperties: 1
+      properties:
+        estimatedMinutes:
+          type: integer
+          description: 用户手动改时长
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        removed:
+          type: boolean
+          description: true 表示删除该任务（软删除，保留反馈信号）
+    PlanAdaptation:
+      type: object
+      description: 本次计划基于哪次状态评估做了强度调整；新用户无历史数据时整体为 null
+      required: [assessmentId, stateLabel, adjustment, note]
+      properties:
+        assessmentId:
+          type: string
+          description: 依据的状态评估 ID
+        stateLabel:
+          $ref: '#/components/schemas/StateLabel'
+        adjustment:
+          type: string
+          description: 调整方向，如 reduce_load
+        note:
+          type: string
+          description: 面向用户的调整说明
+    Plan:
+      type: object
+      description: 学习计划
+      required: [planId, planDate, availableMinutes, tasks, createdAt]
+      properties:
+        planId:
+          type: string
+          description: 计划 ID
+        planDate:
+          type: string
+          format: date
+          description: 计划归属日期
+        availableMinutes:
+          type: integer
+          description: 本次可用学习时间（分钟）
+        adaptedFrom:
+          allOf:
+            - $ref: '#/components/schemas/PlanAdaptation'
+          nullable: true
+          description: 新用户无历史数据时为 null
+        tasks:
+          type: array
+          description: 任务列表
+          items:
+            $ref: '#/components/schemas/PlanTask'
+        createdAt:
+          type: string
+          format: date-time
+          description: 生成时间
+    PlanCreate:
+      type: object
+      description: 生成计划请求体
+      required: [planDate, availableMinutes]
+      properties:
+        planDate:
+          type: string
+          format: date
+          description: 计划归属日期
+        availableMinutes:
+          type: integer
+          minimum: 10
+          maximum: 600
+          description: 本次可用学习时间，10-600 分钟
+        goalIds:
+          type: array
+          description: 可选，关联目标；不传则使用全部 active 目标
+          items:
+            type: string
+        regenerate:
+          type: boolean
+          default: false
+          description: 可选，默认 false；true 覆盖当日已有计划
+    PlanList:
+      type: object
+      description: 计划列表响应
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plan'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ---------- 学习记录 ----------
+    RecordBehavior:
+      type: object
+      description: 行为数据（系统自动记录为主）
+      required: [completion]
+      properties:
+        completion:
+          $ref: '#/components/schemas/Completion'
+        accuracy:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 可选，正确率 0-1；无客观测验时不传，服务端将该项权重归零重分配
+        interruptions:
+          type: integer
+          default: 0
+          description: 可选，中断次数，默认 0
+        blurCount:
+          type: integer
+          description: 可选，页面失焦次数（小程序弱信号），客户端自动采集
+    RecordSelfReport:
+      type: object
+      description: 自评数据，控制在 10 秒内完成
+      required: [focus, fatigue, emotion, difficultyFeel]
+      properties:
+        focus:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: 专注度 1-5
+        fatigue:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: 疲劳度 1-5
+        emotion:
+          $ref: '#/components/schemas/Emotion'
+        difficultyFeel:
+          $ref: '#/components/schemas/DifficultyFeel'
+    RecordInput:
+      type: object
+      description: 提交学习记录请求体
+      required: [subject, startedAt, durationMinutes, behavior, selfReport]
+      properties:
+        subject:
+          allOf:
+            - $ref: '#/components/schemas/Subject'
+          description: 状态按学科分开评估，故必填
+        startedAt:
+          type: string
+          format: date-time
+          description: 学习开始时间
+        durationMinutes:
+          type: integer
+          minimum: 1
+          maximum: 600
+          description: 实际学习时长，1-600
+        planTaskId:
+          type: string
+          description: 可选，关联计划任务；自由学习可不传
+        behavior:
+          $ref: '#/components/schemas/RecordBehavior'
+        selfReport:
+          $ref: '#/components/schemas/RecordSelfReport'
+        note:
+          type: string
+          maxLength: 100
+          description: 可选，≤100 字备注，出域受 sendTextToAI 控制
+        skipRecommendation:
+          type: boolean
+          default: false
+          description: 可选，默认 false；true 时不自动生成建议
+    LearningRecord:
+      type: object
+      description: 已保存的学习记录
+      required: [recordId, subject, startedAt, durationMinutes, behavior, selfReport, createdAt]
+      properties:
+        recordId:
+          type: string
+          description: 记录 ID
+        subject:
+          $ref: '#/components/schemas/Subject'
+        startedAt:
+          type: string
+          format: date-time
+          description: 学习开始时间
+        durationMinutes:
+          type: integer
+          description: 实际学习时长
+        planTaskId:
+          type: string
+          nullable: true
+          description: 关联的计划任务；自由学习为 null
+        behavior:
+          $ref: '#/components/schemas/RecordBehavior'
+        selfReport:
+          $ref: '#/components/schemas/RecordSelfReport'
+        createdAt:
+          type: string
+          format: date-time
+          description: 提交时间
+    AssessmentSnapshot:
+      type: object
+      description: 提交/删除记录后同步重算得到的状态快照
+      required: [assessmentId, subject, windowScore, trend, stateLabel, dataSufficient, recordCount]
+      properties:
+        assessmentId:
+          type: string
+          description: 状态评估 ID
+        subject:
+          $ref: '#/components/schemas/Subject'
+        windowScore:
+          type: number
+          description: 滑动窗口状态分
+        trend:
+          $ref: '#/components/schemas/Trend'
+        stateLabel:
+          $ref: '#/components/schemas/StateLabel'
+        dataSufficient:
+          type: boolean
+          description: 数据是否充足；false 时不下结论
+        recordCount:
+          type: integer
+          description: 窗口内记录数
+    LearningRecordCreated:
+      allOf:
+        - $ref: '#/components/schemas/LearningRecord'
+        - type: object
+          description: 提交成功后附带的状态快照与建议句柄
+          required: [assessment]
+          properties:
+            assessment:
+              $ref: '#/components/schemas/AssessmentSnapshot'
+            recommendation:
+              type: object
+              nullable: true
+              description: 自动创建的建议生成任务；skipRecommendation=true 时为 null
+              required: [recommendationId, status]
+              properties:
+                recommendationId:
+                  type: string
+                  description: 建议 ID，用于轮询 GET /recommendations/{id}
+                status:
+                  type: string
+                  description: 生成状态
+    LearningRecordList:
+      type: object
+      description: 学习记录列表响应
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    LearningRecordDeleted:
+      type: object
+      description: 删除记录后的响应，含重算后的状态
+      required: [deleted, recordId, recalculatedAssessment]
+      properties:
+        deleted:
+          type: boolean
+          description: 是否删除成功
+        recordId:
+          type: string
+          description: 被删除的记录 ID
+        recalculatedAssessment:
+          $ref: '#/components/schemas/AssessmentSnapshot'
+
+    # ---------- 状态评估 ----------
+    StateBasedOn:
+      type: object
+      description: 可解释性依据（PRD 8.3），不暴露权重与公式
+      required: [recordIds, signals]
+      properties:
+        recordIds:
+          type: array
+          description: 参与计算的记录 ID
+          items:
+            type: string
+        signals:
+          type: array
+          description: 面向用户的信号说明
+          items:
+            type: string
+    StateResult:
+      type: object
+      description: 单学科当前状态结果；数据不足时 assessmentId 为 null 且不输出 windowScore / trend
+      required: [subject, stateLabel, displayText, dataSufficient, recordCount, windowSize]
+      properties:
+        assessmentId:
+          type: string
+          nullable: true
+          description: 状态评估 ID；数据不足时为 null
+        subject:
+          $ref: '#/components/schemas/Subject'
+        windowScore:
+          type: number
+          description: 滑动窗口状态分，数据不足时不返回
+        trend:
+          $ref: '#/components/schemas/Trend'
+        stateLabel:
+          $ref: '#/components/schemas/StateLabel'
+        displayText:
+          type: string
+          description: 面向用户的自然语言说明
+        dataSufficient:
+          type: boolean
+          description: 数据是否充足
+        recordCount:
+          type: integer
+          description: 窗口内记录数
+        windowSize:
+          type: integer
+          description: 滑动窗口长度
+        basedOn:
+          $ref: '#/components/schemas/StateBasedOn'
+        computedAt:
+          type: string
+          format: date-time
+          description: 计算时间
+    StateResultList:
+      type: object
+      description: 当前状态响应；不传 subject 时返回全部学科（不做跨学科加权综合）
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StateResult'
+    AssessmentHistoryPoint:
+      type: object
+      description: 趋势曲线上的单个数据点
+      required: [date, windowScore, stateLabel, trend]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 日期
+        windowScore:
+          type: number
+          description: 当日窗口状态分
+        stateLabel:
+          $ref: '#/components/schemas/StateLabel'
+        trend:
+          $ref: '#/components/schemas/Trend'
+    AssessmentHistory:
+      type: object
+      description: 状态历史响应
+      required: [subject, items]
+      properties:
+        subject:
+          $ref: '#/components/schemas/Subject'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssessmentHistoryPoint'
+    AssessmentFeedback:
+      type: object
+      description: 「这个判断准不准」反馈请求体
+      required: [accurate]
+      properties:
+        accurate:
+          type: boolean
+          description: 判断是否准确
+
+    # ---------- 个性化建议 ----------
+    RecommendationItem:
+      type: object
+      description: 单条建议
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          description: 建议标题
+        content:
+          type: string
+          description: 建议正文，口语化且贴合本次学习情况
+    RecommendationBasedOn:
+      type: object
+      description: 建议的生成依据（PRD 6.5 留痕）
+      required: [stateLabel, explain]
+      properties:
+        assessmentId:
+          type: string
+          description: 依据的状态评估 ID
+        recordId:
+          type: string
+          description: 依据的学习记录 ID
+        stateLabel:
+          $ref: '#/components/schemas/StateLabel'
+        explain:
+          type: string
+          description: 面向用户的依据说明
+    Recommendation:
+      type: object
+      description: 建议详情；生成中时 items 为 null，兜底时 generation.source 为 template 但结构一致
+      required: [recommendationId, scene, generation]
+      properties:
+        recommendationId:
+          type: string
+          description: 建议 ID
+        scene:
+          $ref: '#/components/schemas/RecScene'
+        subject:
+          allOf:
+            - $ref: '#/components/schemas/Subject'
+          nullable: true
+          description: 关联学科
+        generation:
+          $ref: '#/components/schemas/GenerationStatus'
+        items:
+          type: array
+          nullable: true
+          description: 建议内容；生成中为 null
+          items:
+            $ref: '#/components/schemas/RecommendationItem'
+        basedOn:
+          $ref: '#/components/schemas/RecommendationBasedOn'
+        feedback:
+          allOf:
+            - $ref: '#/components/schemas/FeedbackRecord'
+          nullable: true
+          description: 用户反馈；未反馈时为 null
+    RecommendationPending:
+      type: object
+      description: 手动请求建议后的受理响应
+      required: [recommendationId, scene, generation, createdAt]
+      properties:
+        recommendationId:
+          type: string
+          description: 建议 ID，用于轮询
+        scene:
+          $ref: '#/components/schemas/RecScene'
+        subject:
+          allOf:
+            - $ref: '#/components/schemas/Subject'
+          nullable: true
+          description: 关联学科
+        generation:
+          $ref: '#/components/schemas/GenerationStatus'
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+    RecommendationCreate:
+      type: object
+      description: 手动请求生成建议请求体
+      required: [scene]
+      properties:
+        scene:
+          $ref: '#/components/schemas/RecScene'
+        subject:
+          allOf:
+            - $ref: '#/components/schemas/Subject'
+          description: 可选，post_session 场景建议必填
+        recordId:
+          type: string
+          description: 可选，post_session 场景关联的学习记录
+    RecommendationList:
+      type: object
+      description: 建议列表响应
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    RecommendationFeedbackResult:
+      type: object
+      description: 建议反馈提交结果
+      required: [recommendationId, feedback]
+      properties:
+        recommendationId:
+          type: string
+          description: 建议 ID
+        feedback:
+          $ref: '#/components/schemas/FeedbackRecord'
+
+    # ---------- 学习总结与复盘 ----------
+    SummaryContent:
+      type: object
+      description: 复盘固定输出框架（PRD 5.4），数据不足时整体为 null
+      required: [overview, patterns, suggestions, encouragement]
+      properties:
+        overview:
+          type: string
+          description: 这段时间的状态概览
+        patterns:
+          type: array
+          description: 观察到的规律
+          items:
+            type: string
+        suggestions:
+          type: array
+          description: 下阶段建议，可直接落到计划调整
+          items:
+            type: string
+        encouragement:
+          type: string
+          description: 一句鼓励性收尾
+    SummaryDataPoints:
+      type: object
+      description: 复盘引用的数据点；数据不足时返回 recordCount 与 minRequired
+      properties:
+        recordCount:
+          type: integer
+          description: 区间内记录数
+        subjects:
+          type: array
+          description: 覆盖的学科
+          items:
+            $ref: '#/components/schemas/Subject'
+        planCompletionRatio:
+          type: number
+          description: 计划完成比例
+        referencedAssessmentIds:
+          type: array
+          description: 引用的状态评估 ID
+          items:
+            type: string
+        minRequired:
+          type: integer
+          description: 生成复盘所需的最小记录数，数据不足时出现
+    Summary:
+      type: object
+      description: 复盘详情
+      required: [summaryId, generation]
+      properties:
+        summaryId:
+          type: string
+          description: 复盘 ID
+        periodStart:
+          type: string
+          format: date
+          description: 起始日期
+        periodEnd:
+          type: string
+          format: date
+          description: 结束日期
+        generation:
+          $ref: '#/components/schemas/GenerationStatus'
+        content:
+          allOf:
+            - $ref: '#/components/schemas/SummaryContent'
+          nullable: true
+          description: 数据不足或生成失败时为 null
+        dataPoints:
+          $ref: '#/components/schemas/SummaryDataPoints'
+        message:
+          type: string
+          description: 数据不足时的提示文案
+        feedback:
+          allOf:
+            - $ref: '#/components/schemas/FeedbackRecord'
+          nullable: true
+          description: 用户反馈；未反馈时为 null
+    SummaryPending:
+      type: object
+      description: 手动触发复盘后的受理响应
+      required: [summaryId, periodStart, periodEnd, generation, createdAt]
+      properties:
+        summaryId:
+          type: string
+          description: 复盘 ID，用于轮询
+        periodStart:
+          type: string
+          format: date
+          description: 起始日期
+        periodEnd:
+          type: string
+          format: date
+          description: 结束日期
+        generation:
+          $ref: '#/components/schemas/GenerationStatus'
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+    SummaryCreate:
+      type: object
+      description: 手动触发复盘请求体
+      required: [periodStart, periodEnd]
+      properties:
+        periodStart:
+          type: string
+          format: date
+          description: 起始日期
+        periodEnd:
+          type: string
+          format: date
+          description: 结束日期，区间长度 3-31 天
+    SummaryList:
+      type: object
+      description: 复盘列表响应
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Summary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SummaryFeedbackResult:
+      type: object
+      description: 复盘反馈提交结果
+      required: [summaryId, feedback]
+      properties:
+        summaryId:
+          type: string
+          description: 复盘 ID
+        feedback:
+          $ref: '#/components/schemas/FeedbackRecord'
