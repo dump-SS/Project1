@@ -7,6 +7,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 // 两边都不必为对方改写，import 时写明扩展名即可。
 import PersonalDataPage from './pages/PersonalData/index.tsx'
 import StudyTimerPage from './pages/StudyTimer/index.jsx'
+import StudyPlanEditor from './pages/StudyPlanEditor/index.jsx'
+import StudyGuide from './pages/StudyGuide/index.jsx'
 
 export default function App() {
   return (
@@ -20,6 +22,8 @@ export default function App() {
             等 mock-server 的会话校验对接好后再包一层路由守卫 */}
         <Route path="/personal-data" element={<PersonalDataPage />} />
         <Route path="/study-timer" element={<StudyTimerPage />} />
+        <Route path="/study-plan" element={<StudyPlanEditor />} />
+        <Route path="/study-guide" element={<StudyGuide />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </div>
