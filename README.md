@@ -41,6 +41,28 @@ cp .env.example .env.local
 
 后端没起来时页面不会白屏或报错：每个模块保留占位数据，并在卡片右上角显示「占位数据」标记，悬停可看失败原因。
 
+## 静态资源
+
+`public/` 下的文件由 Vite 原样伺服在站点根路径，不参与打包也不加 hash，任何模块都能直接用绝对路径引用，
+不需要 `import`：
+
+| 文件 | 引用方式 | 说明 |
+|---|---|---|
+| `public/bg-sky.jpg` | `/bg-sky.jpg` | 天空背景图，1280×960 / 40 KB，色调与主题色板一致 |
+
+```css
+/* CSS 里 */
+background-image: url('/bg-sky.jpg');
+```
+
+```tsx
+{/* TSX 里 */}
+<img src="/bg-sky.jpg" alt="" />
+```
+
+放 `public/` 而不是 `src/assets/` 是为了让另外几个页面也能直接引用——`src/assets/` 需要 `import` 且路径随目录层级变化。
+文件名一律用 ASCII，中文名在 URL 里需要百分号编码，容易踩坑。
+
 ## 目录结构
 
 ```
