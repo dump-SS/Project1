@@ -1,5 +1,8 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext.jsx'
+import RequireAuth from './components/RequireAuth/index.jsx'
+import AppShell from './components/AppShell/index.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
@@ -13,19 +16,28 @@ import StudyGuide from './pages/StudyGuide/index.jsx'
 export default function App() {
   return (
     <div className="app-shell">
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        {/* TODO: 登录态校验待接入 —— 该路由目前可直接访问，
-            等 mock-server 的会话校验对接好后再包一层路由守卫 */}
-        <Route path="/personal-data" element={<PersonalDataPage />} />
-        <Route path="/study-timer" element={<StudyTimerPage />} />
-        <Route path="/study-plan" element={<StudyPlanEditor />} />
-        <Route path="/study-guide" element={<StudyGuide />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+          {/* 以下四条业务路由收在 RequireAuth 之下：未登录访问会被弹回 /login，
+              登录成功后会带回原本想去的地址（见 RequireAuth 与 LoginPage）。
+              AppShell 是四条路由共用的顶部导航条，登录/注册/找回密码页不套它。 */}
+          <Route element={<RequireAuth />}>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<Navigate to="/study-guide" replace />} />
+              <Route path="/personal-data" element={<PersonalDataPage />} />
+              <Route path="/study-timer" element={<StudyTimerPage />} />
+              <Route path="/study-plan" element={<StudyPlanEditor />} />
+              <Route path="/study-guide" element={<StudyGuide />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </AuthProvider>
     </div>
   )
 }

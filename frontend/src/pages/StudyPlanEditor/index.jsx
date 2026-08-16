@@ -30,7 +30,7 @@ export default function StudyPlanEditor() {
           placeholder="e.g. 复习函数章节"
         />
 
-        <EnterButton />
+        <EnterButton to="/study-timer" />
       </main>
     </>
   )

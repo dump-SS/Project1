@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // 邮件右下角用方形 icon 更合适（占位小、品牌一致）
-const SRC = path.join(__dirname, '..', 'frontend', 'public', 'brand', 'favicon.png')
+// 注：原指向 frontend/public/brand/favicon.png，该文件从未提交到仓库
+// （favicon 相关改动漏了 git add），改用已存在的 logo-mark-on-light.png，
+// 定位一致（浅底方形品牌图标）。
+const SRC = path.join(__dirname, '..', 'frontend', 'public', 'brand', 'logo-mark-on-light.png')
 const OUT_JS = path.join(__dirname, 'email-logo.b64.js')
 
 const buf = fs.readFileSync(SRC)

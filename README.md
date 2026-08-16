@@ -21,10 +21,29 @@ docs/              接口契约
 
 现有路由：
 
-| 路径 | 页面 | 语言 |
-|---|---|---|
-| `/login` `/register` `/forgot-password` | 登录 / 注册 / 找回密码 | JavaScript |
-| `/personal-data` | 个人数据总览（6 个模块） | TypeScript |
+| 路径 | 页面 | 语言 | 登录态 |
+|---|---|---|---|
+| `/login` `/register` `/forgot-password` | 登录 / 注册 / 找回密码 | JavaScript | 无需登录 |
+| `/personal-data` | 个人数据总览（6 个模块） | TypeScript | 需要登录 |
+| `/study-guide` | 导学计划（登录后默认落地页） | JavaScript | 需要登录 |
+| `/study-plan` | 学习计划编辑 | JavaScript | 需要登录 |
+| `/study-timer` | 专注计时（番茄钟） | JavaScript | 需要登录 |
+
+## 登录态与页面导航
+
+四个业务页面共用一层整合逻辑，改动集中在三个文件，新加页面时了解一下即可，不需要每次都重新实现：
+
+- `src/context/AuthContext.jsx`：应用挂载时调用一次 `GET /auth/me` 校验 session（HttpOnly cookie，浏览器自动带），暴露 `useAuth()` 给需要登录态的组件用。
+- `src/components/RequireAuth/index.jsx`：路由守卫。未登录访问业务页面会被弹回 `/login`，并记下原本想访问的路径；登录成功后 `LoginPage.jsx` 会把用户带回原目标，没有原目标则去 `/study-guide`。
+- `src/components/AppShell/index.jsx`：四个业务页面共用的顶部导航条（个人数据 / 导学计划 / 编辑计划 / 专注计时 + 当前用户邮箱 + 退出登录），只包这四条路由，登录/注册/找回密码页不受影响、保持各自原有设计。
+
+**这次整合只做到「能登录、能互相跳转」，没有统一各页面内部的配色/字体/背景**——个人数据页用 `theme.ts` 这套令牌，其余三类页面（登录/番茄钟/导学计划）都各自定义了一套配色（主色分别是 `#7EC8E3`、`#4AD1FF`、`#009fff`），差异明显，是已知情况，不是这次要处理的范围。
+
+### StudyGuide 与 StudyPlanEditor 的关系
+
+两个页面内容目前高度相似（时间设置 + 任务设置 + 进入按钮），**不是重复实现**：设计意图是按历史数据量切换——数据不足时走引导式的 `StudyGuide`（对应 PRD 5.1「若无历史数据走规则模板」），数据积累到一定程度后走可编辑的 `StudyPlanEditor`（对应「若有历史数据，结合状态动态调整」）。
+
+但 `mock-server` 目前没有 `/learning-records` / `/goals` 接口，做不了真实的数据量判断，所以现在**两个入口都摆在导航条里，不做自动切换**，等业务后端补上这两个接口后再把判断逻辑接上。「进入」按钮（`EnterButton.jsx`）两边都指向 `/study-timer`——按这份计划开始执行学习任务。
 
 ## 本地启动
 
@@ -114,6 +133,13 @@ frontend/src/
 放 `public/` 而不是 `src/assets/` 是为了让所有页面都能直接引用——`src/assets/` 需要 `import` 且路径随目录层级变化。
 文件名一律用 ASCII，中文名在 URL 里需要百分号编码，容易踩坑。
 
+`mock-server/generate-email-logo.mjs` 会把 `logo-mark-on-light.png` 转成 base64 写入 `mock-server/email-logo.b64.js`（邮件模板内联用，避免邮件客户端拦截外链图片）。这个输出文件不是自动生成的，改了源图之后要重新跑一次：
+
+```bash
+cd mock-server
+node generate-email-logo.mjs
+```
+
 ## 接口对接现状
 
 `openapi.yaml` 里**没有任何统计类接口**，所有日/周/月汇总均由前端基于 `GET /learning-records` 聚合完成，
@@ -170,9 +196,9 @@ Goal:
 
 ## 待办
 
-- `/personal-data` 目前**没有登录态守卫**，可直接访问。等 `mock-server` 的会话校验对接好后需要包一层路由守卫
-  （见 `frontend/src/App.jsx` 的 TODO）。
 - 构建产物单 chunk 超过 500 KB（主要是 antd）。黑客松阶段可忽略，需要优化时配 `build.rollupOptions.output.manualChunks`。
+- `index.html` 没有声明 favicon（提交记录里写了「添加favicon」，但对应的 `favicon.png` 没有被提交，`mock-server/generate-email-logo.mjs` 也因此一度指向一个不存在的文件——已改成指向 `logo-mark-on-light.png` 让 `npm start` 能跑起来，但 favicon 本身还是缺的，需要重新加）。
+- `StudyGuide` / `StudyPlanEditor` 的数据量驱动切换目前是摆设（两个入口都在导航条里，不会自动判断），等 `/learning-records` `/goals` 接口就绪后再接上，见上文说明。
 
 ## 约定
 

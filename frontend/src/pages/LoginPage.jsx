@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import FormField from '../components/FormField.jsx'
 import { LogoIcon, MailIcon, LockIcon, ShieldIcon } from '../components/Icons.jsx'
 import { useCodeCountdown } from '../hooks/useCodeCountdown.js'
 import { validateEmail, validateCode, validatePassword } from '../utils/validators.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import {
   sendLoginCode,
   loginByEmailCode,
@@ -13,6 +14,8 @@ import {
 // loginMode: 'code' 邮箱验证码登录（默认） | 'password' 密码登录
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { refresh } = useAuth()
   const [mode, setMode] = useState('code')
 
   // 公共字段
@@ -76,8 +79,12 @@ export default function LoginPage() {
         await loginByPassword(email, password)
       }
       setTip({ type: 'success', msg: '登录成功，即将进入首页…' })
-      // TODO: 跳转实际首页
-      setTimeout(() => navigate('/'), 800)
+      // 登录接口只签发 session cookie，不会更新 AuthContext 里缓存的登录态，
+      // 不先 refresh() 就跳转会被 RequireAuth 当成未登录弹回登录页。
+      // from 是 RequireAuth 重定向时带过来的原目标路径，没有则回默认落地页。
+      await refresh()
+      const from = location.state?.from?.pathname ?? '/study-guide'
+      setTimeout(() => navigate(from, { replace: true }), 800)
     } catch (e) {
       setTip({ type: 'error', msg: e.message || '登录失败' })
     } finally {

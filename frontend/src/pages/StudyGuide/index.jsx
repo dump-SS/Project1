@@ -57,7 +57,7 @@ export default function StudyGuide() {
           validate={TIME_VALIDATOR}
         />
 
-        <EnterButton />
+        <EnterButton to="/study-timer" />
       </main>
     </>
   )
