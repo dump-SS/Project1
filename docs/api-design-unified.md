@@ -4,6 +4,15 @@
 - 整合来源：`api-design-mvp.md`（v1）与 `api-design-mvp-v2.md`（v2），取两版优点合并统一，本文档为唯一生效版本
 - 覆盖主流程：**创建目标 → 生成计划 → 提交学习记录 → 计算状态 → 返回建议**（外加周期复盘与反馈回路）
 
+变更记录：
+- v1.1（契约修订）：统一 `insufficient_data` 的表示——`AssessmentSnapshot` 与 `StateResult` 对齐
+  （`assessmentId` 可空、`windowScore`/`trend` 数据不足时不返回），4.3 节示例同步修正；
+  `Idempotency-Key` 从仅 `POST /learning-records` 扩展到全部 16 个写操作；`openapi.yaml` 补齐
+  29 个 operation 的 `500 INTERNAL_ERROR` 响应（本文 0.2 节已列但契约缺失）；
+  `LearningRecordCreated.recommendation.status` 补 enum（恒为 pending）；
+  `subjects` 上限 9→10（Subject 枚举共 10 个取值，原上限会让全选用户被 400 拦掉）；
+  监护人 403 范围表述精确化（重新提交授权的接口始终放行，避免授权失效后死锁）。
+
 ---
 
 ## 0. 通用约定
@@ -18,7 +27,7 @@
 | 时间 | ISO 8601 带时区，如 `2026-08-16T20:30:00+08:00`；纯日期用 `2026-08-16` |
 | 命名 | 路径用复数名词，字段用 camelCase |
 | 分页 | query 参数 `page`（默认 1）、`pageSize`（默认 20，上限 50）；列表响应固定为 `items` + `pagination` |
-| 幂等 | 写接口可选携带 `Idempotency-Key` 头，24 小时内重复键直接返回首次结果（用于弱网下重复提交学习记录） |
+| 幂等 | 写接口可选携带 `Idempotency-Key` 头，24 小时内重复键直接返回首次结果。已覆盖全部 16 个写操作（唯一豁免 `GET /guardian-authorization/confirm`，公开链接无鉴权，幂等键无意义） |
 | 资源作用域 | 所有资源以当前 token 用户为作用域，不设 `userId` 路径参数，不存在跨用户读取接口 |
 
 ### 0.2 统一错误格式
@@ -107,7 +116,7 @@
 |---|---|---|---|
 | stage | string(enum) | 是 | `junior` / `senior` |
 | grade | string | 是 | 年级，如 `"初二"`、`"高二"` |
-| subjects | string[] | 是 | 学科枚举数组，1-9 项 |
+| subjects | string[] | 是 | 学科枚举数组，1-10 项（Subject 枚举共 10 个取值，允许全选） |
 
 响应 `200`：同 1.1 的用户对象。
 
@@ -153,7 +162,8 @@ POST 请求参数：
 | guardianEmail | string | 二选一 | 监护人邮箱 |
 | guardianPhone | string | 二选一 | 监护人手机号 |
 
-> 授权失效时所有写接口返回 `403` + `GUARDIAN_AUTHORIZATION_EXPIRED`，读接口不受影响。
+> 授权失效时除「重新提交监护人授权」本身之外的所有写接口返回 `403` + `GUARDIAN_AUTHORIZATION_EXPIRED`，读接口不受影响。
+> （`POST /me/guardian-authorization` 必须始终放行：授权失效的用户恰恰需要靠它重新发起授权，否则死锁。）
 
 ---
 
@@ -441,16 +451,17 @@ POST 请求参数：
   "deleted": true,
   "recordId": "r_88012",
   "recalculatedAssessment": {
-    "assessmentId": "a_7751",
+    "assessmentId": null,
     "subject": "math",
-    "windowScore": 0.53,
-    "trend": "flat",
     "stateLabel": "insufficient_data",
     "dataSufficient": false,
     "recordCount": 2
   }
 }
 ```
+
+> 数据不足时快照与 `GET /assessments/current` 的语义一致：`assessmentId` 为 `null`，
+> 不输出 `windowScore` / `trend`（PRD 5.2「数据不足时不强行输出结论」）。
 
 ---
 

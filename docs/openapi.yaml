@@ -48,6 +48,8 @@ paths:
       description: 前端据此判断是否需要引导建档。
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 用户资料
           content:
             application/json:
@@ -65,6 +67,8 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
     put:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       tags: [用户与设置]
       operationId: putMe
       summary: 初始化用户资料（幂等建档，字段全必填）
@@ -81,6 +85,8 @@ paths:
               subjects: [math, english, physics]
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 建档后的用户对象
           content:
             application/json:
@@ -102,6 +108,8 @@ paths:
         '403':
           $ref: '#/components/responses/GuardianAuthorizationExpired'
     patch:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       tags: [用户与设置]
       operationId: patchMe
       summary: 更新用户资料（局部更新，字段全可选）
@@ -115,6 +123,8 @@ paths:
               subjects: [math, english, physics, chemistry]
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 更新后的用户对象
           content:
             application/json:
@@ -146,6 +156,8 @@ paths:
         权重数值（α、β 及各子权重）不通过任何用户侧接口暴露。
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 当前设置
           content:
             application/json:
@@ -158,6 +170,8 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
     patch:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       tags: [用户与设置]
       operationId: patchSettings
       summary: 更新用户设置（至少传一项）
@@ -171,6 +185,8 @@ paths:
               sendTextToAI: true
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 更新后的设置
           content:
             application/json:
@@ -189,6 +205,8 @@ paths:
 
   /me/guardian-authorization:
     post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       tags: [用户与设置]
       operationId: submitGuardianAuthorization
       summary: 提交监护人联系方式并发送确认请求
@@ -203,17 +221,23 @@ paths:
               guardianEmail: guardian@example.com
       responses:
         '202':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 确认请求已发送，等待监护人点击链接确认
         '400':
           $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthenticated'
     delete:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       tags: [用户与设置]
       operationId: revokeGuardianAuthorization
       summary: 撤销监护人授权（账号进入只读）
       responses:
         '204':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 已撤销，账号进入只读状态
         '401':
           $ref: '#/components/responses/Unauthenticated'
@@ -233,6 +257,8 @@ paths:
             type: string
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 授权确认成功
         '400':
           $ref: '#/components/responses/ValidationFailed'
@@ -241,6 +267,8 @@ paths:
 
   /goals:
     post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       tags: [学习目标]
       operationId: createGoal
       summary: 创建学习目标 ①
@@ -259,6 +287,8 @@ paths:
               targetDate: '2026-08-30'
       responses:
         '201':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 创建成功
           content:
             application/json:
@@ -306,6 +336,8 @@ paths:
         - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 目标列表
           content:
             application/json:
@@ -337,6 +369,7 @@ paths:
       summary: 更新 / 归档目标
       description: 归档代替删除，保留历史数据供复盘引用。
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/GoalId'
       requestBody:
         required: true
@@ -349,6 +382,8 @@ paths:
               status: active
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 完整目标对象
           content:
             application/json:
@@ -384,6 +419,8 @@ paths:
         语义是「请求生成一份计划」。服务端规则引擎结合最近一次状态评估决定任务强度，同步返回，不走 LLM
         （PRD 8.2：AI 不可用时仍能看计划）。同一 planDate 已有计划时返回 409，可传 regenerate=true 覆盖。
         新用户无历史数据时 adaptedFrom 为 null，走规则模板生成。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -396,6 +433,8 @@ paths:
               goalIds: [g_5501]
       responses:
         '201':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 生成成功
           content:
             application/json:
@@ -447,6 +486,7 @@ paths:
       operationId: listPlans
       summary: 计划列表
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - name: dateFrom
           in: query
           required: false
@@ -465,6 +505,8 @@ paths:
         - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 计划列表
           content:
             application/json:
@@ -501,6 +543,8 @@ paths:
         - $ref: '#/components/parameters/PlanId'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 计划详情，结构同生成计划的响应
           content:
             application/json:
@@ -538,6 +582,7 @@ paths:
         改时长、删任务、标完成度都走这里；每次调整记为算法反馈信号（PRD 5.1 交互要点），
         响应回显 userAdjusted。请求至少传一项字段。
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/PlanId'
         - $ref: '#/components/parameters/TaskId'
       requestBody:
@@ -551,6 +596,8 @@ paths:
               status: partial
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 更新后的任务
           content:
             application/json:
@@ -610,6 +657,8 @@ paths:
               note: 函数图像那块看不太进去
       responses:
         '201':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 提交成功，含同步重算的状态快照与建议句柄
           content:
             application/json:
@@ -678,6 +727,8 @@ paths:
         - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 记录列表
           content:
             application/json:
@@ -716,9 +767,12 @@ paths:
       description: |
         对应 PRD 5.2 边界场景「记录删除回溯」：删除后立即重算当前窗口，历史评估快照保留不改写。
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RecordId'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 删除成功，返回重算后的状态
           content:
             application/json:
@@ -728,10 +782,8 @@ paths:
                 deleted: true
                 recordId: r_88012
                 recalculatedAssessment:
-                  assessmentId: a_7751
+                  assessmentId: null
                   subject: math
-                  windowScore: 0.53
-                  trend: flat
                   stateLabel: insufficient_data
                   dataSufficient: false
                   recordCount: 2
@@ -761,6 +813,8 @@ paths:
             $ref: '#/components/schemas/Subject'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 当前状态列表
           content:
             application/json:
@@ -821,6 +875,8 @@ paths:
             format: date
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 状态历史序列
           content:
             application/json:
@@ -853,6 +909,7 @@ paths:
       summary: 提交「这个判断准不准」反馈
       description: PRD 第 9 节指标；一条评估至多一份反馈，PUT 幂等可覆盖。
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/AssessmentId'
       requestBody:
         required: true
@@ -864,6 +921,8 @@ paths:
               accurate: true
       responses:
         '204':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 反馈已记录
         '400':
           $ref: '#/components/responses/ValidationFailed'
@@ -882,6 +941,8 @@ paths:
       description: |
         常规路径由 POST /learning-records 自动创建，本接口仅用于手动刷新或阶段回顾；超频返回 429
         （PRD 6.4 控成本）。异步生成：返回 202 + generation.status = pending。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -894,6 +955,8 @@ paths:
               recordId: r_88012
       responses:
         '202':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 生成任务已创建
           content:
             application/json:
@@ -919,6 +982,7 @@ paths:
       operationId: listRecommendations
       summary: 建议列表
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - name: scene
           in: query
           required: false
@@ -943,6 +1007,8 @@ paths:
         - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 建议列表
           content:
             application/json:
@@ -986,6 +1052,8 @@ paths:
         - $ref: '#/components/parameters/RecommendationId'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 建议详情
           content:
             application/json:
@@ -1035,6 +1103,7 @@ paths:
       summary: 提交建议反馈
       description: 一条建议至多一份反馈，用户改主意即覆盖，PUT 幂等（PRD 6.5、第 9 节指标）。
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RecommendationId'
       requestBody:
         required: true
@@ -1046,6 +1115,8 @@ paths:
               rating: useful
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 反馈已记录
           content:
             application/json:
@@ -1074,6 +1145,8 @@ paths:
       description: |
         周复盘由后台定时任务自动创建，无需客户端调用；本接口供用户手动生成指定区间的总结，
         有每日次数上限，超限 429（PRD 5.4 控成本）。复盘不做模板兜底，失败即 failed。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -1085,6 +1158,8 @@ paths:
               periodEnd: '2026-08-16'
       responses:
         '202':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 生成任务已创建
           content:
             application/json:
@@ -1110,10 +1185,13 @@ paths:
       operationId: listSummaries
       summary: 复盘列表
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 复盘列表，按 periodEnd 倒序
           content:
             application/json:
@@ -1159,6 +1237,8 @@ paths:
         - $ref: '#/components/parameters/SummaryId'
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 复盘详情
           content:
             application/json:
@@ -1212,6 +1292,7 @@ paths:
       operationId: putSummaryFeedback
       summary: 提交复盘反馈
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/SummaryId'
       requestBody:
         required: true
@@ -1224,6 +1305,8 @@ paths:
               reason: 观察到的时段规律挺准
       responses:
         '200':
+        '500':
+          $ref: '#/components/responses/InternalServerError'
           description: 反馈已记录，结构同建议反馈
           content:
             application/json:
@@ -1379,6 +1462,16 @@ components:
             error:
               code: RATE_LIMITED
               message: 今日手动生成次数已达上限，请明天再试
+    InternalServerError:
+      description: 服务端错误。对齐 api-design-unified.md 0.2 节错误码表中的 500 INTERNAL_ERROR。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: 服务开小差了，请稍后再试
 
   schemas:
     # ---------- 枚举字典（PRD 0.4） ----------
@@ -1467,8 +1560,14 @@ components:
     GenerationStatus:
       type: object
       description: |
-        AI 异步生成状态。终态为 ready / insufficient_data / failed；
-        建议在 LLM 失败时降级为 template 兜底并仍返回 ready，复盘不做兜底。
+        AI 异步生成状态。终态为 ready / insufficient_data / failed；非终态 pending。
+        两类资源的兜底语义不同（api-design-unified.md 0.3 节）：
+        - 建议（Recommendation）：LLM 失败时降级为 template 兜底并仍返回 ready，
+          generation.source = template。**不应出现 failed**——任何情况下用户都拿得到内容。
+        - 复盘（Summary）：不做模板兜底，LLM 失败即 failed，提示稍后再试。
+          **不应出现 source = template**。
+        本 schema 为两者共用的超集；实现方需按资源类型约束上述互斥组合，
+        调用方渲染时以资源类型 + status + source 三者共同判断。
       required: [status]
       properties:
         status:
@@ -1555,9 +1654,9 @@ components:
           description: 年级，如「初二」「高二」
         subjects:
           type: array
-          description: 学科枚举数组，1-9 项
+          description: 学科枚举数组，1-10 项（Subject 枚举共 10 个取值，允许全选）
           minItems: 1
-          maxItems: 9
+          maxItems: 10
           items:
             $ref: '#/components/schemas/Subject'
     UserProfilePatch:
@@ -1571,9 +1670,9 @@ components:
           description: 年级，如「初二」「高二」
         subjects:
           type: array
-          description: 学科枚举数组，1-9 项
+          description: 学科枚举数组，1-10 项（Subject 枚举共 10 个取值，允许全选）
           minItems: 1
-          maxItems: 9
+          maxItems: 10
           items:
             $ref: '#/components/schemas/Subject'
     Settings:
@@ -1987,17 +2086,23 @@ components:
           description: 提交时间
     AssessmentSnapshot:
       type: object
-      description: 提交/删除记录后同步重算得到的状态快照
-      required: [assessmentId, subject, windowScore, trend, stateLabel, dataSufficient, recordCount]
+      description: |
+        提交/删除记录后同步重算得到的状态快照。
+        数据不足（dataSufficient=false）时 assessmentId 为 null，且不输出 windowScore / trend ——
+        与 StateResult（GET /assessments/current）的语义完全一致，两处对同一状态只有一种表示。
+        此前本 schema 将三个字段定义为必填且不可空，与 StateResult 及 PRD 5.2「数据不足时不强行输出结论」矛盾，
+        已对齐修复；放宽必填性不破坏已按旧契约实现的调用方。
+      required: [subject, stateLabel, dataSufficient, recordCount]
       properties:
         assessmentId:
           type: string
-          description: 状态评估 ID
+          nullable: true
+          description: 状态评估 ID；数据不足时为 null
         subject:
           $ref: '#/components/schemas/Subject'
         windowScore:
           type: number
-          description: 滑动窗口状态分
+          description: 滑动窗口状态分；数据不足时不返回
         trend:
           $ref: '#/components/schemas/Trend'
         stateLabel:
@@ -2028,7 +2133,8 @@ components:
                   description: 建议 ID，用于轮询 GET /recommendations/{id}
                 status:
                   type: string
-                  description: 生成状态
+                  description: 生成状态；此句柄只出现在刚创建时，取值恒为 pending
+                  enum: [pending]
     LearningRecordList:
       type: object
       description: 学习记录列表响应
