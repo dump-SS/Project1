@@ -1,5 +1,7 @@
-import StudyEditor from '../components/StudyEditor.jsx'
-import EnterButton from '../components/EnterButton.jsx'
+import StudyEditor from './StudyEditor.jsx'
+import EnterButton from './EnterButton.jsx'
+import './index.css'
+import './App.css'
 
 /** 学习时间校验：仅允许数字 0-9 与冒号 : */
 const TIME_VALIDATOR = (value) => /^[0-9:]*$/.test(value)
