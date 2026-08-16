@@ -1,0 +1,34 @@
+:root {
+  /* 设计令牌 */
+  --color-text: #000000;
+  --color-button-bg: #ffffff;
+  --color-input-bg: #4aeaff;
+  --color-warning: #ff0000;
+  --color-bg-start: #ffffff;
+  --color-bg-end: #009fff;
+
+  /* 文艺风衬线字体：中文宋体系 + 拉丁衬线，系统自带回退，不依赖网络 */
+  --font-serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, "Times New Roman", serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-serif);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100%;
+}
