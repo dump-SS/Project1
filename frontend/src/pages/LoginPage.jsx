@@ -1,0 +1,184 @@
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import FormField from '../components/FormField.jsx'
+import { LogoIcon, MailIcon, LockIcon, ShieldIcon } from '../components/Icons.jsx'
+import { useCodeCountdown } from '../hooks/useCodeCountdown.js'
+import { validateEmail, validateCode, validatePassword } from '../utils/validators.js'
+import {
+  sendLoginCode,
+  loginByEmailCode,
+  loginByPassword
+} from '../services/authApi.js'
+
+// loginMode: 'code' 邮箱验证码登录（默认） | 'password' 密码登录
+export default function LoginPage() {
+  const navigate = useNavigate()
+  const [mode, setMode] = useState('code')
+
+  // 公共字段
+  const [email, setEmail] = useState('')
+  const [emailErr, setEmailErr] = useState('')
+
+  // 验证码模式
+  const [code, setCode] = useState('')
+  const [codeErr, setCodeErr] = useState('')
+  const codeCD = useCodeCountdown()
+
+  // 密码模式
+  const [password, setPassword] = useState('')
+  const [passwordErr, setPasswordErr] = useState('')
+
+  const [tip, setTip] = useState(null) // { type: 'success'|'error', msg }
+  const [submitting, setSubmitting] = useState(false)
+
+  /* ---------- 发送验证码 ---------- */
+  async function handleSendCode() {
+    const err = validateEmail(email)
+    setEmailErr(err)
+    if (err) return
+    try {
+      await sendLoginCode(email)
+      codeCD.start(60)
+      setTip({ type: 'success', msg: '验证码已发送，请注意查收邮箱' })
+    } catch (e) {
+      if (e.code === 'EMAIL_NOT_REGISTERED') {
+        setEmailErr('该邮箱尚未注册')
+        setTip({ type: 'error', msg: '该邮箱尚未注册，请先注册' })
+      } else {
+        setTip({ type: 'error', msg: e.message || '发送失败' })
+      }
+    }
+  }
+
+  /* ---------- 提交 ---------- */
+  async function handleSubmit(e) {
+    e && e.preventDefault()
+    setTip(null)
+
+    const eErr = validateEmail(email)
+    setEmailErr(eErr)
+
+    if (mode === 'code') {
+      const cErr = validateCode(code)
+      setCodeErr(cErr)
+      if (eErr || cErr) return
+    } else {
+      const pErr = validatePassword(password)
+      setPasswordErr(pErr)
+      if (eErr || pErr) return
+    }
+
+    setSubmitting(true)
+    try {
+      if (mode === 'code') {
+        await loginByEmailCode(email, code)
+      } else {
+        await loginByPassword(email, password)
+      }
+      setTip({ type: 'success', msg: '登录成功，即将进入首页…' })
+      // TODO: 跳转实际首页
+      setTimeout(() => navigate('/'), 800)
+    } catch (e) {
+      setTip({ type: 'error', msg: e.message || '登录失败' })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="auth-page">
+      <div className="page-bg-decor" />
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="auth-logo"><LogoIcon /></div>
+          <h1 className="auth-title">EpochX</h1>
+          <p className="auth-subtitle">记录你的每一次专注与成长</p>
+        </div>
+
+        {/* Tab 切换：邮箱验证码登录 / 密码登录 */}
+        <div className="auth-tabs" role="tablist">
+          <button
+            role="tab"
+            className={`auth-tab ${mode === 'code' ? 'active' : ''}`}
+            onClick={() => { setMode('code'); setTip(null) }}
+            aria-selected={mode === 'code'}
+          >
+            邮箱登录
+          </button>
+          <button
+            role="tab"
+            className={`auth-tab ${mode === 'password' ? 'active' : ''}`}
+            onClick={() => { setMode('password'); setTip(null) }}
+            aria-selected={mode === 'password'}
+          >
+            密码登录
+          </button>
+        </div>
+
+        {tip && <div className={`form-tip ${tip.type}`}>{tip.msg}</div>}
+
+        <form onSubmit={handleSubmit} noValidate>
+          <FormField
+            label="邮箱"
+            required
+            icon={<MailIcon />}
+            type="email"
+            placeholder="请输入注册邮箱"
+            value={email}
+            onChange={(v) => { setEmail(v); setEmailErr('') }}
+            onBlur={() => setEmailErr(validateEmail(email))}
+            error={emailErr}
+            autoComplete="email"
+          />
+
+          {mode === 'code' ? (
+            <FormField
+              label="邮箱验证码"
+              required
+              icon={<ShieldIcon />}
+              placeholder="请输入 6 位验证码"
+              value={code}
+              onChange={(v) => { setCode(v.replace(/\D/g, '')); setCodeErr('') }}
+              onBlur={() => setCodeErr(validateCode(code))}
+              error={codeErr}
+              maxLength={6}
+              suffix={codeCD.text}
+              suffixDisabled={codeCD.sending || !!emailErr}
+              onSuffixClick={handleSendCode}
+              autoComplete="one-time-code"
+            />
+          ) : (
+            <FormField
+              label="密码"
+              required
+              icon={<LockIcon />}
+              type="password"
+              placeholder="请输入登录密码"
+              value={password}
+              onChange={(v) => { setPassword(v); setPasswordErr('') }}
+              onBlur={() => setPasswordErr(validatePassword(password))}
+              error={passwordErr}
+              autoComplete="current-password"
+            />
+          )}
+
+          {mode === 'password' && (
+            <div className="form-helper-row">
+              <span />
+              <Link className="link" to="/forgot-password">忘记密码？</Link>
+            </div>
+          )}
+
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? '登录中…' : '登 录'}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          还没有账号？
+          <Link className="link" to="/register">立即注册</Link>
+        </div>
+      </div>
+    </div>
+  )
+}
