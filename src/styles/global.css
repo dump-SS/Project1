@@ -1,0 +1,57 @@
+/**
+ * 全局基础样式。仅做重置与页面级底色，模块样式一律写在各自的 *.module.css 里。
+ */
+
+@import './fonts.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #f7fbfe;
+  color: #2c3e50;
+  font-family: var(--font-body);
+  font-weight: var(--weight-regular);
+  font-size: var(--size-body);
+  line-height: var(--line-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-title);
+  font-weight: var(--weight-medium);
+  margin: 0;
+}
+
+/* 图表容器不需要 focus 描边 */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+/* 滚动条压淡，避免打断整体色调 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dcecf7;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

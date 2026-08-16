@@ -1,0 +1,195 @@
+.group + .group {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid #e8f4fd;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+  font-family: var(--font-title);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  color: #5ba3c4;
+  letter-spacing: 1px;
+}
+
+.groupCount {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  background: #f2f9fe;
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.goal {
+  padding: 22px 24px;
+  background: #ffffff;
+  border: 1px solid #e8f4fd;
+  border-radius: 12px;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.goal:hover {
+  border-color: #b5dffa;
+  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+}
+
+.goalFinished {
+  background: #fbfdff;
+}
+
+.goalHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.goalTitle {
+  font-family: var(--font-title);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  color: #2c3e50;
+  letter-spacing: 0.5px;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: var(--weight-regular);
+  border-radius: 999px;
+  padding: 2px 10px;
+  letter-spacing: 0.5px;
+}
+
+.badgeShort {
+  color: #2b6c8c;
+  background: #e3f2fc;
+}
+
+.badgeLong {
+  color: #3f9174;
+  background: #e4f7ef;
+}
+
+.goalMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  margin-bottom: 16px;
+}
+
+.metaDivider {
+  width: 1px;
+  height: 10px;
+  background: #dceaf3;
+}
+
+.statusActive {
+  color: #5ba3c4;
+}
+
+.statusFinished {
+  color: #5cba97;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #eef7fd;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b5dffa 0%, #7ec8e3 100%);
+  transition: width 0.6s ease;
+}
+
+.progressFillDone {
+  background: linear-gradient(90deg, #a8e0c8 0%, #7edcb5 100%);
+}
+
+.progressText {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-medium);
+  color: #5ba3c4;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
+
+.goalTasks {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: #a9bcca;
+}
+
+.completionNote {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed #e8f4fd;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  line-height: var(--line-height);
+  color: #6b8598;
+}
+
+.completionPending {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed #e8f4fd;
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  font-style: italic;
+  color: #b3c6d3;
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  font-style: italic;
+  color: #a9bcca;
+}
+
+.poem {
+  margin: 32px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid #e8f4fd;
+  text-align: center;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  font-style: italic;
+  letter-spacing: 0.8px;
+  color: #a9bcca;
+}

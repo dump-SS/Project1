@@ -1,0 +1,120 @@
+.tabs {
+  margin-bottom: -16px;
+}
+
+.tabs :global(.ant-tabs-nav) {
+  margin: 0;
+}
+
+.tabs :global(.ant-tabs-nav::before) {
+  border-bottom: none;
+}
+
+.tabs :global(.ant-tabs-tab) {
+  padding: 4px 14px;
+  font-family: var(--font-body);
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+}
+
+.tabs :global(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: #5ba3c4 !important;
+  font-weight: var(--weight-medium);
+}
+
+.tabs :global(.ant-tabs-ink-bar) {
+  background: #7ec8e3;
+  height: 2px;
+}
+
+.layout {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.chartBlock {
+  flex: 1 1 340px;
+  min-width: 280px;
+}
+
+.gaugeBlock {
+  flex: 0 1 200px;
+  min-width: 180px;
+  text-align: center;
+}
+
+.gauge {
+  position: relative;
+}
+
+.gaugeCenter {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.gaugeValue {
+  font-family: var(--font-title);
+  font-size: 34px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.1;
+}
+
+.gaugeMax {
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  letter-spacing: 0.5px;
+}
+
+.gaugeCaption {
+  margin-top: 4px;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  letter-spacing: 0.5px;
+}
+
+.sampleCount {
+  margin-left: 4px;
+  color: #b3c6d3;
+}
+
+.tooltip {
+  background: #ffffff;
+  border: 1px solid #e8f4fd;
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  font-family: var(--font-body);
+}
+
+.tooltipLabel {
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  margin-bottom: 2px;
+}
+
+.tooltipValue {
+  font-size: var(--size-body);
+  font-weight: var(--weight-medium);
+  color: #5ba3c4;
+}
+
+.comment {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid #e8f4fd;
+  text-align: center;
+  font-family: var(--font-title);
+  font-size: var(--size-body);
+  font-weight: var(--weight-regular);
+  letter-spacing: 1.2px;
+  color: #5ba3c4;
+}

@@ -1,0 +1,200 @@
+.layout {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.calendar {
+  flex: 1 1 360px;
+  min-width: 320px;
+}
+
+.calendar :global(.ant-picker-calendar) {
+  background: transparent;
+  font-family: var(--font-body);
+}
+
+.calendar :global(.ant-picker-calendar-header) {
+  padding: 0 0 12px;
+}
+
+.calendar :global(.ant-picker-panel) {
+  background: transparent;
+  border-top: 1px solid #e8f4fd;
+}
+
+.calendar :global(.ant-picker-content th) {
+  color: #8ca3b5;
+  font-weight: var(--weight-light);
+  font-size: var(--size-caption);
+}
+
+/* 关掉 antd 默认的选中/今日底色，完全交给自定义 cell 渲染 */
+.calendar :global(.ant-picker-cell .ant-picker-cell-inner) {
+  background: transparent !important;
+}
+
+.calendar :global(.ant-picker-cell-selected .ant-picker-cell-inner::before),
+.calendar :global(.ant-picker-cell-today .ant-picker-cell-inner::before) {
+  border: none !important;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 40px;
+  border-radius: 8px;
+  transition: background 0.25s ease;
+}
+
+.cell:hover {
+  background: #f7fbfe;
+}
+
+.cellSelected {
+  background: #e3f2fc;
+}
+
+.cellOutside {
+  opacity: 0.35;
+}
+
+.cellDate {
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  color: #2c3e50;
+  line-height: 1;
+}
+
+.cellSelected .cellDate {
+  color: #2b6c8c;
+  font-weight: var(--weight-medium);
+}
+
+.cellDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7ec8e3;
+}
+
+.cellDotPlaceholder {
+  width: 5px;
+  height: 5px;
+}
+
+.detail {
+  flex: 0 1 280px;
+  min-width: 240px;
+  padding: 20px 22px;
+  background: #f7fbfe;
+  border: 1px solid #e8f4fd;
+  border-radius: 12px;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e8f4fd;
+}
+
+.detailDate {
+  font-family: var(--font-title);
+  font-size: 17px;
+  font-weight: var(--weight-medium);
+  color: #5ba3c4;
+}
+
+.detailWeekday {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+}
+
+.detailMetrics {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.detailMetric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+
+.detailMetricValue {
+  font-family: var(--font-title);
+  font-size: 17px;
+  font-weight: var(--weight-medium);
+  color: #2c3e50;
+}
+
+.detailMetricLabel {
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  letter-spacing: 0.5px;
+}
+
+.detailSubjects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detailSubject {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--size-caption);
+}
+
+.detailSubjectDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.detailSubjectName {
+  color: #2c3e50;
+  font-weight: var(--weight-light);
+}
+
+.detailSubjectMinutes {
+  color: #8ca3b5;
+  font-weight: var(--weight-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.detailEmpty {
+  margin: 16px 0 0;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #a9bcca;
+  font-style: italic;
+  line-height: var(--line-height);
+}
+
+.detailPending {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid #e8f4fd;
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: #b3c6d3;
+  font-style: italic;
+  line-height: 1.6;
+}

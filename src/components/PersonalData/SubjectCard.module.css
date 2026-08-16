@@ -1,0 +1,153 @@
+.layout {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.chart {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 260px;
+}
+
+.centerLabel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.centerValue {
+  font-family: var(--font-title);
+  font-size: 24px;
+  font-weight: var(--weight-semibold);
+  color: #5ba3c4;
+  line-height: 1.2;
+}
+
+.centerCaption {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  letter-spacing: 1px;
+  color: #8ca3b5;
+}
+
+.legend {
+  flex: 0 1 300px;
+  min-width: 240px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.legendItem {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: default;
+  transition: background 0.25s ease;
+}
+
+.legendItem + .legendItem {
+  border-top: 1px solid #f2f9fe;
+}
+
+.legendItemActive {
+  background: #f7fbfe;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legendName {
+  font-size: var(--size-body);
+  font-weight: var(--weight-regular);
+  color: #2c3e50;
+}
+
+.legendPercent {
+  font-size: var(--size-body);
+  font-weight: var(--weight-medium);
+  color: #5ba3c4;
+  font-variant-numeric: tabular-nums;
+}
+
+.legendMinutes {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  text-align: right;
+}
+
+.tooltip {
+  background: #ffffff;
+  border: 1px solid #e8f4fd;
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  font-family: var(--font-body);
+}
+
+.tooltipTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--size-body);
+  font-weight: var(--weight-medium);
+  color: #2c3e50;
+}
+
+.tooltipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tooltipValue {
+  margin-top: 4px;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+}
+
+.empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  color: #a9bcca;
+  font-style: italic;
+}
+
+.poem {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid #e8f4fd;
+  text-align: center;
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  font-style: italic;
+  letter-spacing: 0.8px;
+  color: #a9bcca;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    gap: 20px;
+  }
+}
