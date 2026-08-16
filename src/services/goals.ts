@@ -4,15 +4,15 @@
  * 接口映射说明：
  * - 这是 6 个模块里唯一能直接对上的：`GET /api/v1/goals?status=`（openapi.yaml 2.2 listGoals）。
  * - 但状态枚举与需求对不齐：接口只有 `active` / `archived` 两种取值，
- *   没有需求里写的「已完成 / 已放弃」。openapi.yaml 10.6 说明「归档代替删除，保留历史数据供复盘引用」，
- *   因此这里把 archived 映射为 UI 上的「已完成」，且在页面上如实注明。
- *   若产品确实需要区分「完成」与「放弃」，需要后端在 Goal 上补一个终态字段，不能靠前端猜。
+ *   没有需求里写的「已完成 / 已放弃」。openapi.yaml 10.6 说明「归档代替删除，保留历史数据供复盘引用」。
+ *   已向后端提出纯增量改动：给 Goal 加可选的 `outcome` 与 `completionNote`。
+ *   本文件已按「字段存在则用、不存在则退回当前行为」的方式读取，
+ *   后端上线后前端无需任何改动即可自动生效，因此不构成并行开发的阻塞点。
  * - 进度百分比取 GoalProgress.ratio（0-1），换算成 0-100。
- * - 「完成总结」：Goal schema 里没有任何对应字段，故为 null。
  */
 
 import { apiGet } from './http';
-import type { GoalList, GoalSummary } from '@/types/api';
+import type { GoalList, GoalOutcome, GoalSummary } from '@/types/api';
 import type { GoalCard, GoalPanel } from '@/types/view';
 import { subjectLabels } from '@/styles/theme';
 
@@ -21,12 +21,25 @@ const TYPE_LABELS: Record<GoalSummary['type'], string> = {
   long_term: '长期',
 };
 
-const STATUS_LABELS: Record<GoalSummary['status'], string> = {
-  active: '进行中',
-  archived: '已完成',
+const OUTCOME_LABELS: Record<GoalOutcome, string> = {
+  achieved: '已达成',
+  abandoned: '已放弃',
+  expired: '已过期',
 };
 
+/**
+ * 归档目标的展示文案。
+ * outcome 字段补齐前，所有 archived 统一显示「已完成」——这是当前契约能支持的最大精度，
+ * 不猜测用户到底是达成还是放弃。
+ */
+function resolveStatusLabel(status: GoalSummary['status'], outcome: GoalOutcome | null): string {
+  if (status === 'active') return '进行中';
+  return outcome ? OUTCOME_LABELS[outcome] : '已完成';
+}
+
 function toCard(goal: GoalSummary): GoalCard {
+  const outcome = goal.outcome ?? null;
+
   return {
     goalId: goal.goalId,
     title: goal.title,
@@ -36,12 +49,12 @@ function toCard(goal: GoalSummary): GoalCard {
     subjectLabel: subjectLabels[goal.subject] ?? goal.subject,
     targetDate: goal.targetDate,
     status: goal.status,
-    statusLabel: STATUS_LABELS[goal.status],
+    outcome,
+    statusLabel: resolveStatusLabel(goal.status, outcome),
     percent: Math.round((goal.progress?.ratio ?? 0) * 100),
     plannedTasks: goal.progress?.plannedTasks ?? 0,
     completedTasks: goal.progress?.completedTasks ?? 0,
-    // TODO: 「完成总结」字段接口待后端提供，Goal schema 中暂无对应字段。
-    completionNote: null,
+    completionNote: goal.completionNote ?? null,
   };
 }
 
@@ -72,6 +85,7 @@ export function placeholderGoals(): GoalPanel {
       subjectLabel: '数学',
       targetDate: '2026-08-30',
       status: 'active',
+      outcome: null,
       statusLabel: '进行中',
       percent: 58,
       plannedTasks: 12,
@@ -87,6 +101,7 @@ export function placeholderGoals(): GoalPanel {
       subjectLabel: '英语',
       targetDate: '2027-06-08',
       status: 'active',
+      outcome: null,
       statusLabel: '进行中',
       percent: 24,
       plannedTasks: 50,
@@ -102,6 +117,7 @@ export function placeholderGoals(): GoalPanel {
       subjectLabel: '物理',
       targetDate: '2026-08-22',
       status: 'active',
+      outcome: null,
       statusLabel: '进行中',
       percent: 80,
       plannedTasks: 5,
@@ -120,7 +136,8 @@ export function placeholderGoals(): GoalPanel {
       subjectLabel: '数学',
       targetDate: '2026-08-10',
       status: 'archived',
-      statusLabel: '已完成',
+      outcome: 'achieved',
+      statusLabel: '已达成',
       percent: 100,
       plannedTasks: 16,
       completedTasks: 16,
@@ -135,11 +152,12 @@ export function placeholderGoals(): GoalPanel {
       subjectLabel: '英语',
       targetDate: '2026-07-31',
       status: 'archived',
-      statusLabel: '已完成',
-      percent: 100,
+      outcome: 'abandoned',
+      statusLabel: '已放弃',
+      percent: 93,
       plannedTasks: 30,
       completedTasks: 28,
-      completionNote: '中间断了两天，后面补回来了，节奏比数量更重要。',
+      completionNote: '最后两天没顶住，但前 28 天是实打实的，下次把目标定小一点。',
     },
   ];
 

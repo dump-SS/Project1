@@ -20,10 +20,12 @@ function formatTargetDate(targetDate: string | null): string {
 }
 
 function GoalItem({ goal }: { goal: GoalCardModel }) {
-  const isFinished = goal.status === 'archived';
+  const isArchived = goal.status === 'archived';
+  // outcome 缺失时按「达成」的观感处理，与 statusLabel 的「已完成」保持一致
+  const isAbandoned = goal.outcome === 'abandoned' || goal.outcome === 'expired';
 
   return (
-    <li className={[styles.goal, isFinished ? styles.goalFinished : ''].filter(Boolean).join(' ')}>
+    <li className={[styles.goal, isArchived ? styles.goalFinished : ''].filter(Boolean).join(' ')}>
       <div className={styles.goalHead}>
         <h3 className={styles.goalTitle}>{goal.title}</h3>
         <span
@@ -41,7 +43,15 @@ function GoalItem({ goal }: { goal: GoalCardModel }) {
         <span className={styles.metaDivider} />
         <span>{formatTargetDate(goal.targetDate)}</span>
         <span className={styles.metaDivider} />
-        <span className={isFinished ? styles.statusFinished : styles.statusActive}>
+        <span
+          className={
+            !isArchived
+              ? styles.statusActive
+              : isAbandoned
+                ? styles.statusAbandoned
+                : styles.statusFinished
+          }
+        >
           {goal.statusLabel}
         </span>
       </div>
@@ -49,7 +59,11 @@ function GoalItem({ goal }: { goal: GoalCardModel }) {
       <div className={styles.progressRow}>
         <div className={styles.progressTrack}>
           <div
-            className={[styles.progressFill, isFinished ? styles.progressFillDone : '']
+            className={[
+              styles.progressFill,
+              isArchived && !isAbandoned ? styles.progressFillDone : '',
+              isAbandoned ? styles.progressFillAbandoned : '',
+            ]
               .filter(Boolean)
               .join(' ')}
             style={{ width: `${goal.percent}%` }}
@@ -62,7 +76,7 @@ function GoalItem({ goal }: { goal: GoalCardModel }) {
         已完成 {goal.completedTasks} / {goal.plannedTasks} 个任务
       </div>
 
-      {isFinished ? (
+      {isArchived ? (
         goal.completionNote ? (
           <p className={styles.completionNote}>{goal.completionNote}</p>
         ) : (

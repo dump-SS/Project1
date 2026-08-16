@@ -65,19 +65,47 @@ src/
 | ① 打卡 | `GET /learning-records?dateFrom&dateTo` | 可用（有记录即视为打卡） |
 | ② 时长 | `GET /learning-records` + `GET /plans` | 可用（目标时长借用 `Plan.availableMinutes`） |
 | ③ 学科分配 | `GET /learning-records` 按 `subject` 分组 | 可用 |
-| ④ 专注度 | `GET /learning-records` 的 `selfReport.focus` | 可用（schema 即 1-5，无需换算） |
-| ⑤ 日历 | `GET /learning-records` 按月拉取 | 可用 |
-| ⑥ 目标 | `GET /goals?status=active` / `?status=archived` | 可用（状态语义见下） |
+| ④ 专注度 | `GET /learning-records` 的 `selfReport.focus`<br>+ `GET /assessments/current` 的 `displayText` | 可用（schema 即 1-5，无需换算） |
+| ⑤ 日历 | `GET /learning-records` 按月拉取<br>+ `GET /assessments?subject=` 取每日状态标签 | 可用 |
+| ⑥ 目标 | `GET /goals?status=active` / `?status=archived` | 可用（终态语义见下） |
 
-### 需要后端补的字段（代码中均已标 `// TODO:`）
+### 关于状态标签：按学科展示，不做跨学科合并
 
-1. **单日学习总结**（模块①）——`/summaries` 的区间被限制为 3-31 天，无法生成单日总结。
-2. **按日期查询状态标签**（模块⑤）——`/assessments/current` 只返回按学科的当前状态。
-   PRD 6.1 规定状态标签必须来自服务端规则层，前端不自行推算。
-3. **目标完成总结**（模块⑥）——`Goal` schema 无对应字段。
-4. **目标终态语义**（模块⑥）——接口只有 `active` / `archived`，没有「已完成」与「已放弃」的区分。
-   当前把 `archived` 显示为「已完成」；若产品要区分两者，需要后端在 `Goal` 上加终态字段。
-5. **整体专注度评语**（模块④）——需求要求 AI 生成，现为按分数段匹配的硬编码文案。
+模块④⑤都会显示状态标签（高效稳定 / 疲劳预警 / 情绪受阻 / 波动上升）。这些标签**一律取自服务端**
+`GET /assessments`，前端不自行推算——PRD 6.1 规定「所有对用户可见的数字和结论性标签都来自规则层」。
+
+该接口 `subject` 为必填、按单学科查询，PRD 5.2 也明确「不做跨学科的加权综合」，理由是避免
+「语文情绪和数学正确率强行合并导致语义混乱」。所以 UI 上是**按学科分别列出标签**，
+而不是合成一个「今天状态如何」的单一结论。这是产品的刻意设计，不是接口缺失。
+
+### 需要后端补的字段
+
+只剩 `Goal` 一个 schema 的 2 个可选字段，**纯增量、向后兼容**，不影响任何现有调用方：
+
+```yaml
+Goal:
+  properties:
+    outcome:                              # 新增，仅 archived 时有值
+      type: string
+      enum: [achieved, abandoned, expired]
+      nullable: true
+    completionNote:                       # 新增，目标完成总结
+      type: string
+      maxLength: 200
+      nullable: true
+```
+
+**不要改 `status` 的 enum**——`active` / `archived` 被 `?status=` 过滤依赖，加平行字段才不会波及其他人。
+
+前端已按「字段存在则用、不存在则退回当前行为」的方式读取（见 `src/services/goals.ts` 的 `toCard`），
+所以**后端什么时候上线都行，前端不需要跟着改代码或重新发版**。在此之前 `archived` 统一显示为「已完成」，
+完成总结显示为「待生成」。
+
+另有一项低优先级、且有前端兜底方案的缺口：模块①的单日一句话总结。`/summaries` 的区间下限是 3 天，
+生成不了单日。可行的替代是复用 `POST /learning-records` 自动创建的 `post_session` 建议
+（`GET /recommendations?scene=post_session`，按 `generation.completedAt` 在前端归日），零契约改动。
+当前该位置显示为「待生成」。
+
 
 ## 约定
 

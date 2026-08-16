@@ -107,10 +107,41 @@
   color: #5ba3c4;
 }
 
-.comment {
-  margin: 24px 0 0;
+.footer {
+  margin-top: 24px;
   padding-top: 18px;
   border-top: 1px solid #e8f4fd;
+}
+
+.stateNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.stateTag {
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  line-height: 1.8;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0 9px;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.stateText {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  letter-spacing: 0.3px;
+}
+
+.comment {
+  margin: 0;
   text-align: center;
   font-family: var(--font-title);
   font-size: var(--size-body);

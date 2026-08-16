@@ -13,9 +13,10 @@
  */
 
 import type { Dayjs } from 'dayjs';
-import { apiGetAllPages } from './http';
-import type { LearningRecord } from '@/types/api';
+import { apiGet, apiGetAllPages } from './http';
+import type { LearningRecord, StateLabel, StateResult, StateResultList } from '@/types/api';
 import type { FocusPanel, FocusPoint, FocusRange } from '@/types/view';
+import { subjectLabels } from '@/styles/theme';
 import {
   DATE_FORMAT,
   dayjs,
@@ -39,10 +40,11 @@ const RANGE_DAYS: Record<FocusRange, number> = { day: 1, week: 7, month: 30 };
 
 /**
  * 文艺风评语。
- * TODO: 需求要求「AI 生成的文艺风评语」，openapi.yaml 中最接近的是
- *   GET /assessments/current 的 displayText 与 GET /recommendations/{id} 的 items[].content，
- *   但前者按学科返回、后者绑定单次学习记录，都不对应「整体专注度评语」。
- *   接口待后端提供，当前按平均分匹配硬编码文案。
+ * 需求要求「AI 生成的文艺风评语」。openapi.yaml 里最接近的是
+ *   GET /assessments/current 的 displayText（自然语言、但按学科、且偏客观陈述）
+ *   与 GET /recommendations/{id} 的 items[].content（绑定单次学习记录）。
+ * 两者都不等价于「整体专注度的一句诗」，故这一句仍按分数段匹配硬编码；
+ * 真实的状态说明另行取自 displayText，见 pickStateNote，两者在 UI 上分层展示。
  */
 function pickComment(average: number | null): string {
   if (average === null) return '还没有留下痕迹，从今天写第一笔吧 🌱';
@@ -53,7 +55,45 @@ function pickComment(average: number | null): string {
   return '时光不语，静待花开 🌸';
 }
 
-function buildPanel(range: FocusRange, points: FocusPoint[], records: LearningRecord[]): FocusPanel {
+/** 需要优先提示的状态，排在前面的更值得让用户看到 */
+const LABEL_PRIORITY: StateLabel[] = [
+  'emotion_blocked',
+  'fatigue_warning',
+  'fluctuating_up',
+  'efficient_stable',
+];
+
+/**
+ * 从各学科的当前状态里挑一条最值得展示的说明。
+ * PRD 5.2 规定不做跨学科合并，所以这里是「选一条」而不是「合成一条」，
+ * 并在 UI 上标明它属于哪个学科。
+ */
+function pickStateNote(items: StateResult[]): FocusPanel['stateNote'] {
+  const usable = items.filter((item) => item.dataSufficient && item.displayText);
+  if (usable.length === 0) return null;
+
+  const ranked = [...usable].sort((a, b) => {
+    const rankA = LABEL_PRIORITY.indexOf(a.stateLabel);
+    const rankB = LABEL_PRIORITY.indexOf(b.stateLabel);
+    if (rankA !== rankB) return (rankA < 0 ? 99 : rankA) - (rankB < 0 ? 99 : rankB);
+    return b.recordCount - a.recordCount;
+  });
+
+  const top = ranked[0];
+  return {
+    subject: top.subject,
+    subjectLabel: subjectLabels[top.subject] ?? top.subject,
+    stateLabel: top.stateLabel,
+    text: top.displayText,
+  };
+}
+
+function buildPanel(
+  range: FocusRange,
+  points: FocusPoint[],
+  records: LearningRecord[],
+  stateNote: FocusPanel['stateNote'],
+): FocusPanel {
   const overall = weightedFocus(records);
   const average = overall === null ? null : round1(overall);
 
@@ -63,6 +103,7 @@ function buildPanel(range: FocusRange, points: FocusPoint[], records: LearningRe
     average,
     sampleCount: records.length,
     comment: pickComment(average),
+    stateNote,
   };
 }
 
@@ -120,14 +161,18 @@ export async function fetchFocus(range: FocusRange, signal?: AbortSignal): Promi
   const today = dayjs();
   const days = RANGE_DAYS[range];
 
-  const records = await apiGetAllPages<LearningRecord>(
-    '/learning-records',
-    {
-      dateFrom: today.subtract(days - 1, 'day').format(DATE_FORMAT),
-      dateTo: today.format(DATE_FORMAT),
-    },
-    signal,
-  );
+  const [records, currentStates] = await Promise.all([
+    apiGetAllPages<LearningRecord>(
+      '/learning-records',
+      {
+        dateFrom: today.subtract(days - 1, 'day').format(DATE_FORMAT),
+        dateTo: today.format(DATE_FORMAT),
+      },
+      signal,
+    ),
+    // 状态说明是锦上添花，拿不到不应让整个模块退回占位数据
+    apiGet<StateResultList>('/assessments/current', {}, signal).catch(() => null),
+  ]);
 
   const points =
     range === 'day'
@@ -136,7 +181,7 @@ export async function fetchFocus(range: FocusRange, signal?: AbortSignal): Promi
         ? buildWeekPoints(records, today)
         : buildMonthPoints(records, today);
 
-  return buildPanel(range, points, records);
+  return buildPanel(range, points, records, pickStateNote(currentStates?.items ?? []));
 }
 
 /**
@@ -191,5 +236,11 @@ export function placeholderFocus(range: FocusRange): FocusPanel {
     average: preset.average,
     sampleCount: preset.sampleCount,
     comment: pickComment(preset.average),
+    stateNote: {
+      subject: 'math',
+      subjectLabel: '数学',
+      stateLabel: 'fatigue_warning',
+      text: '最近几次数学状态有点走低，疲劳感比较明显',
+    },
   };
 }

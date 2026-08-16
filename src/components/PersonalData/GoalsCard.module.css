@@ -113,6 +113,10 @@
   color: #5cba97;
 }
 
+.statusAbandoned {
+  color: #d9a45f;
+}
+
 .progressRow {
   display: flex;
   align-items: center;
@@ -136,6 +140,10 @@
 
 .progressFillDone {
   background: linear-gradient(90deg, #a8e0c8 0%, #7edcb5 100%);
+}
+
+.progressFillAbandoned {
+  background: linear-gradient(90deg, #f0dcc0 0%, #f5c88e 100%);
 }
 
 .progressText {

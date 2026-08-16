@@ -3,7 +3,7 @@
  * 页面里禁止硬编码色值 / 圆角 / 阴影，一律从这里引用。
  */
 
-import type { Subject } from '@/types/api';
+import type { StateLabel, Subject } from '@/types/api';
 
 /** 主题色板 */
 export const colors = {
@@ -91,8 +91,28 @@ export const subjectLabels: Record<Subject, string> = {
   other: '其他',
 };
 
-/** 传给 antd ConfigProvider 的 token，保证组件库观感与本设计系统一致 */
-export const antdThemeToken = {
+/**
+ * 状态标签中文名。key 对应 openapi.yaml components.schemas.StateLabel。
+ * 标签由服务端规则层判定（PRD 6.1），前端只负责显示，不参与推算。
+ */
+export const stateLabels: Record<StateLabel, string> = {
+  efficient_stable: '高效稳定',
+  fatigue_warning: '疲劳预警',
+  emotion_blocked: '情绪受阻',
+  fluctuating_up: '波动上升',
+  insufficient_data: '数据积累中',
+};
+
+/** 状态标签配色，沿用主题色板，不引入高饱和色 */
+export const stateLabelColors: Record<StateLabel, string> = {
+  efficient_stable: '#7EDCB5',
+  fatigue_warning: '#F5C88E',
+  emotion_blocked: '#F5C88E',
+  fluctuating_up: '#7EC8E3',
+  insufficient_data: '#C5D3DD',
+};
+
+/** 传给 antd ConfigProvider 的 token，保证组件库观感与本设计系统一致 */export const antdThemeToken = {
   colorPrimary: colors.primary,
   colorSuccess: colors.success,
   colorWarning: colors.warning,

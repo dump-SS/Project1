@@ -20,7 +20,7 @@ import SectionCard from './SectionCard';
 import styles from './FocusCard.module.css';
 import { fetchFocus, placeholderFocus } from '@/services/focus';
 import { usePanelData } from '@/hooks/usePanelData';
-import { colors } from '@/styles/theme';
+import { colors, stateLabelColors, stateLabels } from '@/styles/theme';
 import type { FocusRange } from '@/types/view';
 
 const RANGE_TABS: Array<{ key: FocusRange; label: string }> = [
@@ -172,7 +172,24 @@ function FocusCard() {
         </div>
       </div>
 
-      <p className={styles.comment}>{data.comment}</p>
+      <div className={styles.footer}>
+        {data.stateNote ? (
+          <p className={styles.stateNote}>
+            <span
+              className={styles.stateTag}
+              style={{
+                color: stateLabelColors[data.stateNote.stateLabel],
+                borderColor: stateLabelColors[data.stateNote.stateLabel],
+              }}
+            >
+              {data.stateNote.subjectLabel} · {stateLabels[data.stateNote.stateLabel]}
+            </span>
+            <span className={styles.stateText}>{data.stateNote.text}</span>
+          </p>
+        ) : null}
+
+        <p className={styles.comment}>{data.comment}</p>
+      </div>
     </SectionCard>
   );
 }

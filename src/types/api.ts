@@ -154,6 +154,13 @@ export interface GoalProgress {
  */
 export type GoalStatus = 'active' | 'archived';
 
+/**
+ * 归档终态。**契约中尚不存在此字段**，已提给后端作为纯增量改动。
+ * 这里预先声明为可选，后端上线后前端无需改动即可自动生效；
+ * 在此之前所有 archived 目标统一按「已完成」展示。
+ */
+export type GoalOutcome = 'achieved' | 'abandoned' | 'expired';
+
 export interface GoalSummary {
   goalId: string;
   type: GoalType;
@@ -162,6 +169,10 @@ export interface GoalSummary {
   targetDate: string | null;
   status: GoalStatus;
   progress: GoalProgress;
+  /** 契约待补充，见 GoalOutcome 说明 */
+  outcome?: GoalOutcome | null;
+  /** 契约待补充：目标完成总结 */
+  completionNote?: string | null;
 }
 
 export interface Goal extends GoalSummary {

@@ -151,7 +151,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .detailSubject {
@@ -160,6 +160,24 @@
   align-items: center;
   gap: 10px;
   font-size: var(--size-caption);
+}
+
+.detailStateTag {
+  grid-column: 2 / -1;
+  justify-self: start;
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  line-height: 1.6;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0 8px;
+  opacity: 0.9;
+}
+
+.detailStateTagEmpty {
+  grid-column: 2 / -1;
+  font-size: 10px;
+  color: #cbd8e2;
 }
 
 .detailSubjectDot {

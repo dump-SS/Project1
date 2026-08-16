@@ -10,7 +10,7 @@ import SectionCard from './SectionCard';
 import styles from './CalendarCard.module.css';
 import { fetchCalendar, placeholderCalendar } from '@/services/calendar';
 import { usePanelData } from '@/hooks/usePanelData';
-import { subjectColors } from '@/styles/theme';
+import { subjectColors, stateLabelColors, stateLabels } from '@/styles/theme';
 import { DATE_FORMAT, dayjs, formatDuration } from '@/utils/aggregate';
 import type { CalendarDayDetail } from '@/types/view';
 
@@ -56,13 +56,24 @@ function DayDetailPanel({ date, detail }: { date: Dayjs; detail: CalendarDayDeta
                 />
                 <span className={styles.detailSubjectName}>{item.label}</span>
                 <span className={styles.detailSubjectMinutes}>{formatDuration(item.minutes)}</span>
+                {item.stateLabel ? (
+                  <span
+                    className={styles.detailStateTag}
+                    style={{
+                      color: stateLabelColors[item.stateLabel],
+                      borderColor: stateLabelColors[item.stateLabel],
+                    }}
+                  >
+                    {stateLabels[item.stateLabel]}
+                  </span>
+                ) : (
+                  <span className={styles.detailStateTagEmpty}>—</span>
+                )}
               </li>
             ))}
           </ul>
 
-          <p className={styles.detailPending}>
-            当日状态标签由服务端规则层给出，接口待提供
-          </p>
+          <p className={styles.detailPending}>状态标签按学科分别给出，不做跨学科合并</p>
         </>
       )}
     </aside>
