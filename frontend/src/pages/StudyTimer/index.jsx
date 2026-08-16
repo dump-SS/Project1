@@ -120,7 +120,7 @@ export default function StudyTimerPage() {
       <div className={styles.bgSky} aria-hidden="true" />
 
       <header className={styles.topbar}>
-        <span className={styles.brand}>静心·学习</span>
+        <img className={styles.brandLogo} src="/brand/logo-full-on-light.png" alt="logo" />
 
         <div className={styles.taskInline}>
           {editing ? (

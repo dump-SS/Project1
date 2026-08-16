@@ -81,12 +81,13 @@
   box-shadow: 0 8px 24px rgba(70, 150, 190, 0.1);
 }
 
-.brand {
-  font-family: var(--serif);
-  font-size: 14px;
-  letter-spacing: 1px;
-  color: var(--ink);
-  white-space: nowrap;
+.brandLogo {
+  height: 140px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+  transform: translateY(-4px);
 }
 
 /* 任务 */
