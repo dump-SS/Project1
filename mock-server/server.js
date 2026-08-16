@@ -1,0 +1,500 @@
+// EpochX API Server —— 本地开发服务，验证码通过 163 SMTP 真实发送
+// 启动: node mock-server/server.js  (监听 http://localhost:4000)
+// 数据持久化到 SQLite（mock-server/data.db，已加入 .gitignore）
+// SMTP 配置见 mock-server/.env（已加入 .gitignore，不提交到仓库）
+
+import http from 'node:http'
+import crypto from 'node:crypto'
+import { fileURLToPath } from 'node:url'
+import { DatabaseSync } from 'node:sqlite'
+import dotenv from 'dotenv'
+import nodemailer from 'nodemailer'
+
+dotenv.config({ path: fileURLToPath(new URL('./.env', import.meta.url)) })
+
+const PORT = 4000
+const DB_PATH = fileURLToPath(new URL('./data.db', import.meta.url))
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000  // 会话有效期 7 天
+const CODE_TTL_MS = 5 * 60 * 1000                 // 验证码有效期 5 分钟
+const MAX_FAILS = 5                                // 连续验证失败上限
+const LOCK_MS = 15 * 60 * 1000                     // 锁定 15 分钟
+
+/* ===================== SMTP ===================== */
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.163.com',
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+})
+
+/* ===================== SQLite 数据库 ===================== */
+
+const db = new DatabaseSync(DB_PATH)
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    email        TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS codes (
+    type       TEXT NOT NULL,
+    email      TEXT NOT NULL,
+    code_hash  TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (type, email)
+  );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    email      TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+`)
+
+/* ===================== 密码哈希（scrypt + 随机盐） ===================== */
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
+  return `${salt}:${hash}`
+}
+
+function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(':')) return false
+  const [salt, hash] = stored.split(':')
+  const expected = Buffer.from(hash, 'hex')
+  const actual = crypto.scryptSync(password, salt, 64)
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
+}
+
+// 密码复杂度：大写字母 / 小写字母 / 数字 / 符号 四类中至少满足两类
+function isStrongPassword(password) {
+  const kinds = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(password)).length
+  return kinds >= 2
+}
+
+/* ===================== 通用哈希 ===================== */
+
+function sha256(input) {
+  return crypto.createHash('sha256').update(String(input)).digest('hex')
+}
+
+function safeEqual(aHex, bHex) {
+  const a = Buffer.from(aHex, 'hex')
+  const b = Buffer.from(bHex, 'hex')
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+/* ===================== 验证码 ===================== */
+
+function genCode() {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+// 邮件 HTML（主题色 #4AD1FF，衬线体标题 + 非衬线正文）
+function buildEmailHtml(type, code) {
+  const copy = {
+    register: {
+      title: '欢迎加入 EpochX',
+      greeting: '感谢你注册 EpochX，请输入下面的验证码完成邮箱验证：'
+    },
+    login: {
+      title: '登录验证码',
+      greeting: '你正在登录 EpochX，请输入下面的验证码完成登录：'
+    },
+    reset: {
+      title: '重置密码验证码',
+      greeting: '你正在重置登录密码，请输入下面的验证码继续：'
+    }
+  }[type] || {
+    title: '邮箱验证码',
+    greeting: '请输入下面的验证码完成验证：'
+  }
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<body style="margin:0;padding:0;background:#f2fafd;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2fafd;padding:36px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+          <tr>
+            <td style="background:#ffffff;border-radius:16px;padding:40px 36px 36px;border:1px solid #e8f6fc;">
+              <div style="font-family:Georgia,'Noto Serif SC','Songti SC',serif;font-size:22px;font-weight:bold;color:#2c3e50;letter-spacing:1px;">${copy.title}</div>
+              <div style="width:44px;height:4px;background:#4AD1FF;border-radius:2px;margin:14px 0 26px;"></div>
+              <p style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:14px;color:#5a6b7a;line-height:1.8;margin:0 0 26px;">${copy.greeting}</p>
+              <div style="background:#eaf7ff;border:1px solid #cdeeff;border-radius:12px;padding:22px 16px;text-align:center;margin:0 0 26px;">
+                <div style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:12px;color:#7a8a99;letter-spacing:3px;margin-bottom:10px;">验 证 码</div>
+                <div style="font-family:'Courier New',Consolas,monospace;font-size:36px;font-weight:bold;color:#4AD1FF;letter-spacing:6px;padding-left:6px;line-height:1;">${code}</div>
+              </div>
+              <p style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:12px;color:#9aa8b5;line-height:1.7;margin:0;">验证码 5 分钟内有效，请勿泄露给他人。<br>如非本人操作，请忽略本邮件。</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:18px 0 0;font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:12px;color:#b0bcc7;">EpochX</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+async function setCode(type, email) {
+  const code = genCode()
+  const subjects = {
+    register: '【EpochX】注册验证码',
+    reset: '【EpochX】重置密码验证码',
+    login: '【EpochX】登录验证码'
+  }
+  const subject = subjects[type] || '【EpochX】邮箱验证码'
+  const info = await transporter.sendMail({
+    from: `"EpochX" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject,
+    text: `您的验证码是 ${code}，5 分钟内有效。如非本人操作，请忽略本邮件。`,
+    html: buildEmailHtml(type, code)
+  })
+  const expiresAt = Date.now() + CODE_TTL_MS
+  db.prepare(`
+    INSERT INTO codes (type, email, code_hash, expires_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(type, email) DO UPDATE SET
+      code_hash = excluded.code_hash,
+      expires_at = excluded.expires_at
+  `).run(type, email, sha256(code), expiresAt)
+  console.log(`[SMTP] 已发送 ${subject} -> ${email} (messageId: ${info.messageId})`)
+}
+
+function verifyCode(type, email, code) {
+  const row = db.prepare('SELECT code_hash, expires_at FROM codes WHERE type = ? AND email = ?').get(type, email)
+  if (!row) return { ok: false, msg: '请先获取验证码' }
+  if (Date.now() > row.expires_at) return { ok: false, msg: '验证码已过期' }
+  if (!safeEqual(row.code_hash, sha256(code))) return { ok: false, msg: '验证码不正确' }
+  return { ok: true }
+}
+
+function consumeCode(type, email) {
+  db.prepare('DELETE FROM codes WHERE type = ? AND email = ?').run(type, email)
+}
+
+/* ===================== Session ===================== */
+
+function parseCookies(header) {
+  const out = {}
+  if (!header) return out
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=')
+    if (i === -1) continue
+    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim())
+  }
+  return out
+}
+
+function createSession(email) {
+  const token = crypto.randomBytes(32).toString('hex')
+  const expiresAt = Date.now() + SESSION_TTL_MS
+  db.prepare('INSERT INTO sessions (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)')
+    .run(sha256(token), email, expiresAt, new Date().toISOString())
+  return {
+    cookie: `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`
+  }
+}
+
+function getSession(req) {
+  const sid = parseCookies(req.headers.cookie).sid
+  if (!sid) return null
+  const hash = sha256(sid)
+  const row = db.prepare('SELECT email, expires_at FROM sessions WHERE token_hash = ?').get(hash)
+  if (!row) return null
+  if (Date.now() > row.expires_at) {
+    db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hash)
+    return null
+  }
+  return { email: row.email }
+}
+
+function destroySession(req) {
+  const sid = parseCookies(req.headers.cookie).sid
+  if (sid) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(sid))
+  return 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0'
+}
+
+/* ===================== 限流（进程内存级） ===================== */
+
+const rateBuckets = new Map()  // key -> { count, resetAt }
+
+function allow(key, limit, windowMs) {
+  const now = Date.now()
+  const b = rateBuckets.get(key)
+  if (!b || now >= b.resetAt) {
+    rateBuckets.set(key, { count: 1, resetAt: now + windowMs })
+    return true
+  }
+  if (b.count >= limit) return false
+  b.count++
+  return true
+}
+
+// 连续验证失败锁定（防暴力破解）
+const loginFails = new Map()  // email -> { count, lockedUntil }
+
+function isLocked(email) {
+  const rec = loginFails.get(email)
+  if (!rec) return false
+  if (rec.lockedUntil && Date.now() < rec.lockedUntil) return true
+  if (rec.lockedUntil) loginFails.delete(email)
+  return false
+}
+
+function recordFail(email) {
+  const rec = loginFails.get(email) || { count: 0, lockedUntil: 0 }
+  rec.count++
+  if (rec.count >= MAX_FAILS) {
+    rec.lockedUntil = Date.now() + LOCK_MS
+    rec.count = 0
+  }
+  loginFails.set(email, rec)
+}
+
+function clearFails(email) {
+  loginFails.delete(email)
+}
+
+function clientIp(req) {
+  const fwd = req.headers['x-forwarded-for']
+  if (fwd) return String(fwd).split(',')[0].trim()
+  return req.socket.remoteAddress || 'unknown'
+}
+
+/* ===================== HTTP 工具 ===================== */
+
+function json(res, status, data, extraHeaders = {}) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    ...extraHeaders
+  })
+  res.end(JSON.stringify(data))
+}
+
+async function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = ''
+    req.on('data', (c) => { raw += c })
+    req.on('end', () => {
+      try { resolve(raw ? JSON.parse(raw) : {}) }
+      catch (_) { reject(new Error('JSON 解析失败')) }
+    })
+    req.on('error', reject)
+  })
+}
+
+function err(res, status, code, message, field) {
+  json(res, status, { error: { code, message, field } })
+}
+
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+
+/* ===================== 路由处理 ===================== */
+
+const server = http.createServer(async (req, res) => {
+  // CORS 预检
+  if (req.method === 'OPTIONS') { json(res, 204, {}); return }
+
+  const url = new URL(req.url, `http://${req.headers.host}`)
+  const path = url.pathname
+  let body = {}
+  if (req.method === 'POST') {
+    try { body = await readBody(req) }
+    catch (_) { return err(res, 400, 'VALIDATION_FAILED', '请求体格式错误') }
+  }
+
+  try {
+
+    /* --------------- 1. 发送验证码 --------------- */
+
+    // 注册验证码
+    if (path === '/api/v1/auth/send-register-code' && req.method === 'POST') {
+      const { email } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      const ip = clientIp(req)
+      if (!allow('ip:' + ip, 20, 3600_000)) return err(res, 429, 'RATE_LIMITED', '请求过于频繁，请稍后再试')
+      if (!allow('code:' + email, 1, 60_000)) return err(res, 429, 'RATE_LIMITED', '验证码发送过于频繁，请稍后再试')
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (existing) return err(res, 409, 'EMAIL_ALREADY_REGISTERED', '该邮箱已注册，请直接登录', 'email')
+      await setCode('register', email)
+      return json(res, 200, { ok: true, sent: true })
+    }
+
+    // 重置密码验证码
+    if (path === '/api/v1/auth/send-reset-code' && req.method === 'POST') {
+      const { email } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      const ip = clientIp(req)
+      if (!allow('ip:' + ip, 20, 3600_000)) return err(res, 429, 'RATE_LIMITED', '请求过于频繁，请稍后再试')
+      if (!allow('code:' + email, 1, 60_000)) return err(res, 429, 'RATE_LIMITED', '验证码发送过于频繁，请稍后再试')
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
+      await setCode('reset', email)
+      return json(res, 200, { ok: true, sent: true })
+    }
+
+    // 登录验证码
+    if (path === '/api/v1/auth/send-login-code' && req.method === 'POST') {
+      const { email } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      const ip = clientIp(req)
+      if (!allow('ip:' + ip, 20, 3600_000)) return err(res, 429, 'RATE_LIMITED', '请求过于频繁，请稍后再试')
+      if (!allow('code:' + email, 1, 60_000)) return err(res, 429, 'RATE_LIMITED', '验证码发送过于频繁，请稍后再试')
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
+      await setCode('login', email)
+      return json(res, 200, { ok: true, sent: true })
+    }
+
+    /* --------------- 2. 注册 --------------- */
+
+    if (path === '/api/v1/auth/register' && req.method === 'POST') {
+      const { email, code, password, confirmPassword } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      if (db.prepare('SELECT email FROM users WHERE email = ?').get(email)) return err(res, 409, 'EMAIL_ALREADY_REGISTERED', '该邮箱已注册，请直接登录', 'email')
+      if (!/^\d{6}$/.test(String(code))) return err(res, 400, 'VALIDATION_FAILED', '验证码为 6 位数字', 'code')
+      if (!password || password.length < 6 || password.length > 32) return err(res, 400, 'VALIDATION_FAILED', '密码长度 6-32 位', 'password')
+      if (!isStrongPassword(password)) return err(res, 400, 'VALIDATION_FAILED', '密码需包含大写字母、小写字母、数字、符号中的至少两种', 'password')
+      if (password !== confirmPassword) return err(res, 400, 'VALIDATION_FAILED', '两次输入的密码不一致', 'confirmPassword')
+
+      if (isLocked(email)) return err(res, 429, 'RATE_LIMITED', '验证失败次数过多，请 15 分钟后再试')
+
+      const v = verifyCode('register', email, code)
+      if (!v.ok) { recordFail(email); return err(res, 400, 'CODE_INVALID', v.msg, 'code') }
+      consumeCode('register', email)
+      clearFails(email)
+
+      db.prepare('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)')
+        .run(email, hashPassword(password), new Date().toISOString())
+      console.log(`[REGISTER] 新用户注册: ${email}`)
+      return json(res, 201, { ok: true })
+    }
+
+    /* --------------- 3. 登录 --------------- */
+
+    // 邮箱 + 验证码登录
+    if (path === '/api/v1/auth/login-email-code' && req.method === 'POST') {
+      const { email, code } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+
+      const existing = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (!existing) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
+
+      if (isLocked(email)) return err(res, 429, 'RATE_LIMITED', '验证失败次数过多，请 15 分钟后再试')
+
+      const v = verifyCode('login', email, code)
+      if (!v.ok) { recordFail(email); return err(res, 400, 'CODE_INVALID', v.msg, 'code') }
+      consumeCode('login', email)
+      clearFails(email)
+
+      const session = createSession(email)
+      return json(res, 200, { ok: true }, { 'Set-Cookie': session.cookie })
+    }
+
+    // 邮箱 + 密码登录
+    if (path === '/api/v1/auth/login-password' && req.method === 'POST') {
+      const { email, password } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      if (!password) return err(res, 400, 'VALIDATION_FAILED', '请输入密码', 'password')
+
+      const u = db.prepare('SELECT email, password_hash FROM users WHERE email = ?').get(email)
+      if (!u) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
+
+      if (isLocked(email)) return err(res, 429, 'RATE_LIMITED', '验证失败次数过多，请 15 分钟后再试')
+
+      if (!verifyPassword(password, u.password_hash)) {
+        recordFail(email)
+        return err(res, 401, 'PASSWORD_INCORRECT', '密码错误', 'password')
+      }
+      clearFails(email)
+
+      const session = createSession(email)
+      return json(res, 200, { ok: true }, { 'Set-Cookie': session.cookie })
+    }
+
+    /* --------------- 4. 会话（登录态校验 / 退出） --------------- */
+
+    if (path === '/api/v1/auth/me' && req.method === 'GET') {
+      const session = getSession(req)
+      if (!session) return err(res, 401, 'UNAUTHORIZED', '未登录或登录已过期')
+      return json(res, 200, { ok: true, user: { email: session.email } })
+    }
+
+    if (path === '/api/v1/auth/logout' && req.method === 'POST') {
+      const cookie = destroySession(req)
+      return json(res, 200, { ok: true }, { 'Set-Cookie': cookie })
+    }
+
+    /* --------------- 5. 重置密码 --------------- */
+
+    if (path === '/api/v1/auth/verify-reset-code' && req.method === 'POST') {
+      const { email, code } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+
+      if (isLocked(email)) return err(res, 429, 'RATE_LIMITED', '验证失败次数过多，请 15 分钟后再试')
+
+      const v = verifyCode('reset', email, code)
+      if (!v.ok) { recordFail(email); return err(res, 400, 'CODE_INVALID', v.msg, 'code') }
+      // 不消费，后面 reset-password 还会再校验一次
+      return json(res, 200, { ok: true })
+    }
+
+    if (path === '/api/v1/auth/reset-password' && req.method === 'POST') {
+      const { email, code, newPassword, confirmPassword } = body
+      if (!EMAIL_RE.test(email)) return err(res, 400, 'VALIDATION_FAILED', '邮箱格式不正确', 'email')
+      if (!/^\d{6}$/.test(String(code))) return err(res, 400, 'VALIDATION_FAILED', '验证码为 6 位数字', 'code')
+      if (!newPassword || newPassword.length < 6 || newPassword.length > 32) return err(res, 400, 'VALIDATION_FAILED', '密码长度 6-32 位', 'newPassword')
+      if (!isStrongPassword(newPassword)) return err(res, 400, 'VALIDATION_FAILED', '密码需包含大写字母、小写字母、数字、符号中的至少两种', 'newPassword')
+      if (newPassword !== confirmPassword) return err(res, 400, 'VALIDATION_FAILED', '两次输入的密码不一致', 'confirmPassword')
+
+      const u = db.prepare('SELECT email FROM users WHERE email = ?').get(email)
+      if (!u) return err(res, 404, 'EMAIL_NOT_REGISTERED', '该邮箱尚未注册，请先注册', 'email')
+
+      if (isLocked(email)) return err(res, 429, 'RATE_LIMITED', '验证失败次数过多，请 15 分钟后再试')
+
+      const v = verifyCode('reset', email, code)
+      if (!v.ok) { recordFail(email); return err(res, 400, 'CODE_INVALID', v.msg, 'code') }
+      consumeCode('reset', email)
+      clearFails(email)
+
+      db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hashPassword(newPassword), email)
+      // 密码已改，使该用户所有已有会话失效
+      db.prepare('DELETE FROM sessions WHERE email = ?').run(email)
+      console.log(`[RESET-PWD] ${email} 密码已重置，已有会话已失效`)
+      return json(res, 200, { ok: true })
+    }
+
+    /* --------------- 404 --------------- */
+    return err(res, 404, 'RESOURCE_NOT_FOUND', `未找到 ${path}`)
+
+  } catch (e) {
+    console.error('[API SERVER ERROR]', e)
+    return err(res, 500, 'INTERNAL_ERROR', '服务内部错误')
+  }
+})
+
+server.listen(PORT, () => {
+  console.log('')
+  console.log('  ─────────────────────────────────────────')
+  console.log(`   EpochX API Server  http://localhost:${PORT}`)
+  console.log('   持久化: SQLite (mock-server/data.db)')
+  console.log('   发件邮箱: ' + (process.env.SMTP_USER || '未配置'))
+  console.log('  ─────────────────────────────────────────')
+  console.log('')
+})

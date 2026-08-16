@@ -9,5 +9,7 @@ dist/
 __pycache__/
 *.pyc
 
+mock-server/data.db
+
 .reasonix/
 reasonix.toml
