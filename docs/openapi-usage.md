@@ -30,3 +30,17 @@
 - 16 个写操作全部声明 `Idempotency-Key`（`GET /guardian-authorization/confirm` 豁免：公开链接无鉴权）
 - `AssessmentSnapshot.required` 收窄为 `[subject, stateLabel, dataSufficient, recordCount]`，`assessmentId` 可空——与 `StateResult` 语义一致
 - `subjects` 的 `maxItems` 为 10，与 Subject 枚举取值数一致
+
+## 2026-08-17 修复 500 插入导致的缩进错乱
+
+v1.1 批量插入 500 时存在缩进 bug：成功响应（200/201/202/204）的 description/content/schema/example
+被误缩进到 `'500'` 键之下，导致 29 个 operation 的成功响应全部失去 schema，且 500 因 `$ref`
+带兄弟节点违反 OpenAPI 3.0 规范（兄弟节点会被忽略）。上表的「29 个 operation 均已声明 500」
+当时是**形式通过但内容错误**——校验只检查了键存在，未检查内容归属。
+
+本次修复后的验证（两层）：
+
+1. 结构校验：YAML 解析通过；500 覆盖 29/29 且全部为**纯 `$ref`**（无兄弟节点）；29 个成功响应全部有 `content` 或 `description`。
+2. 内容还原校验：与 500 插入前的版本（`4521861~1`）逐 operation 比对成功响应块，29 个中 28 个**逐字节一致**；唯一差异是 `DELETE /learning-records/{recordId}` 的示例，为 v1.1 有意修改（`insufficient_data` 时 `assessmentId: null`），其 schema 一致。
+
+教训已吸收：后续对该文件的任何批量修改，验证必须断言**内容归属**（schema 挂在哪个状态码下），不能只断言键存在。
