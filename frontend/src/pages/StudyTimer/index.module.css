@@ -1,4 +1,4 @@
-:root {
+.app {
   --primary: #4ad1ff;
   --primary-soft: #a5e4ff;
   --primary-deep: #2fb7e8;
@@ -9,36 +9,10 @@
   --blue-3: #d4e7f3;
   --glass: rgba(226, 240, 249, 0.42);
   --glass-strong: rgba(222, 238, 248, 0.58);
-  --purple: #b32dff;
-  --purple-deep: #961fd8;
-  --purple-pale: #f3e8ff;
   --serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
   --sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
   --script: 'Great Vibes', 'Dancing Script', 'Segoe Script', 'Edwardian Script ITC', 'Brush Script MT', 'Snell Roundhand', 'Kaiti SC', 'KaiTi', 'STKaiti', cursive;
-}
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  border-radius: 0;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  font-family: var(--sans);
-  font-weight: 300;
-  color: var(--ink);
-  -webkit-font-smoothing: antialiased;
-  overflow: hidden;
-}
-
-.app {
   position: relative;
   height: 100%;
   min-height: 100vh;
@@ -46,18 +20,22 @@ body {
   flex-direction: column;
   align-items: center;
   overflow: hidden;
+  font-family: var(--sans);
+  font-weight: 300;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- 背景图片 + 缓慢动效 ---------- */
-.bg-sky {
-  position: fixed;
+.bgSky {
+  position: absolute;
   inset: 0;
-  z-index: -2;
+  z-index: 0;
   overflow: hidden;
   background-color: var(--blue-2);
 }
 
-.bg-sky::before {
+.bgSky::before {
   content: '';
   position: absolute;
   inset: -6%;
@@ -77,7 +55,7 @@ body {
   }
 }
 
-.bg-sky::after {
+.bgSky::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -112,38 +90,38 @@ body {
 }
 
 /* 任务 */
-.task-inline {
+.taskInline {
   display: flex;
   align-items: center;
   white-space: nowrap;
 }
 
-.task-view {
+.taskView {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.task-label {
+.taskLabel {
   font-size: 11px;
   letter-spacing: 2px;
   color: var(--primary-deep);
 }
 
-.task-title {
+.taskTitle {
   font-family: var(--serif);
   font-weight: 600;
   font-size: 14px;
   color: var(--ink);
 }
 
-.task-edit {
+.taskEdit {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.task-input {
+.taskInput {
   width: 150px;
   font-family: var(--serif);
   font-size: 13px;
@@ -154,12 +132,12 @@ body {
   outline: none;
 }
 
-.task-input:focus {
+.taskInput:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.18);
 }
 
-.icon-btn {
+.iconBtn {
   font-family: var(--sans);
   font-weight: 400;
   font-size: 11px;
@@ -172,31 +150,31 @@ body {
   white-space: nowrap;
 }
 
-.icon-btn:hover {
+.iconBtn:hover {
   background: rgba(74, 209, 255, 0.12);
   border-color: var(--primary);
 }
 
-.icon-btn.ghost {
+.iconBtn.ghost {
   color: var(--ink-soft);
   border-color: rgba(109, 136, 160, 0.35);
 }
 
-.icon-btn.ghost:hover {
+.iconBtn.ghost:hover {
   color: var(--ink);
   border-color: rgba(109, 136, 160, 0.6);
   background: rgba(109, 136, 160, 0.08);
 }
 
 /* 模式切换 */
-.mode-tabs {
+.modeTabs {
   display: flex;
   gap: 4px;
   background: rgba(74, 209, 255, 0.1);
   padding: 3px;
 }
 
-.mode-tab {
+.modeTab {
   font-family: var(--sans);
   font-weight: 400;
   font-size: 12px;
@@ -208,13 +186,13 @@ body {
   transition: all 0.25s ease;
 }
 
-.mode-tab.active {
+.modeTab.active {
   color: var(--blue-1);
   background: var(--primary);
 }
 
 /* 时长设置 */
-.duration-field {
+.durationField {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -223,11 +201,11 @@ body {
   white-space: nowrap;
 }
 
-.duration-label {
+.durationLabel {
   color: var(--ink);
 }
 
-.duration-input {
+.durationInput {
   width: 40px;
   font-family: var(--sans);
   font-weight: 400;
@@ -241,17 +219,17 @@ body {
   transition: all 0.2s ease;
 }
 
-.duration-input:focus {
+.durationInput:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.18);
 }
 
-.duration-unit {
+.durationUnit {
   color: var(--ink-soft);
 }
 
 /* 计时数字（无圆圈） */
-.time-big {
+.timeBig {
   font-family: var(--serif);
   font-weight: 600;
   font-size: 26px;
@@ -310,7 +288,7 @@ body {
 }
 
 /* ---------- 屏幕中央：花体 EpochX ---------- */
-.center-stage {
+.centerStage {
   position: relative;
   z-index: 1;
   flex: 1;
@@ -345,7 +323,7 @@ body {
 }
 
 /* ---------- 任务完成弹窗（半透明白，长方形圆角，严格置顶单行，白衬线体，边缘晕染） ---------- */
-.completion-pop {
+.completionPop {
   position: fixed;
   top: 0;
   left: 50%;
@@ -371,7 +349,7 @@ body {
   animation: popDrop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.1);
 }
 
-.pop-title {
+.popTitle {
   flex-shrink: 0;
   font-family: var(--serif);
   font-weight: 600;
@@ -380,7 +358,7 @@ body {
   color: var(--primary-deep);
 }
 
-.pop-text {
+.popText {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -392,14 +370,14 @@ body {
   color: var(--primary);
 }
 
-.pop-actions {
+.popActions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.pop-ok {
+.popOk {
   font-family: var(--serif);
   font-weight: 600;
   font-size: 13px;
@@ -414,12 +392,12 @@ body {
   white-space: nowrap;
 }
 
-.pop-ok:hover {
+.popOk:hover {
   opacity: 0.88;
   transform: translateY(-1px);
 }
 
-.pop-restart {
+.popRestart {
   font-family: var(--serif);
   font-weight: 400;
   font-size: 13px;
@@ -434,7 +412,7 @@ body {
   white-space: nowrap;
 }
 
-.pop-restart:hover {
+.popRestart:hover {
   background: rgba(74, 209, 255, 0.08);
   border-color: var(--primary);
 }
@@ -451,7 +429,7 @@ body {
 }
 
 @media (max-width: 520px) {
-  .time-big {
+  .timeBig {
     font-size: 22px;
     min-width: 64px;
   }

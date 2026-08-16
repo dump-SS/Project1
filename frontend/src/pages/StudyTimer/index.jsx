@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import styles from './index.module.css'
 
 function formatTime(totalSeconds) {
   if (totalSeconds <= 0) return '00:00'
@@ -19,10 +20,10 @@ function DurationField({ label, value, min, max, onCommit }) {
   }
 
   return (
-    <label className="duration-field">
-      <span className="duration-label">{label}</span>
+    <label className={styles.durationField}>
+      <span className={styles.durationLabel}>{label}</span>
       <input
-        className="duration-input"
+        className={styles.durationInput}
         type="number"
         min={min}
         max={max}
@@ -31,25 +32,25 @@ function DurationField({ label, value, min, max, onCommit }) {
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
       />
-      <span className="duration-unit">分</span>
+      <span className={styles.durationUnit}>分</span>
     </label>
   )
 }
 
 function CompletionPopup({ task, onOk, onRestart }) {
   return (
-    <div className="completion-pop">
-      <span className="pop-title">任务完成</span>
-      <span className="pop-text">「{task}」已完成</span>
-      <span className="pop-actions">
-        <button className="pop-ok" onClick={onOk}>OK</button>
-        <button className="pop-restart" onClick={onRestart}>再学一轮</button>
+    <div className={styles.completionPop}>
+      <span className={styles.popTitle}>任务完成</span>
+      <span className={styles.popText}>「{task}」已完成</span>
+      <span className={styles.popActions}>
+        <button className={styles.popOk} onClick={onOk}>OK</button>
+        <button className={styles.popRestart} onClick={onRestart}>再学一轮</button>
       </span>
     </div>
   )
 }
 
-export default function App() {
+export default function StudyTimerPage() {
   const [task, setTask] = useState('复习函数章节')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task)
@@ -115,17 +116,17 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <div className="bg-sky" aria-hidden="true" />
+    <div className={styles.app}>
+      <div className={styles.bgSky} aria-hidden="true" />
 
-      <header className="topbar">
-        <span className="brand">静心·学习</span>
+      <header className={styles.topbar}>
+        <span className={styles.brand}>静心·学习</span>
 
-        <div className="task-inline">
+        <div className={styles.taskInline}>
           {editing ? (
-            <div className="task-edit">
+            <div className={styles.taskEdit}>
               <input
-                className="task-input"
+                className={styles.taskInput}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 maxLength={40}
@@ -135,27 +136,27 @@ export default function App() {
                   if (e.key === 'Escape') handleCancelTask()
                 }}
               />
-              <button className="icon-btn" onClick={handleSaveTask}>保存</button>
-              <button className="icon-btn ghost" onClick={handleCancelTask}>取消</button>
+              <button className={styles.iconBtn} onClick={handleSaveTask}>保存</button>
+              <button className={`${styles.iconBtn} ${styles.ghost}`} onClick={handleCancelTask}>取消</button>
             </div>
           ) : (
-            <div className="task-view">
-              <span className="task-label">任务</span>
-              <span className="task-title">{task}</span>
-              <button className="icon-btn ghost" onClick={() => setEditing(true)}>编辑</button>
+            <div className={styles.taskView}>
+              <span className={styles.taskLabel}>任务</span>
+              <span className={styles.taskTitle}>{task}</span>
+              <button className={`${styles.iconBtn} ${styles.ghost}`} onClick={() => setEditing(true)}>编辑</button>
             </div>
           )}
         </div>
 
-        <div className="mode-tabs">
+        <div className={styles.modeTabs}>
           <button
-            className={`mode-tab ${mode === 'focus' ? 'active' : ''}`}
+            className={`${styles.modeTab} ${mode === 'focus' ? styles.active : ''}`}
             onClick={() => setMode('focus')}
           >
             专注
           </button>
           <button
-            className={`mode-tab ${mode === 'break' ? 'active' : ''}`}
+            className={`${styles.modeTab} ${mode === 'break' ? styles.active : ''}`}
             onClick={() => setMode('break')}
           >
             休息
@@ -165,24 +166,24 @@ export default function App() {
         <DurationField label="专注" value={focusMinutes} min={0} max={180} onCommit={setFocusMinutes} />
         <DurationField label="休息" value={breakMinutes} min={0} max={60} onCommit={setBreakMinutes} />
 
-        <span className="time-big">{formatTime(remaining)}</span>
+        <span className={styles.timeBig}>{formatTime(remaining)}</span>
 
-        <div className="controls">
+        <div className={styles.controls}>
           {!isRunning ? (
             <button
-              className="btn primary"
+              className={`${styles.btn} ${styles.primary}`}
               disabled={totalSeconds <= 0 && remaining <= 0}
               onClick={remaining === 0 ? () => setRemaining(totalSeconds) : startTimer}
             >
               {remaining === 0 ? '重新开始' : remaining === totalSeconds ? '开始' : '继续'}
             </button>
           ) : (
-            <button className="btn ghost" onClick={stopTimer}>
+            <button className={`${styles.btn} ${styles.ghost}`} onClick={stopTimer}>
               暂停
             </button>
           )}
           <button
-            className="btn ghost"
+            className={`${styles.btn} ${styles.ghost}`}
             onClick={() => {
               stopTimer()
               setRemaining(totalSeconds)
@@ -193,8 +194,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="center-stage">
-        <h1 className="epochx">EpochX</h1>
+      <main className={styles.centerStage}>
+        <h1 className={styles.epochx}>EpochX</h1>
       </main>
 
       {showDone && (
