@@ -125,17 +125,13 @@ def test_settings_update_requires_at_least_one_field() -> None:
     assert ok.send_text_to_ai is True
 
 
-# ---------- 6. GuardianAuthorizationRequest 邮箱/手机号互斥 ----------
+# ---------- 6. GuardianAuthorizationRequest 至少传一项 ----------
 
-def test_guardian_request_either_or() -> None:
-    # 都为空：报错
+def test_guardian_request_at_least_one() -> None:
+    """openapi.yaml minProperties: 1 —— 至少传一个，spec 没说互斥。"""
+    # 都不传：报错
     with pytest.raises(ValueError, match="至少传一项"):
         GuardianAuthorizationRequest.model_validate({})
-    # 两个都传：报错
-    with pytest.raises(ValueError, match="互斥"):
-        GuardianAuthorizationRequest.model_validate(
-            {"guardianEmail": "g@e.com", "guardianPhone": "13800000000"}
-        )
     # 只传邮箱：OK
     ok = GuardianAuthorizationRequest.model_validate(
         {"guardianEmail": "g@e.com"}
@@ -145,6 +141,12 @@ def test_guardian_request_either_or() -> None:
     ok = GuardianAuthorizationRequest.model_validate(
         {"guardianPhone": "13800000000"}
     )
+    assert ok.guardian_phone == "13800000000"
+    # 两个都传：也 OK（spec 没禁止）
+    ok = GuardianAuthorizationRequest.model_validate(
+        {"guardianEmail": "g@e.com", "guardianPhone": "13800000000"}
+    )
+    assert ok.guardian_email == "g@e.com"
     assert ok.guardian_phone == "13800000000"
 
 

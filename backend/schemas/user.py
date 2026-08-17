@@ -116,7 +116,7 @@ class SettingsUpdate(BaseModel):
 
 
 class GuardianAuthorizationRequest(BaseModel):
-    """监护人邮箱与手机号二选一必填（PRD 8.1）。"""
+    """监护人邮箱与手机号至少传一项（openapi.yaml minProperties: 1）。"""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -131,11 +131,9 @@ class GuardianAuthorizationRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _either_or(self) -> "GuardianAuthorizationRequest":
+    def _at_least_one(self) -> "GuardianAuthorizationRequest":
         has_email = bool(self.guardian_email and self.guardian_email.strip())
         has_phone = bool(self.guardian_phone and self.guardian_phone.strip())
         if not has_email and not has_phone:
             raise ValueError("guardianEmail 和 guardianPhone 至少传一项")
-        if has_email and has_phone:
-            raise ValueError("guardianEmail 和 guardianPhone 互斥，只能传一个")
         return self
