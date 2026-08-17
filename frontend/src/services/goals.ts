@@ -9,10 +9,13 @@
  *   本文件已按「字段存在则用、不存在则退回当前行为」的方式读取，
  *   后端上线后前端无需任何改动即可自动生效，因此不构成并行开发的阻塞点。
  * - 进度百分比取 GoalProgress.ratio（0-1），换算成 0-100。
+ * - 写入侧三个动作（create / update / archive）均与契约一一对应：
+ *   `POST /goals`、`PATCH /goals/{goalId}`、`PATCH /goals/{goalId} { status: 'archived' }`。
+ *   契约里没有独立 DELETE；归档即"软删除"，保留历史供复盘引用。
  */
 
-import { apiGetAllPages } from './http';
-import type { GoalOutcome, GoalSummary } from '@/types/api';
+import { apiGetAllPages, apiPatch, apiPost } from './http';
+import type { Goal, GoalCreate, GoalOutcome, GoalSummary, GoalUpdate } from '@/types/api';
 import type { GoalCard, GoalPanel } from '@/types/view';
 import { subjectLabels } from '@/styles/theme';
 
@@ -164,4 +167,36 @@ export function placeholderGoals(): GoalPanel {
   ];
 
   return { active, finished };
+}
+
+/* ---------- 写入：create / update / archive ---------- */
+
+/**
+ * 创建学习目标。对应 `POST /api/v1/goals`（openapi.yaml createGoal）。
+ * 必填 type / subject / title；description / targetDate / templateId 可选。
+ * 成功后服务端返回完整 Goal 对象，调用方可立即塞进本地列表。
+ */
+export function createGoal(payload: GoalCreate, signal?: AbortSignal): Promise<Goal> {
+  return apiPost<Goal>('/goals', payload, signal);
+}
+
+/**
+ * 更新目标字段。对应 `PATCH /api/v1/goals/{goalId}`（openapi.yaml updateGoal）。
+ * 至少传一项；title ≤ 50、description ≤ 200。
+ * 成功后服务端返回完整 Goal（含最新的 progress）。
+ */
+export function updateGoal(
+  goalId: string,
+  patch: GoalUpdate,
+  signal?: AbortSignal,
+): Promise<Goal> {
+  return apiPatch<Goal>(`/goals/${encodeURIComponent(goalId)}`, patch, signal);
+}
+
+/**
+ * 归档目标（"软删除"）。契约里没有独立 DELETE：归档保留历史供复盘引用。
+ * 实现上仍是 `PATCH /api/v1/goals/{goalId}`，只把 status 写成 archived。
+ */
+export function archiveGoal(goalId: string, signal?: AbortSignal): Promise<Goal> {
+  return updateGoal(goalId, { status: 'archived' }, signal);
 }

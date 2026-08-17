@@ -148,6 +148,16 @@ export interface LearningRecordCreated extends LearningRecord {
   } | null;
 }
 
+/**
+ * 删除学习记录后的响应（openapi.yaml LearningRecordDeleted）。
+ * 字段含义见 AssessmentSnapshot。
+ */
+export interface LearningRecordDeleted {
+  deleted: boolean;
+  recordId: string;
+  recalculatedAssessment: AssessmentSnapshot;
+}
+
 /* ---------- 个性化建议 ---------- */
 
 export interface RecommendationItem {
@@ -255,6 +265,31 @@ export interface Goal extends GoalSummary {
 export interface GoalList {
   items: GoalSummary[];
   pagination: Pagination;
+}
+
+/**
+ * 创建目标请求体（openapi.yaml GoalCreate）。
+ * 至少传 type + subject + title；description / targetDate / templateId 可选。
+ * 字段长度与契约一致：title ≤ 50 字、description ≤ 200 字。
+ */
+export interface GoalCreate {
+  type: GoalType;
+  subject: Subject;
+  title: string;
+  description?: string;
+  targetDate?: string;
+  templateId?: string;
+}
+
+/**
+ * 更新目标请求体（openapi.yaml GoalUpdate）。字段全可选，但至少传一项。
+ * 归档通过 `status: 'archived'` 表达——契约里没有独立 DELETE，归档即"软删除"。
+ */
+export interface GoalUpdate {
+  title?: string;
+  description?: string;
+  targetDate?: string;
+  status?: GoalStatus;
 }
 
 /* ---------- 状态评估 ---------- */

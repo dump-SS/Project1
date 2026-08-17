@@ -114,6 +114,13 @@ export interface CalendarSubjectStat {
   stateLabel: StateLabel | null;
 }
 
+/**
+ * 日历详情。
+ *
+ * `records` 字段是新增的：原来只有聚合后的总时长/学科/标签。
+ * 用户从日历里直接看到并删除单条记录是 PRD 5.2 边界场景「记录删除回溯」，
+ * 因此 DayDetailPanel 渲染时需要有原始 LearningRecord 列表。
+ */
 export interface CalendarDayDetail {
   date: string;
   totalMinutes: number;
@@ -123,6 +130,8 @@ export interface CalendarDayDetail {
   focusAvg: number | null;
   /** 当天平均疲劳度 1-5 */
   fatigueAvg: number | null;
+  /** 当日学习记录的原始列表，供「按记录删除」使用；占位数据下不填 */
+  records?: import('./api').LearningRecord[];
 }
 
 export interface CalendarPanel {

@@ -1,20 +1,46 @@
 /**
  * 模块⑤ 内置日历：有学习记录的日期打蓝点，点击日期在右侧展示当天数据摘要。
+ *
+ * 当日面板可对单条学习记录执行删除（PRD 5.2 边界场景「记录删除回溯」）：
+ * - 二次确认：避免误删
+ * - 删除成功后调用 usePanelData 的 reload 重拉当月数据
+ * - 服务端在 DELETE 响应里同步返回 recalculatedAssessment，
+ *   本期暂不消费该结果（仅刷新列表），后续若要做"局部更新学科标签"可在此接住
  */
 
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Calendar } from 'antd';
+import { Calendar, Modal } from 'antd';
 import type { Dayjs } from 'dayjs';
 import SectionCard from './SectionCard';
 import styles from './CalendarCard.module.css';
 import { fetchCalendar, placeholderCalendar } from '@/services/calendar';
+import { deleteLearningRecord } from '@/services/learningRecord';
 import { usePanelData } from '@/hooks/usePanelData';
-import { subjectColors, stateLabelColors, stateLabels } from '@/styles/theme';
+import { isNetworkError } from '@/services/http';
+import { subjectColors, stateLabelColors, stateLabels, subjectLabels } from '@/styles/theme';
 import { DATE_FORMAT, dayjs, formatDuration } from '@/utils/aggregate';
 import type { CalendarDayDetail } from '@/types/view';
+import type { LearningRecord } from '@/types/api';
 
-function DayDetailPanel({ date, detail }: { date: Dayjs; detail: CalendarDayDetail | undefined }) {
+function formatStartTime(iso: string): string {
+  return dayjs(iso).format('HH:mm');
+}
+
+function describeRecord(record: LearningRecord): string {
+  const subject = subjectLabels[record.subject] ?? record.subject;
+  return `${subject} · ${formatDuration(record.durationMinutes)} · 专注 ${record.selfReport.focus}/5 · 疲劳 ${record.selfReport.fatigue}/5`;
+}
+
+function DayDetailPanel({
+  date,
+  detail,
+  onRequestDelete,
+}: {
+  date: Dayjs;
+  detail: CalendarDayDetail | undefined;
+  onRequestDelete: (record: LearningRecord) => void;
+}) {
   return (
     <aside className={styles.detail}>
       <div className={styles.detailHeader}>
@@ -73,6 +99,32 @@ function DayDetailPanel({ date, detail }: { date: Dayjs; detail: CalendarDayDeta
             ))}
           </ul>
 
+          {detail.records && detail.records.length > 0 ? (
+            <div className={styles.recordsSection}>
+              <h4 className={styles.recordsTitle}>当天记录</h4>
+              <ul className={styles.recordsList}>
+                {detail.records.map((record) => (
+                  <li key={record.recordId} className={styles.recordItem}>
+                    <div className={styles.recordMeta}>
+                      <span className={styles.recordTime}>
+                        {formatStartTime(record.startedAt)}
+                      </span>
+                      <span className={styles.recordDesc}>{describeRecord(record)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.recordDelete}
+                      onClick={() => onRequestDelete(record)}
+                      aria-label={`删除 ${formatStartTime(record.startedAt)} 的记录`}
+                    >
+                      删除
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <p className={styles.detailPending}>状态标签按学科分别给出，不做跨学科合并</p>
         </>
       )}
@@ -86,9 +138,12 @@ function CalendarCard() {
 
   const fetcher = useCallback((signal: AbortSignal) => fetchCalendar(month, signal), [month]);
 
-  const { data, loading, source, error } = usePanelData(fetcher, placeholderCalendar(month), 'calendar', [
-    month,
-  ]);
+  const { data, loading, source, error, reload } = usePanelData(
+    fetcher,
+    placeholderCalendar(month),
+    'calendar',
+    [month],
+  );
 
   const selectedDetail = useMemo(
     () => data.marks[selectedDate.format(DATE_FORMAT)],
@@ -102,6 +157,40 @@ function CalendarCard() {
     }
     setMonth(value.format('YYYY-MM'));
   }, []);
+
+  /** 待删除记录的二次确认：Modal.confirm 提供 onOk/onCancel，比手写 modal 简单 */
+  const [deleting, setDeleting] = useState<LearningRecord | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleRequestDelete = useCallback((record: LearningRecord) => {
+    setDeleting(record);
+    setDeleteError(null);
+  }, []);
+
+  const handleCancelDelete = useCallback(() => {
+    if (deletingBusy) return;
+    setDeleting(null);
+    setDeleteError(null);
+  }, [deletingBusy]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleting) return;
+    setDeletingBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteLearningRecord(deleting.recordId);
+      setDeleting(null);
+      reload();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : null;
+      setDeleteError(
+        isNetworkError(err) ? '后端暂不可用，请稍后再试' : (message ?? '删除失败，请稍后再试'),
+      );
+    } finally {
+      setDeletingBusy(false);
+    }
+  }, [deleting, reload]);
 
   const fullCellRender = useCallback(
     (current: Dayjs, info: { type: string; originNode: ReactNode }) => {
@@ -130,6 +219,9 @@ function CalendarCard() {
     [data.marks, selectedDate, month],
   );
 
+  const confirmSubject =
+    deleting ? (subjectLabels[deleting.subject] ?? deleting.subject) : '';
+
   return (
     <SectionCard
       index="⑤"
@@ -150,8 +242,39 @@ function CalendarCard() {
           />
         </div>
 
-        <DayDetailPanel date={selectedDate} detail={selectedDetail} />
+        <DayDetailPanel
+          date={selectedDate}
+          detail={selectedDetail}
+          onRequestDelete={handleRequestDelete}
+        />
       </div>
+
+      <Modal
+        open={!!deleting}
+        title="删除这条学习记录？"
+        okText="确认删除"
+        cancelText="再想想"
+        okButtonProps={{ danger: true, loading: deletingBusy }}
+        cancelButtonProps={{ disabled: deletingBusy }}
+        onOk={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        destroyOnClose
+      >
+        {deleting ? (
+          <div>
+            <p>
+              将删除 <b>{confirmSubject}</b> · {formatDuration(deleting.durationMinutes)} 的记录
+              （{formatStartTime(deleting.startedAt)} 开始）。
+            </p>
+            <p style={{ marginTop: 8, color: '#8ca3b5', fontSize: 12 }}>
+              删除后服务端会立即重算当前窗口的状态分。记录本身不可恢复，请确认。
+            </p>
+            {deleteError ? (
+              <p style={{ marginTop: 8, color: '#b43232' }}>{deleteError}</p>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </SectionCard>
   );
 }
