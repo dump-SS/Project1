@@ -1,12 +1,28 @@
 [project]
-name = "epochx-state-engine"
-version = "0.1.0"
-description = "学习状态量化引擎（PRD 5.2 确定性计算层）"
+name = "epochx-backend"
+version = "0.2.0"
+description = "EpochX API 后端：FastAPI 服务层 + 状态量化引擎（PRD 5.2 确定性计算层）"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.32.1",
+    "pydantic==2.10.3",
+    "pydantic-settings==2.7.0",
+    "sqlalchemy==2.0.36",
+    "passlib[bcrypt]==1.7.4",
+    "python-dotenv==1.0.1",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov"]
+dev = [
+    "pytest==8.3.4",
+    "pytest-cov",
+    "httpx==0.28.1",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

@@ -96,7 +96,10 @@ class LearningRecord(BaseModel):
 
 
 class AssessmentSnapshot(BaseModel):
-    """提交/删除记录后同步重算得到的状态快照。"""
+    """提交/删除记录后同步重算得到的状态快照。
+    v1.1 修订：assessmentId 可空、windowScore/trend 数据不足时不返回，
+    与 GET /assessments/current 的 StateResult 语义一致。
+    """
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -113,10 +116,10 @@ class AssessmentSnapshot(BaseModel):
         },
     )
 
-    assessment_id: str = Field(..., alias="assessmentId")
+    assessment_id: str | None = Field(None, alias="assessmentId", description="数据不足时为 null")
     subject: Subject
-    window_score: float = Field(..., alias="windowScore")
-    trend: str
+    window_score: float | None = Field(None, alias="windowScore", description="数据不足时不返回")
+    trend: str | None = Field(None, description="数据不足时不返回")
     state_label: str = Field(..., alias="stateLabel")
     data_sufficient: bool = Field(..., alias="dataSufficient")
     record_count: int = Field(..., alias="recordCount")

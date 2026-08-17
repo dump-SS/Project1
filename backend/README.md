@@ -4,20 +4,38 @@ FastAPI + Pydantic v2 + SQLAlchemy 2.0 + SQLite，严格按 [`docs/openapi.yaml`
 
 ## 当前阶段
 
-**阶段 2：Pydantic schemas + 路由 + mock 数据**
+**阶段 3（进行中）：状态量化已接入真实引擎**
 
-所有 29 个接口都在 `/docs` 可发请求，返回 [mock_data.py](mock_data.py) 里硬编码的假数据。等拿到 `state_calculator.py` + `ai_suggestion.py` 后，开第 3 步 PR 替换 mock。
+- ✅ **状态计算已接引擎**：`POST /learning-records`、`DELETE /learning-records/{id}`、
+  `GET /assessments/current`、`GET /assessments` 全部落库并调
+  [`state_engine`](state_engine/) 真实计算，不再返回 mock 常量。
+  接入点是 [`state_calculator.py`](state_calculator.py)——即 main.py 注释里预留的那个模块。
+- ⏳ **AI 生成仍是 mock**：`routes/recommendation.py` / `routes/summary.py` 等待 `ai_suggestion.py`。
+- ⏳ 其余资源路由（goal / plan / user）仍读 [mock_data.py](mock_data.py)。
+
+计算分层（PRD 6.1 铁律：模型负责表达，规则负责事实）：
+
+```
+routes/*.py               HTTP 层：校验、落库、组装响应
+  └─ state_calculator.py  编排：ORM ↔ 引擎输入 ↔ 契约 dict
+       └─ state_engine/   纯计算：公式、趋势、标签、权重校验（零外部依赖）
+```
 
 ## 快速开始
 
+> **Python 版本**：需 3.11+，推荐 **3.12**（见 `.python-version`）。
+> Python 3.14 上 `pydantic==2.10.3` 没有预编译 wheel、需本地编译，装不上。
+
 ```bash
-# 1. 创建虚拟环境（推荐 3.12，详见 .python-version）
+# 1. 创建虚拟环境
 python -m venv .venv
 .venv\Scripts\Activate.ps1   # Windows
 # source .venv/bin/activate  # macOS / Linux
 
-# 2. 装依赖
-pip install -r requirements.txt
+# 2. 装依赖（依赖声明统一在 pyproject.toml，已无 requirements.txt）
+pip install -e ".[dev]"
+# 若 setuptools 报 "Multiple top-level packages"，直接装依赖列表亦可：
+# pip install fastapi "uvicorn[standard]" pydantic pydantic-settings sqlalchemy "passlib[bcrypt]" python-dotenv httpx pytest
 
 # 3. 配 .env
 cp .env.example .env
@@ -65,10 +83,21 @@ backend/
 │   ├── assessment.py        /assessments
 │   ├── recommendation.py    /recommendations
 │   └── summary.py           /summaries
+├── state_calculator.py      编排层：ORM ↔ 引擎输入 ↔ 契约 dict（阶段 3 接入点）
+├── state_engine/            纯计算引擎（零外部依赖，PRD 5.2）
+│   ├── types.py             引擎数据类型 + 权重配置 + 标签阈值
+│   ├── scoring.py           单次状态分（PRD 5.2§1 公式）
+│   ├── assessment.py        滑动窗口趋势 + 标签判定（PRD 5.2§2-3）
+│   ├── weights.py           AI 调权硬限制校验（PRD 5.2§4）
+│   └── adapter.py           契约 camelCase JSON ↔ 引擎类型
 ├── tests/
-│   └── test_smoke.py        20 个烟雾测试：import / schema 校验 / 路由响应 / 错误格式
-├── requirements.txt
-├── pytest.ini
+│   ├── test_smoke.py        烟雾测试：import / schema 校验 / 路由响应 / 错误格式
+│   ├── test_routes_engine.py 路由 ↔ 引擎集成测试（真实计算而非 mock）
+│   ├── test_scoring.py      单次评分单测
+│   ├── test_assessment.py   趋势与标签单测
+│   ├── test_weights.py      调权校验单测
+│   └── test_adapter.py      适配层单测
+├── pyproject.toml           依赖 + pytest 配置（统一入口，已合并原 requirements.txt / pytest.ini）
 ├── .python-version          给 uv / pyenv 用的
 ├── .env.example
 └── README.md
@@ -139,8 +168,12 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 
 ## 下一步要做
 
-- [ ] 接入 `state_calculator.py` 替换 `routes/learning_record.py` 里的 mock 重算
+- [x] 接入 `state_calculator.py` 替换 `routes/learning_record.py` 里的 mock 重算
 - [ ] 接入 `ai_suggestion.py` 替换 `routes/recommendation.py` + `routes/summary.py` 里的 mock
+- [ ] **给 `learning_records` 加自增序列列**：当前窗口排序用
+      `(started_at, created_at, id)`，保证了确定性；但同一秒内批量插入且
+      `started_at` 相同时，无法还原真实插入顺序（趋势斜率可能与实际录入次序不符）。
+      彻底解决需要一个单调递增序列列。
 - [ ] JWT 解析替换 `routes/deps.py` 里的 `current_user` 占位
 - [ ] 真实速率限制（PRD 6.4）
 - [ ] Alembic 迁移（当前 `Base.metadata.create_all` 够 MVP 阶段）
