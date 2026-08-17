@@ -69,6 +69,19 @@ export interface GenerationStatus {
   completedAt?: string;
 }
 
+/* ---------- 用户与设置 ---------- */
+
+export interface Settings {
+  aiWeightTuningEnabled: boolean;
+  sendTextToAI: boolean;
+  updatedAt: string;
+}
+
+export interface SettingsUpdate {
+  aiWeightTuningEnabled?: boolean;
+  sendTextToAI?: boolean;
+}
+
 /* ---------- 学习记录 ---------- */
 
 export interface RecordBehavior {
