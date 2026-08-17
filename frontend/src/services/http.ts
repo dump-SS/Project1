@@ -26,6 +26,12 @@ export class ApiError extends Error {
   }
 }
 
+/** 网络层失败判别：true 表示「接口不可达」（无 HTTP 状态），区别于接口返回的 4xx/5xx 业务错误 */
+export function isNetworkError(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  return status === undefined || status === 0;
+}
+
 type QueryValue = string | number | boolean | undefined | null;
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
