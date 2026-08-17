@@ -2,6 +2,7 @@ import { useState } from 'react'
 import StudyEditor from './StudyEditor.jsx'
 import EnterButton from './EnterButton.jsx'
 import { createPlan, localDateString } from '../../services/plans'
+import { isNetworkError } from '../../services/http'
 import './index.css'
 import './App.css'
 
@@ -19,22 +20,28 @@ export default function StudyPlanEditor() {
   // 可用学习分钟（受控，用于 POST /plans）
   const [minutes, setMinutes] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const [offlineNote, setOfflineNote] = useState('')
 
   /** 点「进入」：先同步生成计划（POST /plans），成功后跳专注计时页 */
   const handleEnter = async () => {
     setSubmitError('')
+    setOfflineNote('')
     if (!MINUTES_VALIDATOR(minutes)) {
       setSubmitError('请先填写 10-600 的可用学习分钟数')
       return false
     }
     try {
-      await createPlan({
+      const { fromCache } = await createPlan({
         planDate: localDateString(),
         availableMinutes: Number(minutes),
       })
+      // 网络失败回退到缓存时 createPlan 会返回缓存计划并标记 fromCache
+      if (fromCache) {
+        setOfflineNote('离线取用上次成功计划')
+      }
       return true
     } catch (err) {
-      setSubmitError(err?.message ?? '计划生成失败，请稍后再试')
+      setSubmitError(isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'))
       return false
     }
   }
@@ -66,6 +73,7 @@ export default function StudyPlanEditor() {
         />
 
         {submitError && <p className="submit-error">{submitError}</p>}
+        {offlineNote && <p className="submit-error">{offlineNote}</p>}
 
         <EnterButton to="/study-timer" onBeforeNavigate={handleEnter} />
       </main>
