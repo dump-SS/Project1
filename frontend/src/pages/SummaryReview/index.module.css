@@ -1,0 +1,344 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  background: #f7fbfe;
+  padding: 56px 24px 80px;
+  overflow: hidden;
+}
+
+.page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 420px;
+  background-image: url('/bg-sky.jpg');
+  background-size: cover;
+  background-position: center 38%;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.9) 40%,
+    rgba(0, 0, 0, 0.45) 70%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.9) 40%,
+    rgba(0, 0, 0, 0.45) 70%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+/* 内容统一放在背景之上 */
+.header,
+.panel,
+.result {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.header {
+  margin-bottom: 36px;
+  padding-left: 4px;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--color-text-heading);
+  letter-spacing: 3px;
+  line-height: 1.4;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.75;
+  margin: 0;
+}
+
+.panel {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.rangeRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.dateInput {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text-body);
+  background: var(--color-primary-bg);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  padding: 9px 12px;
+  outline: none;
+}
+
+.dateInput:focus {
+  border-color: var(--color-primary);
+}
+
+.generateBtn {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 28px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.generateBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.generateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-warning);
+  margin: 12px 0 0;
+}
+
+.error {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-error);
+  margin: 12px 0 0;
+}
+
+.result {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  padding: 28px 32px;
+}
+
+.resultHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-soft);
+  margin-bottom: 24px;
+}
+
+.period {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--color-text-heading);
+  letter-spacing: 1px;
+}
+
+.statusTag {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.blockTitle {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-heading);
+  letter-spacing: 2px;
+  margin: 0 0 10px;
+}
+
+.overview {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--color-text-body);
+  line-height: 1.9;
+  margin: 0;
+}
+
+.list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.listItem {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text-body);
+  line-height: 1.8;
+}
+
+.encouragement {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--color-primary-dark);
+  line-height: 1.9;
+  letter-spacing: 1px;
+  margin: 0;
+  padding-top: 4px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 28px 0 12px;
+}
+
+.emptyTitle {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--color-text-heading);
+  letter-spacing: 2px;
+  margin: 0 0 10px;
+}
+
+.emptyText {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.8;
+  margin: 0;
+}
+
+.feedback {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.feedbackTitle {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text-heading);
+  margin: 0 0 12px;
+}
+
+.ratingRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ratingBtn {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-body);
+  background: var(--color-primary-bg);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  padding: 8px 22px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ratingBtn:hover {
+  border-color: var(--color-primary);
+}
+
+.ratingActive {
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  border-color: var(--color-primary);
+}
+
+.reasonInput {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-body);
+  background: var(--color-primary-bg);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 64px;
+  outline: none;
+}
+
+.reasonInput:focus {
+  border-color: var(--color-primary);
+}
+
+.submitBtn {
+  margin-top: 14px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 28px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.submitBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.submitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.feedbackDone {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-success);
+  margin: 0;
+}

@@ -124,6 +124,41 @@ export async function apiPatch<T>(
   return (await response.json()) as T;
 }
 
+export async function apiPut<T>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'application/json' };
+
+  const response = await fetch(buildUrl(path), {
+    method: 'PUT',
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
+    signal,
+  });
+
+  if (!response.ok) {
+    let code = 'INTERNAL_ERROR';
+    let message = `请求失败（HTTP ${response.status}）`;
+    let field: string | undefined;
+    try {
+      const errBody = (await response.json()) as ApiErrorBody;
+      if (errBody?.error) {
+        code = errBody.error.code ?? code;
+        message = errBody.error.message ?? message;
+        field = errBody.error.field;
+      }
+    } catch {
+      // 后端未上线时返回非 JSON，解析失败属预期
+    }
+    throw new ApiError(response.status, code, message, field);
+  }
+
+  return (await response.json()) as T;
+}
+
 export async function apiGet<T>(
   path: string,
   query?: Record<string, QueryValue>,
