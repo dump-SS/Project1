@@ -56,6 +56,20 @@ db.exec(`
     expires_at INTEGER NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS learning_records (
+    record_id         TEXT PRIMARY KEY,
+    recommendation_id TEXT NOT NULL,
+    subject           TEXT NOT NULL,
+    started_at        TEXT NOT NULL,
+    duration_minutes  INTEGER NOT NULL,
+    completion        TEXT NOT NULL,
+    focus             INTEGER NOT NULL,
+    fatigue           INTEGER NOT NULL,
+    emotion           TEXT NOT NULL,
+    difficulty_feel   TEXT NOT NULL,
+    created_at        TEXT NOT NULL
+  );
 `)
 
 /* ===================== 密码哈希（scrypt + 随机盐） ===================== */
@@ -90,6 +104,40 @@ function safeEqual(aHex, bHex) {
   const a = Buffer.from(aHex, 'hex')
   const b = Buffer.from(bHex, 'hex')
   return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+/* ===================== 学习记录 ===================== */
+
+const SUBJECTS = ['chinese', 'math', 'english', 'physics', 'chemistry', 'biology', 'history', 'geography', 'politics', 'other']
+const EMOTIONS = ['positive', 'neutral', 'negative']
+const DIFFICULTIES = ['easy', 'moderate', 'hard']
+const COMPLETIONS = ['completed', 'partial', 'abandoned']
+
+function genId(prefix) {
+  return `${prefix}_${crypto.randomBytes(4).toString('hex')}`
+}
+
+function buildRecommendationItems(record) {
+  const items = []
+  if (record.fatigue >= 4) {
+    items.push({
+      title: '这次有点累了，下次把单次时长压短一点',
+      content: `你的疲劳度自评是 ${record.fatigue} 分，建议下次缩短单次专注时长，中间多安排 5 分钟休息，恢复精力再继续。`,
+    })
+  }
+  if (record.focus >= 4) {
+    items.push({
+      title: '专注状态不错，保持这个节奏',
+      content: `这次专注度自评 ${record.focus} 分，说明这个时段和状态挺适合你，可以继续沿用。`,
+    })
+  }
+  if (items.length === 0) {
+    items.push({
+      title: '平稳完成，继续保持',
+      content: '这次的专注时长和自评都比较平稳，按自己的节奏来，积累下去会看到变化的。',
+    })
+  }
+  return items
 }
 
 /* ===================== 验证码 ===================== */
@@ -478,6 +526,85 @@ const server = http.createServer(async (req, res) => {
       db.prepare('DELETE FROM sessions WHERE email = ?').run(email)
       console.log(`[RESET-PWD] ${email} 密码已重置，已有会话已失效`)
       return json(res, 200, { ok: true })
+    }
+
+    /* --------------- 6. 学习记录（提交自评 + 建议轮询） --------------- */
+
+    if (path === '/api/v1/learning-records' && req.method === 'POST') {
+      const { subject, startedAt, durationMinutes, behavior, selfReport } = body || {}
+      const completion = behavior?.completion
+      const focus = selfReport?.focus
+      const fatigue = selfReport?.fatigue
+      const emotion = selfReport?.emotion
+      const difficultyFeel = selfReport?.difficultyFeel
+
+      if (!subject || !SUBJECTS.includes(subject)) return err(res, 400, 'VALIDATION_FAILED', '学科取值不合法', 'subject')
+      if (!startedAt) return err(res, 400, 'VALIDATION_FAILED', '缺少学习开始时间', 'startedAt')
+      if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600) return err(res, 400, 'VALIDATION_FAILED', '学习时长需为 1-600 的整数', 'durationMinutes')
+      if (!completion || !COMPLETIONS.includes(completion)) return err(res, 400, 'VALIDATION_FAILED', '完成度取值不合法', 'behavior.completion')
+      if (!Number.isInteger(focus) || focus < 1 || focus > 5) return err(res, 400, 'VALIDATION_FAILED', '专注度需为 1-5 的整数', 'selfReport.focus')
+      if (!Number.isInteger(fatigue) || fatigue < 1 || fatigue > 5) return err(res, 400, 'VALIDATION_FAILED', '疲劳度需为 1-5 的整数', 'selfReport.fatigue')
+      if (!EMOTIONS.includes(emotion)) return err(res, 400, 'VALIDATION_FAILED', '情绪取值不合法', 'selfReport.emotion')
+      if (!DIFFICULTIES.includes(difficultyFeel)) return err(res, 400, 'VALIDATION_FAILED', '难度感受取值不合法', 'selfReport.difficultyFeel')
+
+      const recordId = genId('r')
+      const recommendationId = genId('rec')
+      const createdAt = new Date().toISOString()
+
+      db.prepare(`
+        INSERT INTO learning_records
+          (record_id, recommendation_id, subject, started_at, duration_minutes, completion, focus, fatigue, emotion, difficulty_feel, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(recordId, recommendationId, subject, startedAt, durationMinutes, completion, focus, fatigue, emotion, difficultyFeel, createdAt)
+
+      const recordCount = db.prepare('SELECT COUNT(*) AS c FROM learning_records WHERE subject = ?').get(subject).c
+      const dataSufficient = recordCount >= 3
+      const stateLabel = !dataSufficient ? 'insufficient_data' : (fatigue >= 4 ? 'fatigue_warning' : 'efficient_stable')
+
+      return json(res, 201, {
+        recordId,
+        subject,
+        startedAt,
+        durationMinutes,
+        planTaskId: null,
+        behavior: { completion },
+        selfReport: { focus, fatigue, emotion, difficultyFeel },
+        assessment: {
+          assessmentId: genId('a'),
+          subject,
+          windowScore: Math.round((focus / 5) * 100) / 100,
+          trend: 'flat',
+          stateLabel,
+          dataSufficient,
+          recordCount,
+        },
+        recommendation: { recommendationId, status: 'pending' },
+        createdAt,
+      })
+    }
+
+    if (path.startsWith('/api/v1/recommendations/') && req.method === 'GET') {
+      const recommendationId = path.slice('/api/v1/recommendations/'.length)
+      const row = db.prepare('SELECT * FROM learning_records WHERE recommendation_id = ?').get(recommendationId)
+      if (!row) return err(res, 404, 'RESOURCE_NOT_FOUND', '建议不存在')
+
+      return json(res, 200, {
+        recommendationId,
+        scene: 'post_session',
+        subject: row.subject,
+        generation: {
+          status: 'ready',
+          source: 'template',
+          completedAt: new Date().toISOString(),
+        },
+        items: buildRecommendationItems(row),
+        basedOn: {
+          recordId: row.record_id,
+          stateLabel: row.fatigue >= 4 ? 'fatigue_warning' : 'efficient_stable',
+          explain: '依据本次学习记录的专注度与疲劳度自评生成',
+        },
+        feedback: null,
+      })
     }
 
     /* --------------- 404 --------------- */
