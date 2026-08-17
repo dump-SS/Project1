@@ -128,9 +128,9 @@ strong, b, .text-bold {
   position: relative;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 32px 20px;
+  padding: 4vh 20px 32px;
   z-index: 1;
 }
 
@@ -143,7 +143,7 @@ strong, b, .text-bold {
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 44px 40px 36px;
+  padding: 56px 40px 36px;
   box-shadow: var(--shadow-card);
   animation: cardIn var(--trans-slow);
 }
@@ -160,22 +160,18 @@ strong, b, .text-bold {
   margin-bottom: 32px;
 }
 
-.auth-logo {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-soft);
+.auth-logo-img {
+  display: block;
+  margin: 0 auto 12px;
+  max-width: 110px;
+  height: auto;
 }
 
-.auth-logo svg {
-  width: 30px;
-  height: 30px;
-  color: #fff;
+/* 登录页放大并下移：与其他两个页面区分 */
+.auth-logo-img--login {
+  max-width: 140px;
+  margin-top: 26px;
+  margin-bottom: 20px;
 }
 
 .auth-title {

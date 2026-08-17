@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import FormField from '../components/FormField.jsx'
-import { LogoIcon, MailIcon, LockIcon, ShieldIcon } from '../components/Icons.jsx'
+import { MailIcon, LockIcon, ShieldIcon } from '../components/Icons.jsx'
 import { useCodeCountdown } from '../hooks/useCodeCountdown.js'
 import { validateEmail, validateCode, validatePassword } from '../utils/validators.js'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -97,8 +97,7 @@ export default function LoginPage() {
       <div className="page-bg-decor" />
       <div className="auth-card">
         <div className="auth-header">
-          <div className="auth-logo"><LogoIcon /></div>
-          <h1 className="auth-title">EpochX</h1>
+          <img className="auth-logo-img auth-logo-img--login" src="/brand/logo-full-black.png" alt="EpochX" />
           <p className="auth-subtitle">记录你的每一次专注与成长</p>
         </div>
 
