@@ -6,7 +6,7 @@
 
 分层：
   A. 契约闭环（已实现）：目标→计划→记录→状态→建议，五步全部走真实后端+引擎
-  B. 已实现但还有缺陷：计划/目标 create 仍返回 mock 常量（与 list 不对称）
+  B. 计划/目标 CRUD 真实现（已接 DB）：create 落库、list 一致、409/regenerate、PATCH、归档、属主隔离、404
   C. 用户/鉴权链路：/me 是桩、auth/me 在 mock-server、会话未对接
 
 运行前提：uvicorn backend:8000 + mock-server:4000 都在跑（默认配置）。
@@ -28,8 +28,7 @@ client = TestClient(app)
 def test_a1_create_goal_returns_201_with_progress():
     """A1: POST /goals 创建目标 → 201 + Goal 形状（status=active, progress 字段在）。
 
-    契约：openapi.yaml 2.1。当前实现：返回 mock 常量，
-    但契约 shape 已验证。后续接 DB 后此断言不应变。
+    契约：openapi.yaml 2.1。已接 DB：create 真落库，progress 初始为 0。
     """
     r = client.post("/api/v1/goals", json={
         "type": "short_term",
@@ -48,17 +47,19 @@ def test_a1_create_goal_returns_201_with_progress():
 def test_a2_create_plan_returns_tasks():
     """A2: POST /plans 生成计划 → 201 + tasks 非空。
 
-    契约：openapi.yaml 3.1。当前实现：返回 mock 常量（planDate/availableMinutes 被忽略）。
-    断言 shape + tasks 非空 + task 字段齐全；planDate 忽略在 B1 单独暴露。
+    契约：openapi.yaml 3.1。已接 DB：planDate/availableMinutes 来自请求，
+    按 active 目标生成任务列表。先建目标再建计划，保证 tasks 非空。
     """
+    # 先建一个 active 目标，保证计划能生成任务
+    client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "math", "title": "A2 数学目标",
+    })
     r = client.post("/api/v1/plans", json={
         "planDate": "2026-08-18",
         "availableMinutes": 120,
-        "goalIds": ["g_5501"],
     })
     assert r.status_code == 201, f"生成计划失败: {r.status_code} {r.text}"
     body = r.json()
-    # 当前 mock：返回示例计划（planDate/availableMinutes 被忽略），shape 已验证
     assert "planId" in body
     assert "planDate" in body
     assert isinstance(body["tasks"], list) and len(body["tasks"]) > 0
@@ -137,15 +138,14 @@ def test_a5_poll_recommendation_gets_ready():
     assert body["generation"]["status"] != "pending", "同步生成应已完成"
 
 
-# ---------- B. 已实现但仍是 mock 常量的链路（已知缺口） ----------
+# ---------- B. 计划/目标 CRUD 真实现（已接 DB） ----------
 
-def test_b1_plan_create_and_list_are_asymmetric():
-    """B1: POST /plans 返回 201 + mock 常量；GET /plans 返回 mock 常量列表。
+def test_b1_plan_create_persists_and_appears_in_list():
+    """B1: POST /plans 落库后，GET /plans 列表里能查到刚创建的计划。
 
-    当前 mock 的实现：create 和 list 返回的是**同一个 mock 对象**（id 也相同），
-    所以「刚创建的计划出现在 list 里」——不对称检测靠 id 恰好失效，
-    真正的问题是 plan create **不持久化**，GET 也是硬编码而非查 DB。
-    此测试记录现状，接 DB 后应改为「创建后 list 出现新 id 且 planDate 为请求值」。
+    之前的 bug：create 返回 mock 常量、不落库，list 也返 mock 常量，
+    create 返回的 planId 在 list 里只是恰好同 id（同一个 mock 对象）。
+    修复后：create 真落库，list 真读库，planDate 为请求值而非硬编码。
     """
     created = client.post("/api/v1/plans", json={
         "planDate": "2026-08-19",
@@ -154,25 +154,25 @@ def test_b1_plan_create_and_list_are_asymmetric():
     assert created.status_code == 201
     created_plan_id = created.json()["planId"]
     created_plan_date = created.json()["planDate"]
+    # 修复后：planDate 是请求值，不再是 mock 硬编码的 2026-08-16
+    assert created_plan_date == "2026-08-19", (
+        f"plan create 应使用请求 planDate，实际返回 {created_plan_date}"
+    )
 
     list_resp = client.get("/api/v1/plans")
     assert list_resp.status_code == 200
     items = list_resp.json()["items"]
-
-    # 当前 mock：create 和 list 返回同一个 mock 对象，id 相同 → found=True
-    # 但 planDate 被忽略（请求 2026-08-19，返回 2026-08-16）
+    # 修复后：刚创建的 planId 真出现在 list 里（落库一致）
     found = any(p["planId"] == created_plan_id for p in items)
-    assert found, "mock 的 create/list 同构（同一 mock 对象），id 应匹配"
-    assert created_plan_date == "2026-08-16", (
-        f"plan create 忽略请求参数：请求 planDate=2026-08-19，实际返回 {created_plan_date}（mock 硬编码）"
-    )
+    assert found, "create 落库后，list 应能查到刚创建的计划"
 
 
-def test_b2_goal_create_and_list_are_asymmetric():
-    """B2: POST /goals 返回 201（echo 请求参数），但 GET /goals 返回 mock 常量列表。
+def test_b2_goal_create_persists_and_appears_in_list():
+    """B2: POST /goals 落库后，GET /goals 列表里能查到刚创建的目标。
 
-    goal create 用了 body.type/subject/title（没忽略输入），但 id/createdAt 是 mock 常量；
-    list 是完整 mock 对象，与 create 无关。
+    之前的 bug：create echo 输入但 id/createdAt 是 mock 常量、不落库；
+    list 返 mock 常量，与 create 完全脱节。
+    修复后：create 真落库，list 真读库，刚创建的目标出现在 list 里。
     """
     created = client.post("/api/v1/goals", json={
         "type": "long_term",
@@ -181,18 +181,16 @@ def test_b2_goal_create_and_list_are_asymmetric():
     })
     assert created.status_code == 201
     body = created.json()
-    # create 没忽略输入（echo body 字段），但 id/createdAt 是 mock 常量
+    created_id = body["goalId"]
     assert body["subject"] == "english"
     assert body["title"] == "高考英语稳定在 135 分区间"
-    # 但 list 与 create 无关——list 返回 mock 常量
-    list_resp = client.get("/api/v1/goals?status=active")
+
+    list_resp = client.get("/api/v1/goals?status=all")
     assert list_resp.status_code == 200
     items = list_resp.json()["items"]
-    # list 里只有 mock 示例目标，不是刚创建的这个 long_term english goal
-    for item in items:
-        assert item["subject"] == "math" or item["title"] == "两周后期中考试数学 120+", (
-            f"list 出现了非 mock 示例: {item}"
-        )
+    # 修复后：刚创建的 goalId 真出现在 list 里
+    found = any(g["goalId"] == created_id for g in items)
+    assert found, "create 落库后，list 应能查到刚创建的目标"
 
 
 def test_b3_summary_insufficient_data_not_template():
@@ -210,6 +208,228 @@ def test_b3_summary_insufficient_data_not_template():
     assert body["generation"].get("source") is None
     assert body["content"] is None
     assert body["dataPoints"]["minRequired"] >= 3
+
+
+def test_b4_plan_create_409_on_duplicate_plandate():
+    """B4: 同一 planDate 重复创建 → 409 STATE_CONFLICT（契约 3.1）。"""
+    payload = {"planDate": "2026-08-20", "availableMinutes": 60}
+    first = client.post("/api/v1/plans", json=payload)
+    assert first.status_code == 201
+
+    second = client.post("/api/v1/plans", json=payload)
+    assert second.status_code == 409, f"重复 planDate 应 409，实际 {second.status_code}"
+    err = second.json()["error"]
+    assert err["code"] == "STATE_CONFLICT"
+
+
+def test_b5_plan_regenerate_overrides_existing():
+    """B5: regenerate=true 覆盖当日已有计划（契约 3.1）。
+
+    旧 planId 应从 list 中消失（CASCADE 删除），新 planId 出现。
+    """
+    payload = {"planDate": "2026-08-21", "availableMinutes": 60}
+    first = client.post("/api/v1/plans", json=payload)
+    assert first.status_code == 201
+    old_plan_id = first.json()["planId"]
+
+    override = client.post("/api/v1/plans", json={**payload, "regenerate": True})
+    assert override.status_code == 201
+    new_plan_id = override.json()["planId"]
+    assert new_plan_id != old_plan_id, "regenerate 应生成新 planId"
+
+    # 旧 planId 在 list 中应已不存在
+    items = client.get("/api/v1/plans").json()["items"]
+    ids = {p["planId"] for p in items}
+    assert old_plan_id not in ids, "regenerate 后旧计划应被删除"
+    assert new_plan_id in ids
+
+
+def test_b6_plan_get_404_on_missing_id():
+    """B6: GET /plans/{不存在的 id} → 404（契约 3.2）。
+
+    之前的 bug：任意 id 都返回 200 + mock 常量。
+    """
+    r = client.get("/api/v1/plans/p_does_not_exist")
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+def test_b7_patch_plan_task_marks_completed_and_user_adjusted():
+    """B7: PATCH /plans/{id}/tasks/{taskId} → status=completed + userAdjusted=true（契约 3.3）。
+
+    之前的 bug：PATCH 返 mock 常量，不落库。
+    """
+    # 先建目标 + 计划拿真实 taskId
+    goal = client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "physics", "title": "B7 物理目标",
+    })
+    goal_id = goal.json()["goalId"]
+    plan = client.post("/api/v1/plans", json={
+        "planDate": "2026-08-22", "availableMinutes": 60, "goalIds": [goal_id],
+    })
+    task_id = plan.json()["tasks"][0]["taskId"]
+    plan_id = plan.json()["planId"]
+
+    r = client.patch(
+        f"/api/v1/plans/{plan_id}/tasks/{task_id}",
+        json={"status": "completed"},
+    )
+    assert r.status_code == 200, f"PATCH 失败: {r.status_code} {r.text}"
+    body = r.json()
+    assert body["status"] == "completed"
+    assert body["userAdjusted"] is True
+    assert body["taskId"] == task_id
+
+    # 再查计划详情，确认落库
+    detail = client.get(f"/api/v1/plans/{plan_id}").json()
+    task = next(t for t in detail["tasks"] if t["taskId"] == task_id)
+    assert task["status"] == "completed"
+
+
+def test_b8_patch_plan_task_soft_delete():
+    """B8: PATCH removed=true 软删除任务，GET 计划详情不再列出该任务。"""
+    goal = client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "chemistry", "title": "B8 化学目标",
+    })
+    plan = client.post("/api/v1/plans", json={
+        "planDate": "2026-08-23", "availableMinutes": 90, "goalIds": [goal.json()["goalId"]],
+    })
+    plan_id = plan.json()["planId"]
+    task_id = plan.json()["tasks"][0]["taskId"]
+
+    r = client.patch(
+        f"/api/v1/plans/{plan_id}/tasks/{task_id}",
+        json={"removed": True},
+    )
+    assert r.status_code == 200
+    assert r.json()["removed"] is True
+
+    # 计划详情不再列出该任务（_load_plan_tasks 过滤 removed=True）
+    detail = client.get(f"/api/v1/plans/{plan_id}").json()
+    ids = {t["taskId"] for t in detail["tasks"]}
+    assert task_id not in ids, "软删除的任务不应出现在计划详情"
+
+
+def test_b9_goal_archive_via_patch_status():
+    """B9: PATCH /goals/{id} status=archived 归档，list 默认 active 查不到（契约 2.3 归档代替删除）。"""
+    created = client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "biology", "title": "B9 生物目标",
+    })
+    goal_id = created.json()["goalId"]
+
+    r = client.patch(f"/api/v1/goals/{goal_id}", json={"status": "archived"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "archived"
+
+    # 默认 status=active 查不到，status=all 能查到
+    active_items = client.get("/api/v1/goals").json()["items"]
+    assert all(g["goalId"] != goal_id for g in active_items), "归档目标不应出现在 active 列表"
+    all_items = client.get("/api/v1/goals?status=all").json()["items"]
+    assert any(g["goalId"] == goal_id for g in all_items), "归档目标应在 status=all 列表"
+
+
+def test_b10_goal_patch_404_on_missing_id():
+    """B10: PATCH /goals/{不存在} → 404（之前返 mock 常量）。"""
+    r = client.patch("/api/v1/goals/g_does_not_exist", json={"title": "x"})
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+def test_b11_goal_patch_rejects_invalid_status():
+    """B11: PATCH /goals/{id} status=completed → 400（契约仅允许 active/archived）。"""
+    created = client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "history", "title": "B11 历史目标",
+    })
+    goal_id = created.json()["goalId"]
+    r = client.patch(f"/api/v1/goals/{goal_id}", json={"status": "completed"})
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert r.json()["error"]["field"] == "status"
+
+
+def test_b12_goal_progress_aggregates_from_plan_tasks():
+    """B12: 目标进度（plannedTasks/completedTasks/ratio）从 plan_tasks 表实时聚合。
+
+    建目标 → 建计划（生成任务）→ 完成一个任务 → 查目标列表，progress 应反映完成情况。
+    """
+    goal = client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "geography", "title": "B12 地理目标",
+    })
+    goal_id = goal.json()["goalId"]
+
+    plan = client.post("/api/v1/plans", json={
+        "planDate": "2026-08-24", "availableMinutes": 90, "goalIds": [goal_id],
+    })
+    plan_id = plan.json()["planId"]
+    tasks = plan.json()["tasks"]
+    assert len(tasks) >= 1, "应有任务生成"
+
+    # 完成第一个任务
+    client.patch(
+        f"/api/v1/plans/{plan_id}/tasks/{tasks[0]['taskId']}",
+        json={"status": "completed"},
+    )
+
+    # 查目标列表，进度应反映
+    items = client.get("/api/v1/goals?status=all").json()["items"]
+    target = next(g for g in items if g["goalId"] == goal_id)
+    assert target["progress"]["plannedTasks"] == len(tasks), (
+        f"plannedTasks 应 = 任务数 {len(tasks)}，实际 {target['progress']['plannedTasks']}"
+    )
+    assert target["progress"]["completedTasks"] == 1
+    assert target["progress"]["ratio"] > 0
+
+
+def test_b13_goal_user_isolation():
+    """B13: 不同用户的 goal 互不可见（属主校验）。
+
+    用户 A 创建的目标，用户 B 查 list 看不到，PATCH 也 404。
+    """
+    # 用户 A 创建
+    a_created = client.post("/api/v1/goals", json={
+        "type": "short_term", "subject": "politics", "title": "B13 A 的目标",
+    }, headers={"X-User-ID": "user_a"})
+    assert a_created.status_code == 201
+    a_goal_id = a_created.json()["goalId"]
+
+    # 用户 B 查 list 看不到
+    b_list = client.get("/api/v1/goals?status=all", headers={"X-User-ID": "user_b"}).json()
+    assert all(g["goalId"] != a_goal_id for g in b_list["items"]), "用户 B 不应看到 A 的目标"
+
+    # 用户 B PATCH A 的目标 → 404
+    b_patch = client.patch(
+        f"/api/v1/goals/{a_goal_id}",
+        json={"title": "B 改 A 的"},
+        headers={"X-User-ID": "user_b"},
+    )
+    assert b_patch.status_code == 404, "跨用户 PATCH 应 404"
+
+
+def test_b14_plan_user_isolation():
+    """B14: 不同用户的 plan 互不可见（属主校验）。
+
+    用户 A 创建的计划，用户 B GET 该 planId → 404。
+    """
+    a_plan = client.post("/api/v1/plans", json={
+        "planDate": "2026-08-25", "availableMinutes": 60,
+    }, headers={"X-User-ID": "user_a"})
+    assert a_plan.status_code == 201
+    a_plan_id = a_plan.json()["planId"]
+
+    b_get = client.get(f"/api/v1/plans/{a_plan_id}", headers={"X-User-ID": "user_b"})
+    assert b_get.status_code == 404, "跨用户 GET 计划应 404"
+
+
+def test_b15_plan_adapted_from_null_for_new_user():
+    """B15: 新用户无历史评估数据 → adaptedFrom=null（契约允许）。
+
+    PRD 5.1：新用户走规则模板，无 adaptedFrom。
+    """
+    r = client.post("/api/v1/plans", json={
+        "planDate": "2026-08-26", "availableMinutes": 60,
+    }, headers={"X-User-ID": "user_b15_new"})
+    assert r.status_code == 201
+    assert r.json()["adaptedFrom"] is None, "新用户 adaptedFrom 应为 null"
 
 
 # ---------- C. 鉴权链路（当前是桩） ----------
@@ -256,20 +476,19 @@ def test_d1_full_contract_loop_end_to_end():
     assert goal.status_code == 201
     goal_id = goal.json()["goalId"]
 
-    # ② 生成计划
+    # ② 生成计划（接 DB 后，plan 返回真实 taskId）
     plan = client.post("/api/v1/plans", json={
-        "planDate": "2026-08-18", "availableMinutes": 90, "goalIds": [goal_id],
+        "planDate": "2026-08-27", "availableMinutes": 90, "goalIds": [goal_id],
     })
     assert plan.status_code == 201
     plan_id = plan.json()["planId"]
+    plan_task_id = plan.json()["tasks"][0]["taskId"]
 
-    # ③ 提交学习记录（触发状态计算 + 建议句柄）
+    # ③ 提交学习记录（触发状态计算 + 建议句柄），关联真实 planTaskId
     record = client.post("/api/v1/learning-records", json={
         "subject": "math", "startedAt": "2026-08-18T20:00:00+08:00",
         "durationMinutes": 40,
-        # 当前 mock：plan 返回的是示例 planId/tasks，这里关联示例 taskId 而非刚生成的
-        # （plan create 不持久化，taskId 来自 mock 常量；接 DB 后应改回刚创建的）
-        "planTaskId": "t_30011",
+        "planTaskId": plan_task_id,
         "behavior": {"completion": "completed", "accuracy": 0.8, "interruptions": 1},
         "selfReport": {"focus": 4, "fatigue": 2, "emotion": "positive", "difficultyFeel": "moderate"},
     })
