@@ -3,13 +3,15 @@
  *
  * 基础路径与鉴权方式对应 openapi.yaml：
  *   servers.url = /api/v1
- *   securitySchemes.bearerAuth = Authorization: Bearer <token>
+ *   securitySchemes.sessionCookie = HttpOnly Session Cookie（sid），credentials: 'include'
+ *
+ * 鉴权由 AuthContext 在登录时建立（authApi.js 走 Cookie），
+ * 这里只需 credentials: 'include' 让浏览器自动携带 sid，无需手动设置 Authorization 头。
  */
 
 import type { ApiErrorBody, Pagination } from '@/types/api';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
-const TOKEN = import.meta.env.VITE_API_TOKEN ?? '';
 
 /** openapi.yaml 0.2 节的统一错误格式 */
 export class ApiError extends Error {
@@ -47,12 +49,12 @@ export async function apiPost<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'application/json' };
-  if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
 
   const response = await fetch(buildUrl(path), {
     method: 'POST',
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
     signal,
   });
 
@@ -81,10 +83,12 @@ export async function apiGet<T>(
   query?: Record<string, QueryValue>,
   signal?: AbortSignal,
 ): Promise<T> {
-  const headers: HeadersInit = { Accept: 'application/json' };
-  if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
-
-  const response = await fetch(buildUrl(path, query), { method: 'GET', headers, signal });
+  const response = await fetch(buildUrl(path, query), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    signal,
+  });
 
   if (!response.ok) {
     let code = 'INTERNAL_ERROR';
