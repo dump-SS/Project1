@@ -6,42 +6,41 @@ import {
   isSummaryTerminal,
   submitSummaryFeedback,
 } from '../../services/summary'
-import type { Rating, Summary } from '../../types/api'
 
-const RATING_OPTIONS: { value: Rating; label: string }[] = [
+const RATING_OPTIONS = [
   { value: 'useful', label: '有用' },
   { value: 'neutral', label: '一般' },
   { value: 'not_useful', label: '没用' },
 ]
 
-const TERMINAL_REASON: Record<string, { title: string; hint: string }> = {
+const TERMINAL_REASON = {
   ready: { title: '已生成', hint: '' },
   insufficient_data: { title: '数据不足', hint: '记录太少时先不硬凑，攒够数据再生成' },
   failed: { title: '生成失败', hint: '请稍后再试，不会展示半成品' },
 }
 
-function toDateString(d: Date): string {
+function toDateString(d) {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
-function lastNDays(n: number): { start: string; end: string } {
+function lastNDays(n) {
   const end = new Date()
   const start = new Date()
   start.setDate(end.getDate() - (n - 1))
   return { start: toDateString(start), end: toDateString(end) }
 }
 
-function daysBetween(start: string, end: string): number {
+function daysBetween(start, end) {
   const s = new Date(`${start}T00:00:00`)
   const e = new Date(`${end}T00:00:00`)
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
 }
 
 /** 区间长度约束（openapi.yaml SummaryCreate：3-31 天） */
-function isValidRange(start: string, end: string): boolean {
+function isValidRange(start, end) {
   if (!start || !end) return false
   const span = daysBetween(start, end)
   return span >= 3 && span <= 31
@@ -55,15 +54,15 @@ export default function SummaryReviewPage() {
 
   const [generating, setGenerating] = useState(false)
   const [polling, setPolling] = useState(false)
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [summary, setSummary] = useState(null)
+  const [error, setError] = useState(null)
 
-  const [rating, setRating] = useState<Rating | null>(null)
+  const [rating, setRating] = useState(null)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
 
-  const abortRef = useRef<AbortController | null>(null)
+  const abortRef = useRef(null)
 
   const stopPolling = useCallback(() => {
     abortRef.current?.abort()
