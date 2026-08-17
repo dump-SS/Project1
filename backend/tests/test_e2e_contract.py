@@ -432,6 +432,30 @@ def test_b15_plan_adapted_from_null_for_new_user():
     assert r.json()["adaptedFrom"] is None, "新用户 adaptedFrom 应为 null"
 
 
+def test_b16_plan_cold_start_has_fallback_task():
+    """B16: 无目标用户建计划 → tasks 至少 1 条兜底任务（Jacky 方案A P0-1）。
+
+    冷启动场景：新用户、无学科、无目标、无历史记录。
+    _split_tasks 返回空时，兜底补一条通用任务，保证前端推荐有内容可填。
+    """
+    r = client.post("/api/v1/plans", json={
+        "planDate": "2026-08-27", "availableMinutes": 30,
+    }, headers={"X-User-ID": "user_b16_cold"})
+    assert r.status_code == 201
+    body = r.json()
+    # P0-1：tasks 至少 1 条
+    assert len(body["tasks"]) >= 1, "冷启动应兜底至少 1 条任务"
+    task = body["tasks"][0]
+    # P0-3：subject 是合法 Subject 枚举
+    assert task["subject"] in (
+        "chinese", "math", "english", "physics", "chemistry",
+        "biology", "history", "geography", "politics", "other",
+    ), f"task.subject 非法: {task['subject']}"
+    # P0-2：topic 是可读中文（非空、非裸 enum）
+    assert task["topic"], "task.topic 不应为空"
+    assert task["topic"] != task["subject"], "task.topic 不应等于裸 subject 枚举"
+
+
 # ---------- C. 鉴权链路（当前是桩） ----------
 
 def test_c1_me_returns_real_orm_data():

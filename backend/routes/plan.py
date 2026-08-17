@@ -264,6 +264,18 @@ def create_plan(
 
     task_dicts = _split_tasks(effective_minutes, goals)
 
+    # P0-1 兜底：无目标（或可用时间不足以放任何任务）时，补一条通用任务，
+    # 保证 tasks 至少 1 条，前端推荐（取 tasks[0].topic）永远有内容可填。
+    # topic 用可读中文（Jacky 方案A P0-2），subject 用合法枚举 other（P0-3）。
+    if not task_dicts:
+        task_dicts = [{
+            "subject": "other",
+            "topic": "自由学习 · 巩固已学",
+            "estimated_minutes": min(_DEFAULT_TASK_MINUTES, effective_minutes, _MAX_TASK_MINUTES),
+            "priority": 1,
+            "goal_id": None,
+        }]
+
     plan_id = gen_id("p")
     plan_row = PlanORM(
         id=plan_id,
