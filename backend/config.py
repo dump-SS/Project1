@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
 
+    # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
+    smtp_host: str = "smtp.163.com"
+    smtp_port: int = 465
+    smtp_user: str = ""
+    smtp_pass: str = ""
+
     # --- 速率限制（PRD 6.4）---
     rate_limit_recommendation_per_day: int = 5
     rate_limit_summary_per_day: int = 1

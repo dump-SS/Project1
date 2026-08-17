@@ -1,69 +1,26 @@
 """路由层共享依赖。
 
-鉴权方式（当前）：
-- 前端登录走 mock-server（Node），签发 HttpOnly session cookie `sid`（7 天有效）。
-- Python FastAPI 后端解析同一个 cookie：用 sha256(sid) 查 mock-server 的 SQLite sessions 表，
-  拿到 email 作为真实 user_id。
-- 这样业务接口不需要前端再传 token，浏览器自动带 cookie 即可。
-- mock-server 的 sessions 表在 mock-server/data.db（与 backend/data.db 是两个独立文件）。
+鉴权方式（auth 迁移后）：
+- /auth/* 已从 mock-server 迁到 Python 后端，session 存 backend 自己的 auth_sessions 表
+- current_user 解析 sid cookie → SHA256 查 auth_sessions → 拿到 email 作为 user_id
+- 不再依赖 mock-server 的 data.db
 
-current_user 现在读 ORM User 表返回真实资料（不再返 USER_MOCK 常量体）。
+current_user 读 ORM User 表返回真实资料（不再返 USER_MOCK 常量体）。
 新用户（未建档）返回带 user_id 但 onboarding_completed=false 的桩，前端据此引导建档。
-
-后续迁移 auth 到 Python 后端时，只需改 _resolve_user_id_from_sid 的实现，路由层不动。
 """
 
 from __future__ import annotations
 
 import hashlib
-import sqlite3
-import time
-from contextlib import contextmanager
-from pathlib import Path
 
 from fastapi import Cookie, Header
 from sqlalchemy.orm import Session
 
+from auth.session import get_session
 from database import SessionLocal
 from models.user import GuardianAuthorization as GuardianAuthorizationORM
 from models.user import User as UserORM
 from schemas.user import GuardianAuthorizationInfo, User
-
-# mock-server 的 SQLite 文件路径（与 backend/data.db 分离）
-_MOCK_SERVER_DB = Path(__file__).resolve().parent.parent.parent / "mock-server" / "data.db"
-
-
-@contextmanager
-def _mock_db_connection():
-    """打开 mock-server 的 SQLite，只读查询 sessions 表。"""
-    conn = sqlite3.connect(f"file:{_MOCK_SERVER_DB}?mode=ro", uri=True)
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
-def _resolve_user_id_from_sid(sid: str | None) -> str | None:
-    """从 mock-server 的 sid cookie 解析出 email（作为 user_id）。"""
-    if not sid:
-        return None
-    token_hash = hashlib.sha256(sid.encode()).hexdigest()
-    try:
-        with _mock_db_connection() as conn:
-            row = conn.execute(
-                "SELECT email, expires_at FROM sessions WHERE token_hash = ?",
-                (token_hash,),
-            ).fetchone()
-            if row is None:
-                return None
-            email, expires_at = row
-            # 过期 session 返回 None（mock-server 会删，但我们这里只读）
-            if expires_at < int(time.time() * 1000):
-                return None
-            return email
-    except sqlite3.Error:
-        # mock-server 不在跑 / data.db 不存在 → 无法鉴权，返回 None 走 mock 用户
-        return None
 
 
 def _build_user_response(db: Session, user_id: str) -> User:
@@ -114,29 +71,29 @@ def current_user(
 ) -> User:
     """当前用户依赖。
 
-    优先级：sid cookie（mock-server 真实会话）> X-User-ID 头 > Bearer u_ > mock 用户。
-    这样前端登录后业务接口自动带上真实 email 作为 user_id，隔离用户数据。
+    优先级：sid cookie（真实会话）> X-User-ID 头 > Bearer u_ > mock 用户。
+    sid 现在查 backend 自己的 auth_sessions 表（不再查 mock-server data.db）。
     """
-    # 1. mock-server session cookie（真实登录用户）
-    user_id = _resolve_user_id_from_sid(sid)
-
-    # 2. X-User-ID 头（测试/联调显式指定）
-    if user_id is None and x_user_id:
-        user_id = x_user_id
-
-    # 3. Bearer token 里以 u_ 开头的显式 userId（mock-server 不签发，但保留兼容）
-    if user_id is None and authorization:
-        scheme, _, token = authorization.partition(" ")
-        if scheme.lower() == "bearer" and token.startswith("u_"):
-            user_id = token
-
-    # 4. 无登录态 → 回落到 mock 用户（MVP 阶段允许匿名访问业务接口）
-    if user_id is None:
-        user_id = "u_10237"
-
-    # 从 ORM 读真实资料（新用户返 onboarding_completed=false 桩）
     db = SessionLocal()
     try:
+        # 1. sid cookie（真实登录用户，查 auth_sessions 表）
+        user_id = get_session(db, sid)
+
+        # 2. X-User-ID 头（测试/联调显式指定）
+        if user_id is None and x_user_id:
+            user_id = x_user_id
+
+        # 3. Bearer token 里以 u_ 开头的显式 userId（兼容旧测试）
+        if user_id is None and authorization:
+            scheme, _, token = authorization.partition(" ")
+            if scheme.lower() == "bearer" and token.startswith("u_"):
+                user_id = token
+
+        # 4. 无登录态 → 回落到 mock 用户（MVP 阶段允许匿名访问业务接口）
+        if user_id is None:
+            user_id = "u_10237"
+
+        # 从 ORM 读真实资料（新用户返 onboarding_completed=false 桩）
         return _build_user_response(db, user_id)
     finally:
         db.close()

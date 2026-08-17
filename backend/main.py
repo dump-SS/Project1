@@ -121,9 +121,10 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, goal, learning_record, plan, recommendation, summary, user
+from routes import assessment, auth, goal, learning_record, plan, recommendation, summary, user
 
 api_v1 = _APIRouter(prefix="/api/v1")
+api_v1.include_router(auth.router)
 api_v1.include_router(user.router)
 api_v1.include_router(goal.router)
 api_v1.include_router(plan.router)

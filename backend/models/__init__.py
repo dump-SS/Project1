@@ -20,6 +20,10 @@ from __future__ import annotations
 
 from database import Base, engine
 
+# auth 迁移：先把 AuthUser/AuthCode/AuthSession 注册进 Base.metadata，
+# 才能在下面的 create_all 时一并建表
+from auth.models import AuthCode, AuthSession, AuthUser
+
 from .assessment import AssessmentSnapshot
 from .goal import Goal
 from .learning_record import LearningRecord
@@ -46,4 +50,7 @@ __all__ = [
     "Summary",
     "UserWeightConfig",
     "WeightAdjustLog",
+    "AuthUser",
+    "AuthCode",
+    "AuthSession",
 ]
