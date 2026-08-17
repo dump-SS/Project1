@@ -345,25 +345,39 @@ def _build_summary_prompt(rows, snap_rows, plan_ratio) -> str:
     )
 
 
+def _extract_json_block(text: str) -> str:
+    """LLM 输出容错第 1 层：提取 markdown ```json ... ``` 围栏里的内容。
+
+    即使 prompt 明确要求纯 JSON，模型偶发仍会包一层 ``` 或加前后说明文字。
+    提不出来就原样返回，让第 2 层（json.loads）自行判断。
+    """
+    import re
+
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    return match.group(1).strip() if match else text
+
+
 def _parse_llm_items(text: str) -> list[dict] | None:
-    """尝试从 LLM 文本解析出 items 列表。MVP 简化：期望 JSON。"""
-    try:
-        data = json.loads(text)
+    """从 LLM 文本解析 items 列表，两层容错：先纯 JSON、再 markdown 围栏提取。"""
+    for candidate in (text, _extract_json_block(text)):
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            continue
         if isinstance(data, list) and data:
             return data
-        if isinstance(data, dict) and "items" in data:
+        if isinstance(data, dict) and isinstance(data.get("items"), list) and data["items"]:
             return data["items"]
-    except (json.JSONDecodeError, TypeError):
-        pass
     return None
 
 
 def _parse_llm_summary(text: str) -> dict | None:
-    """尝试从 LLM 文本解析出 SummaryContent 结构。MVP 简化：期望 JSON。"""
-    try:
-        data = json.loads(text)
+    """从 LLM 文本解析 SummaryContent 结构，两层容错同 _parse_llm_items。"""
+    for candidate in (text, _extract_json_block(text)):
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            continue
         if isinstance(data, dict) and "overview" in data:
             return data
-    except (json.JSONDecodeError, TypeError):
-        pass
     return None
