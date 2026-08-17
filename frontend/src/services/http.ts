@@ -192,6 +192,53 @@ export async function apiGet<T>(
 }
 
 /**
+ * 带 JSON body 的请求（POST / PUT / PATCH 共用）。
+ * 错误格式与 apiGet 完全一致：统一抛 ApiError。
+ */
+async function apiRequest<T>(
+  method: 'POST' | 'PUT' | 'PATCH',
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const headers: HeadersInit = { Accept: 'application/json' };
+  if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  const response = await fetch(buildUrl(path), {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let code = 'INTERNAL_ERROR';
+    let message = `请求失败（HTTP ${response.status}）`;
+    let field: string | undefined;
+    try {
+      const errorBody = (await response.json()) as ApiErrorBody;
+      if (errorBody?.error) {
+        code = errorBody.error.code ?? code;
+        message = errorBody.error.message ?? message;
+        field = errorBody.error.field;
+      }
+    } catch {
+      // 后端返回非 JSON 时沿用默认文案
+    }
+    throw new ApiError(response.status, code, message, field);
+  }
+
+  return (await response.json()) as T;
+}
+
+export function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return apiRequest<T>('POST', path, body);
+}
+
+export function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return apiRequest<T>('PUT', path, body);
+}
+
+/**
  * 分页拉取全部数据。
  * openapi.yaml 约定 pageSize 上限 50，跨月查询时单页装不下，这里按页累加。
  *
