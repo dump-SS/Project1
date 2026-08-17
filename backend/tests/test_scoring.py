@@ -1,6 +1,6 @@
 """单次状态分计算测试。"""
 
-from state_engine.scoring import compute_session_score
+from state_engine.scoring import compute_session_score, normalize_rhythm
 from state_engine.types import (
     BehaviorInput,
     Completion,
@@ -9,6 +9,13 @@ from state_engine.types import (
     SelfReportInput,
     WeightConfig,
 )
+
+
+def test_normalize_rhythm_negative_input():
+    """回归：负中断次数按 0 处理，函数自洽不越界。"""
+    assert normalize_rhythm(-3, 0) == 1.0
+    assert 0.0 < normalize_rhythm(0, 0) <= 1.0
+    assert 0.0 < normalize_rhythm(100, 100) <= 1.0
 
 
 def _make_record(

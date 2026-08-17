@@ -73,8 +73,11 @@ def _determine_label(
     if emotion_blocked and trend in (Trend.DOWN, Trend.FLAT):
         return StateLabel.EMOTION_BLOCKED, signals
 
-    if fatigue_high and mean_score <= thresholds.high_score and trend == Trend.DOWN:
-        signals.append("状态水平中低且趋势下降")
+    # 疲劳预警：疲劳信号 + （水平不高 或 趋势下降）。
+    # 仅在有疲劳信号或水平确实低时才预警——之前的实现把兜底分支无条件给
+    # fatigue_warning，导致「中等+平稳、无任何负面信号」的用户被莫名预警。
+    if fatigue_high and (mean_score < thresholds.high_score or trend == Trend.DOWN):
+        signals.append("疲劳自评持续偏高，状态水平不高或趋势下降")
         return StateLabel.FATIGUE_WARNING, signals
 
     if mean_score >= thresholds.high_score and trend in (Trend.FLAT, Trend.UP):
@@ -85,16 +88,26 @@ def _determine_label(
         signals.append("趋势明显上升但水平尚未达高位")
         return StateLabel.FLUCTUATING_UP, signals
 
-    # 兜底：疲劳预警（水平低 + 趋势降）
-    if mean_score <= thresholds.low_score and trend == Trend.DOWN:
-        signals.append("状态水平低且趋势下降")
+    # 低水平：无论趋势如何都值得提醒
+    if mean_score <= thresholds.low_score:
+        signals.append("状态水平偏低，建议调整学习节奏")
         return StateLabel.FATIGUE_WARNING, signals
 
-    # 默认按水平高低给一个合理标签
+    # 以下兜底分支逐项附信号，保证「标签 + 可解释性」不脱节：
+    # 高水平 + 下降趋势（均值高掩盖了近期下滑，趋势信号必须给出）
     if mean_score >= thresholds.high_score:
+        signals.append("状态水平高但近期趋势下降，留意状态变化")
         return StateLabel.EFFICIENT_STABLE, signals
-    if trend == Trend.UP:
-        return StateLabel.FLUCTUATING_UP, signals
+    # 中等水平 + 下降趋势
+    if trend == Trend.DOWN:
+        signals.append("状态水平中等且趋势下降，建议调整节奏")
+        return StateLabel.FATIGUE_WARNING, signals
+    # 中等水平 + 平稳，无负面信号：不强行预警，如实标注
+    if trend == Trend.FLAT:
+        signals.append("状态水平一般但保持平稳")
+        return StateLabel.EFFICIENT_STABLE, signals
+    # 防御性兜底（正常不应到达）
+    signals.append("状态波动，建议观察")
     return StateLabel.FATIGUE_WARNING, signals
 
 

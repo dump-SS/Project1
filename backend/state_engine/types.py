@@ -117,9 +117,13 @@ class WindowAssessment:
 @dataclass(slots=True)
 class LabelThresholds:
     """标签映射的数值阈值。PRD 5.2 注明"待算法实现阶段基于真实数据分布校准确定"，
-    这里给出合理初始值，全部可通过配置覆盖。"""
+    这里给出合理初始值，全部可通过配置覆盖。
+
+    high_score 曾设为 0.65，实测默认权重下典型记录集中在 0.7-0.9，
+    导致几乎所有场景都落入 efficient_stable，标签区分度失效；上调到 0.75。
+    """
     min_records: int = 3                # 低于此数为 insufficient_data
-    high_score: float = 0.65            # windowScore >= 此值视为"水平高"
+    high_score: float = 0.75            # windowScore >= 此值视为"水平高"
     low_score: float = 0.45             # windowScore <= 此值视为"水平低"
     slope_up: float = 0.03             # 回归斜率 >= 此值视为"明显上升"
     slope_down: float = -0.03          # 回归斜率 <= 此值视为"明显下降"

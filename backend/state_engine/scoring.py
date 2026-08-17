@@ -43,8 +43,10 @@ def normalize_rhythm(interruptions: int, blur_count: int) -> float:
     - 5 次中断 → 0.5
     - 15 次中断 → 0.25
     分母 5 是调参旋钮，通过配置可改（暂不暴露，后续有数据再调）。
+
+    负值输入按 0 处理，保证函数自洽（不依赖外层 clamp 兜底）。
     """
-    total = interruptions + blur_count
+    total = max(0, interruptions + blur_count)
     return 1.0 / (1.0 + total / 5.0)
 
 
