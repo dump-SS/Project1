@@ -1,12 +1,44 @@
+import { useState } from 'react'
 import StudyEditor from './StudyEditor.jsx'
 import EnterButton from './EnterButton.jsx'
+import { createPlan, localDateString } from '../../services/plans'
 import './index.css'
 import './App.css'
 
-/** 学习时间校验：仅允许数字 0-9 与冒号 : */
-const TIME_VALIDATOR = (value) => /^[0-9:]*$/.test(value)
+/**
+ * 可用学习分钟校验：整数，10-600。
+ * 对齐 openapi.yaml PlanCreate.availableMinutes（minimum 10 / maximum 600）。
+ */
+const MINUTES_VALIDATOR = (value) => {
+  if (value === '') return false
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 10 && n <= 600
+}
 
 export default function StudyPlanEditor() {
+  // 可用学习分钟（受控，用于 POST /plans）
+  const [minutes, setMinutes] = useState('')
+  const [submitError, setSubmitError] = useState('')
+
+  /** 点「进入」：先同步生成计划（POST /plans），成功后跳专注计时页 */
+  const handleEnter = async () => {
+    setSubmitError('')
+    if (!MINUTES_VALIDATOR(minutes)) {
+      setSubmitError('请先填写 10-600 的可用学习分钟数')
+      return false
+    }
+    try {
+      await createPlan({
+        planDate: localDateString(),
+        availableMinutes: Number(minutes),
+      })
+      return true
+    } catch (err) {
+      setSubmitError(err?.message ?? '计划生成失败，请稍后再试')
+      return false
+    }
+  }
+
   return (
     <>
       <div className="page-background" aria-hidden="true" />
@@ -20,8 +52,11 @@ export default function StudyPlanEditor() {
         <StudyEditor
           cnLabel="学习时间设置"
           enLabel="Study Time Setting"
-          placeholder="e.g. 12:30"
-          validate={TIME_VALIDATOR}
+          placeholder="可用分钟，10-600"
+          inputType="number"
+          validate={MINUTES_VALIDATOR}
+          value={minutes}
+          onChange={(event) => setMinutes(event.target.value)}
         />
 
         <StudyEditor
@@ -30,7 +65,9 @@ export default function StudyPlanEditor() {
           placeholder="e.g. 复习函数章节"
         />
 
-        <EnterButton to="/study-timer" />
+        {submitError && <p className="submit-error">{submitError}</p>}
+
+        <EnterButton to="/study-timer" onBeforeNavigate={handleEnter} />
       </main>
     </>
   )

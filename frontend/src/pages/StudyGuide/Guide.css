@@ -192,6 +192,31 @@
   color: #ff0000;
 }
 
+/* 数值输入：去掉浏览器自带的步进箭头，保持胶囊样式干净 */
+.editor-input[type="number"]::-webkit-outer-spin-button,
+.editor-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.editor-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* 生成计划失败/校验不通过的提示（红色小字，靠左与输入框对齐） */
+.submit-error {
+  width: 100%;
+  max-width: 520px;
+  margin-top: -28px;
+  margin-bottom: 20px;
+  padding-left: 20px;
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ff0000;
+}
+
 .enter-button {
   display: inline-block;
   margin-top: 22px;
