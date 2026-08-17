@@ -27,6 +27,7 @@ async function request(path, options = {}) {
     const e = new Error(message)
     e.code = code
     e.field = field
+    e.status = res.status
     throw e
   }
   return data

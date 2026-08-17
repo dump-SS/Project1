@@ -40,6 +40,7 @@ export default function EnterButton({ to = '/study-timer', onBeforeNavigate }) {
       aria-busy={busy}
       onClick={handleClick}
     >
+      {busy && <span className="spinner spinner--sm" aria-hidden="true" />}
       进入
       <span className="enter-en">ENTER</span>
     </a>

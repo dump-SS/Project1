@@ -516,3 +516,24 @@ strong, b, .text-bold {
   .form-input { height: 44px; }
   .btn-primary { height: 46px; }
 }
+
+/* ============ Loading Spinner（登录 / 进入计划等场景复用） ============ */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: spin 0.8s linear infinite;
+}
+.spinner--sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

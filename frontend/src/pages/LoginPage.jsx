@@ -1,5 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { isNetworkError } from '../services/http'
+import { cacheGet, cacheSet } from '../services/localFallback'
 import FormField from '../components/FormField.jsx'
 import { MailIcon, LockIcon, ShieldIcon } from '../components/Icons.jsx'
 import { useCodeCountdown } from '../hooks/useCodeCountdown.js'
@@ -34,11 +36,26 @@ export default function LoginPage() {
   const [tip, setTip] = useState(null) // { type: 'success'|'error', msg }
   const [submitting, setSubmitting] = useState(false)
 
+  // 仅做界面回填，绝不伪造登录态或自动跳转
+  useEffect(() => {
+    const cachedEmail = cacheGet('login:lastEmail')
+    if (cachedEmail && !email) {
+      setEmail(cachedEmail)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 持久化最近一次邮箱，便于下次回填
+  useEffect(() => {
+    if (email) cacheSet('login:lastEmail', email)
+  }, [email])
+
   /* ---------- 发送验证码 ---------- */
   async function handleSendCode() {
     const err = validateEmail(email)
     setEmailErr(err)
     if (err) return
+    cacheSet('login:lastEmail', email)
     try {
       await sendLoginCode(email)
       codeCD.start(60)
@@ -47,6 +64,8 @@ export default function LoginPage() {
       if (e.code === 'EMAIL_NOT_REGISTERED') {
         setEmailErr('该邮箱尚未注册')
         setTip({ type: 'error', msg: '该邮箱尚未注册，请先注册' })
+      } else if (isNetworkError(e)) {
+        setTip({ type: 'error', msg: '服务暂不可用，请稍后再试' })
       } else {
         setTip({ type: 'error', msg: e.message || '发送失败' })
       }
@@ -78,6 +97,7 @@ export default function LoginPage() {
       } else {
         await loginByPassword(email, password)
       }
+      cacheSet('login:lastEmail', email)
       setTip({ type: 'success', msg: '登录成功，即将进入首页…' })
       // 登录接口只签发 session cookie，不会更新 AuthContext 里缓存的登录态，
       // 不先 refresh() 就跳转会被 RequireAuth 当成未登录弹回登录页。
@@ -86,7 +106,7 @@ export default function LoginPage() {
       const from = location.state?.from?.pathname ?? '/study-guide'
       setTimeout(() => navigate(from, { replace: true }), 800)
     } catch (e) {
-      setTip({ type: 'error', msg: e.message || '登录失败' })
+      setTip({ type: 'error', msg: isNetworkError(e) ? '服务暂不可用，请稍后再试' : (e.message || '登录失败') })
     } finally {
       setSubmitting(false)
     }
@@ -148,7 +168,7 @@ export default function LoginPage() {
               onBlur={() => setCodeErr(validateCode(code))}
               error={codeErr}
               maxLength={6}
-              suffix={codeCD.text}
+              suffix={codeCD.sending ? <span className="spinner spinner--sm" aria-hidden="true" /> : codeCD.text}
               suffixDisabled={codeCD.sending || !!emailErr}
               onSuffixClick={handleSendCode}
               autoComplete="one-time-code"
@@ -176,6 +196,7 @@ export default function LoginPage() {
           )}
 
           <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting && <span className="spinner spinner--sm" aria-hidden="true" />}
             {submitting ? '登录中…' : '登 录'}
           </button>
         </form>
