@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FormField from '../components/FormField.jsx'
-import { LogoIcon, MailIcon, LockIcon, ShieldIcon, CheckIcon } from '../components/Icons.jsx'
+import { MailIcon, LockIcon, ShieldIcon, CheckIcon } from '../components/Icons.jsx'
 import { useCodeCountdown } from '../hooks/useCodeCountdown.js'
 import {
   validateEmail,
@@ -103,8 +103,7 @@ export default function ForgotPasswordPage() {
       <div className="page-bg-decor" />
       <div className="auth-card">
         <div className="auth-header">
-          <div className="auth-logo"><LogoIcon /></div>
-          <h1 className="auth-title">{step === 1 ? '重置密码' : '设置新密码'}</h1>
+          <img className="auth-logo-img" src="/brand/logo-full-black.png" alt="EpochX" />
           <p className="auth-subtitle">
             {step === 1 ? '我们会向你的邮箱发送验证码' : '请设置一个新的登录密码'}
           </p>
