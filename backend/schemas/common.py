@@ -46,11 +46,13 @@ class Pagination(BaseModel):
 class GenerationStatus(BaseModel):
     """AI 异步生成状态。终态：ready / insufficient_data / failed。"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     status: Literal["pending", "ready", "insufficient_data", "failed"] = Field(
         ..., description="生成状态"
     )
     source: GenerationSource | None = Field(None, description="llm / template")
-    completed_at: datetime | None = Field(None, description="生成完成时间，终态时出现")
+    completed_at: datetime | None = Field(None, alias="completedAt", description="生成完成时间，终态时出现")
 
 
 class RatingFeedback(BaseModel):

@@ -34,7 +34,9 @@ def _post(subject: str, focus: int, fatigue: int, started: str, emotion: str = "
 def test_cold_start_returns_insufficient_data():
     """冷启动：不足 min_records（3）条时，引擎必须返回 insufficient_data
     且不输出 windowScore/trend（PRD 5.2「数据不足时不下结论」）。"""
-    r = _post("biology", 5, 1, "2026-08-01T08:00:00+08:00")
+    # 使用全套测试中未被其他用例写入的学科，避免模块级 TestClient 共享 SQLite
+    # 时被其它测试污染，失去"冷启动"前提。
+    r = _post("chinese", 5, 1, "2026-08-01T08:00:00+08:00")
     assert r.status_code == 201
     assessment = r.json()["assessment"]
     assert assessment["stateLabel"] == "insufficient_data"

@@ -1,6 +1,7 @@
 """/learning-records 系列。
 
 阶段 3（已接入）：POST 落库后用 state_engine 同步重算状态快照，
+并自动创建建议任务（pending）触发 ai_suggestion 同步生成。
 GET 列表读库，DELETE 删除后即时重算。计算公式在 state_engine 内。
 """
 from __future__ import annotations
@@ -11,9 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ai_suggestion import generate_recommendation
 from database import get_db
 from models.assessment import AssessmentSnapshot as AssessmentSnapshotORM
 from models.learning_record import LearningRecord as LearningRecordORM
+from models.recommendation import Recommendation as RecommendationORM
 from schemas.learning_record import (
     LearningRecordCreated,
     LearningRecordDeleted,
@@ -127,7 +130,32 @@ def create_learning_record(
 
     recommendation = None
     if not body.skip_recommendation:
-        recommendation = {"recommendationId": gen_id("rec"), "status": "pending"}
+        # 必须真实插入 pending 行：前端会拿 recommendationId 轮询 GET /recommendations/{id}。
+        # 之前只返回随机 id、不落 ORM，轮询永远拿不到对应资源。
+        recommendation_id = gen_id("rec")
+        db.add(
+            RecommendationORM(
+                id=recommendation_id,
+                user_id=_user.user_id,
+                scene="post_session",
+                subject=body.subject.value,
+                generation_status="pending",
+                based_on_assessment_id=assessment.get("assessmentId"),
+                based_on_record_id=record_id,
+                based_on_state_label=assessment["stateLabel"],
+                record_id=record_id,
+            )
+        )
+        db.commit()
+
+        trigger_record = db.get(LearningRecordORM, record_id)
+        # MVP 同步生成：函数会把 ORM 行更新为 ready+llm/template；
+        # 响应仍按契约返回 pending 句柄，前端随即轮询即可读到终态。
+        generate_recommendation(
+            db, recommendation_id, _user.user_id, "post_session",
+            body.subject.value, record_id, trigger_record,
+        )
+        recommendation = {"recommendationId": recommendation_id, "status": "pending"}
 
     return LearningRecordCreated.model_validate(
         {
