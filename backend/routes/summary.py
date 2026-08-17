@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ai_suggestion import generate_summary
+from ai_suggestion import run_summary_generation
 from database import get_db
 from models.summary import Summary as SummaryORM
 from schemas.common import RatingFeedback
@@ -89,6 +89,7 @@ def _orm_to_dict(row: SummaryORM) -> dict:
 )
 def create_summary(
     body: SummaryCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ) -> SummaryPending:
@@ -104,8 +105,11 @@ def create_summary(
     db.add(summ)
     db.commit()
 
-    # 同步生成
-    generate_summary(db, summ_id, _user.user_id, body.period_start, body.period_end)
+    # PRD 6.4：LLM 调用挂后台，POST 立即返回（同 learning_record.py 模式）
+    background_tasks.add_task(
+        run_summary_generation,
+        summ_id, _user.user_id, body.period_start, body.period_end,
+    )
 
     return SummaryPending.model_validate({
         "summaryId": summ_id,

@@ -179,9 +179,11 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 - [x] 接入 `state_calculator.py` 替换 `routes/learning_record.py` 里的 mock 重算
 - [x] 接入 `ai_suggestion.py` 替换 `routes/recommendation.py` + `routes/summary.py` 的 mock；
       默认 MockProvider 验证模板兜底，真实 LLM 等 `.env` 配置 API key / base_url / model
-- [ ] 真实 LLM 接入：配置 `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`，
-      并引入供应商侧内容安全能力；当前 OpenAICompatibleProvider 已有 10s 超时 + 兜底
-- [ ] 真实后台异步任务：MVP 目前同步生成、前端轮询立即拿终态；高并发时改 FastAPI BackgroundTasks / 队列
+- [x] 真实 LLM 已验证（aiping.cn / Step-3.5-Flash，OpenAI 兼容 Bearer）：
+      端到端 source=llm 通过；超时 60s + 1 次重试 + 异常全兜底（超时/解析失败走模板，绝不 500）
+- [x] 异步生成（PRD 6.4）：三条 POST 路由改 BackgroundTasks，立即返回 pending 句柄；
+      实测 POST 从最坏 ~2min 降到 ~2s，LLM 在后台自开 session 完成并写终态，前端轮询读取
+- [ ] 进程内并发上限 / 任务队列：BackgroundTasks 在单进程内跑，高并发下需要队列（Celery/RQ）+ 去重
 - [ ] AICallLog 持久化：当前用 logging 留痕，PRD 6.5 的正式调用记录表待建
 - [ ] 真实速率限制（PRD 6.4）：config 有建议 5/天、复盘 1/天配额，尚未计数/返回 429
 - [ ] **给 `learning_records` 加自增序列列**：当前窗口排序用

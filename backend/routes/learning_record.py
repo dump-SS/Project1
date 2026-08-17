@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ai_suggestion import generate_recommendation
+from ai_suggestion import run_recommendation_generation
 from database import get_db
 from models.assessment import AssessmentSnapshot as AssessmentSnapshotORM
 from models.learning_record import LearningRecord as LearningRecordORM
@@ -98,10 +98,11 @@ def _recompute_snapshot(
 )
 def create_learning_record(
     body: RecordInput,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ) -> LearningRecordCreated:
-    """保存记录，同步用 state_engine 重算状态 + 返回建议句柄（pending）。"""
+    """保存记录，同步用 state_engine 重算状态；建议生成挂后台（PRD 6.4），立即返回 pending 句柄。"""
     record_id = gen_id("r")
 
     db.add(
@@ -148,12 +149,13 @@ def create_learning_record(
         )
         db.commit()
 
-        trigger_record = db.get(LearningRecordORM, record_id)
-        # MVP 同步生成：函数会把 ORM 行更新为 ready+llm/template；
-        # 响应仍按契约返回 pending 句柄，前端随即轮询即可读到终态。
-        generate_recommendation(
-            db, recommendation_id, _user.user_id, "post_session",
-            body.subject.value, record_id, trigger_record,
+        # PRD 6.4 异步语义：LLM 调用挂后台（响应发出后执行），POST 立即返回
+        # pending 句柄。后台任务自开 session（请求级 session 在响应后被
+        # get_db 关闭，不可复用）。生成中轮询读到 items=null（契约 0.3）。
+        background_tasks.add_task(
+            run_recommendation_generation,
+            recommendation_id, _user.user_id, "post_session",
+            body.subject.value, record_id,
         )
         recommendation = {"recommendationId": recommendation_id, "status": "pending"}
 

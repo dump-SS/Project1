@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ai_suggestion import generate_recommendation
+from ai_suggestion import run_recommendation_generation
 from database import get_db
 from models.recommendation import Recommendation as RecommendationORM
 from models.learning_record import LearningRecord
@@ -72,10 +72,11 @@ def _orm_to_dict(row: RecommendationORM) -> dict:
 )
 def create_recommendation(
     body: RecommendationCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ) -> RecommendationPending:
-    """插入 pending 行，同步调 ai_suggestion 生成，返回 202 + id。"""
+    """插入 pending 行，生成挂后台（PRD 6.4），立即返回 202 + id。"""
     rec_id = _gen_id("rec")
 
     # 找关联的 record（post_session 场景）
@@ -94,10 +95,10 @@ def create_recommendation(
     db.add(rec)
     db.commit()
 
-    # 同步生成（MVP）
-    generate_recommendation(
-        db, rec_id, _user.user_id, body.scene.value,
-        rec.subject, body.record_id, trigger_record,
+    # PRD 6.4：LLM 调用挂后台，POST 立即返回（详见 learning_record.py 同款注释）
+    background_tasks.add_task(
+        run_recommendation_generation,
+        rec_id, _user.user_id, body.scene.value, rec.subject, body.record_id,
     )
 
     return RecommendationPending.model_validate({

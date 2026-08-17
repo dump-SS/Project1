@@ -1,9 +1,14 @@
-"""AI 建议生成编排层（PRD 5.3 / 5.4）。
+"""AI 建议生成编排层（PRD 5.3 / 5.4 / 6.4）。
 
 职责：组装上下文 → 调 LLM provider → 安全审核 → 失败走兜底 → 写回 ORM。
 不含公式计算（在 state_engine），不含 HTTP 逻辑（在 routes）。
 
-MVP 用同步生成：POST 请求内跑完，前端轮询拿到终态。
+生成模式（PRD 6.4 异步语义）：
+- 路由用 FastAPI BackgroundTasks 调 run_recommendation_generation /
+  run_summary_generation（本模块提供），POST 立即返回 pending 句柄；
+- 后台任务自开 SessionLocal（路由请求的 session 在响应后已被 get_db
+  关闭，不能复用），生成完把 ORM 行更新为终态；
+- 前端轮询 GET /{id} 读终态。生成中 items 为 null（契约 0.3）。
 """
 
 from __future__ import annotations
@@ -381,3 +386,45 @@ def _parse_llm_summary(text: str) -> dict | None:
         if isinstance(data, dict) and "overview" in data:
             return data
     return None
+
+
+# ---------- 后台任务入口（供 BackgroundTasks 调用；自开 session，不复用请求级 session） ----------
+
+def run_recommendation_generation(
+    recommendation_id: str,
+    user_id: str,
+    scene: str,
+    subject: str | None,
+    record_id: str | None,
+) -> None:
+    """后台生成建议。路由响应返回后执行，耗时的 LLM 调用不阻塞用户。"""
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        trigger = db.get(LearningRecord, record_id) if record_id else None
+        generate_recommendation(db, recommendation_id, user_id, scene, subject, record_id, trigger)
+    except Exception:
+        # 后台任务没有调用方可接异常；失败时行停在 pending，
+        # 由生成函数内部的兜底/failed 逻辑保证状态推进，这里只记日志。
+        logger.exception("[AI] 后台建议生成异常 recommendation_id=%s", recommendation_id)
+    finally:
+        db.close()
+
+
+def run_summary_generation(
+    summary_id: str,
+    user_id: str,
+    period_start,
+    period_end,
+) -> None:
+    """后台生成复盘。同 run_recommendation_generation。"""
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        generate_summary(db, summary_id, user_id, period_start, period_end)
+    except Exception:
+        logger.exception("[AI] 后台复盘生成异常 summary_id=%s", summary_id)
+    finally:
+        db.close()
