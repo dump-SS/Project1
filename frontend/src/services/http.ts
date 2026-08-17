@@ -81,7 +81,10 @@ export async function apiPost<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export async function apiPatch<T>(
@@ -121,7 +124,10 @@ export async function apiPatch<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export async function apiPut<T>(
@@ -156,7 +162,10 @@ export async function apiPut<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export async function apiGet<T>(
@@ -188,14 +197,21 @@ export async function apiGet<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 /**
- * DELETE 方法封装。对应 openapi.yaml 中的 /learning-records/{recordId} 等。
- * 无请求体；成功时返回服务端 JSON（多数情况下是 LearningRecordDeleted 这类带重算结果的对象）。
+ * DELETE 方法封装。对应 openapi.yaml 中的 /learning-records/{recordId}、
+ * /me/guardian-authorization 等。无请求体；成功时后端可能返回 204 无响应体
+ * 或带 JSON（如 LearningRecordDeleted），均做空 body 容错。
  */
-export async function apiDelete<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function apiDelete<T = undefined>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
   const response = await fetch(buildUrl(path), {
     method: 'DELETE',
     headers: { Accept: 'application/json' },
@@ -208,11 +224,11 @@ export async function apiDelete<T>(path: string, signal?: AbortSignal): Promise<
     let message = `请求失败（HTTP ${response.status}）`;
     let field: string | undefined;
     try {
-      const body = (await response.json()) as ApiErrorBody;
-      if (body?.error) {
-        code = body.error.code ?? code;
-        message = body.error.message ?? message;
-        field = body.error.field;
+      const errBody = (await response.json()) as ApiErrorBody;
+      if (errBody?.error) {
+        code = errBody.error.code ?? code;
+        message = errBody.error.message ?? message;
+        field = errBody.error.field;
       }
     } catch {
       // 后端未上线时返回非 JSON，解析失败属预期
@@ -220,12 +236,10 @@ export async function apiDelete<T>(path: string, signal?: AbortSignal): Promise<
     throw new ApiError(response.status, code, message, field);
   }
 
-  // 204 No Content 时 body 为空，避免 await response.json() 抛错
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 /**
