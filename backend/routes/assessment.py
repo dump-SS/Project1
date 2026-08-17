@@ -1,7 +1,7 @@
 """/assessments 系列。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 
 from mock_data import ASSESSMENT_HISTORY_MOCK, STATE_RESULT_LIST_MOCK
 from schemas.assessment import (
@@ -35,12 +35,13 @@ def list_assessment_history(
 @router.put(
     "/{assessment_id}/feedback",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="提交「这个判断准不准」反馈",
 )
 def put_assessment_feedback(
     assessment_id: str,
     body: AssessmentFeedback,
     _user: User = Depends(current_user),
-) -> None:
-    # mock：什么都不做
-    return None
+):
+    """mock：什么都不做，直接返回 204。"""
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

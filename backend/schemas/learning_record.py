@@ -17,10 +17,12 @@ from .enums import Completion, DifficultyFeel, Emotion, Subject
 class RecordBehavior(BaseModel):
     """行为数据（系统自动记录为主）。"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     completion: Completion
     accuracy: float | None = Field(None, ge=0.0, le=1.0, description="正确率 0-1；无客观测验时不传")
-    interruptions: int | None = Field(None, ge=0, default=0, description="中断次数")
-    blur_count: int | None = Field(None, ge=0, description="页面失焦次数（小程序弱信号）")
+    interruptions: int = Field(default=0, ge=0, description="中断次数，默认 0")
+    blur_count: int | None = Field(None, ge=0, alias="blurCount", description="页面失焦次数（小程序弱信号）")
 
 
 class RecordSelfReport(BaseModel):
@@ -137,7 +139,9 @@ class _LearningRecordCreatedAssessment(BaseModel):
 class _LearningRecordCreatedRecommendation(BaseModel):
     """LearningRecordCreated 嵌套的 recommendation 句柄。"""
 
-    recommendation_id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    recommendation_id: str = Field(..., alias="recommendationId")
     status: str  # pending / ready / failed
 
 

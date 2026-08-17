@@ -43,6 +43,8 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+    # 响应默认按 alias 输出（camelCase），与 openapi.yaml 对齐
+    response_model_by_alias=True,
 )
 
 # CORS：MVP 阶段允许所有来源

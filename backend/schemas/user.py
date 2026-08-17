@@ -16,8 +16,10 @@ from .enums import Stage, Subject
 class GuardianAuthorizationInfo(BaseModel):
     """openapi.yaml User.guardianAuthorization 字段。"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     status: str = Field(..., description="授权状态：active / pending / revoked / expired")
-    expires_at: datetime | None = Field(None, description="授权到期时间")
+    expires_at: datetime | None = Field(None, alias="expiresAt", description="授权到期时间")
 
 
 class User(BaseModel):

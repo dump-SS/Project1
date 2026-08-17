@@ -63,6 +63,8 @@ class RatingFeedback(BaseModel):
 class FeedbackRecord(BaseModel):
     """已提交的反馈。"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     rating: Rating
     reason: str | None = Field(None, description="用户补充说明")
-    submitted_at: datetime = Field(..., description="提交时间")
+    submitted_at: datetime = Field(..., alias="submittedAt", description="提交时间")

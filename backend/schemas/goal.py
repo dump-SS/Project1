@@ -13,9 +13,11 @@ from .enums import GoalType, Subject
 
 
 class GoalProgress(BaseModel):
-    planned_tasks: int = Field(..., description="已规划任务数")
-    completed_tasks: int = Field(..., description="已完成任务数")
-    ratio: float = Field(..., ge=0.0, le=1.0, description="完成比例")
+    model_config = ConfigDict(populate_by_name=True)
+
+    planned_tasks: int = Field(..., alias="plannedTasks", description="已规划任务数")
+    completed_tasks: int = Field(..., alias="completedTasks", description="已完成任务数")
+    ratio: float = Field(..., alias="ratio", ge=0.0, le=1.0, description="完成比例")
 
 
 class GoalBase(BaseModel):
