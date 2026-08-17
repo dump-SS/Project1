@@ -13,6 +13,7 @@ import StudyTimerPage from './pages/StudyTimer/index.jsx'
 import StudyPlanEditor from './pages/StudyPlanEditor/index.jsx'
 import StudyGuide from './pages/StudyGuide/index.jsx'
 import SettingsPage from './pages/Settings/index.jsx'
+import SummaryReviewPage from './pages/SummaryReview/index.jsx'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/study-plan" element={<StudyPlanEditor />} />
               <Route path="/study-guide" element={<StudyGuide />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/summary-review" element={<SummaryReviewPage />} />
             </Route>
           </Route>
 

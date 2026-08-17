@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/study-plan', label: '编辑计划' },
   { to: '/study-timer', label: '专注计时' },
   { to: '/settings', label: '设置' },
+  { to: '/summary-review', label: '学习复盘' },
 ]
 
 export default function AppShell() {

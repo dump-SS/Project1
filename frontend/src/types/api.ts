@@ -323,9 +323,34 @@ export interface Summary {
   content: SummaryContent | null;
   dataPoints?: SummaryDataPoints;
   message?: string;
+  /** 用户已提交的反馈，未提交时为 null */
+  feedback?: FeedbackRecord | null;
 }
 
 export interface SummaryList {
   items: Summary[];
   pagination: Pagination;
+}
+
+/** 已提交的反馈记录（openapi.yaml FeedbackRecord） */
+export interface FeedbackRecord {
+  rating: Rating;
+  /** 用户补充说明，可为空 */
+  reason?: string | null;
+  submittedAt: string;
+}
+
+/** 手动触发复盘后的受理响应（openapi.yaml SummaryPending） */
+export interface SummaryPending {
+  summaryId: string;
+  periodStart: string;
+  periodEnd: string;
+  generation: GenerationStatus;
+  createdAt: string;
+}
+
+/** 复盘反馈提交结果（openapi.yaml SummaryFeedbackResult） */
+export interface SummaryFeedbackResult {
+  summaryId: string;
+  feedback: FeedbackRecord;
 }
