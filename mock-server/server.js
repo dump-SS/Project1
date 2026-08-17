@@ -71,6 +71,15 @@ db.exec(`
     difficulty_feel   TEXT NOT NULL,
     created_at        TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS plans (
+    email            TEXT NOT NULL,
+    plan_date        TEXT NOT NULL,
+    available_minutes INTEGER NOT NULL,
+    payload_json     TEXT NOT NULL,
+    created_at       TEXT NOT NULL,
+    PRIMARY KEY (email, plan_date)
+  );
 `)
 
 /* ===================== 密码哈希（scrypt + 随机盐） ===================== */
@@ -613,6 +622,91 @@ const server = http.createServer(async (req, res) => {
         },
         feedback: null,
       })
+    }
+
+    /* --------------- 7. 学习计划（流程环节②） ---------------
+     * mock 实现：仅满足"创建计划页能跑通"的最小需求。规则引擎同步生成 1-3 条任务，
+     * 不走 LLM，与 openapi.yaml 2.1 Plan / PlanTask 字段保持一致（PlanAdaptation 暂无）。
+     * 数据库表 plans 已在上面初始化，key = (email, plan_date)，确保同用户同日幂等。
+     */
+
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+    // 任务模板：subject / topic，按 availableMinutes 拆分分钟、产出 1-3 条
+    function buildPlanPayload(planDate, availableMinutes) {
+      const templates = [
+        { subject: 'math',    topic: '函数图像与性质 · 巩固已学' },
+        { subject: 'english', topic: '单词短时高频复习' },
+        { subject: 'physics', topic: '电磁感应 · 公式与例题复盘' }
+      ]
+      const count = availableMinutes >= 90 ? 3 : availableMinutes >= 45 ? 2 : 1
+      const base = Math.floor(availableMinutes / count)
+      const remainder = availableMinutes - base * count
+      const tasks = []
+      let acc = 0
+      for (let i = 0; i < count; i++) {
+        const minutes = i === count - 1 ? availableMinutes - acc : base + (i < remainder ? 1 : 0)
+        acc += minutes
+        tasks.push({
+          taskId: `t_${Date.now()}_${i + 1}`,
+          subject: templates[i].subject,
+          topic: templates[i].topic,
+          estimatedMinutes: minutes,
+          priority: i + 1,
+          status: 'pending',
+          goalId: null
+        })
+      }
+      return {
+        planId: `p_${Date.now()}`,
+        planDate,
+        availableMinutes,
+        adaptedFrom: null,
+        tasks,
+        createdAt: new Date().toISOString()
+      }
+    }
+
+    if (path === '/api/v1/plans' && req.method === 'POST') {
+      const session = getSession(req)
+      if (!session) return err(res, 401, 'UNAUTHENTICATED', '未登录或登录已过期')
+
+      const { planDate, availableMinutes, regenerate } = body
+      if (!planDate || typeof planDate !== 'string' || !DATE_RE.test(planDate)) {
+        return err(res, 400, 'VALIDATION_FAILED', 'planDate 必须为 YYYY-MM-DD', 'planDate')
+      }
+      const minutes = Number(availableMinutes)
+      if (!Number.isInteger(minutes) || minutes < 10 || minutes > 600) {
+        return err(res, 400, 'VALIDATION_FAILED', 'availableMinutes 必须为 10-600 的整数', 'availableMinutes')
+      }
+
+      const existing = db.prepare('SELECT payload_json FROM plans WHERE email = ? AND plan_date = ?')
+        .get(session.email, planDate)
+      if (existing && regenerate !== true) {
+        return err(res, 409, 'STATE_CONFLICT', '当日已存在计划，如需覆盖请传 regenerate=true')
+      }
+
+      const plan = buildPlanPayload(planDate, minutes)
+      db.prepare(`
+        INSERT INTO plans (email, plan_date, available_minutes, payload_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(email, plan_date) DO UPDATE SET
+          available_minutes = excluded.available_minutes,
+          payload_json     = excluded.payload_json,
+          created_at       = excluded.created_at
+      `).run(session.email, planDate, minutes, JSON.stringify(plan), plan.createdAt)
+
+      console.log(`[PLAN] ${session.email} ${planDate} ${minutes}min 任务数=${plan.tasks.length}`)
+      return json(res, 201, plan)
+    }
+
+    // 简单支持：GET /api/v1/plans?dateFrom=...&dateTo=...（仅作占位，便于前端走查）
+    if (path === '/api/v1/plans' && req.method === 'GET') {
+      const session = getSession(req)
+      if (!session) return err(res, 401, 'UNAUTHENTICATED', '未登录或登录已过期')
+      const rows = db.prepare('SELECT payload_json FROM plans WHERE email = ? ORDER BY plan_date DESC LIMIT 50')
+        .all(session.email)
+      return json(res, 200, { items: rows.map((r) => JSON.parse(r.payload_json)) })
     }
 
     /* --------------- 404 --------------- */
