@@ -26,6 +26,8 @@ from models.learning_record import LearningRecord
 from models.assessment import AssessmentSnapshot
 from models.recommendation import Recommendation
 from models.summary import Summary
+from models.user import Settings as SettingsORM
+from privacy_filter import sanitize_text
 from safety_filter import check, is_crisis_signal, CRISIS_RESPONSE
 from state_calculator import compute_window_for_records, orm_record_to_engine_input
 from template_fallback import build_template_recommendation
@@ -33,6 +35,19 @@ from template_fallback import build_template_recommendation
 logger = logging.getLogger(__name__)
 
 MIN_RECORDS_FOR_SUMMARY = 5  # PRD 5.4：数据不足时不硬凑
+
+
+def _get_send_text_to_ai(db: Session, user_id: str) -> bool:
+    """读用户的 sendTextToAI 开关（PRD 6.2 数据出域边界）。
+
+    默认 False（models/user.py Settings.send_text_to_ai default=False）：
+    未主动开启时，用户文本（note/description）不进 LLM prompt，只用结构化特征。
+    开启后：note 经 privacy_filter 脱敏（手机号/身份证号/邮箱）后进 prompt。
+    """
+    cfg = db.get(SettingsORM, user_id)
+    if cfg is None:
+        return False  # 默认不发送文本
+    return bool(cfg.send_text_to_ai)
 
 
 def generate_recommendation(
@@ -78,6 +93,16 @@ def generate_recommendation(
                                   "检测到可能的危机信号，切换为审定文案")
         return
 
+    # PRD 6.2 数据出域边界：sendTextToAI 开关控制 note 是否进 prompt
+    # 默认关闭：只用结构化特征，不发送用户文本
+    # 开启后：note 经 privacy_filter 脱敏（手机号/身份证号/邮箱/QQ）后进 prompt
+    send_text = _get_send_text_to_ai(db, user_id)
+    user_note: str | None = None
+    if send_text and trigger_record_row and trigger_record_row.note:
+        user_note = sanitize_text(trigger_record_row.note)
+        if not user_note.strip():
+            user_note = None
+
     # 尝试 LLM 生成
     provider = get_provider()
     system, user = _build_recommendation_prompt(
@@ -97,6 +122,7 @@ def generate_recommendation(
         recent_rows_summary=_format_recent_records(
             list(rows) + ([trigger_record_row] if trigger_record_row and trigger_record_row not in rows else [])
         ),
+        user_note=user_note,
     )
     llm_text = provider.generate(user, context={"system": system, "scene": scene, "subject": subj})
 
@@ -169,9 +195,23 @@ def generate_summary(
     referenced_ids = [s.id for s in snap_rows]
     plan_completion_ratio = _compute_plan_completion(db, user_id)
 
+    # PRD 6.2 数据出域边界：sendTextToAI 开关控制 note 是否进 prompt
+    send_text = _get_send_text_to_ai(db, user_id)
+    notes_summary: str | None = None
+    if send_text:
+        # 收集区间内有 note 的记录，逐条脱敏后拼接
+        note_lines = []
+        for r in rows:
+            if r.note:
+                safe_note = sanitize_text(r.note)
+                if safe_note.strip():
+                    note_lines.append(f"- {r.started_at.strftime('%m-%d')} {r.subject}: {safe_note}")
+        if note_lines:
+            notes_summary = "\n".join(note_lines)
+
     # 尝试 LLM 生成
     provider = get_provider()
-    prompt = _build_summary_prompt(rows, snap_rows, plan_completion_ratio)
+    prompt = _build_summary_prompt(rows, snap_rows, plan_completion_ratio, notes_summary)
     llm_text = provider.generate(prompt, {"period": f"{period_start}~{period_end}"})
 
     if llm_text:
@@ -306,11 +346,15 @@ def _build_recommendation_prompt(
     completion: str | None, duration_minutes: int | None,
     signals: list[str],
     recent_rows_summary: str,
+    user_note: str | None = None,
 ) -> tuple[str, str]:
     """从 prompts/suggestion.txt 渲染 system/user 两段。
 
     返回 (system, user)，调用方分别作为 chat 的 system / user message 发送。
     这样能保留 system role 的硬约束，符合 OpenAI/Anthropic 通用约定。
+
+    user_note：用户填写的本次学习备注（经 privacy_filter 脱敏）。
+    None 表示用户未开启 sendTextToAI 或 note 为空，prompt 里该字段显示为"未提供"。
     """
     template = _load_prompt_file("suggestion.txt")
     system, user = _strip_template_controls(template)
@@ -333,15 +377,22 @@ def _build_recommendation_prompt(
         durationMinutes=duration_minutes if duration_minutes is not None else "null",
         signals=("; ".join(signals) if signals else "（无特殊信号）"),
         recentRecordsSummary=recent_rows_summary,
+        userNote=user_note if user_note else "（未提供，用户未开启文本出域或本次无备注）",
     )
     return system, user
 
 
-def _build_summary_prompt(rows, snap_rows, plan_ratio) -> str:
+def _build_summary_prompt(rows, snap_rows, plan_ratio, notes_summary: str | None = None) -> str:
+    notes_section = ""
+    if notes_summary:
+        notes_section = (
+            f"\n用户备注（已脱敏，可用于理解上下文，勿原样引用）：\n{notes_summary}\n"
+        )
     return (
         f"你是一个学习状态助手。根据以下周期数据生成一份学习复盘。\n"
         f"记录数：{len(rows)}\n学科：{sorted(set(r.subject for r in rows))}\n"
         f"状态快照数：{len(snap_rows)}\n计划完成率：{plan_ratio}\n"
+        f"{notes_section}"
         f"要求：包含 overview（概述）、patterns（观察到的规律，列表）、"
         f"suggestions（建议，1-3条）、encouragement（鼓励收尾）；"
         f"必须基于真实数据，禁止编造；语气鼓励、中性；不涉及心理诊断。"

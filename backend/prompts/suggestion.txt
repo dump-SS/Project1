@@ -69,6 +69,7 @@ USER:
   - 完成度：{completion}  # completed / partial / abandoned
   - 学习时长（分钟）：{durationMinutes}
 - 可解释信号（来自规则层，可直接引用）：{signals}
+- 用户本次备注（已脱敏）：{userNote}  # 未开启文本出域或无备注时为"未提供"
 
 # 上下文回顾（最近 7 条记录的最简摘要）
 {recentRecordsSummary}
