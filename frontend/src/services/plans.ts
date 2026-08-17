@@ -3,9 +3,9 @@
  * 该接口由服务端规则引擎同步返回，不走 LLM（PRD 8.2：AI 不可用时仍能看计划）。
  * 新用户无历史数据时响应里 adaptedFrom 为 null，走规则模板。
  */
-import { apiPost, isNetworkError } from './http';
+import { apiPost, apiPatch, isNetworkError } from './http';
 import { cacheGet, cacheSet } from './localFallback';
-import type { Plan } from '@/types/api';
+import type { Plan, PlanTask } from '@/types/api';
 
 /** localStorage 最近一次成功计划缓存 key */
 export const LAST_PLAN_CACHE_KEY = 'plan:last';
@@ -48,4 +48,28 @@ export function localDateString(date: Date = new Date()): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * 计划任务更新请求体。对应 openapi.yaml「2.1 updatePlanTask」
+ * (PATCH /plans/{planId}/tasks/{taskId})，至少传一项。
+ * 本次前端只用到 status（标记完成），estimatedMinutes/removed 留给未来手动改时长/删除。
+ */
+export type PlanTaskUpdate = {
+  status?: PlanTask['status'];
+  estimatedMinutes?: number;
+  removed?: boolean;
+};
+
+/**
+ * 调整任务 / 确认完成。
+ * @returns 更新后的任务对象。契约里响应是 PlanTaskDetail（含 removed/userAdjusted/updatedAt），
+ *          这些字段前端当前不消费，按 PlanTask 形态透传即可，未来需要再补 PlanTaskDetail 类型。
+ */
+export async function updatePlanTask(
+  planId: string,
+  taskId: string,
+  patch: PlanTaskUpdate,
+): Promise<PlanTask> {
+  return apiPatch<PlanTask>(`/plans/${encodeURIComponent(planId)}/tasks/${encodeURIComponent(taskId)}`, patch);
 }
