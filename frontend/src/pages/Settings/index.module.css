@@ -1,0 +1,82 @@
+.page {
+  min-height: 100vh;
+  background: #f7fbfe;
+  padding: 48px 24px 80px;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.title {
+  font-family: 'Noto Serif SC', 'Songti SC', serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: #2c3e50;
+  letter-spacing: 2px;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #8ca3b5;
+  margin: 0 0 32px;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  padding: 8px 24px;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.item + .item {
+  border-top: 1px solid #e8f4fd;
+}
+
+.itemBody {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 6px;
+}
+
+.itemDesc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #8ca3b5;
+  margin: 0;
+}
+
+.switchWrap {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #8ca3b5;
+  padding: 16px 0;
+  margin: 0;
+}
+
+.error {
+  font-size: 13px;
+  color: #f5c88e;
+  padding: 16px 0;
+  margin: 0;
+}
