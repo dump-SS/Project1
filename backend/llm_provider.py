@@ -52,9 +52,16 @@ class OpenAICompatibleProvider:
         import urllib.error
 
         url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
+        # prompts/suggestion.txt 拆 SYSTEM / USER 两块；这里把它们分别放进 messages。
+        # MockProvider 不需要 system；这样真实 LLM 也能拿到硬约束。
+        messages = []
+        system_prompt = (context or {}).get("system")
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
         payload = json.dumps({
             "model": settings.llm_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "temperature": 0.7,
             "max_tokens": 800,
         }).encode("utf-8")

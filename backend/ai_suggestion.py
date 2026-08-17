@@ -77,8 +77,25 @@ def generate_recommendation(
 
     # 尝试 LLM 生成
     provider = get_provider()
-    prompt = _build_recommendation_prompt(subj, state_label, record_focus, record_fatigue, plan_completion_ratio)
-    llm_text = provider.generate(prompt, {"scene": scene, "subject": subj})
+    system, user = _build_recommendation_prompt(
+        subject=subj,
+        state_label=state_label,
+        window_score=window.window_score if window.data_sufficient else None,
+        trend=window.trend.value if window.trend else None,
+        record_count=window.record_count,
+        plan_completion_ratio=plan_completion_ratio,
+        focus=trigger_record_row.self_report_focus if trigger_record_row else None,
+        fatigue=trigger_record_row.self_report_fatigue if trigger_record_row else None,
+        emotion=trigger_record_row.self_report_emotion if trigger_record_row else None,
+        difficulty_feel=trigger_record_row.self_report_difficulty_feel if trigger_record_row else None,
+        completion=trigger_record_row.behavior_completion if trigger_record_row else None,
+        duration_minutes=trigger_record_row.duration_minutes if trigger_record_row else None,
+        signals=window.signals,
+        recent_rows_summary=_format_recent_records(
+            list(rows) + ([trigger_record_row] if trigger_record_row and trigger_record_row not in rows else [])
+        ),
+    )
+    llm_text = provider.generate(user, context={"system": system, "scene": scene, "subject": subj})
 
     if llm_text:
         # 安全审核
@@ -234,19 +251,87 @@ def _compute_plan_completion(db: Session, user_id: str) -> float | None:
     return None
 
 
+def _load_prompt_file(filename: str) -> str:
+    """读 prompts/ 下的提示词模板。模板集中放文件，方便迭代与审计。"""
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "prompts", filename)
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _strip_template_controls(text: str) -> tuple[str, str]:
+    """把模板切成 (system, user) 两块。
+
+    模板必须有两个独立行（位置任意）标记 SYSTEM / USER：
+        SYSTEM:
+        ...system body...
+        USER:
+        ...user body...
+    用行级别定位，避免正则在长 body 里被 `#` 字符干扰。
+    """
+    import re
+    sys_match = re.search(r"(?m)^#?\s*SYSTEM\s*:\s*$", text)
+    user_match = re.search(r"(?m)^#?\s*USER\s*:\s*$", text)
+    if not sys_match or not user_match or user_match.start() <= sys_match.end():
+        raise ValueError("prompt template missing or malformed SYSTEM/USER markers")
+    system = text[sys_match.end():user_match.start()].strip()
+    user = text[user_match.end():].strip()
+    return system, user
+
+
+def _format_recent_records(rows: list) -> str:
+    """最近 N 条记录的最简摘要（用于 prompt 上下文回顾）。"""
+    lines = []
+    for r in rows[-7:]:
+        lines.append(
+            f"- {r.started_at.strftime('%m-%d %H:%M')} "
+            f"focus={r.self_report_focus} fatigue={r.self_report_fatigue} "
+            f"emotion={r.self_report_emotion} completion={r.behavior_completion}"
+        )
+    return "\n".join(lines) or "（无历史记录）"
+
+
 def _build_recommendation_prompt(
     subject: str, state_label: str,
+    window_score: float | None,
+    trend: str | None,
+    record_count: int,
+    plan_completion_ratio: float | None,
     focus: int | None, fatigue: int | None,
-    plan_ratio: float | None,
-) -> str:
-    return (
-        f"你是一个学习状态助手。根据以下信息给出 1-2 条具体、可执行的学习建议。\n"
-        f"学科：{subject}\n状态标签：{state_label}\n"
-        f"专注度自评：{focus}/5\n疲劳度自评：{fatigue}/5\n"
-        f"计划完成率：{plan_ratio}\n"
-        f"要求：语气鼓励、中性、非评判；不涉及心理诊断或医疗建议；"
-        f"每条建议包含 title（≤15字）和 content（≤100字）。"
+    emotion: str | None, difficulty_feel: str | None,
+    completion: str | None, duration_minutes: int | None,
+    signals: list[str],
+    recent_rows_summary: str,
+) -> tuple[str, str]:
+    """从 prompts/suggestion.txt 渲染 system/user 两段。
+
+    返回 (system, user)，调用方分别作为 chat 的 system / user message 发送。
+    这样能保留 system role 的硬约束，符合 OpenAI/Anthropic 通用约定。
+    """
+    template = _load_prompt_file("suggestion.txt")
+    system, user = _strip_template_controls(template)
+
+    user = user.format(
+        subject=subject,
+        stateLabel=state_label,
+        windowScore=window_score if window_score is not None else "null（数据不足）",
+        trend=trend if trend is not None else "null（数据不足）",
+        recordCount=record_count,
+        planCompletionRatio=(
+            f"{plan_completion_ratio:.2f}" if plan_completion_ratio is not None
+            else "null（未接入计划）"
+        ),
+        focus=focus if focus is not None else "null",
+        fatigue=fatigue if fatigue is not None else "null",
+        emotion=emotion if emotion is not None else "null",
+        difficultyFeel=difficulty_feel if difficulty_feel is not None else "null",
+        completion=completion if completion is not None else "null",
+        durationMinutes=duration_minutes if duration_minutes is not None else "null",
+        signals=("; ".join(signals) if signals else "（无特殊信号）"),
+        recentRecordsSummary=recent_rows_summary,
     )
+    return system, user
 
 
 def _build_summary_prompt(rows, snap_rows, plan_ratio) -> str:
