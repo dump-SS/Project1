@@ -21,9 +21,15 @@ servers:
     description: 基础路径，下文所有 URL 均省略此前缀
 
 security:
-  - bearerAuth: []
+  - sessionCookie: []
 
 tags:
+  - name: 鉴权会话
+    description: |
+      邮箱验证码 / 密码登录、注册、找回密码、会话查询与登出。
+      登录成功后服务端通过 Set-Cookie 下发 HttpOnly Session Cookie（sid），
+      后续所有业务接口凭该 Cookie 鉴权（浏览器自动携带）。
+      对应实现见 mock-server/server.js 与前端 authApi.js。
   - name: 用户与设置
     description: 用户资料、AI 相关开关、监护人授权（合规底线，PRD 8.1）
   - name: 学习目标
@@ -40,6 +46,344 @@ tags:
     description: 周期复盘（异步生成，不做模板兜底）
 
 paths:
+  # ==================== 鉴权会话（外部账号体系，登录前公开） ====================
+  # 以下 /auth/* 接口在登录前调用，逐个用 security: [] 覆盖全局 Cookie 要求。
+  # 请求/响应结构对齐 mock-server/server.js 与 frontend/src/services/authApi.js。
+  /auth/send-register-code:
+    post:
+      tags: [鉴权会话]
+      operationId: sendRegisterCode
+      summary: 发送注册邮箱验证码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailOnlyRequest'
+            example:
+              email: student@example.com
+      responses:
+        '200':
+          description: 验证码已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '409':
+          description: 邮箱已注册
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EMAIL_ALREADY_REGISTERED
+                  message: 该邮箱已注册，请直接登录
+                  field: email
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/send-login-code:
+    post:
+      tags: [鉴权会话]
+      operationId: sendLoginCode
+      summary: 发送登录邮箱验证码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailOnlyRequest'
+            example:
+              email: student@example.com
+      responses:
+        '200':
+          description: 验证码已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/EmailNotRegistered'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/send-reset-code:
+    post:
+      tags: [鉴权会话]
+      operationId: sendResetCode
+      summary: 发送重置密码邮箱验证码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailOnlyRequest'
+            example:
+              email: student@example.com
+      responses:
+        '200':
+          description: 验证码已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/EmailNotRegistered'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/register:
+    post:
+      tags: [鉴权会话]
+      operationId: register
+      summary: 注册（验证码 + 密码，成功后不自动登录）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: student@example.com
+              code: '123456'
+              password: Abc12345
+              confirmPassword: Abc12345
+      responses:
+        '200':
+          description: 注册成功，请前往登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '409':
+          description: 邮箱已注册
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EMAIL_ALREADY_REGISTERED
+                  message: 该邮箱已注册，请直接登录
+                  field: email
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/login-email-code:
+    post:
+      tags: [鉴权会话]
+      operationId: loginByEmailCode
+      summary: 邮箱验证码登录（成功后 Set-Cookie 下发会话）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginByCodeRequest'
+            example:
+              email: student@example.com
+              code: '123456'
+      responses:
+        '200':
+          description: 登录成功，响应头 Set-Cookie 下发 sid（HttpOnly）
+          headers:
+            Set-Cookie:
+              description: 'sid=<token>; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/EmailNotRegistered'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/login-password:
+    post:
+      tags: [鉴权会话]
+      operationId: loginByPassword
+      summary: 邮箱密码登录（成功后 Set-Cookie 下发会话）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginByPasswordRequest'
+            example:
+              email: student@example.com
+              password: Abc12345
+      responses:
+        '200':
+          description: 登录成功，响应头 Set-Cookie 下发 sid（HttpOnly）
+          headers:
+            Set-Cookie:
+              description: 'sid=<token>; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          description: 密码错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: PASSWORD_INCORRECT
+                  message: 密码错误
+                  field: password
+        '404':
+          $ref: '#/components/responses/EmailNotRegistered'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/verify-reset-code:
+    post:
+      tags: [鉴权会话]
+      operationId: verifyResetCode
+      summary: 校验重置密码验证码（找回密码第一步）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginByCodeRequest'
+            example:
+              email: student@example.com
+              code: '123456'
+      responses:
+        '200':
+          description: 验证码有效，可进入设置新密码步骤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/EmailNotRegistered'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/reset-password:
+    post:
+      tags: [鉴权会话]
+      operationId: resetPassword
+      summary: 重置密码（找回密码第二步，重置后已有会话失效）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            example:
+              email: student@example.com
+              code: '123456'
+              newPassword: Xyz98765
+              confirmPassword: Xyz98765
+      responses:
+        '200':
+          description: 密码已重置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/EmailNotRegistered'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/me:
+    get:
+      tags: [鉴权会话]
+      operationId: getAuthMe
+      summary: 查询当前会话用户（前端据此判断登录态）
+      responses:
+        '200':
+          description: 已登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMeResponse'
+              example:
+                ok: true
+                user:
+                  email: student@example.com
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/logout:
+    post:
+      tags: [鉴权会话]
+      operationId: logout
+      summary: 退出登录（清除会话 Cookie）
+      responses:
+        '200':
+          description: 已退出，响应头清空 sid
+          headers:
+            Set-Cookie:
+              description: 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              example:
+                ok: true
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /me:
     get:
       tags: [用户与设置]
@@ -1328,10 +1672,16 @@ paths:
           $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      description: 'Authorization: Bearer <token>；MVP 不设计登录/注册接口，假定已有账号体系'
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: |
+        HttpOnly Session Cookie（名为 sid），登录成功后由服务端 Set-Cookie 下发，
+        有效期 7 天（见 mock-server SESSION_TTL_MS）。浏览器自动携带，前端无需手动设置。
+        鉴权失效时业务接口返回 401 UNAUTHENTICATED。
+        （历史说明：早期契约曾假设上游 Bearer token 且不含登录/注册接口，
+        实际项目改为自带 /auth/* 会话体系，本契约已据此收录，见「鉴权会话」标签。）
 
   parameters:
     Page:
@@ -1472,6 +1822,17 @@ components:
             error:
               code: INTERNAL_ERROR
               message: 服务开小差了，请稍后再试
+    EmailNotRegistered:
+      description: 邮箱尚未注册（登录 / 找回密码 / 发码时）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: EMAIL_NOT_REGISTERED
+              message: 该邮箱尚未注册，请先注册
+              field: email
 
   schemas:
     # ---------- 枚举字典（PRD 0.4） ----------
@@ -1523,6 +1884,97 @@ components:
       type: string
       description: 有用性评级
       enum: [useful, neutral, not_useful]
+
+    # ---------- 鉴权会话（对齐 mock-server/server.js 与 authApi.js） ----------
+    OkResponse:
+      type: object
+      description: auth 类接口的通用成功响应
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          description: 恒为 true
+    EmailOnlyRequest:
+      type: object
+      description: 仅需邮箱的请求（发送各类验证码）
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+    RegisterRequest:
+      type: object
+      description: 注册请求
+      required: [email, code, password, confirmPassword]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          description: 6 位数字验证码
+        password:
+          type: string
+          minLength: 6
+          maxLength: 32
+          description: 6-32 位，需含大写/小写/数字/符号中至少两类
+        confirmPassword:
+          type: string
+          description: 需与 password 一致
+    LoginByCodeRequest:
+      type: object
+      description: 邮箱验证码登录 / 校验重置码请求
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          pattern: '^\d{6}$'
+    LoginByPasswordRequest:
+      type: object
+      description: 邮箱密码登录请求
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    ResetPasswordRequest:
+      type: object
+      description: 重置密码请求（找回密码第二步）
+      required: [email, code, newPassword, confirmPassword]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          pattern: '^\d{6}$'
+        newPassword:
+          type: string
+          minLength: 6
+          maxLength: 32
+        confirmPassword:
+          type: string
+    AuthMeResponse:
+      type: object
+      description: GET /auth/me 的响应
+      required: [ok, user]
+      properties:
+        ok:
+          type: boolean
+        user:
+          type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+              format: email
 
     # ---------- 通用结构 ----------
     Error:
@@ -1756,6 +2208,19 @@ components:
           type: string
           description: 目标状态
           enum: [active, archived]
+        outcome:
+          type: string
+          nullable: true
+          description: |
+            归档终态，仅 status=archived 时有值；active 时为 null。
+            用于区分「已达成 / 已放弃 / 已过期」——status 的 active/archived 二值无法表达这个区分。
+            前端已按可选字段读取（goals.ts），后端补齐前保持返回 null 即可，向后兼容。
+          enum: [achieved, abandoned, expired]
+        completionNote:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: 目标完成总结（归档时可填），≤200 字；前端已按可选字段读取
         progress:
           $ref: '#/components/schemas/GoalProgress'
         createdAt:
@@ -1786,6 +2251,16 @@ components:
           type: string
           description: 目标状态
           enum: [active, archived]
+        outcome:
+          type: string
+          nullable: true
+          description: 归档终态，仅 archived 时有值；取值同 Goal.outcome
+          enum: [achieved, abandoned, expired]
+        completionNote:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: 目标完成总结；取值同 Goal.completionNote
         progress:
           $ref: '#/components/schemas/GoalProgress'
     GoalCreate:
@@ -2080,6 +2555,13 @@ components:
           $ref: '#/components/schemas/RecordBehavior'
         selfReport:
           $ref: '#/components/schemas/RecordSelfReport'
+        note:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: |
+            用户备注，回读 RecordInput.note；未填写时为 null。
+            此前 RecordInput 有 note 入参但 LearningRecord 出参缺失，用户无法找回自己写过的内容，已补齐。
         createdAt:
           type: string
           format: date-time
@@ -2102,7 +2584,9 @@ components:
           $ref: '#/components/schemas/Subject'
         windowScore:
           type: number
-          description: 滑动窗口状态分；数据不足时不返回
+          minimum: 0
+          maximum: 1
+          description: 滑动窗口状态分（0-1）；数据不足时不返回
         trend:
           $ref: '#/components/schemas/Trend'
         stateLabel:
@@ -2189,7 +2673,9 @@ components:
           $ref: '#/components/schemas/Subject'
         windowScore:
           type: number
-          description: 滑动窗口状态分，数据不足时不返回
+          minimum: 0
+          maximum: 1
+          description: 滑动窗口状态分（0-1），数据不足时不返回
         trend:
           $ref: '#/components/schemas/Trend'
         stateLabel:
@@ -2232,7 +2718,9 @@ components:
           description: 日期
         windowScore:
           type: number
-          description: 当日窗口状态分
+          minimum: 0
+          maximum: 1
+          description: 当日窗口状态分（0-1）
         stateLabel:
           $ref: '#/components/schemas/StateLabel'
         trend:

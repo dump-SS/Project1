@@ -11,8 +11,8 @@
  * - 进度百分比取 GoalProgress.ratio（0-1），换算成 0-100。
  */
 
-import { apiGet } from './http';
-import type { GoalList, GoalOutcome, GoalSummary } from '@/types/api';
+import { apiGetAllPages } from './http';
+import type { GoalOutcome, GoalSummary } from '@/types/api';
 import type { GoalCard, GoalPanel } from '@/types/view';
 import { subjectLabels } from '@/styles/theme';
 
@@ -59,14 +59,16 @@ function toCard(goal: GoalSummary): GoalCard {
 }
 
 export async function fetchGoals(signal?: AbortSignal): Promise<GoalPanel> {
-  const [activeList, archivedList] = await Promise.all([
-    apiGet<GoalList>('/goals', { status: 'active', pageSize: 50 }, signal),
-    apiGet<GoalList>('/goals', { status: 'archived', pageSize: 50 }, signal),
+  // 用 apiGetAllPages 翻页取全部，与其余 service 一致；
+  // 之前用 apiGet 只取第 1 页，归档目标超过 50 条时后续会被静默丢弃。
+  const [activeItems, archivedItems] = await Promise.all([
+    apiGetAllPages<GoalSummary>('/goals', { status: 'active' }, signal),
+    apiGetAllPages<GoalSummary>('/goals', { status: 'archived' }, signal),
   ]);
 
   return {
-    active: (activeList.items ?? []).map(toCard),
-    finished: (archivedList.items ?? []).map(toCard),
+    active: activeItems.map(toCard),
+    finished: archivedItems.map(toCard),
   };
 }
 

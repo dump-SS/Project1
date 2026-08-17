@@ -1,6 +1,6 @@
 # openapi.yaml 使用说明
 
-`docs/openapi.yaml` 是 `docs/api-design-unified.md` 的机器可读版本，29 个 operation、64 个 schema，是前后端与 QA 的唯一契约来源。
+`docs/openapi.yaml` 是 `docs/api-design-unified.md` 的机器可读版本，39 个 operation、71 个 schema，是前后端与 QA 的唯一契约来源。
 
 ## 三方怎么用
 
@@ -44,3 +44,10 @@ v1.1 批量插入 500 时存在缩进 bug：成功响应（200/201/202/204）的
 2. 内容还原校验：与 500 插入前的版本（`4521861~1`）逐 operation 比对成功响应块，29 个中 28 个**逐字节一致**；唯一差异是 `DELETE /learning-records/{recordId}` 的示例，为 v1.1 有意修改（`insufficient_data` 时 `assessmentId: null`），其 schema 一致。
 
 教训已吸收：后续对该文件的任何批量修改，验证必须断言**内容归属**（schema 挂在哪个状态码下），不能只断言键存在。
+
+## 2026-08-17 鉴权对齐 + schema 约束补齐（v1.2）
+
+- 收录 10 个 `/auth/*` 接口（operation 29→39），全局 security 从 `bearerAuth` 改为 `sessionCookie`（apiKey in cookie，名 `sid`）。8 个登录前接口标 `security: []`。
+- 新增 7 个 auth schema（OkResponse / EmailOnlyRequest / RegisterRequest / LoginByCodeRequest / LoginByPasswordRequest / ResetPasswordRequest / AuthMeResponse）+ `EmailNotRegistered` 响应；schema 总数 64→71。
+- schema 约束补齐：`windowScore` 三处加 0-1 范围、`LearningRecord.note` 回读字段、`Goal`/`GoalSummary` 增加可选 `outcome`+`completionNote`。
+- 验证：YAML 解析通过；39 个 operation；所有 `$ref` 无断链（含新 auth schema 与 EmailNotRegistered）；8 个公开 auth 接口均 `security: []`。

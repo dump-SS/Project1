@@ -5,6 +5,10 @@
 - 覆盖主流程：**创建目标 → 生成计划 → 提交学习记录 → 计算状态 → 返回建议**（外加周期复盘与反馈回路）
 
 变更记录：
+- v1.2（契约修订）：**鉴权模型对齐实现**——收录 10 个 `/auth/*` 接口（见 1.0 节），全局鉴权从
+  Bearer token 改为 HttpOnly Session Cookie（`sid`），消除「文档说不设计登录接口、实现却自带一套」的脱节；
+  补齐 schema 约束：`windowScore` 加 0-1 范围、`LearningRecord` 增加 `note` 回读字段（此前入参有出参无）、
+  `Goal`/`GoalSummary` 增加可选 `outcome`（achieved/abandoned/expired）与 `completionNote`（前端已在读，纯增量）。
 - v1.1（契约修订）：统一 `insufficient_data` 的表示——`AssessmentSnapshot` 与 `StateResult` 对齐
   （`assessmentId` 可空、`windowScore`/`trend` 数据不足时不返回），4.3 节示例同步修正；
   `Idempotency-Key` 从仅 `POST /learning-records` 扩展到全部 16 个写操作；`openapi.yaml` 补齐
@@ -22,7 +26,7 @@
 | 项目 | 约定 |
 |---|---|
 | 基础路径 | `/api/v1`，下文所有 URL 均省略此前缀 |
-| 鉴权 | `Authorization: Bearer <token>`；MVP 不设计登录/注册接口，假定已有账号体系 |
+| 鉴权 | HttpOnly Session Cookie（名为 `sid`），登录成功后由服务端 Set-Cookie 下发，有效期 7 天，浏览器自动携带。登录/注册/找回密码见「鉴权会话」小节（第 1.0 节）。业务接口失效时返回 401 `UNAUTHENTICATED`。 |
 | 传输格式 | `application/json; charset=utf-8` |
 | 时间 | ISO 8601 带时区，如 `2026-08-16T20:30:00+08:00`；纯日期用 `2026-08-16` |
 | 命名 | 路径用复数名词，字段用 camelCase |
@@ -83,6 +87,29 @@
 ---
 
 ## 1. 用户与设置
+
+### 1.0 鉴权会话（外部账号体系）
+
+> 早期版本曾写「MVP 不设计登录/注册接口，假定上游已签发 Bearer token」。实际项目自带了一套完整的
+> 邮箱账号体系（`mock-server/server.js` + 前端 `authApi.js`），采用 HttpOnly Session Cookie 而非 Bearer。
+> 契约已据此收录以下 10 个 `/auth/*` 接口，全局鉴权方案统一为 Cookie，消除文档与实现的脱节。
+
+| # | 方法 | URL | 用途 | 鉴权 |
+|---|---|---|---|---|
+| A1 | POST | `/auth/send-register-code` | 发送注册验证码 | 公开 |
+| A2 | POST | `/auth/send-login-code` | 发送登录验证码 | 公开 |
+| A3 | POST | `/auth/send-reset-code` | 发送重置密码验证码 | 公开 |
+| A4 | POST | `/auth/register` | 注册（验证码+密码，不自动登录） | 公开 |
+| A5 | POST | `/auth/login-email-code` | 邮箱验证码登录（Set-Cookie） | 公开 |
+| A6 | POST | `/auth/login-password` | 邮箱密码登录（Set-Cookie） | 公开 |
+| A7 | POST | `/auth/verify-reset-code` | 校验重置码（找回第一步） | 公开 |
+| A8 | POST | `/auth/reset-password` | 重置密码（找回第二步） | 公开 |
+| A9 | GET | `/auth/me` | 查询当前会话用户 | Cookie |
+| A10 | POST | `/auth/logout` | 退出登录（清 Cookie） | Cookie |
+
+登录成功响应头 `Set-Cookie: sid=<token>; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800`（7 天）。
+成功响应体统一为 `{ "ok": true }`；`/auth/me` 额外返回 `{ "ok": true, "user": { "email": "..." } }`。
+密码规则：6-32 位，需含大写/小写/数字/符号中至少两类。验证码为 6 位数字。字段级定义见 `openapi.yaml`。
 
 ### 1.1 获取当前用户资料
 

@@ -74,13 +74,17 @@ export async function apiGet<T>(
 /**
  * 分页拉取全部数据。
  * openapi.yaml 约定 pageSize 上限 50，跨月查询时单页装不下，这里按页累加。
- * maxPages 是保险丝，避免后端 total 异常时打成死循环。
+ *
+ * maxPages 只是防止后端 total 异常时打成死循环的保险丝，不应成为静默截断数据的上限——
+ * 之前设为 10（最多 500 条）会让高频用户的月度记录被悄悄丢掉，导致学科占比、
+ * 时长趋势等聚合结果失真。这里放到 200 页（1 万条，远超任何真实用户的单次查询量），
+ * 真触顶时打印告警，把"沉默的数据错误"变成"可见的信号"。
  */
 export async function apiGetAllPages<T>(
   path: string,
   query: Record<string, QueryValue>,
   signal?: AbortSignal,
-  maxPages = 10,
+  maxPages = 200,
 ): Promise<T[]> {
   const pageSize = 50;
   const collected: T[] = [];
@@ -98,6 +102,13 @@ export async function apiGetAllPages<T>(
     const total = result.pagination?.total ?? collected.length;
     if (collected.length >= total || result.items.length === 0) break;
     page += 1;
+
+    if (page > maxPages) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[apiGetAllPages] ${path} 达到 ${maxPages} 页上限仍未取完（已取 ${collected.length}/${total}），数据可能被截断`,
+      );
+    }
   }
 
   return collected;
