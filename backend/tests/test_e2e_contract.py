@@ -434,16 +434,19 @@ def test_b15_plan_adapted_from_null_for_new_user():
 
 # ---------- C. 鉴权链路（当前是桩） ----------
 
-def test_c1_me_is_stub_user():
-    """C1: GET /me 返回 mock 用户 u_10237（current_user 是桩）。
+def test_c1_me_returns_real_orm_data():
+    """C1: GET /me 返回 ORM 真实资料（已接 DB，不再返 mock 常量）。
 
-    此测试记录现状：还没接真实鉴权。auth 在 mock-server，业务在 Python。
+    未建档用户：onboardingCompleted=false，guardian 状态 pending。
+    userId 仍是 u_10237（无登录态回落，auth 在 mock-server）。
     """
     r = client.get("/api/v1/me")
     assert r.status_code == 200
     body = r.json()
-    assert body["userId"] == "u_10237", "current_user 仍是桩，不是真实登录用户"
-    assert body["guardianAuthorization"]["status"] == "active"
+    assert body["userId"] == "u_10237"
+    # 未建档：onboarding 未完成，guardian 未授权
+    assert body["onboardingCompleted"] is False
+    assert body["guardianAuthorization"]["status"] == "pending"
 
 
 def test_c2_unauthenticated_business_call_returns_401():

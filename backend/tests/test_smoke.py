@@ -173,7 +173,9 @@ def test_get_me() -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["userId"] == "u_10237"
-    assert body["guardianAuthorization"]["status"] == "active"
+    # 未建档用户 guardian 状态为 pending（之前 mock 永远返 active 是假数据）
+    assert body["guardianAuthorization"]["status"] == "pending"
+    assert body["onboardingCompleted"] is False
 
 
 def test_list_goals_uses_camelcase_pagination() -> None:
