@@ -116,24 +116,13 @@ class SettingsUpdate(BaseModel):
 
 
 class GuardianAuthorizationRequest(BaseModel):
-    """监护人邮箱与手机号至少传一项（openapi.yaml minProperties: 1）。"""
+    """监护人邮箱（项目目前只有邮箱注册/验证，手机号字段待用）。"""
 
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={"example": {"guardianEmail": "guardian@example.com"}},
     )
 
-    guardian_email: str | None = Field(
-        None, alias="guardianEmail", max_length=254, description="监护人邮箱"
+    guardian_email: str = Field(
+        ..., alias="guardianEmail", max_length=254, description="监护人邮箱"
     )
-    guardian_phone: str | None = Field(
-        None, alias="guardianPhone", max_length=32, description="监护人手机号"
-    )
-
-    @model_validator(mode="after")
-    def _at_least_one(self) -> "GuardianAuthorizationRequest":
-        has_email = bool(self.guardian_email and self.guardian_email.strip())
-        has_phone = bool(self.guardian_phone and self.guardian_phone.strip())
-        if not has_email and not has_phone:
-            raise ValueError("guardianEmail 和 guardianPhone 至少传一项")
-        return self

@@ -125,29 +125,19 @@ def test_settings_update_requires_at_least_one_field() -> None:
     assert ok.send_text_to_ai is True
 
 
-# ---------- 6. GuardianAuthorizationRequest 至少传一项 ----------
+# ---------- 6. GuardianAuthorizationRequest 只接邮箱 ----------
 
-def test_guardian_request_at_least_one() -> None:
-    """openapi.yaml minProperties: 1 —— 至少传一个，spec 没说互斥。"""
-    # 都不传：报错
-    with pytest.raises(ValueError, match="至少传一项"):
+
+def test_guardian_request_requires_email() -> None:
+    """项目目前只有邮箱注册/验证，guardianPhone 字段已移除。"""
+    # 空 body：报错（guardianEmail 必填）
+    with pytest.raises(ValueError, match="guardianEmail"):
         GuardianAuthorizationRequest.model_validate({})
-    # 只传邮箱：OK
+    # 正常传邮箱：OK
     ok = GuardianAuthorizationRequest.model_validate(
         {"guardianEmail": "g@e.com"}
     )
     assert ok.guardian_email == "g@e.com"
-    # 只传手机号：OK
-    ok = GuardianAuthorizationRequest.model_validate(
-        {"guardianPhone": "13800000000"}
-    )
-    assert ok.guardian_phone == "13800000000"
-    # 两个都传：也 OK（spec 没禁止）
-    ok = GuardianAuthorizationRequest.model_validate(
-        {"guardianEmail": "g@e.com", "guardianPhone": "13800000000"}
-    )
-    assert ok.guardian_email == "g@e.com"
-    assert ok.guardian_phone == "13800000000"
 
 
 # ---------- 7. RecordInput 字段范围 ----------
