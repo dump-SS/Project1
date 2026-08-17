@@ -62,27 +62,27 @@ def _state_result_for_subject(
             "windowSize": 7,
         }
     engine_inputs = [orm_record_to_engine_input(r) for r in rows]
-    window = compute_window_for_records(engine_inputs)
+    # 权重从用户级权重表读（同 learning_record.py）
+    from .learning_record import _get_user_weights
+    weights = _get_user_weights(db, user_id)
+    window = compute_window_for_records(engine_inputs, weights=weights)
 
-    # 快照持久化（仅足够时落库，用于历史趋势）
-    snapshot_id = None
-    if window.data_sufficient:
-        snapshot_id = gen_id("a")
-        db.add(
-            AssessmentSnapshotORM(
-                id=snapshot_id,
-                user_id=user_id,
-                subject=subject,
-                window_score=window.window_score or 0.0,
-                trend=window.trend.value if window.trend else "flat",
-                state_label=window.state_label.value,
-                data_sufficient=True,
-                record_count=window.record_count,
-                based_on_record_ids=json.dumps([r.id for r in rows]),
-                based_on_signals=json.dumps(window.signals),
-            )
+    # GET 是纯读，不该有写副作用——之前每次 GET 都 add+commit 一条快照，
+    # 轮询/刷新会产生重复快照，污染 GET /assessments 的历史曲线（同一天出现多个同分点）。
+    # 快照只应在提交/删除记录时落库（learning_record.py 的 _recompute_snapshot 负责）。
+    # 这里直接返回计算结果，assessmentId 用最新已落库快照的 id（若存在），否则 None。
+    latest_snapshot = db.execute(
+        select(AssessmentSnapshotORM)
+        .where(
+            AssessmentSnapshotORM.user_id == user_id,
+            AssessmentSnapshotORM.subject == subject,
+            AssessmentSnapshotORM.data_sufficient == True,  # noqa: E712
         )
-        db.commit()
+        .order_by(AssessmentSnapshotORM.computed_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+    snapshot_id = latest_snapshot.id if latest_snapshot and window.data_sufficient else None
 
     return window_to_state_result_payload(
         window, subject, snapshot_id, [r.id for r in rows]

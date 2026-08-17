@@ -57,19 +57,17 @@ def generate_recommendation(
 
     subj = subject or trigger_record_row.subject if trigger_record_row else subject or "other"
 
-    # 读窗口（最近 7 条），拿状态标签和信号
+    # 读窗口（最近 7 条），拿状态标签和信号。
+    # 空窗口也要算一次（引擎按 cold-start 返回 insufficient_data），
+    # 否则 window 未定义、下方无条件引用 → UnboundLocalError → 后台异常只记日志 → 永远 pending。
     rows = _window_rows(db, user_id, subj)
-    state_label = "insufficient_data"
+    engine_inputs = [orm_record_to_engine_input(r) for r in rows]
+    window = compute_window_for_records(engine_inputs)
+    state_label = window.state_label.value
     plan_completion_ratio = None
     record_focus = trigger_record_row.self_report_focus if trigger_record_row else None
     record_fatigue = trigger_record_row.self_report_fatigue if trigger_record_row else None
-    assessment_id = None
-
-    if rows:
-        engine_inputs = [orm_record_to_engine_input(r) for r in rows]
-        window = compute_window_for_records(engine_inputs)
-        state_label = window.state_label.value
-        assessment_id = rec.based_on_assessment_id
+    assessment_id = rec.based_on_assessment_id if rows else None
 
     # 危机信号检查（PRD 6.3）：不过 LLM，直接走硬编码文案
     if trigger_record_row and is_crisis_signal(
@@ -404,10 +402,19 @@ def run_recommendation_generation(
     try:
         trigger = db.get(LearningRecord, record_id) if record_id else None
         generate_recommendation(db, recommendation_id, user_id, scene, subject, record_id, trigger)
-    except Exception:
-        # 后台任务没有调用方可接异常；失败时行停在 pending，
-        # 由生成函数内部的兜底/failed 逻辑保证状态推进，这里只记日志。
-        logger.exception("[AI] 后台建议生成异常 recommendation_id=%s", recommendation_id)
+    except Exception as e:
+        # 异常必须置 failed——只记日志会让行永远停在 pending（契约 0.3 要求终态）。
+        # 建议按契约 6.1 的失败回退原则：LLM 失败走 template 兜底；
+        # 若连模板兜底都异常（如空窗口触发），则标 failed，绝不悬挂。
+        logger.exception("[AI] 后台建议生成异常 recommendation_id=%s: %s", recommendation_id, e)
+        try:
+            rec = db.get(Recommendation, recommendation_id)
+            if rec and rec.generation_status == "pending":
+                rec.generation_status = "failed"
+                rec.generation_completed_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            logger.exception("[AI] 置 failed 时二次异常")
     finally:
         db.close()
 
@@ -424,7 +431,16 @@ def run_summary_generation(
     db = SessionLocal()
     try:
         generate_summary(db, summary_id, user_id, period_start, period_end)
-    except Exception:
-        logger.exception("[AI] 后台复盘生成异常 summary_id=%s", summary_id)
+    except Exception as e:
+        # 同 run_recommendation_generation：异常必须置 failed，不能悬挂。
+        logger.exception("[AI] 后台复盘生成异常 summary_id=%s: %s", summary_id, e)
+        try:
+            summ = db.get(Summary, summary_id)
+            if summ and summ.generation_status == "pending":
+                summ.generation_status = "failed"
+                summ.generation_completed_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            logger.exception("[AI] 复盘置 failed 时二次异常")
     finally:
         db.close()

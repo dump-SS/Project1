@@ -44,6 +44,9 @@ def update_plan_task(
     body: PlanTaskUpdate,
     _user: User = Depends(current_user),
 ) -> PlanTaskDetail:
+    # status 可选（契约 PlanTaskUpdate 全部可选）；body.status 为 None 时退化为 partial。
+    # body.status 是 TaskStatus 枚举时 .value；字符串时直接用。避免 (None or "partial").value AttributeError。
+    status_value = body.status.value if body.status is not None else "partial"
     return PlanTaskDetail.model_validate(
         {
             "taskId": task_id,
@@ -51,7 +54,7 @@ def update_plan_task(
             "topic": "函数图像与性质 · 巩固已学",
             "estimatedMinutes": body.estimated_minutes or 30,
             "priority": 1,
-            "status": (body.status or "partial").value,
+            "status": status_value,
             "goalId": "g_5501",
             "removed": body.removed or False,
             "userAdjusted": True,

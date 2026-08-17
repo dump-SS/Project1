@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ai_suggestion import run_recommendation_generation
@@ -48,13 +48,18 @@ def _orm_to_dict(row: RecommendationORM) -> dict:
         base["generation"]["source"] = row.generation_source
     if row.generation_completed_at:
         base["generation"]["completedAt"] = row.generation_completed_at.isoformat()
-    if row.based_on_state_label or row.based_on_explain:
+    # pending 阶段：generate 还没写回 basedOn，explain 为 null。
+    # schemas.RecommendationBasedOn.explain 是必填 str，组装 None 会 ResponseValidationError → 500。
+    # pending 时 basedOn 整块置 null；ready 后 generate 已写 explain，正常返回。
+    if row.generation_status == "ready" and (row.based_on_state_label or row.based_on_explain):
         base["basedOn"] = {
             "assessmentId": row.based_on_assessment_id,
             "recordId": row.based_on_record_id,
             "stateLabel": row.based_on_state_label,
             "explain": row.based_on_explain,
         }
+    else:
+        base["basedOn"] = None
     if row.feedback_rating:
         base["feedback"] = {
             "rating": row.feedback_rating,
@@ -127,13 +132,14 @@ def list_recommendations(
         query = query.where(RecommendationORM.scene == scene)
     if subject:
         query = query.where(RecommendationORM.subject == subject)
+
+    # total 必须用和查询相同的过滤条件（status/scene/subject 全都要），
+    # 之前漏了 scene/subject，分页器会误以为还有更多页
+    total_query = query.with_only_columns(func.count()).order_by(None)
+    total = db.execute(total_query).scalar_one()
+
     query = query.order_by(RecommendationORM.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = db.execute(query).scalars().all()
-
-    total_query = select(RecommendationORM).where(RecommendationORM.user_id == _user.user_id)
-    if status != "all":
-        total_query = total_query.where(RecommendationORM.generation_status == status)
-    total = len(db.execute(total_query).scalars().all())
 
     items = [_orm_to_dict(r) for r in rows]
     return RecommendationList(

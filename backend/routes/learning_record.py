@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ai_suggestion import run_recommendation_generation
@@ -17,6 +17,8 @@ from database import get_db
 from models.assessment import AssessmentSnapshot as AssessmentSnapshotORM
 from models.learning_record import LearningRecord as LearningRecordORM
 from models.recommendation import Recommendation as RecommendationORM
+from models.weight import UserWeightConfig
+from state_engine.types import WeightConfig
 from schemas.learning_record import (
     LearningRecordCreated,
     LearningRecordDeleted,
@@ -60,13 +62,30 @@ def _window_rows(
     return list(reversed(rows))  # 时间正序
 
 
+def _get_user_weights(db: Session, user_id: str) -> WeightConfig:
+    """读用户级权重表（UserWeightConfig，PRD 5.2 硬约束：权重不写死在代码里）。
+    无配置时返回默认等权（α=β=0.5，子项 1/3，与 PRD 初始值一致）。
+    """
+    cfg = db.get(UserWeightConfig, user_id)
+    if cfg is None:
+        return WeightConfig()  # 默认等权
+    return WeightConfig(
+        alpha=cfg.alpha, beta=cfg.beta,
+        w1=cfg.w1, w2=cfg.w2, w3=cfg.w3,
+        w4=cfg.w4, w5=cfg.w5, w6=cfg.w6,
+    )
+
+
 def _recompute_snapshot(
     db: Session, user_id: str, subject: str, trigger_record_id: str | None
 ) -> dict:
     """重算窗口（读最近 7 条），必要时落库快照，返回 camelCase snapshot dict。"""
     rows = _window_rows(db, user_id, subject)
     engine_inputs = [orm_record_to_engine_input(r) for r in rows]
-    window = compute_window_for_records(engine_inputs)
+
+    # 权重从用户级权重表读（PRD 5.2：权重存后台配置与用户级权重表）
+    weights = _get_user_weights(db, user_id)
+    window = compute_window_for_records(engine_inputs, weights=weights)
 
     if window.data_sufficient:
         snapshot_id = gen_id("a")
@@ -205,12 +224,14 @@ def list_learning_records(
         query = query.where(LearningRecordORM.started_at >= date_from)
     if date_to:
         query = query.where(LearningRecordORM.started_at <= date_to)
+
+    # total 必须用和查询相同的过滤条件——之前只按 user 统计，
+    # 带 subject/date 筛选时 total > len(items)，分页器会误以为还有更多页
+    total_query = query.with_only_columns(func.count()).order_by(None)
+    total = db.execute(total_query).scalar_one()
+
     query = query.order_by(LearningRecordORM.started_at.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = db.execute(query).scalars().all()
-
-    total = db.execute(
-        select(LearningRecordORM).where(LearningRecordORM.user_id == _user.user_id)
-    ).scalars().all()
 
     items = []
     for row in rows:
@@ -240,7 +261,7 @@ def list_learning_records(
 
     return LearningRecordList(
         items=items,
-        pagination={"page": page, "pageSize": page_size, "total": len(total)},
+        pagination={"page": page, "pageSize": page_size, "total": total},
     )
 
 
