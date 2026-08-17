@@ -221,6 +221,20 @@ def test_settings_update_validation_at_route() -> None:
     assert body["error"]["code"] == "VALIDATION_FAILED"
 
 
+def test_settings_are_scoped_by_current_user() -> None:
+    r = client.patch(
+        "/me/settings",
+        headers={"X-User-ID": "u_settings_a"},
+        json={"sendTextToAI": True},
+    )
+    assert r.status_code == 200
+    assert r.json()["sendTextToAI"] is True
+
+    r = client.get("/me/settings", headers={"X-User-ID": "u_settings_b"})
+    assert r.status_code == 200
+    assert r.json()["sendTextToAI"] is False
+
+
 def test_guardian_request_validation_at_route() -> None:
     """POST /me/guardian-authorization 空 body 应被拒。"""
     r = client.post("/me/guardian-authorization", json={})

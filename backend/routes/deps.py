@@ -7,11 +7,30 @@ from mock_data import USER_MOCK
 from schemas.user import User
 
 
-def current_user(authorization: str | None = Header(default=None)) -> User:
-    """MVP 阶段：从 Bearer token 解析出当前用户，mock 永远返回 USER_MOCK。
+def _resolve_user_id(
+    authorization: str | None,
+    x_user_id: str | None,
+) -> str:
+    if x_user_id:
+        return x_user_id
 
-    真实实现：解析 JWT → 拿 userId → 查 User 表（步骤 3 接入）。
+    if authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() == "bearer" and token.startswith("u_"):
+            return token
+
+    return USER_MOCK.user_id
+
+
+def current_user(
+    authorization: str | None = Header(default=None),
+    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
+) -> User:
+    """当前用户依赖。
+
+    MVP 阶段还没有 JWT 验签，先用显式 userId 让前端联调时能隔离用户数据。
     """
-    # 这里仅占位，不做实际校验，避免阻挡 Swagger UI 测试
-    _ = authorization
-    return USER_MOCK
+    user_id = _resolve_user_id(authorization, x_user_id)
+    if user_id == USER_MOCK.user_id:
+        return USER_MOCK
+    return USER_MOCK.model_copy(update={"user_id": user_id})
