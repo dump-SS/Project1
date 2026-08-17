@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Path, Response, status
+from sqlalchemy.orm import Session
 
-from mock_data import SETTINGS_MOCK, USER_MOCK
+from database import get_db
+from mock_data import USER_MOCK
+from models.user import Settings as SettingsModel
 from schemas.user import (
     GuardianAuthorizationRequest,
     Settings,
@@ -19,6 +22,26 @@ from schemas.user import (
 from .deps import current_user
 
 router = APIRouter(prefix="", tags=["用户与设置"])
+
+
+def _get_or_create_settings(db: Session, user_id: str) -> SettingsModel:
+    settings = db.get(SettingsModel, user_id)
+    if settings is None:
+        settings = SettingsModel(user_id=user_id)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+def _serialize_settings(settings: SettingsModel) -> Settings:
+    return Settings.model_validate(
+        {
+            "aiWeightTuningEnabled": settings.ai_weight_tuning_enabled,
+            "sendTextToAI": settings.send_text_to_ai,
+            "updatedAt": settings.updated_at,
+        }
+    )
 
 
 @router.get("/me", response_model=User, summary="获取当前用户资料")
@@ -38,13 +61,29 @@ def patch_me(body: UserProfilePatch, _user: User = Depends(current_user)) -> Use
 
 
 @router.get("/me/settings", response_model=Settings, summary="读取用户设置")
-def get_settings(_user: User = Depends(current_user)) -> Settings:
-    return SETTINGS_MOCK
+def get_settings(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Settings:
+    settings = _get_or_create_settings(db, user.user_id)
+    return _serialize_settings(settings)
 
 
 @router.patch("/me/settings", response_model=Settings, summary="更新用户设置（至少传一项）")
-def patch_settings(body: SettingsUpdate, _user: User = Depends(current_user)) -> Settings:
-    return SETTINGS_MOCK
+def patch_settings(
+    body: SettingsUpdate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Settings:
+    settings = _get_or_create_settings(db, user.user_id)
+    if body.ai_weight_tuning_enabled is not None:
+        settings.ai_weight_tuning_enabled = body.ai_weight_tuning_enabled
+    if body.send_text_to_ai is not None:
+        settings.send_text_to_ai = body.send_text_to_ai
+
+    db.commit()
+    db.refresh(settings)
+    return _serialize_settings(settings)
 
 
 @router.post(
