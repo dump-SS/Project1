@@ -289,9 +289,30 @@ def _finalize_summary(
 
 
 def _compute_plan_completion(db: Session, user_id: str) -> float | None:
-    """简化版计划完成率（后续接 PlanTask 表后精确计算）。"""
-    # TODO: 接 PlanTask 表算真实完成率
-    return None
+    """从 plan_tasks 表算真实计划完成率（PRD 5.4 复盘 dataPoints）。
+
+    ratio = completed / total（未软删除的任务）。
+    无任务时返回 None（复盘 prompt 里显示为 null）。
+    """
+    from models.plan import PlanTask as PlanTaskORM
+    from sqlalchemy import func as sa_func
+
+    total = db.execute(
+        select(sa_func.count()).select_from(PlanTaskORM).where(
+            PlanTaskORM.user_id == user_id,
+            PlanTaskORM.removed.is_(False),
+        )
+    ).scalar_one()
+    if total == 0:
+        return None
+    completed = db.execute(
+        select(sa_func.count()).select_from(PlanTaskORM).where(
+            PlanTaskORM.user_id == user_id,
+            PlanTaskORM.removed.is_(False),
+            PlanTaskORM.status == "completed",
+        )
+    ).scalar_one()
+    return round(completed / total, 2)
 
 
 def _load_prompt_file(filename: str) -> str:

@@ -7,6 +7,7 @@ GET 列表读库，DELETE 删除后即时重算。计算公式在 state_engine �
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -189,7 +190,7 @@ def create_learning_record(
                 "completion": body.behavior.completion.value,
                 "accuracy": body.behavior.accuracy,
                 "interruptions": body.behavior.interruptions or 0,
-                "blurCount": body.behavior.blur_count or 0,
+                "blurCount": body.behavior.blur_count,
             },
             "selfReport": {
                 "focus": body.self_report.focus,
@@ -210,8 +211,8 @@ def create_learning_record(
 @router.get("", response_model=LearningRecordList, summary="学习记录列表")
 def list_learning_records(
     subject: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),

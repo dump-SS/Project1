@@ -65,6 +65,8 @@ def _orm_to_goal_summary(row: GoalORM, progress: dict) -> dict:
         "title": row.title,
         "targetDate": row.target_date.isoformat() if row.target_date else None,
         "status": row.status,
+        "outcome": row.outcome,
+        "completionNote": row.completion_note,
         "progress": progress,
     }
 
@@ -135,6 +137,23 @@ def list_goals(
     )
 
 
+@router.get("/{goal_id}", response_model=Goal, summary="获取目标详情")
+def get_goal(
+    goal_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(current_user),
+) -> Goal:
+    """单条目标详情（含 description，列表 GoalSummary 不含）。"""
+    row = db.get(GoalORM, goal_id)
+    if row is None or row.user_id != _user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": "目标不存在"},
+        )
+    progress = _aggregate_progress(db, row.id)
+    return Goal.model_validate(_orm_to_goal(row, progress))
+
+
 @router.patch("/{goal_id}", response_model=Goal, summary="更新 / 归档目标")
 def update_goal(
     goal_id: str,
@@ -167,6 +186,20 @@ def update_goal(
                 },
             )
         row.status = body.status
+    # 归档终态 + 完成总结（仅 archived 时有意义，但不在后端强制——前端控制时机）
+    if body.outcome is not None:
+        if body.outcome not in ("achieved", "abandoned", "expired"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "VALIDATION_FAILED",
+                    "message": "outcome 仅支持 achieved / abandoned / expired",
+                    "field": "outcome",
+                },
+            )
+        row.outcome = body.outcome
+    if body.completion_note is not None:
+        row.completion_note = body.completion_note
 
     db.commit()
     db.refresh(row)

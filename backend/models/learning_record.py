@@ -40,7 +40,7 @@ class LearningRecord(Base):
     behavior_completion: Mapped[str] = mapped_column(String(16), nullable=False)  # completed/partial/abandoned
     behavior_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0-1
     behavior_interruptions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    behavior_blur_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    behavior_blur_count: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None=未采集，0=采集到0次
 
     # selfReport 自评数据
     self_report_focus: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
