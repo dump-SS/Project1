@@ -86,7 +86,7 @@ function CalendarCard() {
 
   const fetcher = useCallback((signal: AbortSignal) => fetchCalendar(month, signal), [month]);
 
-  const { data, loading, source, error } = usePanelData(fetcher, placeholderCalendar(month), [
+  const { data, loading, source, error } = usePanelData(fetcher, placeholderCalendar(month), 'calendar', [
     month,
   ]);
 

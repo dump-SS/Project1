@@ -8,8 +8,8 @@
 
 import type { GoalOutcome, StateLabel, Subject } from './api';
 
-/** 数据来源：真实接口 / 占位数据。用于在 UI 上如实标注，避免占位数据被误认为真实数据 */
-export type DataSource = 'api' | 'placeholder';
+/** 数据来源：真实接口 / 本地缓存 / 占位数据。用于在 UI 上如实标注，避免缓存或占位数据被误认为实时数据 */
+export type DataSource = 'api' | 'cache' | 'placeholder';
 
 export interface PanelState<T> {
   data: T;

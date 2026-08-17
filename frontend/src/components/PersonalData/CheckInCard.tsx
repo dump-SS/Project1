@@ -46,7 +46,7 @@ function DayDetail({ day }: { day: CheckInDay }) {
 }
 
 function CheckInCard() {
-  const { data, loading, source, error } = usePanelData(fetchCheckIn, placeholderCheckIn());
+  const { data, loading, source, error } = usePanelData(fetchCheckIn, placeholderCheckIn(), 'check-in');
   const [activeDate, setActiveDate] = useState<string | null>(null);
 
   const activeDay = data.days.find((day) => day.date === activeDate) ?? null;

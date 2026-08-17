@@ -37,7 +37,7 @@ function ChartTooltip({
 }
 
 function DurationCard() {
-  const { data, loading, source, error } = usePanelData(fetchDuration, placeholderDuration());
+  const { data, loading, source, error } = usePanelData(fetchDuration, placeholderDuration(), 'duration');
 
   const todayHours = toHours(data.todayMinutes);
   const targetHours = data.targetMinutes === null ? null : toHours(data.targetMinutes);

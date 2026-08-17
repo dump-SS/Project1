@@ -44,6 +44,12 @@ function SectionCard({
             <Tooltip title={error ?? '后端接口尚未接通，当前展示的是占位数据'}>
               <span className={styles.placeholderBadge}>占位数据</span>
             </Tooltip>
+          ) : source === 'cache' ? (
+            <Tooltip
+              title={error ? `${error}，当前展示的是上次缓存的数据` : '当前展示的是上次缓存的数据'}
+            >
+              <span className={styles.cacheBadge}>缓存数据</span>
+            </Tooltip>
           ) : null}
           {loading ? <span className={styles.loadingHint}>更新中…</span> : null}
           {extra}
