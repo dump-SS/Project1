@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .assessment import StateResult
+from .common import Pagination
 from .enums import Completion, DifficultyFeel, Emotion, Subject
 
 
@@ -122,21 +122,13 @@ class AssessmentSnapshot(BaseModel):
     record_count: int = Field(..., alias="recordCount")
 
 
-class _LearningRecordCreatedAssessment(BaseModel):
+class LearningRecordCreatedAssessment(AssessmentSnapshot):
     """LearningRecordCreated 嵌套的 assessment 字段（与 AssessmentSnapshot 同构）。"""
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    assessment_id: str = Field(..., alias="assessmentId")
-    subject: Subject
-    window_score: float = Field(..., alias="windowScore")
-    trend: str
-    state_label: str = Field(..., alias="stateLabel")
-    data_sufficient: bool = Field(..., alias="dataSufficient")
-    record_count: int = Field(..., alias="recordCount")
+    pass
 
 
-class _LearningRecordCreatedRecommendation(BaseModel):
+class LearningRecordCreatedRecommendation(BaseModel):
     """LearningRecordCreated 嵌套的 recommendation 句柄。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -150,13 +142,13 @@ class LearningRecordCreated(LearningRecord):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    assessment: _LearningRecordCreatedAssessment
-    recommendation: _LearningRecordCreatedRecommendation | None = None
+    assessment: LearningRecordCreatedAssessment
+    recommendation: LearningRecordCreatedRecommendation | None = None
 
 
 class LearningRecordList(BaseModel):
     items: list[LearningRecord]
-    pagination: dict
+    pagination: Pagination
 
 
 class LearningRecordDeleted(BaseModel):
@@ -181,4 +173,6 @@ class LearningRecordDeleted(BaseModel):
 
     deleted: bool
     record_id: str = Field(..., alias="recordId")
-    recalculated_assessment: _LearningRecordCreatedAssessment = Field(..., alias="recalculatedAssessment")
+    recalculated_assessment: LearningRecordCreatedAssessment = Field(
+        ..., alias="recalculatedAssessment"
+    )

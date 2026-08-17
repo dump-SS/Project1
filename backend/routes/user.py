@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Path, Response, status
 
 from mock_data import SETTINGS_MOCK, USER_MOCK
 from schemas.user import (
+    GuardianAuthorizationRequest,
     Settings,
     SettingsUpdate,
     User,
@@ -51,7 +52,11 @@ def patch_settings(body: SettingsUpdate, _user: User = Depends(current_user)) ->
     status_code=status.HTTP_202_ACCEPTED,
     summary="提交监护人联系方式并发送确认请求",
 )
-def submit_guardian_authorization(_user: User = Depends(current_user)) -> Response:
+def submit_guardian_authorization(
+    body: GuardianAuthorizationRequest,
+    _user: User = Depends(current_user),
+):
+    # mock：校验由 Pydantic 自动完成，路由仅占位
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 

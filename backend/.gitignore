@@ -1,0 +1,20 @@
+# Tests
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Data
+*.db
+*.db-journal
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

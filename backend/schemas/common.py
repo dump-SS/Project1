@@ -39,7 +39,7 @@ class Error(BaseModel):
 
 class Pagination(BaseModel):
     page: int = Field(..., description="当前页码")
-    page_size: int = Field(..., description="每页条数")
+    page_size: int = Field(..., alias="pageSize", description="每页条数")
     total: int = Field(..., description="总条数")
 
 

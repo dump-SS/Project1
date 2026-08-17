@@ -10,7 +10,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import FeedbackRecord, GenerationStatus
+from .common import FeedbackRecord, GenerationStatus, Pagination
 from .enums import Subject
 
 
@@ -114,7 +114,7 @@ class SummaryCreate(BaseModel):
 
 class SummaryList(BaseModel):
     items: list[Summary]
-    pagination: dict
+    pagination: Pagination
 
 
 class SummaryFeedbackResult(BaseModel):

@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import FeedbackRecord, GenerationStatus
+from .common import FeedbackRecord, GenerationStatus, Pagination
 from .enums import RecScene, Subject, StateLabel
 
 
@@ -109,7 +109,7 @@ class RecommendationCreate(BaseModel):
 
 class RecommendationList(BaseModel):
     items: list[Recommendation]
-    pagination: dict
+    pagination: Pagination
 
 
 class RecommendationFeedbackResult(BaseModel):

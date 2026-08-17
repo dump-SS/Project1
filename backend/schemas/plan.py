@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .common import Pagination
 from .enums import StateLabel, Subject, TaskStatus
 
 
@@ -147,4 +148,4 @@ class PlanCreate(BaseModel):
 
 class PlanList(BaseModel):
     items: list[Plan]
-    pagination: dict
+    pagination: Pagination

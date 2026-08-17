@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .common import Pagination
 from .enums import GoalType, Subject
 
 
@@ -99,4 +100,4 @@ class GoalUpdate(BaseModel):
 
 class GoalList(BaseModel):
     items: list[GoalSummary]
-    pagination: dict  # 用 dict 避免循环 import（实际是 Pagination）
+    pagination: Pagination

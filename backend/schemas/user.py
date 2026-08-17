@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .enums import Stage, Subject
 
@@ -108,18 +108,19 @@ class SettingsUpdate(BaseModel):
     ai_weight_tuning_enabled: bool | None = Field(None, alias="aiWeightTuningEnabled")
     send_text_to_ai: bool | None = Field(None, alias="sendTextToAI")
 
-    @field_validator("send_text_to_ai", "ai_weight_tuning_enabled")
-    @classmethod
-    def _at_least_one(cls, v, info):
-        # Pydantic v2 model_validator 更合适，这里用字段级 + model 级配合
-        return v
+    @model_validator(mode="after")
+    def _at_least_one(self) -> "SettingsUpdate":
+        if self.ai_weight_tuning_enabled is None and self.send_text_to_ai is None:
+            raise ValueError("至少传一项（aiWeightTuningEnabled 或 sendTextToAI）")
+        return self
 
 
 class GuardianAuthorizationRequest(BaseModel):
     """监护人邮箱与手机号二选一必填（PRD 8.1）。"""
 
     model_config = ConfigDict(
-        json_schema_extra={"example": {"guardianEmail": "guardian@example.com"}}
+        populate_by_name=True,
+        json_schema_extra={"example": {"guardianEmail": "guardian@example.com"}},
     )
 
     guardian_email: str | None = Field(
@@ -129,8 +130,12 @@ class GuardianAuthorizationRequest(BaseModel):
         None, alias="guardianPhone", max_length=32, description="监护人手机号"
     )
 
-    @field_validator("guardian_phone")
-    @classmethod
-    def _either_or(cls, v, info):
-        # 在路由里再做二选一校验（需要访问另一个字段）
-        return v
+    @model_validator(mode="after")
+    def _either_or(self) -> "GuardianAuthorizationRequest":
+        has_email = bool(self.guardian_email and self.guardian_email.strip())
+        has_phone = bool(self.guardian_phone and self.guardian_phone.strip())
+        if not has_email and not has_phone:
+            raise ValueError("guardianEmail 和 guardianPhone 至少传一项")
+        if has_email and has_phone:
+            raise ValueError("guardianEmail 和 guardianPhone 互斥，只能传一个")
+        return self

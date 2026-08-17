@@ -17,11 +17,13 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from database import Base, engine
+from middleware import RequestIDMiddleware
 
 # 触发所有 ORM 类注册
 import models  # noqa: F401
 # 注册所有路由
 import routes  # noqa: F401
+from routes import health  # noqa: F401
 
 
 @asynccontextmanager
@@ -56,6 +58,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 请求 ID / 访问日志（放在 CORS 之后，让客户端先拿到 CORS 头）
+app.add_middleware(RequestIDMiddleware)
+
 # --- 统一错误响应：所有非 2xx 都返回 openapi.yaml 0.2 节的 { error: { code, message, field? } } ---
 
 
@@ -84,7 +89,11 @@ async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONR
             "code": code_map.get(exc.status_code, "INTERNAL_ERROR"),
             "message": str(detail) if detail is not None else "请求处理失败",
         }
-    return JSONResponse(status_code=exc.status_code, content={"error": error_body})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": error_body},
+        headers={"X-Request-ID": getattr(_request.state, "request_id", "")},
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -100,18 +109,16 @@ async def validation_exception_handler(
         "field": field_path or None,
     }
     return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST, content={"error": error_body}
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"error": error_body},
+        headers={"X-Request-ID": getattr(_request.state, "request_id", "")},
     )
-
-
-@app.get("/health", tags=["meta"])
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": settings.app_name}
 
 
 # --- 注册业务路由（与 openapi.yaml tags 一一对应）---
 from routes import assessment, goal, learning_record, plan, recommendation, summary, user
 
+app.include_router(health.router)
 app.include_router(user.router)
 app.include_router(goal.router)
 app.include_router(plan.router)
