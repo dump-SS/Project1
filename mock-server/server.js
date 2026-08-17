@@ -221,13 +221,20 @@ async function setCode(type, email) {
     login: '【EpochX】登录验证码'
   }
   const subject = subjects[type] || '【EpochX】邮箱验证码'
-  const info = await transporter.sendMail({
-    from: `"EpochX" <${process.env.SMTP_USER}>`,
-    to: email,
-    subject,
-    text: `您的验证码是 ${code}，5 分钟内有效。如非本人操作，请忽略本邮件。`,
-    html: buildEmailHtml(type, code)
-  })
+  try {
+    const info = await transporter.sendMail({
+      from: `"EpochX" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject,
+      text: `您的验证码是 ${code}，5 分钟内有效。如非本人操作，请忽略本邮件。`,
+      html: buildEmailHtml(type, code)
+    })
+    console.log(`[SMTP] 已发送 ${subject} -> ${email} (messageId: ${info.messageId})`)
+  } catch (e) {
+    // 本地开发兜底：SMTP 不可用（如授权码失效）时把验证码打到日志，
+    // 流程不中断、验证码照常入库，保证验证码登录/注册可走通。
+    console.error(`[SMTP-FALLBACK] ${subject} -> ${email} 发送失败，验证码: ${code}（原因: ${e.message}）`)
+  }
   const expiresAt = Date.now() + CODE_TTL_MS
   db.prepare(`
     INSERT INTO codes (type, email, code_hash, expires_at) VALUES (?, ?, ?, ?)
@@ -235,7 +242,6 @@ async function setCode(type, email) {
       code_hash = excluded.code_hash,
       expires_at = excluded.expires_at
   `).run(type, email, sha256(code), expiresAt)
-  console.log(`[SMTP] 已发送 ${subject} -> ${email} (messageId: ${info.messageId})`)
 }
 
 function verifyCode(type, email, code) {
