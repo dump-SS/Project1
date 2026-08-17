@@ -32,7 +32,7 @@ def client():
 
 def _post_record(client, hour: str, focus: int = 5, fatigue: int = 1):
     return client.post(
-        "/learning-records",
+        "/api/v1/learning-records",
         json={
             "subject": "math",
             "startedAt": f"2026-08-12T{hour}:00:00+08:00",
@@ -59,7 +59,7 @@ def test_real_llm_generates_llm_source_recommendation(client):
         assert r.status_code == 201
 
     rec_id = r.json()["recommendation"]["recommendationId"]
-    detail = client.get(f"/recommendations/{rec_id}")
+    detail = client.get(f"/api/v1/recommendations/{rec_id}")
     assert detail.status_code == 200
 
     body = detail.json()
