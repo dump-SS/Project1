@@ -192,6 +192,43 @@ export async function apiGet<T>(
 }
 
 /**
+ * DELETE 方法封装。对应 openapi.yaml 中的 /learning-records/{recordId} 等。
+ * 无请求体；成功时返回服务端 JSON（多数情况下是 LearningRecordDeleted 这类带重算结果的对象）。
+ */
+export async function apiDelete<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(buildUrl(path), {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    signal,
+  });
+
+  if (!response.ok) {
+    let code = 'INTERNAL_ERROR';
+    let message = `请求失败（HTTP ${response.status}）`;
+    let field: string | undefined;
+    try {
+      const body = (await response.json()) as ApiErrorBody;
+      if (body?.error) {
+        code = body.error.code ?? code;
+        message = body.error.message ?? message;
+        field = body.error.field;
+      }
+    } catch {
+      // 后端未上线时返回非 JSON，解析失败属预期
+    }
+    throw new ApiError(response.status, code, message, field);
+  }
+
+  // 204 No Content 时 body 为空，避免 await response.json() 抛错
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
  * 分页拉取全部数据。
  * openapi.yaml 约定 pageSize 上限 50，跨月查询时单页装不下，这里按页累加。
  *
