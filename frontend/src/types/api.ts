@@ -106,6 +106,65 @@ export interface LearningRecordList {
   pagination: Pagination;
 }
 
+export interface RecordInput {
+  subject: Subject;
+  startedAt: string;
+  durationMinutes: number;
+  planTaskId?: string;
+  behavior: RecordBehavior;
+  selfReport: RecordSelfReport;
+  note?: string;
+  skipRecommendation?: boolean;
+}
+
+export interface AssessmentSnapshot {
+  assessmentId: string;
+  subject: Subject;
+  windowScore: number;
+  trend: Trend;
+  stateLabel: StateLabel;
+  dataSufficient: boolean;
+  recordCount: number;
+}
+
+export interface LearningRecordCreated extends LearningRecord {
+  assessment: AssessmentSnapshot;
+  recommendation: {
+    recommendationId: string;
+    status: string;
+  } | null;
+}
+
+/* ---------- 个性化建议 ---------- */
+
+export interface RecommendationItem {
+  title: string;
+  content: string;
+}
+
+export interface RecommendationBasedOn {
+  assessmentId?: string;
+  recordId?: string;
+  stateLabel: StateLabel;
+  explain: string;
+}
+
+export interface FeedbackRecord {
+  rating: Rating;
+  reason?: string | null;
+  submittedAt: string;
+}
+
+export interface Recommendation {
+  recommendationId: string;
+  scene: RecScene;
+  subject?: Subject | null;
+  generation: GenerationStatus;
+  items?: RecommendationItem[] | null;
+  basedOn?: RecommendationBasedOn;
+  feedback?: FeedbackRecord | null;
+}
+
 /* ---------- 学习计划 ---------- */
 
 export interface PlanTask {

@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import styles from './index.module.css'
+import { subjectLabels } from '@/styles/theme'
+import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
+
+const FOCUS_LABELS = { 1: '分心', 2: '一般', 3: '还好', 4: '专注', 5: '非常专注' }
+const FATIGUE_LABELS = { 1: '精神', 2: '轻微', 3: '一般', 4: '疲劳', 5: '非常疲劳' }
+const EMOTION_LABELS = { positive: '积极', neutral: '一般', negative: '消极' }
+const DIFFICULTY_LABELS = { easy: '简单', moderate: '适中', hard: '困难' }
 
 function formatTime(totalSeconds) {
   if (totalSeconds <= 0) return '00:00'
@@ -37,16 +44,155 @@ function DurationField({ label, value, min, max, onCommit }) {
   )
 }
 
-function CompletionPopup({ task, onOk, onRestart }) {
+function RatingButtons({ value, onChange, options, wide = false }) {
   return (
-    <div className={styles.completionPop}>
-      <span className={styles.popTitle}>任务完成</span>
-      <span className={styles.popText}>「{task}」已完成</span>
-      <span className={styles.popActions}>
-        <button className={styles.popOk} onClick={onOk}>OK</button>
-        <button className={styles.popRestart} onClick={onRestart}>再学一轮</button>
-      </span>
+    <div className={styles.selfOptions}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={[
+            styles.selfBtn,
+            wide ? styles.selfBtnWide : '',
+            value === option.value ? styles.selfBtnActive : '',
+          ].join(' ')}
+          onClick={() => onChange(option.value)}
+        >
+          {option.num !== undefined && <span className={styles.selfBtnNum}>{option.num}</span>}
+          <span className={styles.selfBtnLabel}>{option.label}</span>
+        </button>
+      ))}
     </div>
+  )
+}
+
+function SelfAssessment({ task, error, onConfirm, onSkip }) {
+  const [focus, setFocus] = useState(null)
+  const [fatigue, setFatigue] = useState(null)
+  const [emotion, setEmotion] = useState(null)
+  const [difficultyFeel, setDifficultyFeel] = useState(null)
+
+  const complete = focus !== null && fatigue !== null && emotion !== null && difficultyFeel !== null
+
+  const submit = () => {
+    if (!complete) return
+    onConfirm({ focus, fatigue, emotion, difficultyFeel })
+  }
+
+  return (
+    <>
+      <div className={styles.popHeader}>
+        <span className={styles.popTitle}>任务完成</span>
+        <span className={styles.popText}>「{task}」已完成</span>
+      </div>
+
+      <div className={styles.selfSection}>
+        <span className={styles.selfLabel}>专注度</span>
+        <RatingButtons
+          value={focus}
+          onChange={setFocus}
+          options={[1, 2, 3, 4, 5].map((n) => ({ value: n, num: n, label: FOCUS_LABELS[n] }))}
+        />
+      </div>
+
+      <div className={styles.selfSection}>
+        <span className={styles.selfLabel}>疲劳度</span>
+        <RatingButtons
+          value={fatigue}
+          onChange={setFatigue}
+          options={[1, 2, 3, 4, 5].map((n) => ({ value: n, num: n, label: FATIGUE_LABELS[n] }))}
+        />
+      </div>
+
+      <div className={styles.selfSection}>
+        <span className={styles.selfLabel}>情绪</span>
+        <RatingButtons
+          value={emotion}
+          onChange={setEmotion}
+          wide
+          options={['positive', 'neutral', 'negative'].map((e) => ({
+            value: e,
+            label: EMOTION_LABELS[e],
+          }))}
+        />
+      </div>
+
+      <div className={styles.selfSection}>
+        <span className={styles.selfLabel}>难度感受</span>
+        <RatingButtons
+          value={difficultyFeel}
+          onChange={setDifficultyFeel}
+          wide
+          options={['easy', 'moderate', 'hard'].map((d) => ({
+            value: d,
+            label: DIFFICULTY_LABELS[d],
+          }))}
+        />
+      </div>
+
+      {error && <div className={styles.popError}>{error}</div>}
+
+      <div className={styles.popActions}>
+        <button
+          type="button"
+          className={styles.popOk}
+          disabled={!complete}
+          onClick={submit}
+        >
+          提交记录
+        </button>
+        <button type="button" className={styles.popRestart} onClick={onSkip}>
+          跳过
+        </button>
+      </div>
+    </>
+  )
+}
+
+function RecommendationPanel({ recommendation, onOk, onRestart }) {
+  const status = recommendation?.generation?.status
+  const items = recommendation?.items
+
+  let body
+  if (status === 'ready' && items && items.length > 0) {
+    body = (
+      <div className={styles.recList}>
+        {items.map((item, index) => (
+          <div key={index} className={styles.recItem}>
+            <div className={styles.recTitle}>{item.title}</div>
+            <div className={styles.recContent}>{item.content}</div>
+          </div>
+        ))}
+      </div>
+    )
+  } else if (status === 'insufficient_data') {
+    body = (
+      <div className={styles.recHint}>
+        这次的数据还比较少，多记录几次，就能给你更贴心的建议啦。
+      </div>
+    )
+  } else if (status === 'failed') {
+    body = (
+      <div className={styles.recHint}>
+        建议生成失败了，先休息一下吧，下次再试试。
+      </div>
+    )
+  } else {
+    body = <div className={styles.recHint}>本次学习记录已保存。</div>
+  }
+
+  return (
+    <>
+      <div className={styles.popHeader}>
+        <span className={styles.popTitle}>学习小结</span>
+        <span className={styles.popText}>已经帮你记下这次专注</span>
+      </div>
+      {body}
+      <div className={styles.popActions}>
+        <button type="button" className={styles.popOk} onClick={onOk}>完成</button>
+        <button type="button" className={styles.popRestart} onClick={onRestart}>再学一轮</button>
+      </div>
+    </>
   )
 }
 
@@ -55,12 +201,20 @@ export default function StudyTimerPage() {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task)
 
+  const [subject, setSubject] = useState('math')
+
   const [mode, setMode] = useState('focus')
   const [focusMinutes, setFocusMinutes] = useState(25)
   const [breakMinutes, setBreakMinutes] = useState(5)
   const [remaining, setRemaining] = useState(25 * 60)
   const [isRunning, setIsRunning] = useState(false)
   const [showDone, setShowDone] = useState(false)
+  const [sessionStart, setSessionStart] = useState(null)
+
+  const [popupPhase, setPopupPhase] = useState('selfAssessment')
+  const [recId, setRecId] = useState(null)
+  const [recommendation, setRecommendation] = useState(null)
+  const [popupError, setPopupError] = useState(null)
 
   const timerRef = useRef(null)
 
@@ -84,7 +238,13 @@ export default function StudyTimerPage() {
           clearInterval(timerRef.current)
           timerRef.current = null
           setIsRunning(false)
-          if (mode === 'focus') setShowDone(true)
+          if (mode === 'focus') {
+            setShowDone(true)
+            setPopupPhase('selfAssessment')
+            setRecId(null)
+            setRecommendation(null)
+            setPopupError(null)
+          }
           return 0
         }
         return prev - 1
@@ -97,10 +257,80 @@ export default function StudyTimerPage() {
     setRemaining(totalSeconds)
   }, [mode, totalSeconds, stopTimer])
 
-  const handleRestart = () => {
+  useEffect(() => {
+    if (!recId) return
+    let cancelled = false
+    let timer = null
+
+    const poll = async () => {
+      try {
+        const result = await getRecommendation(recId)
+        if (cancelled) return
+        const status = result.generation?.status
+        if (status === 'pending') return
+        if (timer) clearInterval(timer)
+        setRecommendation(result)
+        setPopupPhase('recommendation')
+      } catch {
+        if (cancelled) return
+        if (timer) clearInterval(timer)
+        setRecommendation(null)
+        setPopupError('获取建议失败，请稍后再试')
+        setPopupPhase('recommendation')
+      }
+    }
+
+    poll()
+    timer = setInterval(poll, 2000)
+
+    return () => {
+      cancelled = true
+      if (timer) clearInterval(timer)
+    }
+  }, [recId])
+
+  const resetPopup = () => {
     setShowDone(false)
+    setPopupPhase('selfAssessment')
+    setRecId(null)
+    setRecommendation(null)
+    setPopupError(null)
+  }
+
+  const handleConfirmSelfReport = async (selfReport) => {
+    setPopupPhase('submitting')
+    setPopupError(null)
+    try {
+      const result = await createLearningRecord({
+        subject,
+        startedAt: sessionStart || new Date(Date.now() - focusMinutes * 60000).toISOString(),
+        durationMinutes: focusMinutes,
+        behavior: { completion: 'completed' },
+        selfReport,
+      })
+
+      if (result.recommendation?.recommendationId) {
+        setRecId(result.recommendation.recommendationId)
+        setPopupPhase('polling')
+      } else {
+        setRecommendation(null)
+        setPopupPhase('recommendation')
+      }
+    } catch {
+      setPopupError('提交失败，请稍后再试')
+      setPopupPhase('selfAssessment')
+    }
+  }
+
+  const handleRestart = () => {
+    resetPopup()
     setMode('focus')
     setRemaining(focusMinutes * 60)
+  }
+
+  const handleDone = () => {
+    resetPopup()
+    setRemaining(totalSeconds)
   }
 
   const handleSaveTask = () => {
@@ -148,6 +378,19 @@ export default function StudyTimerPage() {
           )}
         </div>
 
+        <label className={styles.subjectField}>
+          <span className={styles.subjectLabel}>学科</span>
+          <select
+            className={styles.subjectSelect}
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          >
+            {Object.entries(subjectLabels).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </label>
+
         <div className={styles.modeTabs}>
           <button
             className={`${styles.modeTab} ${mode === 'focus' ? styles.active : ''}`}
@@ -173,7 +416,14 @@ export default function StudyTimerPage() {
             <button
               className={`${styles.btn} ${styles.primary}`}
               disabled={totalSeconds <= 0 && remaining <= 0}
-              onClick={remaining === 0 ? () => setRemaining(totalSeconds) : startTimer}
+              onClick={() => {
+                if (remaining === 0) {
+                  setRemaining(totalSeconds)
+                } else {
+                  if (remaining === totalSeconds) setSessionStart(new Date().toISOString())
+                  startTimer()
+                }
+              }}
             >
               {remaining === 0 ? '重新开始' : remaining === totalSeconds ? '开始' : '继续'}
             </button>
@@ -199,11 +449,29 @@ export default function StudyTimerPage() {
       </main>
 
       {showDone && (
-        <CompletionPopup
-          task={task}
-          onOk={() => setShowDone(false)}
-          onRestart={handleRestart}
-        />
+        <div className={styles.completionPop}>
+          {popupPhase === 'selfAssessment' && (
+            <SelfAssessment
+              task={task}
+              error={popupError}
+              onConfirm={handleConfirmSelfReport}
+              onSkip={handleDone}
+            />
+          )}
+          {popupPhase === 'submitting' && (
+            <div className={styles.popLoading}>正在提交记录…</div>
+          )}
+          {popupPhase === 'polling' && (
+            <div className={styles.popLoading}>正在生成学习建议…</div>
+          )}
+          {popupPhase === 'recommendation' && (
+            <RecommendationPanel
+              recommendation={recommendation}
+              onOk={handleDone}
+              onRestart={handleRestart}
+            />
+          )}
+        </div>
       )}
     </div>
   )
