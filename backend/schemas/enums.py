@@ -1,0 +1,88 @@
+"""
+枚举字典（openapi.yaml 0.4 节）
+
+Subject / Stage / GoalType / TaskStatus / Completion / Emotion / DifficultyFeel
+Trend / StateLabel / RecScene / GenerationSource / Rating
+"""
+from __future__ import annotations
+
+from enum import Enum
+
+
+class Subject(str, Enum):
+    chinese = "chinese"
+    math = "math"
+    english = "english"
+    physics = "physics"
+    chemistry = "chemistry"
+    biology = "biology"
+    history = "history"
+    geography = "geography"
+    politics = "politics"
+    other = "other"
+
+
+class Stage(str, Enum):
+    junior = "junior"
+    senior = "senior"
+
+
+class GoalType(str, Enum):
+    short_term = "short_term"
+    long_term = "long_term"
+
+
+class TaskStatus(str, Enum):
+    pending = "pending"
+    completed = "completed"
+    partial = "partial"
+    abandoned = "abandoned"
+
+
+# completion 比 taskStatus 少了 pending（已经在进行的任务不算完成度）
+class Completion(str, Enum):
+    completed = "completed"
+    partial = "partial"
+    abandoned = "abandoned"
+
+
+class Emotion(str, Enum):
+    positive = "positive"
+    neutral = "neutral"
+    negative = "negative"
+
+
+class DifficultyFeel(str, Enum):
+    easy = "easy"
+    moderate = "moderate"
+    hard = "hard"
+
+
+class Trend(str, Enum):
+    up = "up"
+    flat = "flat"
+    down = "down"
+
+
+class StateLabel(str, Enum):
+    efficient_stable = "efficient_stable"
+    fatigue_warning = "fatigue_warning"
+    emotion_blocked = "emotion_blocked"
+    fluctuating_up = "fluctuating_up"
+    insufficient_data = "insufficient_data"
+
+
+class RecScene(str, Enum):
+    post_session = "post_session"
+    weekly_review = "weekly_review"
+
+
+class GenerationSource(str, Enum):
+    llm = "llm"
+    template = "template"
+
+
+class Rating(str, Enum):
+    useful = "useful"
+    neutral = "neutral"
+    not_useful = "not_useful"

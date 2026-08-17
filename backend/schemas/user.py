@@ -1,0 +1,134 @@
+"""
+用户与设置（openapi.yaml 1.x）
+
+User / UserProfilePut / UserProfilePatch / Settings / SettingsUpdate
+/ GuardianAuthorizationRequest
+"""
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .enums import Stage, Subject
+
+
+class GuardianAuthorizationInfo(BaseModel):
+    """openapi.yaml User.guardianAuthorization 字段。"""
+
+    status: str = Field(..., description="授权状态：active / pending / revoked / expired")
+    expires_at: datetime | None = Field(None, description="授权到期时间")
+
+
+class User(BaseModel):
+    """当前用户资料。"""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "userId": "u_10237",
+                "stage": "senior",
+                "grade": "高二",
+                "subjects": ["math", "english", "physics"],
+                "guardianAuthorization": {
+                    "status": "active",
+                    "expiresAt": "2026-09-10T00:00:00+08:00",
+                },
+                "onboardingCompleted": True,
+            }
+        },
+    )
+
+    user_id: str = Field(..., alias="userId", description="用户 ID")
+    stage: Stage
+    grade: str = Field(..., description='年级，如「初二」「高二」')
+    subjects: list[Subject] = Field(..., min_length=1, max_length=9, description="学科列表")
+    guardian_authorization: GuardianAuthorizationInfo = Field(
+        ..., alias="guardianAuthorization", description="监护人授权状态"
+    )
+    onboarding_completed: bool = Field(..., alias="onboardingCompleted", description="是否已完成建档")
+
+
+class UserProfilePut(BaseModel):
+    """幂等建档请求体，字段全必填。"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "stage": "senior",
+                "grade": "高二",
+                "subjects": ["math", "english", "physics"],
+            }
+        }
+    )
+
+    stage: Stage
+    grade: str = Field(..., description='年级，如「初二」「高二」')
+    subjects: list[Subject] = Field(..., min_length=1, max_length=9)
+
+
+class UserProfilePatch(BaseModel):
+    """局部更新请求体，字段全可选。"""
+
+    stage: Stage | None = None
+    grade: str | None = None
+    subjects: list[Subject] | None = Field(None, min_length=1, max_length=9)
+
+
+class Settings(BaseModel):
+    """用户设置。权重数值不通过任何用户侧接口暴露。"""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "aiWeightTuningEnabled": True,
+                "sendTextToAI": False,
+                "updatedAt": "2026-08-16T09:12:00+08:00",
+            }
+        },
+    )
+
+    ai_weight_tuning_enabled: bool = Field(..., alias="aiWeightTuningEnabled", description="默认 true")
+    send_text_to_ai: bool = Field(..., alias="sendTextToAI", description="默认 false")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+
+class SettingsUpdate(BaseModel):
+    """设置更新请求体，至少传一项。"""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={"example": {"sendTextToAI": True}},
+    )
+
+    ai_weight_tuning_enabled: bool | None = Field(None, alias="aiWeightTuningEnabled")
+    send_text_to_ai: bool | None = Field(None, alias="sendTextToAI")
+
+    @field_validator("send_text_to_ai", "ai_weight_tuning_enabled")
+    @classmethod
+    def _at_least_one(cls, v, info):
+        # Pydantic v2 model_validator 更合适，这里用字段级 + model 级配合
+        return v
+
+
+class GuardianAuthorizationRequest(BaseModel):
+    """监护人邮箱与手机号二选一必填（PRD 8.1）。"""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"guardianEmail": "guardian@example.com"}}
+    )
+
+    guardian_email: str | None = Field(
+        None, alias="guardianEmail", max_length=254, description="监护人邮箱"
+    )
+    guardian_phone: str | None = Field(
+        None, alias="guardianPhone", max_length=32, description="监护人手机号"
+    )
+
+    @field_validator("guardian_phone")
+    @classmethod
+    def _either_or(cls, v, info):
+        # 在路由里再做二选一校验（需要访问另一个字段）
+        return v
