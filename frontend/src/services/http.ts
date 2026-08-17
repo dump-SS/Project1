@@ -81,7 +81,10 @@ export async function apiPost<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export async function apiPatch<T>(
@@ -121,7 +124,10 @@ export async function apiPatch<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export async function apiPut<T>(
@@ -156,7 +162,10 @@ export async function apiPut<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export async function apiGet<T>(
@@ -188,26 +197,24 @@ export async function apiGet<T>(
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
+  // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 /**
- * 带 JSON body 的请求（POST / PUT / PATCH 共用）。
- * 错误格式与 apiGet 完全一致：统一抛 ApiError。
+ * DELETE 请求；成功时后端返回 204 无响应体，同样做空 body 容错。
  */
-async function apiRequest<T>(
-  method: 'POST' | 'PUT' | 'PATCH',
+export async function apiDelete<T = undefined>(
   path: string,
-  body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
-  const headers: HeadersInit = { Accept: 'application/json' };
-  if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-
   const response = await fetch(buildUrl(path), {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    signal,
   });
 
   if (!response.ok) {
@@ -215,27 +222,21 @@ async function apiRequest<T>(
     let message = `请求失败（HTTP ${response.status}）`;
     let field: string | undefined;
     try {
-      const errorBody = (await response.json()) as ApiErrorBody;
-      if (errorBody?.error) {
-        code = errorBody.error.code ?? code;
-        message = errorBody.error.message ?? message;
-        field = errorBody.error.field;
+      const errBody = (await response.json()) as ApiErrorBody;
+      if (errBody?.error) {
+        code = errBody.error.code ?? code;
+        message = errBody.error.message ?? message;
+        field = errBody.error.field;
       }
     } catch {
-      // 后端返回非 JSON 时沿用默认文案
+      // 后端未上线时返回非 JSON，解析失败属预期
     }
     throw new ApiError(response.status, code, message, field);
   }
 
-  return (await response.json()) as T;
-}
-
-export function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  return apiRequest<T>('POST', path, body);
-}
-
-export function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  return apiRequest<T>('PUT', path, body);
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 /**

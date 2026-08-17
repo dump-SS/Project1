@@ -17,6 +17,9 @@ const NAV_ITEMS = [
   { to: '/study-timer', label: '专注计时' },
   { to: '/settings', label: '设置' },
   { to: '/summary-review', label: '学习复盘' },
+  { to: '/recommendations', label: '学习建议' },
+  { to: '/profile-setup', label: '资料建档' },
+  { to: '/guardian-auth', label: '监护人授权' },
 ]
 
 export default function AppShell() {
