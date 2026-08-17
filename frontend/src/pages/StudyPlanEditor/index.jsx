@@ -19,6 +19,8 @@ const MINUTES_VALIDATOR = (value) => {
 }
 
 export default function StudyPlanEditor() {
+  // 「学习任务设置」受控值（与 StudyGuide 保持一致，未来可加 AUTO 填充等程序化写入）
+  const [taskValue, setTaskValue] = useState('')
   // 可用学习分钟（受控，用于 POST /plans）
   const [minutes, setMinutes] = useState('')
   // 当前已生成的计划（用于渲染 TaskList 与标记完成）
@@ -94,6 +96,8 @@ export default function StudyPlanEditor() {
           cnLabel="学习任务设置"
           enLabel="Study Task Setting"
           placeholder="e.g. 复习函数章节"
+          value={taskValue}
+          onChange={(event) => setTaskValue(event.target.value)}
         />
 
         {plan && <TaskList plan={plan} onTaskUpdated={handleTaskUpdated} />}
