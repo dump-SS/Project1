@@ -88,7 +88,7 @@ function GoalItem({ goal }: { goal: GoalCardModel }) {
 }
 
 function GoalsCard() {
-  const { data, loading, source, error } = usePanelData(fetchGoals, placeholderGoals());
+  const { data, loading, source, error } = usePanelData(fetchGoals, placeholderGoals(), 'goals');
 
   return (
     <SectionCard

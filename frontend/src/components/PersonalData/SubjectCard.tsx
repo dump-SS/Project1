@@ -41,6 +41,7 @@ function SubjectCard() {
   const { data, loading, source, error } = usePanelData(
     fetchSubjectDistribution,
     placeholderSubjectDistribution(),
+    'subject-distribution',
   );
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 

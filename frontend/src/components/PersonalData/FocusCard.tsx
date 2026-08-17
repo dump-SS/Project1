@@ -98,7 +98,7 @@ function FocusCard() {
 
   const fetcher = useCallback((signal: AbortSignal) => fetchFocus(range, signal), [range]);
 
-  const { data, loading, source, error } = usePanelData(fetcher, placeholderFocus(range), [range]);
+  const { data, loading, source, error } = usePanelData(fetcher, placeholderFocus(range), 'focus', [range]);
 
   return (
     <SectionCard
