@@ -21,6 +21,8 @@ import Goals from './pages/Goals/index.jsx'
 import RecommendationsPage from './pages/Recommendations/index.tsx'
 import ProfileSetupPage from './pages/ProfileSetup/index.tsx'
 import GuardianAuthPage from './pages/GuardianAuth/index.tsx'
+import KnowledgePage from './pages/Knowledge/index.tsx'
+import ErrorBookPage from './pages/ErrorBook/index.tsx'
 
 export default function App() {
   return (
@@ -51,6 +53,8 @@ export default function App() {
               <Route path="/recommendations" element={<RecommendationsPage />} />
               <Route path="/profile-setup" element={<ProfileSetupPage />} />
               <Route path="/guardian-auth" element={<GuardianAuthPage />} />
+              <Route path="/knowledge" element={<KnowledgePage />} />
+              <Route path="/error-book" element={<ErrorBookPage />} />
             </Route>
           </Route>
 

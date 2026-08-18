@@ -150,6 +150,53 @@ strong, b, .text-bold {
   animation: cardIn var(--trans-slow);
 }
 
+/* 登录页横向分栏：左 60% 推广视频，右 40% 登录表单 */
+.auth-card--split {
+  max-width: 960px;
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.auth-split-media {
+  flex: 0 0 60%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 560px;
+  background: linear-gradient(135deg, var(--color-primary-bg) 0%, var(--color-primary-bg-soft) 100%);
+  border-right: 1px solid var(--color-border-soft);
+}
+
+.auth-split-media video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.auth-media-placeholder {
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.auth-media-hint {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+}
+
+.auth-split-form {
+  flex: 0 0 40%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 40px 36px;
+}
+
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
@@ -537,6 +584,20 @@ strong, b, .text-bold {
   .auth-title { font-size: 24px; }
   .form-input { height: 44px; }
   .btn-primary { height: 46px; }
+}
+
+/* 登录页分栏在窄屏下退回单栏:隐藏视频,右侧表单占满(origin/main 合并引入) */
+@media (max-width: 768px) {
+  .auth-card--split {
+    max-width: 440px;
+    display: block;
+  }
+  .auth-split-media {
+    display: none;
+  }
+  .auth-split-form {
+    padding: 56px 40px 36px;
+  }
 }
 
 /* ============ Loading Spinner(登录 / 进入计划等场景复用) ============ */

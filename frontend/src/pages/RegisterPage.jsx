@@ -76,12 +76,12 @@ export default function RegisterPage() {
   return (
     <div className="auth-page">
       <div className="page-bg-decor" />
-      <div className="auth-card">
-        <div className="auth-header">
-          <img className="auth-logo-img" src="/brand/logo-full-black.png" alt="EpochX" />
-          <p className="auth-subtitle">让我们一起记录学习的点滴</p>
+      <div className="auth-card auth-card--split">
+        <div className="auth-split-media">
+          <video src="/promo.mp4" autoPlay muted loop playsInline />
         </div>
 
+        <div className="auth-split-form">
         {tip && <div className={`form-tip ${tip.type}`}>{tip.msg}</div>}
 
         <form onSubmit={handleSubmit} noValidate>
@@ -152,6 +152,7 @@ export default function RegisterPage() {
         <div className="auth-footer">
           已有账号？
           <Link className="link" to="/login">返回登录</Link>
+        </div>
         </div>
       </div>
     </div>

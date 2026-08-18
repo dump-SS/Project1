@@ -129,12 +129,29 @@ const Icon = ({ name, size = 18 }) => {
           <path d="M9 18l6-6-6-6" />
         </svg>
       )
+    case 'knowledge':
+      // 学科知识库 · 打开的书
+      return (
+        <svg {...props}>
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        </svg>
+      )
+    case 'errorBook':
+      // 错题本 · 带叉的文档
+      return (
+        <svg {...props}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+          <path d="M9 13l6 6M15 13l-6 6" />
+        </svg>
+      )
     default:
       return null
   }
 }
 
-// 主导航:6 项高频业务页
+// 主导航:6 项高频业务页 + 学科组(板块二,origin/main 合并引入)
 const PRIMARY_NAV = [
   { to: '/study-guide', label: '导学', icon: 'study' },
   { to: '/study-timer', label: '计时', icon: 'timer' },
@@ -142,6 +159,8 @@ const PRIMARY_NAV = [
   { to: '/summary-review', label: '复盘', icon: 'review' },
   { to: '/recommendations', label: '建议', icon: 'suggest' },
   { to: '/goals', label: '目标', icon: 'goal' },
+  { to: '/knowledge', label: '学科', icon: 'knowledge' },
+  { to: '/error-book', label: '错题', icon: 'errorBook' },
 ]
 
 // 「我的」下拉:3 个低频页
