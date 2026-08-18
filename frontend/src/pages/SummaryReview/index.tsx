@@ -4,6 +4,7 @@ import {
   createSummary,
   getSummary,
   isSummaryTerminal,
+  listSummaries,
   submitSummaryFeedback,
 } from '../../services/summary'
 import type { Rating, Summary } from '@/types/api'
@@ -73,6 +74,36 @@ export default function SummaryReviewPage() {
   }, [])
 
   useEffect(() => stopPolling, [stopPolling])
+
+  // 挂载时拉取复盘列表，把与当前默认区间匹配的最新一条直接展示出来。
+  // 解决「库里已有 1 条复盘数据但页面不展示」的问题。
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const result = await listSummaries(1, 20)
+        if (cancelled) return
+        const matched = (result.items ?? []).find(
+          (s) => s.periodStart === initial.current.start && s.periodEnd === initial.current.end,
+        ) ?? result.items?.[0]
+        if (!matched) return
+        if (!isSummaryTerminal(matched.generation?.status)) return
+        setSummary(matched)
+        setPeriodStart(matched.periodStart ?? initial.current.start)
+        setPeriodEnd(matched.periodEnd ?? initial.current.end)
+        if (matched.feedback) {
+          setRating(matched.feedback.rating)
+          setReason(matched.feedback.reason ?? '')
+          setFeedbackSent(true)
+        }
+      } catch {
+        // 静默兜底：拉取失败就保持空状态，用户仍可手动点「生成复盘」
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const canGenerate = isValidRange(periodStart, periodEnd) && !generating
 

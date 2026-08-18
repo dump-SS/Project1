@@ -23,6 +23,18 @@ export function getSummary(summaryId: string, signal?: AbortSignal): Promise<Sum
   return apiGet<Summary>(`/summaries/${summaryId}`, undefined, signal);
 }
 
+/**
+ * 拉取当前用户的复盘列表（openapi.yaml GET /summaries）。
+ * SummaryReview 页面在挂载时调一次，把最近一条与默认区间匹配的复盘直接展示出来，
+ * 避免「库里已有复盘但页面不展示」的问题。
+ */
+export function listSummaries(page = 1, pageSize = 20): Promise<{
+  items: Summary[];
+  pagination: { page: number; pageSize: number; total: number };
+}> {
+  return apiGet(`/summaries?page=${page}&page_size=${pageSize}`);
+}
+
 /** 提交复盘反馈（rating 必填，reason 可选 ≤100 字）。 */
 export function submitSummaryFeedback(
   summaryId: string,

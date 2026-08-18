@@ -3,6 +3,7 @@ import styles from './index.module.css'
 import { subjectLabels } from '@/styles/theme'
 import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
 import { putRecommendationFeedback } from '@/services/feedback'
+import { getPlanByDate, localDateString } from '@/services/plans'
 
 const FOCUS_LABELS = { 1: '分心', 2: '一般', 3: '还好', 4: '专注', 5: '非常专注' }
 const FATIGUE_LABELS = { 1: '精神', 2: '轻微', 3: '一般', 4: '疲劳', 5: '非常疲劳' }
@@ -265,7 +266,10 @@ function RecommendationPanel({ recommendation, onOk, onRestart }) {
 }
 
 export default function StudyTimerPage() {
-  const [task, setTask] = useState('复习函数章节')
+  // 兜底文案：未读到当日计划时使用，避免空白任务显示
+  const FALLBACK_TASK = '今日学习（待编辑）'
+  const [task, setTask] = useState(FALLBACK_TASK)
+  const [taskSource, setTaskSource] = useState('fallback') // 'plan' | 'edited' | 'fallback'
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task)
 
@@ -324,6 +328,28 @@ export default function StudyTimerPage() {
     stopTimer()
     setRemaining(totalSeconds)
   }, [mode, totalSeconds, stopTimer])
+
+  // 挂载时拉取当日计划的第一条任务作为默认学习任务。
+  // - 命中 → 用「学科 · 方向」做默认文案，并把学科选项切到对应 subject
+  // - 未命中或网络异常 → 保留 FALLBACK_TASK，不阻塞计时主流程
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const plan = await getPlanByDate(localDateString())
+      if (cancelled) return
+      const first = plan?.tasks?.[0]
+      if (!first) return
+      const subjectLabel = subjectLabels[first.subject] ?? first.subject
+      const next = `${subjectLabel} · ${first.topic}`
+      setTask(next)
+      setDraft(next)
+      setTaskSource('plan')
+      if (first.subject) setSubject(first.subject)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!recId) return
@@ -404,7 +430,10 @@ export default function StudyTimerPage() {
 
   const handleSaveTask = () => {
     const next = draft.trim()
-    if (next) setTask(next)
+    if (next) {
+      setTask(next)
+      setTaskSource('edited')
+    }
     setDraft(next || task)
     setEditing(false)
   }
