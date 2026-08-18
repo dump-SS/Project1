@@ -1,0 +1,98 @@
+/**
+ * v0.2 设计令牌 · 人文风 · 空气感
+ * ------------------------------------------------------------
+ * 见 docs/next-ui-redesign-spec.md 第 3 节。
+ * 全站新增样式一律引用这里的 --sky/--cloud/--ink/--glass/--font 变量，
+ * 不再写死色值。旧的 global.css / StudyGuide 局部变量在各自文件里桥接到这里。
+ *
+ * 引入顺序：main.jsx 中先于 global.css 引入，让本文件的 :root 作为基线，
+ * global.css 里的旧变量再指回这里的新值。
+ */
+
+:root {
+  /* ---------- 天空 / 背景 ---------- */
+  --sky-hi: #a9d4ec;        /* 天空上部 · 主蓝 */
+  --sky-lo: #dcebf5;        /* 天空下部 · 近地雾蓝 */
+  --cloud: #f4f9fd;         /* 云白 · 页面基底 / 卡片近白 */
+  --dusk-warm: #f3e4ce;     /* 黄昏暖金 · 点缀 / 进度暖色 */
+  --night-blue: #35507f;    /* 夜蓝 · 深色区 / 强调文字 */
+
+  /* 页面天空渐变基底 */
+  --bg-sky: linear-gradient(180deg, var(--sky-hi) 0%, var(--sky-lo) 58%, var(--cloud) 100%);
+
+  /* ---------- 文字 ---------- */
+  --ink: #2b3a55;           /* 主文 · 深靛蓝（非纯黑，带空气感）*/
+  --ink-soft: #5c6e88;      /* 次文 · 冷灰蓝 */
+  --ink-faint: #93a6be;     /* 辅助 / 占位 · 雾灰蓝 */
+  --on-photo: #ffffff;      /* 压在摄影 / 深色上的白字 */
+
+  /* ---------- 主色与语义 ---------- */
+  --primary: #6fa8d6;       /* 主色 · 晴空蓝 */
+  --primary-deep: #4a7cb0;  /* 主色深 · hover / 强调 */
+  --success: #8fd3b6;       /* 正向 · 薄荷 */
+  --warning: #ebc48b;       /* 提醒 · 暖沙（不刺眼）*/
+  --danger-soft: #d89b9b;   /* 危险柔 · 撤销 / 删除，克制使用 */
+
+  /* ---------- 玻璃与线 ---------- */
+  --glass-fill: rgba(255, 255, 255, 0.42);   /* 磨砂玻璃填充 */
+  --glass-stroke: rgba(255, 255, 255, 0.60); /* 玻璃描边（1px）*/
+  --glass-fill-solid: rgba(255, 255, 255, 0.82); /* 不支持 backdrop-filter 时的降级填充 */
+  --hairline: rgba(43, 58, 85, 0.14);        /* 极细分隔线 */
+  --glass-shadow: 0 8px 32px rgba(53, 80, 127, 0.10);
+
+  /* ---------- 字体（标题衬线 · 正文细体）---------- */
+  --font-serif: "Noto Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
+  --font-sans: "Noto Sans SC", "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* 字重 · 正文偏细，关键处加粗 */
+  --w-light: 300;
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-semibold: 600;
+
+  /* ---------- 圆角 ---------- */
+  --r-glass: 20px;
+  --r-card: 16px;
+  --r-button: 12px;
+  --r-pill: 999px;
+
+  /* ---------- 间距（8px 栅格，比 v0.1 更松）---------- */
+  --page-max: 1080px;
+  --card-pad: 30px;
+  --card-gap: 40px;
+
+  /* ---------- 动效（缓出，像飘）---------- */
+  --ease-air: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --t-fast: 160ms;
+  --t-base: 280ms;
+  --t-slow: 480ms;
+}
+
+/* 磨砂玻璃通用类 · 组件可直接叠加 */
+.glass {
+  background: var(--glass-fill);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-glass);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 不支持 backdrop-filter 时降级为半透实填，不破版 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--glass-fill-solid);
+  }
+}
+
+/* 尊重用户的减少动态偏好：禁用位移 / 飘移，仅保留淡入 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

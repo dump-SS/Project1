@@ -1,48 +1,45 @@
 /* ============ 文艺风全局样式 ============ */
 
 :root {
-  /* 主题色：淡蓝色 */
-  --color-primary: #4AD1FF;
-  --color-primary-light: #A7E8FF;
-  --color-primary-dark: #2AB8E8;
-  --color-primary-bg: #F0FAFF;
-  --color-primary-bg-soft: #E6F6FF;
+  /* v0.2：旧变量名保留，值桥接到 tokens.css 的空气感令牌，避免逐处改引用 */
+  /* 主题色：晴空蓝 */
+  --color-primary: var(--primary);
+  --color-primary-light: var(--sky-hi);
+  --color-primary-dark: var(--primary-deep);
+  --color-primary-bg: rgba(111, 168, 214, 0.08);
+  --color-primary-bg-soft: rgba(111, 168, 214, 0.14);
 
   /* 文字 */
-  --color-text-heading: #2C3E50;
-  --color-text-body: #4A5568;
-  --color-text-muted: #8FA3B8;
-  --color-text-inverse: #FFFFFF;
+  --color-text-heading: var(--ink);
+  --color-text-body: var(--ink-soft);
+  --color-text-muted: var(--ink-faint);
+  --color-text-inverse: var(--on-photo);
 
   /* 辅助色 */
-  --color-success: #6FD7A3;
-  --color-error: #F58A8A;
-  --color-warning: #F6C667;
+  --color-success: var(--success);
+  --color-error: var(--danger-soft);
+  --color-warning: var(--warning);
 
-  /* 背景 */
-  --color-bg-page: linear-gradient(135deg, #F7FCFF 0%, #E9F7FF 50%, #FDFBFF 100%);
-  --color-bg-card: rgba(255, 255, 255, 0.85);
-  --color-border: rgba(74, 209, 255, 0.25);
-  --color-border-soft: #E2ECF3;
-
-  /* 字体：衬线(标题) / 非衬线(正文) */
-  --font-serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, "Times New Roman", serif;
-  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  /* 背景：天空渐变 + 玻璃卡片 */
+  --color-bg-page: var(--bg-sky);
+  --color-bg-card: var(--glass-fill);
+  --color-border: var(--glass-stroke);
+  --color-border-soft: var(--hairline);
 
   /* 阴影 */
-  --shadow-soft: 0 8px 32px rgba(74, 209, 255, 0.12);
-  --shadow-card: 0 12px 48px rgba(42, 184, 232, 0.10);
-  --shadow-focus: 0 0 0 4px rgba(74, 209, 255, 0.18);
+  --shadow-soft: var(--glass-shadow);
+  --shadow-card: var(--glass-shadow);
+  --shadow-focus: 0 0 0 4px rgba(111, 168, 214, 0.20);
 
   /* 圆角 */
   --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --radius-pill: 999px;
+  --radius-md: var(--r-button);
+  --radius-lg: var(--r-glass);
+  --radius-pill: var(--r-pill);
 
   /* 过渡 */
-  --trans-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --trans-slow: 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  --trans-base: var(--t-base) var(--ease-air);
+  --trans-slow: var(--t-slow) var(--ease-air);
 }
 
 * {
@@ -72,18 +69,18 @@ body {
 h1, h2, h3, h4, h5, .font-serif {
   font-family: var(--font-serif);
   color: var(--color-text-heading);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   line-height: 1.35;
 }
 
 body, p, span, label, input, button, textarea, select, a, div {
   font-family: var(--font-sans);
-  font-weight: 400;
+  font-weight: 350;
 }
 
 strong, b, .text-bold {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* ============ 装饰点缀（文艺风） ============ */
