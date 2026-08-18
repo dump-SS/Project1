@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ConfigProvider, Switch } from 'antd'
 import { getSettings, updateSettings } from '@/services/settings'
-import { isNetworkError } from '@/services/http'
+import { isNetworkError, apiGet, apiPost } from '@/services/http'
 import { antdThemeToken } from '@/styles/theme'
 import styles from './index.module.css'
 
@@ -105,8 +105,139 @@ export default function SettingsPage() {
             {loading ? <p className={styles.hint}>设置加载中…</p> : null}
             {error ? <p className={styles.error}>{error}</p> : null}
           </section>
+
+          <WeightPanel />
         </div>
       </main>
     </ConfigProvider>
   )
+}
+
+
+// ===== AI 调权面板（PRD 5.2 / 6.5） =====
+
+function WeightPanel() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tuning, setTuning] = useState(false);
+  const [tuneTip, setTuneTip] = useState(null);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    apiGet('/me/weight-config')
+      .then(setData)
+      .catch((e) => setError(isNetworkError(e) ? '权重服务暂不可用' : (e?.message ?? '读取失败')))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleTune = async () => {
+    setTuning(true);
+    setTuneTip(null);
+    try {
+      const r = await apiPost('/me/weight-config/tune-now');
+      setTuneTip({ type: r.tuned ? 'ok' : 'err', text: r.message });
+      load();
+    } catch (e) {
+      setTuneTip({ type: 'err', text: e?.message ?? '调权失败' });
+    } finally {
+      setTuning(false);
+    }
+  };
+
+  return (
+    <section className={styles.weightCard}>
+      <div className={styles.weightHeader}>
+        <div>
+          <h2 className={styles.weightTitle}>AI 调权</h2>
+          <p className={styles.weightDesc}>
+            系统按周期参考你的学习状态特征微调权重；偏离区间会自动回退（PRD 5.2）。
+          </p>
+        </div>
+        <button
+          type="button"
+          className={styles.tuneBtn}
+          onClick={handleTune}
+          disabled={tuning || loading}
+        >
+          {tuning ? '调权中…' : '立即调权一次'}
+        </button>
+      </div>
+
+      {error && <p className={styles.weightError}>{error}</p>}
+      {tuneTip && (
+        <p className={tuneTip.type === 'ok' ? styles.weightOk : styles.weightError}>
+          {tuneTip.text}
+        </p>
+      )}
+
+      {data && (
+        <>
+          <div className={styles.weightGrid}>
+            <WeightCell label="α 行为子分权重" value={data.current.alpha} />
+            <WeightCell label="β 自评子分权重" value={data.current.beta} />
+            <WeightCell label="w1 完成度" value={data.current.w1} />
+            <WeightCell label="w2 正确率" value={data.current.w2} />
+            <WeightCell label="w3 节奏稳定度" value={data.current.w3} />
+            <WeightCell label="w4 专注度" value={data.current.w4} />
+            <WeightCell label="w5 反向疲劳" value={data.current.w5} />
+            <WeightCell label="w6 情绪正向" value={data.current.w6} />
+          </div>
+          <p className={styles.weightUpdatedAt}>
+            上次更新：{new Date(data.updatedAt).toLocaleString('zh-CN')}
+          </p>
+
+          <h3 className={styles.logTitle}>最近调权日志（{data.recentLogs.length}/5）</h3>
+          {data.recentLogs.length === 0 ? (
+            <p className={styles.logEmpty}>暂无调权记录</p>
+          ) : (
+            <ul className={styles.logList}>
+              {data.recentLogs.map((log) => (
+                <li key={log.id} className={styles.logItem}>
+                  <div className={styles.logTop}>
+                    <span className={styles.logTime}>
+                      {new Date(log.effectiveAt).toLocaleString('zh-CN')}
+                    </span>
+                    {log.reverted ? (
+                      <span className={styles.logTagReverted}>已回退</span>
+                    ) : (
+                      <span className={styles.logTagOk}>已生效</span>
+                    )}
+                  </div>
+                  <p className={styles.logReason}>{log.reason}</p>
+                  {log.reverted && log.revertReason && (
+                    <p className={styles.logRevertReason}>回退原因：{log.revertReason}</p>
+                  )}
+                  <details className={styles.logDetail}>
+                    <summary>查看前后权重对比</summary>
+                    <div className={styles.logCompare}>
+                      <div>
+                        <strong>调整前</strong>
+                        <pre>{JSON.stringify(log.before, null, 2)}</pre>
+                      </div>
+                      <div>
+                        <strong>调整后</strong>
+                        <pre>{JSON.stringify(log.after, null, 2)}</pre>
+                      </div>
+                    </div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function WeightCell({ label, value }) {
+  return (
+    <div className={styles.weightCell}>
+      <span className={styles.weightCellLabel}>{label}</span>
+      <span className={styles.weightCellValue}>{value.toFixed(3)}</span>
+    </div>
+  );
 }

@@ -46,6 +46,13 @@ function DurationCard() {
       ? Math.min(100, Math.round((data.todayMinutes / data.targetMinutes) * 100))
       : null;
 
+  // 大数字：≥1h 用 "X.Xh" 浮点小时数；<1h 用 "X 分钟" 整数显示，
+  // 避免 0.07h 被四舍五入到 0.1h（≈6 分钟）让用户感觉比实际多。
+  const todayPrimary =
+    data.todayMinutes >= 60
+      ? { value: todayHours.toFixed(1), unit: 'h' }
+      : { value: Math.round(data.todayMinutes).toString(), unit: 'min' };
+
   return (
     <SectionCard
       index="②"
@@ -59,8 +66,8 @@ function DurationCard() {
         <div className={styles.metricBlock}>
           <div className={styles.metricLabel}>今日累计</div>
           <div className={styles.metricValue}>
-            {todayHours}
-            <span className={styles.metricUnit}>h</span>
+            {todayPrimary.value}
+            <span className={styles.metricUnit}>{todayPrimary.unit}</span>
           </div>
         </div>
 
@@ -70,7 +77,6 @@ function DurationCard() {
           ) : (
             <>
               <div className={styles.progressMeta}>
-                <span>目标 {targetHours}h</span>
                 <span className={styles.progressPercent}>{percent}%</span>
               </div>
               <div className={styles.progressTrack}>

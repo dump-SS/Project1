@@ -1,4 +1,10 @@
 """路由层集合。"""
-from . import assessment, goal, learning_record, plan, recommendation, summary, user
+from . import (
+    assessment, daily_summary, goal, learning_record, plan,
+    recommendation, recommendation_content, summary, user, weight,
+)
 
-__all__ = ["assessment", "goal", "learning_record", "plan", "recommendation", "summary", "user"]
+__all__ = [
+    "assessment", "daily_summary", "goal", "learning_record",
+    "plan", "recommendation", "recommendation_content", "summary", "user", "weight",
+]

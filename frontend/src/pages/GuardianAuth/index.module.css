@@ -226,3 +226,238 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ───── 演示用扩展样式 ───── */
+
+.statusTag.status_pending {
+  background: #fff7e8;
+  border-color: #ffd591;
+  color: #ad6800;
+}
+
+.statusTag.status_active {
+  background: #e8f7ee;
+  border-color: #95de8b;
+  color: #1a7f37;
+}
+
+.statusTag.status_revoked {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.statusTag.status_expired {
+  background: #fff1f0;
+  border-color: #ffa39e;
+  color: #a8071a;
+}
+
+.channelTabs {
+  display: inline-flex;
+  background: #eef6fb;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  padding: 3px;
+  width: max-content;
+  gap: 2px;
+}
+
+.channelTab {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.channelTab:hover {
+  color: var(--color-text-heading);
+}
+
+.channelTabActive {
+  background: #fff;
+  color: var(--color-primary-dark);
+  box-shadow: 0 1px 3px rgba(74, 209, 255, 0.25);
+}
+
+.agreeRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-body);
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.agreeRow input[type='checkbox'] {
+  margin-top: 3px;
+  accent-color: var(--color-primary);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.btnRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.secondaryBtn {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-primary-dark);
+  background: #fff;
+  border: 1px solid var(--color-primary);
+  border-radius: 10px;
+  padding: 9px 24px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.secondaryBtn:hover:not(:disabled) {
+  background: var(--color-primary-bg);
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.linkBtn {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-primary-dark);
+  background: transparent;
+  border: none;
+  padding: 8px 6px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.linkBtn:hover {
+  color: var(--color-primary);
+}
+
+.codeBox {
+  background: var(--color-primary-bg);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.codeLabel {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+}
+
+.codeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.codeList li {
+  display: flex;
+  gap: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.codeKey {
+  color: var(--color-text-muted);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.codeVal {
+  color: var(--color-text-body);
+  font-weight: var(--weight-medium);
+}
+
+.logCard {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 32px auto 0;
+  background: var(--color-bg-card);
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+
+.logTitle {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+  margin: 0 0 12px;
+  font-weight: var(--weight-medium);
+}
+
+.logEmpty {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.logList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.logItem {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+  color: var(--color-text-muted);
+  border-bottom: 1px dashed var(--color-border-soft);
+}
+
+.logItem:last-child {
+  border-bottom: none;
+}
+
+.logAt {
+  font-family: var(--font-mono, monospace);
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.logAction {
+  color: var(--color-primary-dark);
+  font-weight: var(--weight-medium);
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.logDetail {
+  color: var(--color-text-body);
+  flex: 1;
+  word-break: break-all;
+}

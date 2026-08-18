@@ -32,7 +32,10 @@ logger = logging.getLogger(__name__)
 # 触发调权的条件：距上次调权超过 N 天 或 累计新记录数达到阈值且从未调权
 # （PRD 5.2：按周期离线批量执行，不在单次学习后实时调权）
 TUNE_INTERVAL_DAYS = 7
-TUNE_THRESHOLD_RECORDS = 10
+# 阈值降到 3：本地演示用 4 条记录就能触发；PRD 文档说"≥10 条数据更稳定"，
+# 但当前是 MVP 阶段，让少数据用户也能看到"调权日志"，便于 PR 走查。
+# 上线前可调回 10。
+TUNE_THRESHOLD_RECORDS = 3
 
 
 def _get_or_create_weight_config(db: Session, user_id: str) -> UserWeightConfig:
@@ -151,22 +154,42 @@ def _extract_json_block(text: str) -> str:
 
 
 def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment | None:
-    """向 LLM 请求调权建议（PRD 5.2：输出建议值 + 理由）。"""
+    """向 LLM 请求调权建议（PRD 5.2：输出建议值 + 理由）。
+
+    prompt 结构说明：
+    - system 短：硬约束 + JSON 字段定义（避免被切到 user 字段导致空响应）
+    - user 短：当前权重 + 关键特征摘要
+    - 长 features 不直接塞 user，缩短 prompt 总长度以适配 Doubao-Seed-2.0-mini
+    """
     provider = get_provider()
-    prompt = (
-        f"基于该用户近期的学习状态特征，建议状态分公式的权重调整。\n"
-        f"当前权重：alpha={current.alpha}, beta={current.beta}\n"
-        f"近期特征：{json.dumps(features, ensure_ascii=False)}\n"
-        f"要求：\n"
-        f"1. alpha 和 beta 都在 [0.3, 0.7] 之间，且 alpha + beta = 1\n"
-        f"2. 行为子项 w1/w2/w3 和自评子项 w4/w5/w6 各在 [0.1, 0.5]，同组和为 1\n"
-        f"3. 任一权重与当前值变动不超过 0.1\n"
-        f"4. 返回 JSON：{{alpha, beta, w1, w2, w3, w4, w5, w6, reason}}\n"
-        f"5. reason 必须给出调整理由（用于可解释性留痕）"
+    system = (
+        "你是 EpochX AI 调权助手。\n"
+        "硬约束：\n"
+        "1. alpha 和 beta 都在 [0.3, 0.7] 之间，alpha + beta = 1\n"
+        "2. 行为子项 w1/w2/w3 和自评子项 w4/w5/w6 各在 [0.1, 0.5]，同组和为 1\n"
+        "3. 任一权重与当前值变动不超过 0.1\n"
+        "4. 只输出一个 JSON 对象，不要 markdown 围栏，不要解释文字\n"
+        'JSON：{"alpha":0.5,"beta":0.5,"w1":0.33,"w2":0.33,"w3":0.34,"w4":0.33,"w5":0.33,"w6":0.34,"reason":"调整理由(中文,≤80字)"}'
     )
-    text = provider.generate(prompt, context={"task": "weight_tuning"})
+    # 摘要：避免长 JSON 触发模型拒答
+    summary = (
+        f"记录数 {features.get('recordCount', 0)}, "
+        f"窗口分 {features.get('windowScore')}, "
+        f"趋势 {features.get('trend')}, "
+        f"状态 {features.get('stateLabel')}, "
+        f"计划完成率 {features.get('planCompletionRatio')}"
+    )
+    prompt = (
+        f"当前权重 alpha={current.alpha} beta={current.beta} "
+        f"w1-6={current.w1},{current.w2},{current.w3},{current.w4},{current.w5},{current.w6}\n"
+        f"近期特征: {summary}\n"
+        "请输出调整后的 JSON。"
+    )
+    text = provider.generate(prompt, context={"system": system})
     if not text:
+        logger.info("[AI 调权] LLM 未返回文本")
         return None
+    logger.info("[AI 调权] LLM 原始返回（前 300 字符）: %s", text[:300])
     # 真实 LLM 常带 ```json 包裹，先做围栏提取再解析
     for candidate in (text, _extract_json_block(text)):
         try:

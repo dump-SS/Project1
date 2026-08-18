@@ -331,6 +331,10 @@ export default function StudyTimerPage() {
   // mount 拉一次，自评提交成功后拉一次
   const [planTaskStats, setPlanTaskStats] = useState({ completed: 0, total: 0 })
 
+  // 当前正在执行的计划任务 ID（用于提交学习记录时关联计划任务，驱动状态更新和 AI 上下文）
+  const [planTaskId, setPlanTaskId] = useState(null)
+  const [planId, setPlanId] = useState(navState.planId || null)
+
   const timerRef = useRef(null)
 
   const totalSeconds = (mode === 'focus' ? focusMinutes : breakMinutes) * 60
@@ -414,11 +418,28 @@ export default function StudyTimerPage() {
       setDraft(next)
       setTaskSource('plan')
       if (first.subject) setSubject(first.subject)
+      setPlanTaskId(first.taskId)
+      setPlanId(plan.planId)
     })()
     return () => {
       cancelled = true
     }
   }, [skipPlanFetch])
+
+  // 从 StudyPlanEditor/StudyGuide 透传进入时，已有 planId 但没有 taskId，
+  // 需查计划获取首条任务的 taskId（用于提交学习记录时关联计划任务）
+  useEffect(() => {
+    if (!skipPlanFetch || !navState.planId) return
+    let cancelled = false
+    ;(async () => {
+      const plan = await getPlanByDate(localDateString())
+      if (cancelled) return
+      setPlanId(plan.planId)
+      const first = plan?.tasks?.[0]
+      if (first) setPlanTaskId(first.taskId)
+    })()
+    return () => { cancelled = true }
+  }, [skipPlanFetch, navState.planId])
 
   useEffect(() => {
     if (!recId) return
@@ -465,12 +486,17 @@ export default function StudyTimerPage() {
     setPopupPhase('submitting')
     setPopupError(null)
     try {
+      // 用「实际跑过的秒数」向上取整到分钟，不复用预设的 focusMinutes；
+      // 否则用户跑 1:29 也会被记成"预设 25 分钟"，与实际偏差高达 20+ 分钟。
+      const actualSeconds = Math.max(0, totalSeconds - remaining)
+      const actualMinutes = Math.max(1, Math.ceil(actualSeconds / 60))
       const result = await createLearningRecord({
         subject,
-        startedAt: sessionStart || new Date(Date.now() - focusMinutes * 60000).toISOString(),
-        durationMinutes: focusMinutes,
+        startedAt: sessionStart || new Date(Date.now() - actualSeconds * 1000).toISOString(),
+        durationMinutes: actualMinutes,
         behavior: { completion },
         selfReport,
+        planTaskId,
       })
 
       // 刷新今日计划完成计数（PRD 5.3：弹窗里展示「今日已完成 N/M」）

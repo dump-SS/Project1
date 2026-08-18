@@ -10,7 +10,6 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 // 两边都不必为对方改写，import 时写明扩展名即可。
 import PersonalDataPage from './pages/PersonalData/index.tsx'
 import StudyTimerPage from './pages/StudyTimer/index.jsx'
-import StudyPlanEditor from './pages/StudyPlanEditor/index.jsx'
 import StudyGuide from './pages/StudyGuide/index.jsx'
 import SettingsPage from './pages/Settings/index.jsx'
 import SummaryReviewPage from './pages/SummaryReview/index.tsx'
@@ -36,8 +35,8 @@ export default function App() {
               <Route path="/" element={<Navigate to="/study-guide" replace />} />
               <Route path="/personal-data" element={<PersonalDataPage />} />
               <Route path="/study-timer" element={<StudyTimerPage />} />
-              <Route path="/study-plan" element={<StudyPlanEditor />} />
               <Route path="/study-guide" element={<StudyGuide />} />
+              <Route path="/study-plan" element={<Navigate to="/study-guide" replace />} />
               <Route path="/goals" element={<Goals />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/summary-review" element={<SummaryReviewPage />} />

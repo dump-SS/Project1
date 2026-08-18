@@ -1,134 +1,58 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import StudyEditor from '../StudyPlanEditor/StudyEditor.jsx'
 import EnterButton from '../StudyPlanEditor/EnterButton.jsx'
 import TaskList from '../StudyPlanEditor/TaskList.jsx'
-import { createPlan, getPlanByDate, localDateString } from '../../services/plans'
-import { isNetworkError } from '../../services/http'
+import { usePlanFlow } from '@/hooks/usePlanFlow'
+import { fetchRecommendationContent } from '@/services/recommendationContent'
 import { subjectLabels } from '@/styles/theme'
 import './index.css'
 import './Guide.css'
 
-/**
- * 可用学习分钟校验：整数，10-600。
- * 对齐 openapi.yaml PlanCreate.availableMinutes（minimum 10 / maximum 600）。
- */
-const MINUTES_VALIDATOR = (value) => {
-  if (value === '') return false
-  const n = Number(value)
-  return Number.isInteger(n) && n >= 10 && n <= 600
-}
-
 export default function StudyGuide() {
-  // 「学习任务设置」的值由页面管理，便于「AUTO自动填充」程序化写入
-  const [taskValue, setTaskValue] = useState('')
-  // 可用学习分钟（受控，用于 POST /plans）
-  const [minutes, setMinutes] = useState('')
-  // 推荐学科：来自本次生成的计划任务（规则引擎，非 LLM）
-  const [recommendation, setRecommendation] = useState('')
-  // 当前已生成的计划（用于渲染 TaskList 与标记完成）
-  const [plan, setPlan] = useState(null)
-  // 是否已经生成过计划（用于决定「进入」点击是「生成」还是「跳转」）
-  const [hasGenerated, setHasGenerated] = useState(false)
-  // 当日是否已有计划（用于在点进入时自动 regenerate，避免 409）
-  const [hasExistingPlan, setHasExistingPlan] = useState(false)
-  const [submitError, setSubmitError] = useState('')
-  const [offlineNote, setOfflineNote] = useState('')
+  const { state, validators, handlers } = usePlanFlow()
+  const { taskValue, setTaskValue, minutes, setMinutes, plan, hasGenerated, submitError, offlineNote } = state
+  const { MINUTES_VALIDATOR } = validators
+  const { generate, handleEnter, handleTaskUpdated } = handlers
 
-  // 挂载时查当日是否已有计划（用于决定 createPlan 时是否传 regenerate）
+  // LLM 驱动的学习内容推荐（PRD 5.3 / 6.4）
+  const [rec, setRec] = useState({
+    eligible: false,
+    recordCount: 0,
+    recentWindowDays: 7,
+    subject: null,
+    topic: null,
+    reason: '加载中…',
+    fromLLM: false,
+  })
+  const [recLoading, setRecLoading] = useState(true)
+
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      const existing = await getPlanByDate(localDateString())
-      if (!cancelled && existing) {
-        setHasExistingPlan(true)
-        if (existing.availableMinutes != null && !minutes) setMinutes(String(existing.availableMinutes))
-      }
-    })()
+    setRecLoading(true)
+    fetchRecommendationContent()
+      .then((data) => {
+        if (cancelled) return
+        setRec(data)
+      })
+      .finally(() => {
+        if (!cancelled) setRecLoading(false)
+      })
     return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
-  /**
-   * 公共兜底：缺分钟时给个默认 60，然后调 createPlan，成功后回填 recommendation + plan。
-   * 仅在 StudyGuide 内部使用，不影响其他页面。
-   */
-  const generatePlanNow = async () => {
-    setSubmitError('')
-    setOfflineNote('')
-    if (!MINUTES_VALIDATOR(minutes)) {
-      setMinutes('60')
-    }
-    const minutesNum = MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60
-    const { plan: created, fromCache } = await createPlan({
-      planDate: localDateString(),
-      availableMinutes: minutesNum,
-      // 当日已有计划时自动覆盖（用户改过分钟即视为要重生成）
-      regenerate: hasExistingPlan || undefined,
-    })
-    // 规则引擎：从计划任务里挑一条当推荐，替代原硬编码常量 DEFAULT_SUBJECT
-    const first = created.tasks?.[0]
-    let rec = ''
-    if (first) {
-      const label = subjectLabels[first.subject] ?? first.subject
-      rec = `${label} · ${first.topic}`
-      setRecommendation(rec)
-    }
-    if (fromCache) {
-      setOfflineNote('离线取用上次成功计划')
-    }
-    setPlan(created)
-    setHasGenerated(true)
-    setHasExistingPlan(true)  // 生成后一定存在
-    return rec
-  }
-
+  // 点击 AUTO 自动填充：直接调 generate() 让 LLM 推荐的 subject 落到 plan
+  // 然后把"学科 · 主题"回填到学习任务输入框
   const handleAutoFill = async () => {
-    // 已有推荐：直接回填学习任务输入框
-    if (recommendation) {
-      setTaskValue(recommendation)
-      return
-    }
-    // 冷启动兜底：用户尚未点过「进入」/生成计划时，
-    // 自动用默认分钟生成计划，再把推荐回填到学习任务输入框。
-    // 避免空点 AUTO 没有任何反应的死循环。
     try {
-      const rec = await generatePlanNow()
-      if (rec) setTaskValue(rec)
+      const { rec: generated } = await generate({ minMinutes: 60 })
+      if (generated) setTaskValue(generated)
     } catch (err) {
-      setSubmitError(
-        isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'),
-      )
+      // usePlanFlow 内部已设置 submitError；这里只兜底
+      console.warn('[AUTO 填充失败]', err)
     }
   }
 
-  /**
-   * 点「进入」：
-   *  - 第一次点击：同步生成计划（POST /plans），成功后停留在页面展示任务列表，等待用户标记完成
-   *  - 后续点击：放行 EnterButton 跳转 /study-timer
-   */
-  const handleEnter = async () => {
-    if (hasGenerated) return true
-    try {
-      await generatePlanNow()
-      // 生成成功后留在本页面，让用户能完成/调整任务；下一次点「进入」才跳转
-      return false
-    } catch (err) {
-      setSubmitError(
-        isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'),
-      )
-      return false
-    }
-  }
-
-  /** 任务 PATCH 成功后，更新本地 plan 的对应 task 字段 */
-  const handleTaskUpdated = (updated) => {
-    setPlan((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        tasks: prev.tasks.map((t) => (t.taskId === updated.taskId ? { ...t, ...updated } : t)),
-      }
-    })
-  }
+  const subjectName = rec.subject ? (subjectLabels[rec.subject] ?? rec.subject) : ''
 
   return (
     <>
@@ -139,16 +63,31 @@ export default function StudyGuide() {
           <span className="en">Study Guide</span>
         </h1>
 
+        {/* LLM 学习内容推荐块（PRD 5.3 / 6.4） */}
         <div className="recommend" aria-hidden="true">
           <p className="recommend-line">
-            我所推荐的<span className="en">Recommendation…</span>
+            学习内容推荐<span className="en">Recommendation{rec.fromLLM ? ' · AI' : ''}</span>
           </p>
           <p className="recommend-line">
-            {recommendation || '填写学习分钟后点击进入，将按本次计划自动推荐'}
+            {recLoading
+              ? '正在为你推荐下一个学习内容…'
+              : !rec.eligible
+                ? rec.reason
+                : subjectName
+                  ? `${subjectName} · ${rec.topic}`
+                  : rec.reason}
           </p>
+          {rec.eligible && rec.reason && (
+            <p className="recommend-reason">{rec.reason}</p>
+          )}
         </div>
 
-        <button type="button" className="auto-fill" onClick={handleAutoFill}>
+        <button
+          type="button"
+          className="auto-fill"
+          onClick={handleAutoFill}
+          disabled={recLoading}
+        >
           AUTO自动填充
         </button>
 
@@ -181,7 +120,9 @@ export default function StudyGuide() {
           state={{
             // 番茄钟页接 state 来同步可用分钟 + 任务（PRD 5.1：计划与执行端参数一致）
             availableMinutes: MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60,
-            task: taskValue || recommendation || null,
+            task: taskValue || rec.subject && rec.topic
+              ? `${subjectLabels[rec.subject] ?? rec.subject} · ${rec.topic}`
+              : null,
             planId: plan?.planId || null,
           }}
         />
