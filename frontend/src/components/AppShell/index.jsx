@@ -52,6 +52,15 @@ const NAV_GROUPS = [
       { to: '/guardian-auth', label: '监护人授权' },
     ],
   },
+  {
+    key: 'subject',
+    label: '学科',
+    to: '/knowledge',
+    items: [
+      { to: '/knowledge', label: '学科知识库' },
+      { to: '/error-book', label: '错题本' },
+    ],
+  },
 ]
 
 function isGroupActive(group, pathname) {

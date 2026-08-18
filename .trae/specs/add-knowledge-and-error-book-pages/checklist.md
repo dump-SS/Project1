@@ -1,0 +1,21 @@
+# Checklist
+
+- [x] 路由 `/knowledge` 与 `/error-book` 在 `App.jsx` 中正确注册（位于 RequireAuth + AppShell 之下）
+- [x] AppShell 导航增加「学科」一级组（含「学科知识库」「错题本」两个二级项）
+- [x] 知识点树层级与硬编码数据（数学/函数/几何/数列）一致
+- [x] 掌握度按阈值上色（<40 红 / 40–70 橙 / >70 绿）
+- [x] 知识点详情标题使用 `var(--font-serif)`，字号 24px
+- [x] "查看概念图谱" 按钮弹 Modal "图谱功能将在 v2.3 上线"，不发生路由跳转
+- [x] 错题本学科 Tab 切换可改变 `errors_{subject}` 命名空间
+- [x] 录入区默认折叠，展开/收起按钮可工作
+- [x] 提交错题写入 `localStorage` 并重置表单，列表自动刷新
+- [x] 错题卡片按规则显示错因颜色与知识点标签
+- [x] 相对时间显示合理（≤60s 显示"X 秒前"，≤60min 显示"X 分钟前"，否则显示"X 小时前/天前"）
+- [x] "生成复盘" 调 `POST /api/knowledge-summary`，loading + 展开 + 失败 toast
+- [x] 列表为空时显示空状态
+- [x] "题目关键词"匹配命中时显示匹配卡片，未命中时显示全部知识点
+- [x] 错题卡片"AI 解析" 调 `POST /api/error-parse`，loading + 展开 + 失败 toast
+- [x] 确认关联知识点后，预填入"关联知识点"字段
+- [x] 所有色值/圆角/间距引用 `styles/tokens.css` 与 `styles/theme.ts`，无硬编码 hex
+- [x] `npm run build` 通过（tsc + vite build 无错误）
+- [x] 浏览器实际访问 `/knowledge` 与 `/error-book`，主要交互无 console error
