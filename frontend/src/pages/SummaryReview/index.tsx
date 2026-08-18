@@ -6,11 +6,12 @@ import {
   isSummaryTerminal,
   submitSummaryFeedback,
 } from '../../services/summary'
+import type { Rating, Summary } from '@/types/api'
 
 const RATING_OPTIONS = [
-  { value: 'useful', label: '有用' },
-  { value: 'neutral', label: '一般' },
-  { value: 'not_useful', label: '没用' },
+  { value: 'useful' as Rating, label: '有用' },
+  { value: 'neutral' as Rating, label: '一般' },
+  { value: 'not_useful' as Rating, label: '没用' },
 ]
 
 const TERMINAL_REASON = {
@@ -19,28 +20,28 @@ const TERMINAL_REASON = {
   failed: { title: '生成失败', hint: '请稍后再试，不会展示半成品' },
 }
 
-function toDateString(d) {
+function toDateString(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
-function lastNDays(n) {
+function lastNDays(n: number): { start: string; end: string } {
   const end = new Date()
   const start = new Date()
   start.setDate(end.getDate() - (n - 1))
   return { start: toDateString(start), end: toDateString(end) }
 }
 
-function daysBetween(start, end) {
+function daysBetween(start: string, end: string): number {
   const s = new Date(`${start}T00:00:00`)
   const e = new Date(`${end}T00:00:00`)
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
 }
 
 /** 区间长度约束（openapi.yaml SummaryCreate：3-31 天） */
-function isValidRange(start, end) {
+function isValidRange(start: string, end: string): boolean {
   if (!start || !end) return false
   const span = daysBetween(start, end)
   return span >= 3 && span <= 31
@@ -49,20 +50,20 @@ function isValidRange(start, end) {
 export default function SummaryReviewPage() {
   const initial = useRef(lastNDays(7))
 
-  const [periodStart, setPeriodStart] = useState(initial.current.start)
-  const [periodEnd, setPeriodEnd] = useState(initial.current.end)
+  const [periodStart, setPeriodStart] = useState<string>(initial.current.start)
+  const [periodEnd, setPeriodEnd] = useState<string>(initial.current.end)
 
   const [generating, setGenerating] = useState(false)
   const [polling, setPolling] = useState(false)
-  const [summary, setSummary] = useState(null)
-  const [error, setError] = useState(null)
+  const [summary, setSummary] = useState<Summary | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const [rating, setRating] = useState(null)
+  const [rating, setRating] = useState<Rating | null>(null)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
 
-  const abortRef = useRef(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const stopPolling = useCallback(() => {
     abortRef.current?.abort()
@@ -123,7 +124,9 @@ export default function SummaryReviewPage() {
   }
 
   const generationStatus = summary?.generation.status
-  const terminal = generationStatus ? TERMINAL_REASON[generationStatus] : null
+  const terminal = generationStatus && generationStatus in TERMINAL_REASON
+    ? TERMINAL_REASON[generationStatus as keyof typeof TERMINAL_REASON]
+    : null
   const content = summary?.content
 
   return (

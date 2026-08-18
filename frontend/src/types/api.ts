@@ -188,6 +188,11 @@ export interface Recommendation {
   feedback?: FeedbackRecord | null;
 }
 
+export interface RecommendationFeedbackResult {
+  recommendationId: string;
+  feedback: FeedbackRecord;
+}
+
 /* ---------- 学习计划 ---------- */
 
 export interface PlanTask {
