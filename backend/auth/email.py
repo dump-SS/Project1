@@ -5,15 +5,23 @@
 
 SMTP 配置从环境变量读（SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS），
 与 mock-server/.env 对齐。
+
+发送路由（按 SMTP_PROVIDER 自动切换）：
+- real：真实 smtplib.SMTP_SSL 连接，失败抛异常
+- mock：写到 logger "auth.email.mock"，团队测试时直接看后端日志取验证码
+  （scripts/test-accounts/ 默认会切到 mock）
 """
 from __future__ import annotations
 
+import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 # 邮件文案模板（对应 mock-server buildEmailHtml 的 copy）
 _EMAIL_COPY = {
@@ -55,11 +63,8 @@ def _build_html(code_type: str, code: str) -> str:
 </html>"""
 
 
-def send_code_email(code_type: str, email: str, code: str) -> None:
-    """发送验证码邮件。
-
-    SMTP 配置从 settings 读。发送失败抛异常（调用方 catch 后记日志，不阻断流程）。
-    """
+def _send_real(code_type: str, email: str, code: str) -> None:
+    """真实 SMTP 发送。失败抛异常，调用方 catch 后记日志。"""
     smtp_host = getattr(settings, "smtp_host", "smtp.163.com")
     smtp_port = getattr(settings, "smtp_port", 465)
     smtp_user = getattr(settings, "smtp_user", "")
@@ -67,8 +72,7 @@ def send_code_email(code_type: str, email: str, code: str) -> None:
 
     if not smtp_user or not smtp_pass:
         # 未配置 SMTP：记日志不发送（开发环境常见，验证码可通过日志/测试获取）
-        import logging
-        logging.getLogger(__name__).warning(
+        logger.warning(
             "[SMTP] 未配置 SMTP_USER/SMTP_PASS，验证码 %s 未发送（邮箱: %s）", code, email
         )
         return
@@ -87,3 +91,36 @@ def send_code_email(code_type: str, email: str, code: str) -> None:
     with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
         server.login(smtp_user, smtp_pass)
         server.sendmail(smtp_user, [email], msg.as_string())
+
+
+def _send_mock(code_type: str, email: str, code: str) -> None:
+    """Mock 发送：把验证码写到 logger + 直接 print 到 stdout。
+
+    团队测试时直接看后端终端 grep 取码；用 print 兜底是防止 uvicorn 的
+    logging 配置（非 dictConfig）下子 logger 事件丢失。
+    """
+    msg = (
+        f"[MOCK-EMAIL] type={code_type} to={email} code={code} "
+        f"(SMTP_PROVIDER=mock, 团队测试模式, 直接从日志取码即可)"
+    )
+    # 双通道：logger + print，最大限度保证可见
+    logger.warning(msg)
+    # print 走 stdout，uvicorn 启动时不重定向 file 时一定可见
+    import sys
+    print(msg, file=sys.stdout, flush=True)
+
+
+def send_code_email(code_type: str, email: str, code: str) -> None:
+    """发送验证码邮件。
+
+    按 SMTP_PROVIDER 路由：
+    - real：真实 SMTP，失败抛异常
+    - mock：写到 auth.email.mock logger，团队测试用，不抛异常
+
+    调用方约定：try/except 捕获后写自己的业务日志，不阻断流程。
+    """
+    provider = getattr(settings, "smtp_provider", "real")
+    if provider == "mock":
+        _send_mock(code_type, email, code)
+    else:
+        _send_real(code_type, email, code)

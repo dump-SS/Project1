@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     smtp_port: int = 465
     smtp_user: str = ""
     smtp_pass: str = ""
+    # 发送路由：real=真实 SMTP，mock=写到 logger（团队测试用，scripts/test-accounts/ 默认为 mock）
+    smtp_provider: str = "real"
 
     # --- 速率限制（PRD 6.4）---
     rate_limit_recommendation_per_day: int = 5
