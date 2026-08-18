@@ -9,8 +9,10 @@ import { useState } from 'react'
  * @param {Function} [onBeforeNavigate] 可选异步钩子：返回 Promise<boolean>。
  *   await 后才跳转；返回值严格为 false 则不跳转（用于「生成计划校验/失败时不进入」）。
  *   等待期间防重复点击（busy）。
+ * @param {object} [state] 透传给目标路由的 location.state。
+ *   StudyTimer 用它读取「可用分钟 / 任务 / planId」，避免番茄钟页用错默认值。
  */
-export default function EnterButton({ to = '/study-timer', onBeforeNavigate }) {
+export default function EnterButton({ to = '/study-timer', onBeforeNavigate, state }) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
 
@@ -28,7 +30,7 @@ export default function EnterButton({ to = '/study-timer', onBeforeNavigate }) {
       }
     }
     if (proceed !== false) {
-      navigate(to)
+      navigate(to, state ? { state } : undefined)
     }
   }
 

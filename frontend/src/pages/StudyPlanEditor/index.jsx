@@ -105,7 +105,16 @@ export default function StudyPlanEditor() {
         {submitError && <p className="submit-error">{submitError}</p>}
         {offlineNote && <p className="submit-error">{offlineNote}</p>}
 
-        <EnterButton to="/study-timer" onBeforeNavigate={handleEnter} />
+        <EnterButton
+          to="/study-timer"
+          onBeforeNavigate={handleEnter}
+          state={{
+            // 番茄钟页接 state 来同步可用分钟 + 任务（PRD 5.1：计划与执行端参数一致）
+            availableMinutes: MINUTES_VALIDATOR(minutes) ? Number(minutes) : null,
+            task: taskValue || null,
+            planId: plan?.planId || null,
+          }}
+        />
       </main>
     </>
   )

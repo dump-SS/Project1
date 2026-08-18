@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import styles from './index.module.css'
 import { subjectLabels } from '@/styles/theme'
 import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
@@ -268,20 +269,47 @@ function RecommendationPanel({ recommendation, onOk, onRestart }) {
 export default function StudyTimerPage() {
   // 兜底文案：未读到当日计划时使用，避免空白任务显示
   const FALLBACK_TASK = '今日学习（待编辑）'
-  const [task, setTask] = useState(FALLBACK_TASK)
-  const [taskSource, setTaskSource] = useState('fallback') // 'plan' | 'edited' | 'fallback'
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task)
 
-  const [subject, setSubject] = useState('math')
+  // 接 location.state：StudyPlanEditor / StudyGuide 点「进入」时透传。
+  // - availableMinutes：覆盖默认 25 分钟（计划设了 60，番茄钟就该是 60）
+  // - task：覆盖 fallback 任务（用户输入的主题或规则引擎推荐）
+  // - subject：与任务配套
+  // 直接访问 /study-timer 路由时 state 为空，保留原默认值 25 + FALLBACK_TASK
+  const location = useLocation()
+  const navState = location.state || {}
+  const initialMinutes = Number.isInteger(navState.availableMinutes) && navState.availableMinutes > 0
+    ? navState.availableMinutes
+    : 25
+
+  const [task, setTask] = useState(navState.task || FALLBACK_TASK)
+  const [taskSource, setTaskSource] = useState(navState.task ? 'plan' : 'fallback') // 'plan' | 'edited' | 'fallback'
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(navState.task || FALLBACK_TASK)
+
+  // 学科默认值：state 透传 > 任务字符串解析（如「数学 · 函数与导数 · 巩固」前缀）
+  // 解析不到时维持 math
+  const initialSubject = (() => {
+    if (typeof navState.subject === 'string' && navState.subject) return navState.subject
+    const t = navState.task
+    if (typeof t === 'string') {
+      const hit = Object.entries(subjectLabels).find(([, label]) => t.startsWith(`${label} ·`))
+      if (hit) return hit[0]
+    }
+    return 'math'
+  })()
+  const [subject, setSubject] = useState(initialSubject)
 
   const [mode, setMode] = useState('focus')
-  const [focusMinutes, setFocusMinutes] = useState(25)
+  // 关键：focusMinutes 默认值改为 state 透传的可用分钟（PRD 5.1：计划与执行端一致）
+  const [focusMinutes, setFocusMinutes] = useState(initialMinutes)
   const [breakMinutes, setBreakMinutes] = useState(5)
-  const [remaining, setRemaining] = useState(25 * 60)
+  const [remaining, setRemaining] = useState(initialMinutes * 60)
   const [isRunning, setIsRunning] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [sessionStart, setSessionStart] = useState(null)
+
+  // 标记：state 透传时跳过 useEffect 拉 plan（任务已确定，避免 100% 重复拉取）
+  const skipPlanFetch = Boolean(navState.task && navState.availableMinutes)
 
   const [popupPhase, setPopupPhase] = useState('selfAssessment')
   const [recId, setRecId] = useState(null)
@@ -332,7 +360,9 @@ export default function StudyTimerPage() {
   // 挂载时拉取当日计划的第一条任务作为默认学习任务。
   // - 命中 → 用「学科 · 方向」做默认文案，并把学科选项切到对应 subject
   // - 未命中或网络异常 → 保留 FALLBACK_TASK，不阻塞计时主流程
+  // - 透传 state 时跳过：任务/学科已从 location.state 取到
   useEffect(() => {
+    if (skipPlanFetch) return
     let cancelled = false
     ;(async () => {
       const plan = await getPlanByDate(localDateString())
@@ -349,7 +379,7 @@ export default function StudyTimerPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [skipPlanFetch])
 
   useEffect(() => {
     if (!recId) return
