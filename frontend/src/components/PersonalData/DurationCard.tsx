@@ -40,7 +40,6 @@ function DurationCard() {
   const { data, loading, source, error } = usePanelData(fetchDuration, placeholderDuration(), 'duration');
 
   const todayHours = toHours(data.todayMinutes);
-  const targetHours = data.targetMinutes === null ? null : toHours(data.targetMinutes);
   const percent =
     data.targetMinutes && data.targetMinutes > 0
       ? Math.min(100, Math.round((data.todayMinutes / data.targetMinutes) * 100))

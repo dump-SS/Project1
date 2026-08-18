@@ -101,7 +101,7 @@ class _FakeProvider:
 # ---------- 触发条件 ----------
 
 def test_should_tune_never_tuned_below_threshold():
-    _add_records("u_below", 9)
+    _add_records("u_below", 2)
     db = SessionLocal()
     try:
         assert _should_tune(db, "u_below") is False
@@ -110,7 +110,7 @@ def test_should_tune_never_tuned_below_threshold():
 
 
 def test_should_tune_never_tuned_at_threshold():
-    _add_records("u_at", 10)
+    _add_records("u_at", 3)
     db = SessionLocal()
     try:
         assert _should_tune(db, "u_at") is True
