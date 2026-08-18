@@ -187,6 +187,14 @@
   border-color: var(--color-primary);
 }
 
+.placeholder {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+  padding: 6px 0;
+}
+
 .submitBtn {
   align-self: flex-start;
   font-family: var(--font-sans);

@@ -13,7 +13,6 @@ import styles from './index.module.css'
 const NAV_ITEMS = [
   { to: '/personal-data', label: '个人数据' },
   { to: '/study-guide', label: '导学计划' },
-  { to: '/study-plan', label: '编辑计划' },
   { to: '/goals', label: '学习目标' },
   { to: '/study-timer', label: '专注计时' },
   { to: '/settings', label: '设置' },

@@ -4,9 +4,27 @@ import { getMe, patchMe, putMe } from '../../services/user'
 import { subjectLabels } from '../../styles/theme'
 import type { Stage, Subject, User } from '../../types/api'
 
-const STAGES: { value: Stage; label: string }[] = [
-  { value: 'junior', label: '初中' },
-  { value: 'senior', label: '高中' },
+const STAGES: { value: Stage; label: string; grades: { value: string; label: string }[] }[] = [
+  {
+    value: 'junior',
+    label: '初中',
+    grades: [
+      { value: 'grade_7', label: '初一' },
+      { value: 'grade_8', label: '初二' },
+      { value: 'grade_9', label: '初三' },
+      { value: 'grade_junior_other', label: '其它' },
+    ],
+  },
+  {
+    value: 'senior',
+    label: '高中',
+    grades: [
+      { value: 'grade_10', label: '高一' },
+      { value: 'grade_11', label: '高二' },
+      { value: 'grade_12', label: '高三' },
+      { value: 'grade_senior_other', label: '其它' },
+    ],
+  },
 ]
 
 const SUBJECTS: Subject[] = [
@@ -53,7 +71,7 @@ export default function ProfileSetupPage() {
 
   const validate = (): string | null => {
     if (!stage) return '请选择学段'
-    if (!grade.trim()) return '请填写年级'
+    if (!grade.trim()) return '请选择年级'
     if (subjects.length < 1) return '请至少选择一个学科'
     return null
   }
@@ -110,7 +128,11 @@ export default function ProfileSetupPage() {
                 key={opt.value}
                 type="button"
                 className={`${styles.optionBtn} ${stage === opt.value ? styles.optionActive : ''}`}
-                onClick={() => setStage(opt.value)}
+                onClick={() => {
+                  // 切换学段时清空年级，避免学段与年级错配（如初中选了"高三"）
+                  if (stage !== opt.value) setGrade('')
+                  setStage(opt.value)
+                }}
               >
                 {opt.label}
               </button>
@@ -119,16 +141,23 @@ export default function ProfileSetupPage() {
         </div>
 
         <div className={styles.row}>
-          <label className={styles.field}>
-            <span className={styles.label}>年级</span>
-            <input
-              className={styles.textInput}
-              value={grade}
-              placeholder="如：初二 / 高二"
-              maxLength={20}
-              onChange={(e) => setGrade(e.target.value)}
-            />
-          </label>
+          <span className={styles.label}>年级</span>
+          {stage ? (
+            <div className={styles.optionGroup}>
+              {(STAGES.find((s) => s.value === stage)?.grades ?? []).map((g) => (
+                <button
+                  key={g.value}
+                  type="button"
+                  className={`${styles.optionBtn} ${grade === g.value ? styles.optionActive : ''}`}
+                  onClick={() => setGrade(g.value)}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.placeholder}>请先选择学段</p>
+          )}
         </div>
 
         <div className={styles.row}>

@@ -1,0 +1,226 @@
+/* 模块⑧ 调权后算法计算结果 */
+
+/* 顶部大数字（当前状态分） */
+.scoreRow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.scoreBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scoreLabel {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #8ca3b5;
+  letter-spacing: 0.5px;
+}
+
+.scoreValue {
+  font-family: var(--font-serif);
+  font-size: 38px;
+  font-weight: 600;
+  color: #2c3e50;
+  line-height: 1.2;
+  letter-spacing: 1px;
+}
+
+.scoreMax {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 300;
+  color: #8ca3b5;
+  margin-left: 6px;
+  letter-spacing: 0;
+}
+
+.labelTag {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: #5a6b7a;
+  margin-top: 2px;
+}
+
+.trendInline {
+  color: #4ad1ff;
+  margin-left: 4px;
+}
+
+.scoreBar {
+  position: relative;
+  height: 8px;
+  background: #eef6fb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.scoreBarFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4ad1ff 0%, #2a8dcc 100%);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+/* 子分贡献条 */
+.contribSection {
+  margin-bottom: 22px;
+}
+
+.contribTitle {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  color: #5a6b7a;
+  margin-bottom: 10px;
+}
+
+.contribBar {
+  display: flex;
+  height: 18px;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid #d4e2ec;
+}
+
+.contribSegBehavior,
+.contribSegSelf {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.contribSegBehavior {
+  background: linear-gradient(90deg, #4ad1ff 0%, #6dd9f0 100%);
+}
+
+.contribSegSelf {
+  background: linear-gradient(90deg, #ffb84d 0%, #ff9a3c 100%);
+}
+
+.contribLegend {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legendItem {
+  display: grid;
+  grid-template-columns: 12px 70px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dotBehavior { background: #4ad1ff; }
+.dotSelf { background: #ff9a3c; }
+
+.legendLabel {
+  color: #5a6b7a;
+  font-size: 12px;
+}
+
+.legendValue {
+  color: #2c3e50;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+.legendValue strong {
+  color: #2a8dcc;
+  font-weight: 600;
+}
+
+/* 权重网格 */
+.weightSection {
+  margin-bottom: 18px;
+}
+
+.weightGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.weightChip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f7fbfe;
+  border: 1px solid #d4e2ec;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: #5a6b7a;
+}
+
+.weightChipBehavior {
+  border-color: #4ad1ff;
+  background: linear-gradient(90deg, #e6f7fc 0%, #f7fbfe 100%);
+}
+
+.weightChipSelf {
+  border-color: #ff9a3c;
+  background: linear-gradient(90deg, #fff5e6 0%, #f7fbfe 100%);
+}
+
+.weightLabel {
+  color: #5a6b7a;
+}
+
+.weightValue {
+  color: #2c3e50;
+  font-weight: 600;
+  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
+}
+
+/* 信号列表 */
+.signalList {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.signalItem {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: #5a6b7a;
+  padding-left: 14px;
+  position: relative;
+  line-height: 1.6;
+}
+
+.signalItem::before {
+  content: '·';
+  position: absolute;
+  left: 4px;
+  color: #4ad1ff;
+  font-weight: bold;
+}
+
+/* 底部公式提示 */
+.formulaHint {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid #eef6fb;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: #8ca3b5;
+  line-height: 1.6;
+}

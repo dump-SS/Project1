@@ -7,11 +7,23 @@ GET 列表读库，DELETE 删除后即时重算。计算公式在 state_engine �
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+
+def _as_utc_iso(dt: datetime) -> str:
+    """把数据库取出的 naive datetime 当作 UTC 时刻，输出带 `Z` 后缀的 ISO 字符串。
+
+    SQLite 没有原生时区列，存的是按 UTC 字面量（如 10:30:00）；
+    不加后缀前端 dayjs 会按本地时区（UTC+8）解析，导致「10:30」误显示为实际时间 18:30。
+    显式加 Z 让 dayjs 正确识别 UTC，再 format 到本地时区展示。
+    """
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return dt.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
 from ai_suggestion import run_recommendation_generation
 from database import get_db
@@ -148,6 +160,14 @@ def create_learning_record(
     )
     db.commit()
 
+    # 提交学习记录时，若关联了计划任务，自动同步任务状态（PRD 5.3：计划完成计数应实时反映）
+    if body.plan_task_id:
+        from models.plan import PlanTask as PlanTaskORM
+        task = db.get(PlanTaskORM, body.plan_task_id)
+        if task is not None and task.user_id == _user.user_id:
+            task.status = body.behavior.completion.value
+            db.commit()
+
     assessment = _recompute_snapshot(db, _user.user_id, body.subject.value, record_id)
 
     recommendation = None
@@ -188,7 +208,7 @@ def create_learning_record(
         {
             "recordId": record_id,
             "subject": body.subject.value,
-            "startedAt": body.started_at.isoformat(),
+            "startedAt": _as_utc_iso(body.started_at),
             "durationMinutes": body.duration_minutes,
             "planTaskId": body.plan_task_id,
             "behavior": {
@@ -206,9 +226,11 @@ def create_learning_record(
             "note": body.note,
             "assessment": assessment,
             "recommendation": recommendation,
-            "createdAt": db.execute(
-                select(LearningRecordORM.created_at).where(LearningRecordORM.id == record_id)
-            ).scalar_one().isoformat(),
+            "createdAt": _as_utc_iso(
+                db.execute(
+                    select(LearningRecordORM.created_at).where(LearningRecordORM.id == record_id)
+                ).scalar_one()
+            ),
         }
     )
 
@@ -245,7 +267,7 @@ def list_learning_records(
             {
                 "recordId": row.id,
                 "subject": row.subject,
-                "startedAt": row.started_at.isoformat(),
+                "startedAt": _as_utc_iso(row.started_at),
                 "durationMinutes": row.duration_minutes,
                 "planTaskId": row.plan_task_id,
                 "behavior": {

@@ -88,8 +88,10 @@ class OpenAICompatibleProvider:
         payload = json.dumps({
             "model": settings.llm_model,
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 800,
+            "temperature": 0.3,
+            "max_tokens": 1024,
+            # 关闭思维链：Doubao-Seed-2.0-mini 是推理模型，思维链会吃光 token 导致 content 为空
+            "thinking": {"type": "disabled"},
         }).encode("utf-8")
         headers = {
             "Content-Type": "application/json",

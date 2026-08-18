@@ -21,6 +21,7 @@ import FocusCard from '@/components/PersonalData/FocusCard';
 import CalendarCard from '@/components/PersonalData/CalendarCard';
 import GoalsCard from '@/components/PersonalData/GoalsCard';
 import SummaryCard from '@/components/PersonalData/SummaryCard';
+import StateBreakdownCard from '@/components/PersonalData/StateBreakdownCard';
 import styles from './index.module.css';
 import { antdThemeToken } from '@/styles/theme';
 import { dayjs } from '@/utils/aggregate';
@@ -49,6 +50,7 @@ function PersonalData() {
             <FocusCard />
             <CalendarCard />
             <GoalsCard />
+            <StateBreakdownCard />
             <SummaryCard />
           </div>
 

@@ -5,11 +5,12 @@
  * - 需求文档里写的 `GET /api/records/history` 在 openapi.yaml 中不存在。
  *   实际使用 `GET /api/v1/learning-records?dateFrom&dateTo`（openapi.yaml 4.2 listLearningRecords），
  *   「某天是否打卡」由该天是否存在学习记录推导，不需要额外的打卡接口。
- * - 每日一句话总结：openapi.yaml 只有 `/summaries`，且区间长度被限制为 3-31 天
- *   （SummaryCreate.periodEnd 描述），无法生成单日总结，故当前返回 null。
+ * - 每日一句话总结：调后端新增的 `GET /api/v1/daily-summary?date=YYYY-MM-DD`，
+ *   该接口与 /summaries（3-31 天复盘）解耦，专门覆盖单日场景。
+ *   LLM 失败/无数据时后端会返回兜底句，前端无需再做兜底。
  */
 
-import { apiGetAllPages } from './http';
+import { apiGet, apiGetAllPages } from './http';
 import type { LearningRecord } from '@/types/api';
 import type { CheckInDay, CheckInPanel } from '@/types/view';
 import {
@@ -22,6 +23,22 @@ import {
 } from '@/utils/aggregate';
 
 const DAYS = 7;
+
+interface DailySummaryResponse {
+  date: string;
+  summary: string;
+}
+
+/** 拉取某天的一句话总结（后端 /daily-summary，无数据时也返回兜底句）。 */
+export async function fetchDaySummary(date: string, signal?: AbortSignal): Promise<string> {
+  try {
+    const res = await apiGet<DailySummaryResponse>(`/daily-summary`, { date }, signal);
+    return res.summary;
+  } catch {
+    // 任意错误（网络/401/500）都返回空串，让 UI 走"无总结"占位
+    return '';
+  }
+}
 
 /** 拉取最近 7 天打卡情况 */
 export async function fetchCheckIn(signal?: AbortSignal): Promise<CheckInPanel> {
@@ -38,21 +55,24 @@ export async function fetchCheckIn(signal?: AbortSignal): Promise<CheckInPanel> 
   const byDate = groupRecordsByDate(records);
   const todayKey = today.format(DATE_FORMAT);
 
-  const days: CheckInDay[] = lastNDates(DAYS, today).map((date) => {
-    const dayRecords = byDate[date] ?? [];
-    return {
-      date,
-      weekdayLabel: weekdayLabel(dayjs(date)),
-      dayLabel: dayjs(date).format('M/D'),
-      isToday: date === todayKey,
-      checked: dayRecords.length > 0,
-      totalMinutes: sumMinutes(dayRecords),
-      recordCount: dayRecords.length,
-      subjects: Array.from(new Set(dayRecords.map((record) => record.subject))),
-      // TODO: 单日总结接口待后端提供。openapi.yaml 的 /summaries 最短区间为 3 天，无法覆盖单日。
-      summary: null,
-    };
-  });
+  // 每个有打卡的日期并行拉总结
+  const days: CheckInDay[] = await Promise.all(
+    lastNDates(DAYS, today).map(async (date) => {
+      const dayRecords = byDate[date] ?? [];
+      const summary = dayRecords.length > 0 ? await fetchDaySummary(date, signal) : null;
+      return {
+        date,
+        weekdayLabel: weekdayLabel(dayjs(date)),
+        dayLabel: dayjs(date).format('M/D'),
+        isToday: date === todayKey,
+        checked: dayRecords.length > 0,
+        totalMinutes: sumMinutes(dayRecords),
+        recordCount: dayRecords.length,
+        subjects: Array.from(new Set(dayRecords.map((record) => record.subject))),
+        summary: summary || null,
+      };
+    }),
+  );
 
   return {
     days,

@@ -1,17 +1,32 @@
 /**
  * 模块① 学习情况（日常打卡）及总结：7 格打卡行，点击展开当天总结。
+ *
+ * 总结按需懒加载：仅在用户点击有打卡的日期时才请求 /daily-summary，
+ * 避免进入页面就发起 1-7 次 LLM 调用阻塞首屏。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SectionCard from './SectionCard';
 import styles from './CheckInCard.module.css';
-import { fetchCheckIn, placeholderCheckIn } from '@/services/checkIn';
+import { fetchCheckIn, fetchDaySummary, placeholderCheckIn } from '@/services/checkIn';
 import { usePanelData } from '@/hooks/usePanelData';
 import { subjectLabels } from '@/styles/theme';
 import { formatDuration } from '@/utils/aggregate';
 import type { CheckInDay } from '@/types/view';
 
-function DayDetail({ day }: { day: CheckInDay }) {
+function DayDetail({
+  day,
+  summary,
+  summaryLoading,
+  summaryError,
+  onRetrySummary,
+}: {
+  day: CheckInDay;
+  summary: string | null;
+  summaryLoading: boolean;
+  summaryError: boolean;
+  onRetrySummary: () => void;
+}) {
   if (!day.checked) {
     return (
       <div className={styles.detail}>
@@ -34,12 +49,19 @@ function DayDetail({ day }: { day: CheckInDay }) {
         </span>
       </div>
 
-      {day.summary ? (
-        <p className={styles.detailSummary}>{day.summary}</p>
-      ) : (
+      {summaryLoading ? (
+        <p className={styles.detailPending}>正在生成今日总结…</p>
+      ) : summaryError ? (
         <p className={styles.detailPending}>
-          当日一句话总结待生成 —— 接口暂未提供单日总结能力
+          今日总结生成失败
+          <button type="button" className={styles.detailRetry} onClick={onRetrySummary}>
+            重试
+          </button>
         </p>
+      ) : summary ? (
+        <p className={styles.detailSummary}>{summary}</p>
+      ) : (
+        <p className={styles.detailPending}>今日总结待生成</p>
       )}
     </div>
   );
@@ -48,8 +70,40 @@ function DayDetail({ day }: { day: CheckInDay }) {
 function CheckInCard() {
   const { data, loading, source, error } = usePanelData(fetchCheckIn, placeholderCheckIn(), 'check-in');
   const [activeDate, setActiveDate] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
 
   const activeDay = data.days.find((day) => day.date === activeDate) ?? null;
+
+  // 展开日期时懒加载总结
+  useEffect(() => {
+    if (!activeDay || !activeDay.checked) {
+      setSummary(null);
+      setSummaryLoading(false);
+      setSummaryError(false);
+      return;
+    }
+    let cancelled = false;
+    setSummaryLoading(true);
+    setSummaryError(false);
+    setSummary(null);
+    fetchDaySummary(activeDay.date)
+      .then((text) => {
+        if (cancelled) return;
+        setSummary(text || null);
+        setSummaryLoading(false);
+        if (!text) setSummaryError(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSummaryLoading(false);
+        setSummaryError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDay?.date, activeDay?.checked]);
 
   return (
     <SectionCard
@@ -87,7 +141,20 @@ function CheckInCard() {
         })}
       </div>
 
-      {activeDay ? <DayDetail day={activeDay} /> : null}
+      {activeDay ? (
+        <DayDetail
+          day={activeDay}
+          summary={summary}
+          summaryLoading={summaryLoading}
+          summaryError={summaryError}
+          onRetrySummary={() => {
+            // 触发 useEffect 重跑：把 activeDate 设为 null 再设回去
+            const cur = activeDay.date;
+            setActiveDate(null);
+            setTimeout(() => setActiveDate(cur), 0);
+          }}
+        />
+      ) : null}
 
       <p className={styles.footer}>
         本周已打卡 {data.checkedCount}/{data.totalDays} 天，继续保持 🌿
