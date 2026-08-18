@@ -18,3 +18,14 @@ mock-server/data.db
 
 .reasonix/
 reasonix.toml
+
+# 大体积视频资源（127MB > GitHub 100MB 限制），本地保留，部署时单独分发
+frontend/public/promo.mp4
+
+# 本地工作区数据 / 内网穿透配置
+.workbuddy/
+.microengine-deploy/
+
+# 调试与临时文件
+*.log
+*.txt
