@@ -1,0 +1,105 @@
+/* LaunchScreen · 开屏动画
+ * 总时长 1.5s:前 1.2s Logo 放大,后 0.3s 云层溶解。
+ * 使用 tokens.css 的 keyframes:launch-zoom / launch-dissolve / launch-fade-in。 */
+
+.launchScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, var(--sky-hi) 0%, var(--sky-lo) 60%, var(--cloud) 100%);
+  animation: launch-fade-in 0.3s var(--ease-air);
+  pointer-events: none;
+}
+
+.launchScreenExiting {
+  animation: launch-dissolve 0.4s var(--ease-air) forwards;
+}
+
+/* 镂空圆形视窗:中央透明,边缘有云白,模拟"透过 Logo 看页面"的透视感 */
+.aperture {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    transparent 20%,
+    rgba(244, 249, 253, 0.4) 40%,
+    rgba(244, 249, 253, 0.85) 70%,
+    var(--cloud) 100%
+  );
+  pointer-events: none;
+}
+
+.logoWrap {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  animation: launch-zoom 1.2s var(--ease-spring) forwards;
+  filter: drop-shadow(0 4px 24px rgba(53, 80, 127, 0.25));
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 云层装饰 · 消散阶段漂出 */
+.clouds {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cloud {
+  position: absolute;
+  background: var(--cloud-deco);
+  border-radius: 50%;
+  filter: blur(30px);
+  opacity: 0;
+}
+
+.cloud1 {
+  width: 300px;
+  height: 120px;
+  top: 20%;
+  left: -10%;
+}
+
+.cloud2 {
+  width: 400px;
+  height: 140px;
+  bottom: 25%;
+  right: -15%;
+}
+
+.cloud3 {
+  width: 250px;
+  height: 100px;
+  top: 55%;
+  left: 30%;
+}
+
+.launchScreenExiting .cloud1 {
+  animation: cloud-drift 0.4s var(--ease-air) forwards;
+  opacity: 0.7;
+}
+
+.launchScreenExiting .cloud2 {
+  animation: cloud-drift-reverse 0.4s var(--ease-air) forwards;
+  opacity: 0.6;
+}
+
+.launchScreenExiting .cloud3 {
+  animation: cloud-sway 0.4s var(--ease-air) forwards;
+  opacity: 0.5;
+}

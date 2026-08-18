@@ -38,25 +38,27 @@ export const shadow = {
   cardHover: '0 12px 40px rgba(53, 80, 127, 0.16)',
 } as const;
 
-/** 圆角 */
+/** 圆角 · v0.3 收紧：禁止 >16px，卡片 8-12，大卡片 16，按钮 6-8 */
 export const radius = {
-  card: 16,
-  button: 10,
+  card: 12,
+  cardLarge: 16,
+  button: 8,
   chart: 8,
   pill: 999,
 } as const;
 
-/** 间距 · 文艺风依赖大量留白 */
+/** 间距 · v0.3 收紧：卡片 padding 20-24，卡片间距 24-32 */
 export const spacing = {
-  cardPadding: 24,
-  cardGap: 32,
+  cardPadding: 22,
+  cardGap: 28,
   pageMaxWidth: 1080,
 } as const;
 
-/** 字号与行高 */
+/** 字号与行高 · v0.3：起始页大标题 32-36，其他页面标题 24 */
 export const typography = {
-  pageTitle: 30,
-  sectionTitle: 19,
+  heroTitle: 34,
+  pageTitle: 24,
+  sectionTitle: 18,
   body: 14,
   caption: 12,
   metric: 40,
@@ -115,7 +117,7 @@ export const stateLabelColors: Record<StateLabel, string> = {
   insufficient_data: '#93A6BE',
 };
 
-/** 传给 antd ConfigProvider 的 token，保证组件库观感与本设计系统一致 */export const antdThemeToken = {
+/** 传给 antd ConfigProvider 的 token，保证组件库观感与本设计系统一致 · v0.3 同步收紧圆角与字号 */export const antdThemeToken = {
   colorPrimary: colors.primary,
   colorSuccess: colors.success,
   colorWarning: colors.warning,
@@ -124,6 +126,8 @@ export const stateLabelColors: Record<StateLabel, string> = {
   colorBgLayout: colors.background,
   colorBorderSecondary: colors.divider,
   borderRadius: radius.button,
+  borderRadiusLG: radius.card,
+  borderRadiusSM: 6,
   fontSize: typography.body,
   fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif",
 } as const;

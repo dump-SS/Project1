@@ -11,10 +11,10 @@
 
 .title {
   font-family: var(--font-serif);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
   color: var(--ink);
-  letter-spacing: 2px;
+  letter-spacing: -0.02em;
   margin: 0 0 8px;
 }
 

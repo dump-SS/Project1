@@ -1,8 +1,12 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
+import { ThemeProvider } from './context/ThemeContext.jsx'
 import RequireAuth from './components/RequireAuth/index.jsx'
 import AppShell from './components/AppShell/index.jsx'
+import LaunchScreen from './components/LaunchScreen/index.jsx'
+import CustomCursor from './components/CustomCursor/index.jsx'
+import CloudTransition from './components/CloudTransition/index.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
@@ -21,8 +25,12 @@ import GuardianAuthPage from './pages/GuardianAuth/index.tsx'
 export default function App() {
   return (
     <div className="app-shell">
-      <AuthProvider>
-        <Routes>
+      <ThemeProvider>
+        <AuthProvider>
+          <LaunchScreen />
+          <CustomCursor />
+          <CloudTransition />
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -47,8 +55,9 @@ export default function App() {
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </AuthProvider>
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
     </div>
   )
 }
