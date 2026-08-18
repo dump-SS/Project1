@@ -1,0 +1,360 @@
+/**
+ * 错题本页样式 · 设计令牌全部引自 styles/tokens.css
+ */
+
+.eb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.eb-toggle-btn {
+  border-radius: var(--r-button);
+}
+
+/* Tabs */
+.eb-tabs {
+  margin-bottom: 24px;
+}
+
+.eb-tabs :global(.ant-tabs-nav) {
+  margin-bottom: 16px;
+}
+
+/* 折叠录入区 */
+.eb-form-collapse {
+  margin-bottom: 32px;
+}
+
+.eb-form-collapse :global(.ant-collapse-header) {
+  padding: 0 !important;
+  display: none;
+}
+
+.eb-form-collapse :global(.ant-collapse-content) {
+  background: transparent;
+  border: none;
+}
+
+.eb-form-collapse :global(.ant-collapse-content-box) {
+  padding: 0 !important;
+}
+
+.eb-form-label {
+  font-family: var(--font-serif);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.eb-form {
+  padding: var(--card-pad);
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eb-form :global(.ant-form-item) {
+  margin-bottom: 16px;
+}
+
+.eb-row-2 {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.eb-flex-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.eb-flex-0 {
+  flex: 0 0 auto;
+  margin-top: 30px; /* 与 label 对齐 */
+}
+
+.eb-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* 关键词匹配卡片 */
+.eb-match-card {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eb-match-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.eb-match-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+}
+
+.eb-match-name {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.eb-match-pct {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.eb-match-def {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.eb-match-tip {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--warning);
+  background: rgba(235, 196, 139, 0.15);
+  padding: 8px 12px;
+  border-radius: var(--r-button);
+  border-left: 3px solid var(--warning);
+  line-height: 1.7;
+}
+
+.eb-match-empty {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 16px;
+  padding: 8px 0;
+}
+
+.eb-match-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.eb-fallback-tag {
+  cursor: pointer;
+  border-radius: var(--r-pill);
+}
+
+/* 列表 */
+.eb-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+/* 卡片 */
+.eb-card {
+  padding: var(--card-pad);
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.eb-card-question {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.8;
+  margin: 0;
+  font-weight: 400;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eb-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.eb-reason-tag {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid;
+  font-weight: 500;
+}
+
+.eb-kp-tag {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(111, 168, 214, 0.18);
+  color: var(--night-blue);
+  border: 1px solid rgba(74, 124, 176, 0.32);
+  font-weight: 500;
+}
+
+.eb-card-time {
+  margin-left: auto;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.eb-card-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.eb-card-actions :global(.ant-btn) {
+  border-radius: var(--r-button);
+}
+
+/* 复盘展开 */
+.eb-summary {
+  background: rgba(169, 212, 236, 0.22);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--r-button);
+  padding: 16px 20px;
+}
+
+.eb-summary-label,
+.eb-parse-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--primary-deep);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.eb-summary-text {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.8;
+  margin: 0;
+  font-weight: 300;
+}
+
+/* AI 解析展开 */
+.eb-parse {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 20px 24px;
+  box-shadow: var(--glass-shadow);
+}
+
+.eb-parse-text {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.8;
+  margin: 0 0 12px 0;
+  font-weight: 300;
+  white-space: pre-wrap;
+}
+
+.eb-parse-steps {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.8;
+  padding-left: 20px;
+  margin: 0 0 12px 0;
+}
+
+.eb-parse-review {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--primary-deep);
+  background: rgba(111, 168, 214, 0.10);
+  border-radius: var(--r-button);
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+
+.eb-skel {
+  margin: 0;
+}
+
+/* 空状态 */
+.eb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 64px 32px;
+  border-radius: var(--r-card);
+  text-align: center;
+}
+
+.eb-empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-pill);
+  background: rgba(147, 166, 190, 0.22);
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.eb-empty-text {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
+  line-height: 1.8;
+}
+
+.eb-empty :global(.ant-btn) {
+  border-radius: var(--r-button);
+}
+
+/* 响应式 */
+@media (max-width: 720px) {
+  .eb-row-2 {
+    flex-direction: column;
+    gap: 0;
+  }
+  .eb-flex-0 {
+    margin-top: 0;
+    align-self: flex-start;
+  }
+  .eb-card-time {
+    margin-left: 0;
+  }
+}
