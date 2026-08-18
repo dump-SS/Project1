@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -19,15 +20,18 @@ from sqlalchemy.orm import Session
 
 from llm_provider import get_provider
 from models.learning_record import LearningRecord
+from models.plan import PlanTask as PlanTaskORM
 from models.user import Settings as SettingsModel
 from models.weight import UserWeightConfig, WeightAdjustLog
-from state_engine.adapter import orm_record_to_engine_input, compute_window_for_records
+from state_calculator import orm_record_to_engine_input, compute_window_for_records
 from state_engine.types import WeightConfig
 from state_engine.weights import WeightAdjustment, validate_adjustment
 
 logger = logging.getLogger(__name__)
 
-# 触发调权的条件：累计新记录数达到阈值（PRD 5.2：不在单次学习后实时调权）
+# 触发调权的条件：距上次调权超过 N 天 或 累计新记录数达到阈值且从未调权
+# （PRD 5.2：按周期离线批量执行，不在单次学习后实时调权）
+TUNE_INTERVAL_DAYS = 7
 TUNE_THRESHOLD_RECORDS = 10
 
 
@@ -50,15 +54,70 @@ def _current_weights(cfg: UserWeightConfig) -> WeightConfig:
 
 
 def _should_tune(db: Session, user_id: str) -> bool:
-    """是否触发调权：累计新记录数 ≥ 阈值，且用户开启了 ai_weight_tuning_enabled。"""
+    """是否触发调权：距上次调权 ≥ TUNE_INTERVAL_DAYS 或从未调权且记录数达标。
+
+    PRD 5.2：按周期离线批量执行，不在单次学习后实时调权。
+    之前用「总记录数 ≥ 阈值」判断，调权后每条新记录都再次触发——已修正为按间隔。
+    """
     settings = db.get(SettingsModel, user_id)
     if settings and not settings.ai_weight_tuning_enabled:
         logger.info("[AI 调权] 用户 %s 已关闭 AI 自动调权，跳过", user_id)
         return False
+
+    # 查上次调权时间（从 WeightAdjustLog 取最近一条有效调权）
+    last_log = db.execute(
+        select(WeightAdjustLog)
+        .where(
+            WeightAdjustLog.user_id == user_id,
+            WeightAdjustLog.reverted.is_(False),
+        )
+        .order_by(WeightAdjustLog.effective_at.desc())
+        .limit(1)
+    ).scalars().first()
+
+    if last_log is not None:
+        days_since = (datetime.utcnow() - last_log.effective_at).days
+        if days_since < TUNE_INTERVAL_DAYS:
+            logger.info(
+                "[AI 调权] 用户 %s 距上次调权 %d 天 < %d 天，跳过",
+                user_id, days_since, TUNE_INTERVAL_DAYS,
+            )
+            return False
+
+    # 从未调权或已过间隔：检查记录数是否达标
     recent_count = db.execute(
         select(func.count()).select_from(LearningRecord).where(LearningRecord.user_id == user_id)
     ).scalar_one()
-    return recent_count >= TUNE_THRESHOLD_RECORDS
+    if recent_count < TUNE_THRESHOLD_RECORDS:
+        logger.info(
+            "[AI 调权] 用户 %s 记录数 %d < %d，跳过",
+            user_id, recent_count, TUNE_THRESHOLD_RECORDS,
+        )
+        return False
+    return True
+
+
+def _compute_plan_completion(db: Session, user_id: str) -> float | None:
+    """从 plan_tasks 表算计划完成率（PRD 5.2/5.4 复盘 dataPoints）。
+
+    ratio = completed / total（未软删除的任务）。无任务时返回 None。
+    """
+    total = db.execute(
+        select(func.count()).select_from(PlanTaskORM).where(
+            PlanTaskORM.user_id == user_id,
+            PlanTaskORM.removed.is_(False),
+        )
+    ).scalar_one()
+    if total == 0:
+        return None
+    completed = db.execute(
+        select(func.count()).select_from(PlanTaskORM).where(
+            PlanTaskORM.user_id == user_id,
+            PlanTaskORM.removed.is_(False),
+            PlanTaskORM.status == "completed",
+        )
+    ).scalar_one()
+    return round(completed / total, 2)
 
 
 def _build_features(db: Session, user_id: str) -> dict:
@@ -77,8 +136,18 @@ def _build_features(db: Session, user_id: str) -> dict:
         "trend": window.trend.value if window else None,
         "stateLabel": window.state_label.value if window else None,
         "signals": window.signals if window else [],
-        # TODO: 计划完成情况（接 PlanTask 后补充）
+        "planCompletionRatio": _compute_plan_completion(db, user_id),
     }
+
+
+def _extract_json_block(text: str) -> str:
+    """LLM 输出容错：提取 markdown ```json ... ``` 围栏里的内容。
+
+    真实 LLM 返回常带 ```json 包裹或前后说明文字，直接 json.loads 会失败。
+    提不出来就原样返回，让调用方自行判断。
+    """
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    return match.group(1).strip() if match else text
 
 
 def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment | None:
@@ -98,17 +167,20 @@ def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment 
     text = provider.generate(prompt, context={"task": "weight_tuning"})
     if not text:
         return None
-    try:
-        data = json.loads(text)
-        return WeightAdjustment(
-            alpha=data["alpha"], beta=data["beta"],
-            w1=data["w1"], w2=data["w2"], w3=data["w3"],
-            w4=data["w4"], w5=data["w5"], w6=data["w6"],
-            reason=data.get("reason", "未提供理由"),
-        )
-    except (json.JSONDecodeError, KeyError, TypeError) as e:
-        logger.warning("[AI 调权] LLM 返回格式非法: %s", e)
-        return None
+    # 真实 LLM 常带 ```json 包裹，先做围栏提取再解析
+    for candidate in (text, _extract_json_block(text)):
+        try:
+            data = json.loads(candidate)
+            return WeightAdjustment(
+                alpha=data["alpha"], beta=data["beta"],
+                w1=data["w1"], w2=data["w2"], w3=data["w3"],
+                w4=data["w4"], w5=data["w5"], w6=data["w6"],
+                reason=data.get("reason", "未提供理由"),
+            )
+        except (json.JSONDecodeError, KeyError, TypeError):
+            continue
+    logger.warning("[AI 调权] LLM 返回格式非法，无法解析: %s", text[:200])
+    return None
 
 
 def tune_user_weights(db: Session, user_id: str) -> bool:
@@ -181,3 +253,24 @@ def tune_user_weights(db: Session, user_id: str) -> bool:
         user_id, result.rejection_reason,
     )
     return False
+
+
+# ---------- 后台任务入口（供 BackgroundTasks 调用；自开 session，不复用请求级 session） ----------
+
+def run_weight_tuning(
+    user_id: str,
+) -> None:
+    """后台执行调权。路由响应返回后执行，耗时的 LLM 调用不阻塞用户。
+
+    同 ai_suggestion.run_recommendation_generation 的模式：
+    自开 SessionLocal，异常自愈，绝不穿透到路由层。
+    """
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        tune_user_weights(db, user_id)
+    except Exception:
+        logger.exception("[AI 调权] 后台调权异常 user_id=%s", user_id)
+    finally:
+        db.close()

@@ -20,6 +20,7 @@ from models.learning_record import LearningRecord as LearningRecordORM
 from models.recommendation import Recommendation as RecommendationORM
 from models.weight import UserWeightConfig
 from state_engine.types import WeightConfig
+from weight_tuning import run_weight_tuning
 from schemas.learning_record import (
     LearningRecordCreated,
     LearningRecordDeleted,
@@ -178,6 +179,10 @@ def create_learning_record(
             body.subject.value, record_id,
         )
         recommendation = {"recommendationId": recommendation_id, "status": "pending"}
+
+    # PRD 5.2 第 4 点：每次学习记录后异步检查是否需要调权（按周期/记录数阈值触发，
+    # 不会每次记录都调）。挂后台任务，不阻塞 POST 响应。
+    background_tasks.add_task(run_weight_tuning, _user.user_id)
 
     return LearningRecordCreated.model_validate(
         {
