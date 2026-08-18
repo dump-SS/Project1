@@ -138,6 +138,160 @@
   min-height: 0;
 }
 
+/* ===== 桌面二级下拉 ===== */
+.navGroup {
+  position: relative;
+}
+
+.navGroupTrigger {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  min-width: 128px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--glass-fill);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-glass);
+  box-shadow: var(--glass-shadow);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--t-base) var(--ease-air),
+    transform var(--t-base) var(--ease-air), visibility var(--t-base);
+  z-index: 120;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dropdown { background: var(--glass-fill-solid); }
+}
+
+.navGroup:hover .dropdown,
+.navGroup:focus-within .dropdown {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dropdownItem {
+  padding: 8px 12px;
+  border-radius: var(--r-button);
+  font-size: 13px;
+  font-weight: 350;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--t-fast) var(--ease-air), color var(--t-fast) var(--ease-air);
+}
+
+.dropdownItem:hover {
+  background: rgba(111, 168, 214, 0.12);
+  color: var(--primary-deep);
+}
+
+.dropdownItemActive {
+  color: var(--ink);
+  font-weight: 500;
+  background: rgba(111, 168, 214, 0.14);
+}
+
+/* ===== 移动端底部 Tab ===== */
+.tabbar {
+  display: none;
+}
+
+.tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 350;
+  color: var(--ink-soft);
+  padding: 10px 0;
+  cursor: pointer;
+  transition: color var(--t-base) var(--ease-air);
+}
+
+.tabActive {
+  color: var(--primary-deep);
+  font-weight: 500;
+}
+
+/* ===== 移动端二级抽屉 ===== */
+.sheetMask {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  background: rgba(43, 58, 85, 0.18);
+  animation: maskIn var(--t-base) var(--ease-air);
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--glass-fill);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  border-top: 1px solid var(--glass-stroke);
+  box-shadow: 0 -8px 32px rgba(53, 80, 127, 0.12);
+  animation: sheetIn var(--t-base) var(--ease-air);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sheet { background: var(--glass-fill-solid); }
+}
+
+.sheetItem {
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-button);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 350;
+  text-align: left;
+  color: var(--ink-soft);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sheetItemActive {
+  color: var(--ink);
+  font-weight: 500;
+  background: rgba(111, 168, 214, 0.14);
+}
+
+@keyframes maskIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheetIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 640px) {
   .bar {
     gap: 12px;
@@ -150,5 +304,37 @@
 
   .email {
     display: none;
+  }
+
+  /* 移动端：顶栏藏起分组导航，改用底部 Tab */
+  .nav {
+    display: none;
+  }
+
+  .content {
+    padding-bottom: 56px;
+  }
+
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 130;
+    display: flex;
+    align-items: stretch;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--glass-fill);
+    backdrop-filter: blur(18px) saturate(1.1);
+    -webkit-backdrop-filter: blur(18px) saturate(1.1);
+    border-top: 1px solid var(--glass-stroke);
+    box-shadow: 0 -4px 24px rgba(53, 80, 127, 0.08);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tabbar {
+    background: var(--glass-fill-solid);
   }
 }
