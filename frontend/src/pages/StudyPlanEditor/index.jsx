@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import StudyEditor from './StudyEditor.jsx'
 import EnterButton from './EnterButton.jsx'
 import TaskList from './TaskList.jsx'
-import { createPlan, localDateString } from '../../services/plans'
+import { createPlan, getPlanByDate, localDateString } from '../../services/plans'
 import { isNetworkError } from '../../services/http'
 import './index.css'
 import './App.css'
@@ -27,8 +27,28 @@ export default function StudyPlanEditor() {
   const [plan, setPlan] = useState(null)
   // 是否已经生成过计划（用于决定「进入」点击是「生成」还是「跳转」）
   const [hasGenerated, setHasGenerated] = useState(false)
+  // 当日是否已有计划（用于在点进入时自动 regenerate，避免 409）
+  // 挂载时拉一次；用户改分钟后点进入会带上 regenerate=true 覆盖
+  const [hasExistingPlan, setHasExistingPlan] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [offlineNote, setOfflineNote] = useState('')
+
+  // 挂载时查当日是否已有计划（用于决定 createPlan 时是否传 regenerate）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const existing = await getPlanByDate(localDateString())
+      if (!cancelled && existing) {
+        setHasExistingPlan(true)
+        // 把已有计划的分钟/任务回填进输入框，让用户感知「这是覆盖」
+        if (existing.availableMinutes != null) setMinutes(String(existing.availableMinutes))
+        if (existing.tasks?.[0]?.topic && !taskValue) {
+          setTaskValue(existing.tasks[0].topic)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * 点「进入」：
@@ -47,12 +67,15 @@ export default function StudyPlanEditor() {
       const { plan: created, fromCache } = await createPlan({
         planDate: localDateString(),
         availableMinutes: Number(minutes),
+        // 当日已有计划时自动覆盖（用户既然改了分钟就是要重生成）
+        regenerate: hasExistingPlan || undefined,
       })
       if (fromCache) {
         setOfflineNote('离线取用上次成功计划')
       }
       setPlan(created)
       setHasGenerated(true)
+      setHasExistingPlan(true)  // 生成后一定存在
       // 生成成功后留在本页面，让用户能完成/调整任务；下一次点「进入」才跳转
       return false
     } catch (err) {

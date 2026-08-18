@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import StudyEditor from '../StudyPlanEditor/StudyEditor.jsx'
 import EnterButton from '../StudyPlanEditor/EnterButton.jsx'
 import TaskList from '../StudyPlanEditor/TaskList.jsx'
-import { createPlan, localDateString } from '../../services/plans'
+import { createPlan, getPlanByDate, localDateString } from '../../services/plans'
 import { isNetworkError } from '../../services/http'
 import { subjectLabels } from '@/styles/theme'
 import './index.css'
@@ -29,8 +29,23 @@ export default function StudyGuide() {
   const [plan, setPlan] = useState(null)
   // 是否已经生成过计划（用于决定「进入」点击是「生成」还是「跳转」）
   const [hasGenerated, setHasGenerated] = useState(false)
+  // 当日是否已有计划（用于在点进入时自动 regenerate，避免 409）
+  const [hasExistingPlan, setHasExistingPlan] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [offlineNote, setOfflineNote] = useState('')
+
+  // 挂载时查当日是否已有计划（用于决定 createPlan 时是否传 regenerate）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const existing = await getPlanByDate(localDateString())
+      if (!cancelled && existing) {
+        setHasExistingPlan(true)
+        if (existing.availableMinutes != null && !minutes) setMinutes(String(existing.availableMinutes))
+      }
+    })()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * 公共兜底：缺分钟时给个默认 60，然后调 createPlan，成功后回填 recommendation + plan。
@@ -46,6 +61,8 @@ export default function StudyGuide() {
     const { plan: created, fromCache } = await createPlan({
       planDate: localDateString(),
       availableMinutes: minutesNum,
+      // 当日已有计划时自动覆盖（用户改过分钟即视为要重生成）
+      regenerate: hasExistingPlan || undefined,
     })
     // 规则引擎：从计划任务里挑一条当推荐，替代原硬编码常量 DEFAULT_SUBJECT
     const first = created.tasks?.[0]
@@ -60,6 +77,7 @@ export default function StudyGuide() {
     }
     setPlan(created)
     setHasGenerated(true)
+    setHasExistingPlan(true)  // 生成后一定存在
     return rec
   }
 
