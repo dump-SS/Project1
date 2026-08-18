@@ -376,14 +376,6 @@ export interface SummaryList {
   pagination: Pagination;
 }
 
-/** 已提交的反馈记录（openapi.yaml FeedbackRecord） */
-export interface FeedbackRecord {
-  rating: Rating;
-  /** 用户补充说明，可为空 */
-  reason?: string | null;
-  submittedAt: string;
-}
-
 /** 手动触发复盘后的受理响应（openapi.yaml SummaryPending） */
 export interface SummaryPending {
   summaryId: string;

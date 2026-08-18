@@ -72,6 +72,14 @@ db.exec(`
     created_at        TEXT NOT NULL
   );
 
+CREATE TABLE IF NOT EXISTS feedbacks (
+    target_type TEXT NOT NULL,
+    target_id   TEXT NOT NULL,
+    rating      TEXT NOT NULL,
+    submitted_at TEXT NOT NULL,
+    PRIMARY KEY (target_type, target_id)
+  );
+
   CREATE TABLE IF NOT EXISTS plans (
     email            TEXT NOT NULL,
     plan_date        TEXT NOT NULL,
@@ -153,7 +161,9 @@ function buildRecommendationItems(record) {
 /* ===================== 验证码 ===================== */
 
 function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000))
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  console.log(`[DEV] 验证码: ${code}`)
+  return code
 }
 
 // 邮件 HTML（主题色 #4AD1FF，衬线体标题 + 非衬线正文）
@@ -221,13 +231,19 @@ async function setCode(type, email) {
     login: '【EpochX】登录验证码'
   }
   const subject = subjects[type] || '【EpochX】邮箱验证码'
-  const info = await transporter.sendMail({
-    from: `"EpochX" <${process.env.SMTP_USER}>`,
-    to: email,
-    subject,
-    text: `您的验证码是 ${code}，5 分钟内有效。如非本人操作，请忽略本邮件。`,
-    html: buildEmailHtml(type, code)
-  })
+  // 开发环境跳过 SMTP 发送，验证码直接输出到控制台
+  try {
+    const info = await transporter.sendMail({
+      from: `"EpochX" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject,
+      text: `您的验证码是 ${code}，5 分钟内有效。如非本人操作，请忽略本邮件。`,
+      html: buildEmailHtml(type, code)
+    })
+    console.log(`[SMTP] 已发送 ${subject} -> ${email} (messageId: ${info.messageId})`)
+  } catch (smtpErr) {
+    console.log(`[DEV] SMTP 发送失败，开发模式跳过邮件: ${smtpErr.message}`)
+  }
   const expiresAt = Date.now() + CODE_TTL_MS
   db.prepare(`
     INSERT INTO codes (type, email, code_hash, expires_at) VALUES (?, ?, ?, ?)
@@ -235,7 +251,6 @@ async function setCode(type, email) {
       code_hash = excluded.code_hash,
       expires_at = excluded.expires_at
   `).run(type, email, sha256(code), expiresAt)
-  console.log(`[SMTP] 已发送 ${subject} -> ${email} (messageId: ${info.messageId})`)
 }
 
 function verifyCode(type, email, code) {
@@ -605,6 +620,8 @@ const server = http.createServer(async (req, res) => {
       const row = db.prepare('SELECT * FROM learning_records WHERE recommendation_id = ?').get(recommendationId)
       if (!row) return err(res, 404, 'RESOURCE_NOT_FOUND', '建议不存在')
 
+      const fb = db.prepare('SELECT * FROM feedbacks WHERE target_type = ? AND target_id = ?').get('recommendation', recommendationId)
+
       return json(res, 200, {
         recommendationId,
         scene: 'post_session',
@@ -620,7 +637,84 @@ const server = http.createServer(async (req, res) => {
           stateLabel: row.fatigue >= 4 ? 'fatigue_warning' : 'efficient_stable',
           explain: '依据本次学习记录的专注度与疲劳度自评生成',
         },
-        feedback: null,
+        feedback: fb ? { rating: fb.rating, submittedAt: fb.submitted_at } : null,
+      })
+    }
+
+    // PUT /recommendations/{id}/feedback
+    if (path.startsWith('/api/v1/recommendations/') && path.endsWith('/feedback') && req.method === 'PUT') {
+      const recommendationId = path.slice('/api/v1/recommendations/'.length, -'/feedback'.length)
+      const row = db.prepare('SELECT * FROM learning_records WHERE recommendation_id = ?').get(recommendationId)
+      if (!row) return err(res, 404, 'RESOURCE_NOT_FOUND', '建议不存在')
+
+      const body = await readBody(req)
+      const { rating } = body
+      if (!['useful', 'neutral', 'not_useful'].includes(rating)) {
+        return err(res, 400, 'VALIDATION_FAILED', 'rating 需为 useful/neutral/not_useful')
+      }
+
+      const submittedAt = new Date().toISOString()
+      db.prepare(`
+        INSERT INTO feedbacks (target_type, target_id, rating, submitted_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(target_type, target_id) DO UPDATE SET rating = excluded.rating, submitted_at = excluded.submitted_at
+      `).run('recommendation', recommendationId, rating, submittedAt)
+
+      return json(res, 200, {
+        recommendationId,
+        feedback: { rating, submittedAt },
+      })
+    }
+
+    // GET /summaries
+    if (path === '/api/v1/summaries' && req.method === 'GET') {
+      const records = db.prepare('SELECT * FROM learning_records ORDER BY created_at DESC LIMIT 10').all()
+      const summaryId = 'sum-latest'
+      const fb = db.prepare('SELECT * FROM feedbacks WHERE target_type = ? AND target_id = ?').get('summary', summaryId)
+
+      const items = records.length > 0 ? [{
+        summaryId,
+        periodStart: records[records.length - 1]?.created_at,
+        periodEnd: records[0]?.created_at,
+        generation: { status: 'ready', source: 'template', completedAt: new Date().toISOString() },
+        content: {
+          overview: `过去这段时间你完成了 ${records.length} 次学习记录，学科集中在${[...new Set(records.map(r => r.subject))].join('、')}。`,
+          patterns: ['专注度整体稳定，建议保持当前学习节奏', '疲劳度适中，注意劳逸结合'],
+          suggestions: ['可以尝试在专注度最高的时段安排重点学科', '每次学习后做简短回顾，强化记忆效果'],
+          encouragement: '每一步坚持都算数，继续保持你的学习节奏！',
+        },
+        dataPoints: {
+          recordCount: records.length,
+          subjects: [...new Set(records.map(r => r.subject))],
+          minRequired: 3,
+        },
+        feedback: fb ? { rating: fb.rating, submittedAt: fb.submitted_at } : null,
+      }] : []
+
+      return json(res, 200, {
+        items,
+        pagination: { page: 1, pageSize: 5, total: items.length, totalPages: 1 },
+      })
+    }
+
+    // PUT /summaries/{id}/feedback
+    if (path.startsWith('/api/v1/summaries/') && path.endsWith('/feedback') && req.method === 'PUT') {
+      const summaryId = path.slice('/api/v1/summaries/'.length, -'/feedback'.length)
+
+      const body = await readBody(req)
+      const { rating } = body
+      if (!['useful', 'neutral', 'not_useful'].includes(rating)) {
+        return err(res, 400, 'VALIDATION_FAILED', 'rating 需为 useful/neutral/not_useful')
+      }
+
+      const submittedAt = new Date().toISOString()
+      db.prepare(`
+        INSERT INTO feedbacks (target_type, target_id, rating, submitted_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(target_type, target_id) DO UPDATE SET rating = excluded.rating, submitted_at = excluded.submitted_at
+      `).run('summary', summaryId, rating, submittedAt)
+
+      return json(res, 200, {
+        summaryId,
+        feedback: { rating, submittedAt },
       })
     }
 
