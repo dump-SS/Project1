@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -153,7 +154,17 @@ def put_assessment_feedback(
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ):
-    """记录反馈（当前仅受理，不做后续处理——AI 调权链路待接入）。"""
-    # TODO: 持久化反馈到 feedback 表，供 AI 调权迭代使用
-    _ = (assessment_id, body.accurate, _user.user_id, db)
+    """记录反馈到 assessment_snapshots 表，供 AI 调权迭代使用。
+
+    一条评估至多一份反馈，PUT 幂等覆盖（openapi.yaml 契约）。
+    """
+    row = db.get(AssessmentSnapshotORM, assessment_id)
+    if row is None or row.user_id != _user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": "评估不存在"},
+        )
+    row.feedback_accurate = body.accurate
+    row.feedback_submitted_at = datetime.utcnow()
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

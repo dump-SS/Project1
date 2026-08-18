@@ -539,3 +539,87 @@ def test_d1_full_contract_loop_end_to_end():
 
     # 闭环成立：五步全部拿到非空真数据
     print(f"\n闭环通过: goal={goal_id} plan={plan_id} record={record_id} rec={rec_id}")
+
+
+# ---------- E. Assessment Feedback 落库 ----------
+
+def test_e1_assessment_feedback_persists_and_overwrites():
+    """E1: PUT /assessments/{id}/feedback → 204，反馈落库且可幂等覆盖。
+
+    契约：openapi.yaml 5.3。一条评估至多一份反馈，PUT 幂等覆盖。
+    修复前：接口仅受理不落库（TODO）；修复后：feedback_accurate + feedback_submitted_at 落库。
+    """
+    # 提交足够记录让 data_sufficient=true（窗口默认 7 条）
+    for i in range(7):
+        client.post("/api/v1/learning-records", json={
+            "subject": "math",
+            "startedAt": f"2026-08-1{i+1}T19:00:00+08:00",
+            "durationMinutes": 45,
+            "behavior": {"completion": "completed", "accuracy": 0.8, "interruptions": 1},
+            "selfReport": {"focus": 4, "fatigue": 2, "emotion": "positive", "difficultyFeel": "moderate"},
+        })
+
+    # 拿到 data_sufficient 的 assessmentId（GET /assessments/current 返回最新快照 id）
+    state = client.get("/api/v1/assessments/current?subject=math").json()
+    assessment_id = state["items"][0].get("assessmentId")
+    assert assessment_id, "7 条记录后应有 data_sufficient 的 assessmentId"
+
+    # 提交反馈 accurate=true → 204
+    r = client.put(f"/api/v1/assessments/{assessment_id}/feedback", json={"accurate": True})
+    assert r.status_code == 204, f"反馈提交失败: {r.status_code} {r.text}"
+
+    # 验证落库：直接查 ORM
+    from database import SessionLocal
+    from models.assessment import AssessmentSnapshot
+    db = SessionLocal()
+    try:
+        row = db.get(AssessmentSnapshot, assessment_id)
+        assert row is not None
+        assert row.feedback_accurate is True
+        assert row.feedback_submitted_at is not None
+    finally:
+        db.close()
+
+    # 幂等覆盖：改为 accurate=false → 204，落库值更新
+    r = client.put(f"/api/v1/assessments/{assessment_id}/feedback", json={"accurate": False})
+    assert r.status_code == 204
+    db = SessionLocal()
+    try:
+        row = db.get(AssessmentSnapshot, assessment_id)
+        assert row.feedback_accurate is False, "幂等覆盖后应为 False"
+    finally:
+        db.close()
+
+
+def test_e2_assessment_feedback_404_for_nonexistent():
+    """E2: PUT /assessments/{不存在的id}/feedback → 404 RESOURCE_NOT_FOUND。"""
+    r = client.put("/api/v1/assessments/as_nonexistent/feedback", json={"accurate": True})
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+def test_e3_assessment_feedback_user_isolation():
+    """E3: 用户 B 对用户 A 的评估提交反馈 → 404（属主校验）。
+
+    属主不匹配时返回 404 而非 403，避免泄露资源存在性（与 recommendation 一致）。
+    """
+    # 用户 A 提交记录生成评估
+    for i in range(7):
+        client.post("/api/v1/learning-records", json={
+            "subject": "physics",
+            "startedAt": f"2026-08-1{i+1}T19:00:00+08:00",
+            "durationMinutes": 30,
+            "behavior": {"completion": "completed"},
+            "selfReport": {"focus": 4, "fatigue": 2, "emotion": "positive", "difficultyFeel": "moderate"},
+        }, headers={"X-User-ID": "user_e3_a"})
+    state = client.get("/api/v1/assessments/current?subject=physics", headers={"X-User-ID": "user_e3_a"}).json()
+    assessment_id = state["items"][0].get("assessmentId")
+    assert assessment_id, "用户 A 应有评估"
+
+    # 用户 B 对 A 的评估反馈 → 404
+    r = client.put(
+        f"/api/v1/assessments/{assessment_id}/feedback",
+        json={"accurate": True},
+        headers={"X-User-ID": "user_e3_b"},
+    )
+    assert r.status_code == 404, "跨用户反馈应 404"
