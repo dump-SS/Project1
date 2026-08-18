@@ -1,27 +1,41 @@
 /**
- * v0.2 设计令牌 · 人文风 · 空气感
+ * v0.3 设计令牌 · 商业级 · 蓝天/白云/海浪 拟物意象
  * ------------------------------------------------------------
- * 见 docs/next-ui-redesign-spec.md 第 3 节。
- * 全站新增样式一律引用这里的 --sky/--cloud/--ink/--glass/--font 变量，
- * 不再写死色值。旧的 global.css / StudyGuide 局部变量在各自文件里桥接到这里。
+ * 双主题模式:日间(默认)+ 夜间,通过 [data-theme] 属性切换。
+ * 全站新增样式一律引用这里的变量,不再写死色值。
  *
- * 引入顺序：main.jsx 中先于 global.css 引入，让本文件的 :root 作为基线，
- * global.css 里的旧变量再指回这里的新值。
+ * 引入顺序:main.jsx 中先于 global.css 引入。
+ * 主题切换:<html data-theme="day" | "night">,由 ThemeContext 控制(T3)。
+ *
+ * 与 v0.2 的差异:
+ *  - 新增完整夜间模式色板
+ *  - 圆角收紧:卡片 8-12px,大卡片 16px,按钮 6-8px
+ *  - 新增液态玻璃多层高光体系(.liquid-glass 工具类)
+ *  - 新增等宽数字字体变量(--font-mono)
+ *  - 新增光标样式变量
+ *  - 新增云/海浪动画 keyframes
  */
 
-:root {
+/* ================= 日间模式(默认) ================= */
+:root,
+:root[data-theme='day'] {
+  color-scheme: light;
+
   /* ---------- 天空 / 背景 ---------- */
   --sky-hi: #a9d4ec;        /* 天空上部 · 主蓝 */
+  --sky-mid: #c8e2f2;       /* 天空中部 */
   --sky-lo: #dcebf5;        /* 天空下部 · 近地雾蓝 */
   --cloud: #f4f9fd;         /* 云白 · 页面基底 / 卡片近白 */
-  --dusk-warm: #f3e4ce;     /* 黄昏暖金 · 点缀 / 进度暖色 */
-  --night-blue: #35507f;    /* 夜蓝 · 深色区 / 强调文字 */
+  --cloud-soft: #eaf3fa;    /* 云白 · 柔和 */
+  --dusk-warm: #f3e4ce;     /* 日出金 · 强调/进度暖色 */
+  --coral: #e8b4a0;         /* 珊瑚橘 · 辅助强调 */
 
   /* 页面天空渐变基底 */
-  --bg-sky: linear-gradient(180deg, var(--sky-hi) 0%, var(--sky-lo) 58%, var(--cloud) 100%);
+  --bg-sky: linear-gradient(180deg, var(--sky-hi) 0%, var(--sky-mid) 40%, var(--sky-lo) 70%, var(--cloud) 100%);
+  --bg-page: var(--bg-sky);
 
   /* ---------- 文字 ---------- */
-  --ink: #2b3a55;           /* 主文 · 深靛蓝（非纯黑，带空气感）*/
+  --ink: #2b3a55;           /* 主文 · 深靛蓝 */
   --ink-soft: #5c6e88;      /* 次文 · 冷灰蓝 */
   --ink-faint: #93a6be;     /* 辅助 / 占位 · 雾灰蓝 */
   --on-photo: #ffffff;      /* 压在摄影 / 深色上的白字 */
@@ -29,46 +43,235 @@
   /* ---------- 主色与语义 ---------- */
   --primary: #6fa8d6;       /* 主色 · 晴空蓝 */
   --primary-deep: #4a7cb0;  /* 主色深 · hover / 强调 */
+  --primary-soft: rgba(111, 168, 214, 0.12); /* 主色弱背景 */
   --success: #8fd3b6;       /* 正向 · 薄荷 */
-  --warning: #ebc48b;       /* 提醒 · 暖沙（不刺眼）*/
-  --danger-soft: #d89b9b;   /* 危险柔 · 撤销 / 删除，克制使用 */
+  --warning: #ebc48b;       /* 提醒 · 暖沙 */
+  --danger-soft: #d89b9b;   /* 危险柔 · 撤销 / 删除 */
 
-  /* ---------- 玻璃与线 ---------- */
-  --glass-fill: rgba(255, 255, 255, 0.42);   /* 磨砂玻璃填充 */
-  --glass-stroke: rgba(255, 255, 255, 0.60); /* 玻璃描边（1px）*/
-  --glass-fill-solid: rgba(255, 255, 255, 0.82); /* 不支持 backdrop-filter 时的降级填充 */
-  --hairline: rgba(43, 58, 85, 0.14);        /* 极细分隔线 */
+  /* ---------- 液态玻璃(Liquid Glass) ---------- */
+  --lg-fill: rgba(255, 255, 255, 0.65);
+  --lg-fill-hover: rgba(255, 255, 255, 0.78);
+  --lg-fill-solid: rgba(255, 255, 255, 0.92); /* backdrop-filter 不支持时降级 */
+  --lg-highlight-top: rgba(255, 255, 255, 0.60); /* 顶部曲面反光 */
+  --lg-highlight-left: rgba(255, 255, 255, 0.30);
+  --lg-shadow-bottom: rgba(43, 58, 85, 0.08);
+  --lg-shadow-right: rgba(43, 58, 85, 0.05);
+  --lg-shadow-outer: rgba(0, 50, 120, 0.08);
+  --lg-stroke-soft: rgba(43, 58, 85, 0.10);
+
+  /* ---------- 玻璃(简化版,用于顶栏/导航) ---------- */
+  --glass-fill: rgba(255, 255, 255, 0.42);
+  --glass-fill-hover: rgba(255, 255, 255, 0.56);
+  --glass-stroke: rgba(255, 255, 255, 0.60);
+  --glass-stroke-soft: rgba(43, 58, 85, 0.10);
+  --glass-fill-solid: rgba(255, 255, 255, 0.82);
+  --hairline: rgba(43, 58, 85, 0.14);
   --glass-shadow: 0 8px 32px rgba(53, 80, 127, 0.10);
 
-  /* ---------- 字体（标题衬线 · 正文细体）---------- */
-  --font-serif: "Noto Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
-  --font-sans: "Noto Sans SC", "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  /* ---------- 云与海浪装饰 ---------- */
+  --cloud-deco: rgba(255, 255, 255, 0.85);
+  --cloud-deco-soft: rgba(255, 255, 255, 0.5);
+  --wave-deco: rgba(111, 168, 214, 0.20);
+  --wave-deco-deep: rgba(74, 124, 176, 0.28);
 
-  /* 字重 · 正文偏细，关键处加粗 */
+  /* ---------- 字体 ---------- */
+  --font-serif: 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Noto Sans SC', 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'DM Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+  /* 字重 · 正文偏细,关键处加粗 */
   --w-light: 300;
   --w-regular: 400;
   --w-medium: 500;
   --w-semibold: 600;
 
-  /* ---------- 圆角 ---------- */
-  --r-glass: 20px;
-  --r-card: 16px;
-  --r-button: 12px;
+  /* ---------- 圆角 · v0.3 收紧 ---------- */
+  --r-glass: 12px;          /* 液态玻璃默认 */
+  --r-glass-lg: 16px;       /* 大卡片 */
+  --r-card: 12px;
+  --r-button: 8px;
+  --r-input: 8px;
   --r-pill: 999px;
 
-  /* ---------- 间距（8px 栅格，比 v0.1 更松）---------- */
+  /* ---------- 间距(8px 栅格) ---------- */
   --page-max: 1080px;
-  --card-pad: 30px;
-  --card-gap: 40px;
+  --card-pad: 22px;
+  --card-gap: 28px;
+  --section-gap: 32px;
 
-  /* ---------- 动效（缓出，像飘）---------- */
+  /* ---------- 光标 ---------- */
+  --cursor-size: 8px;
+  --cursor-size-hover: 20px;
+  --cursor-color: var(--primary);
+  --cursor-border: rgba(111, 168, 214, 0.6);
+  --cursor-fill: rgba(255, 255, 255, 0.85);
+
+  /* ---------- 动效 ---------- */
   --ease-air: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1); /* X 开屏弹性 */
   --t-fast: 160ms;
   --t-base: 280ms;
   --t-slow: 480ms;
+  --t-theme: 600ms;         /* 主题切换全站过渡 */
+
+  /* ---------- 骨架屏 / 加载 ---------- */
+  --skeleton-base: rgba(111, 168, 214, 0.08);
+  --skeleton-shine: rgba(255, 255, 255, 0.4);
 }
 
-/* 磨砂玻璃通用类 · 组件可直接叠加 */
+/* ================= 夜间模式 ================= */
+:root[data-theme='night'] {
+  color-scheme: dark;
+
+  /* ---------- 深海 / 夜空 ---------- */
+  --sky-hi: #1a2338;        /* 深海上部 · 午夜蓝(不超 #1A1F2E 上限) */
+  --sky-mid: #141b2c;
+  --sky-lo: #0f1420;
+  --cloud: #1e2740;         /* 深夜基底 */
+  --cloud-soft: #1a2236;
+  --dusk-warm: #d4af7a;     /* 月光金 · 更柔和 */
+  --coral: #c89888;
+
+  /* 深海月光渐变基底 */
+  --bg-sky: linear-gradient(180deg, var(--sky-hi) 0%, var(--sky-mid) 40%, var(--sky-lo) 70%, var(--cloud) 100%);
+  --bg-page: var(--bg-sky);
+
+  /* ---------- 文字 ---------- */
+  --ink: #e8eef7;           /* 主文 · 月光白 */
+  --ink-soft: #b8c8dc;      /* 次文 · 银灰蓝 */
+  --ink-faint: #7a8ba8;     /* 辅助 · 暗灰蓝 */
+  --on-photo: #ffffff;
+
+  /* ---------- 主色与语义 · 夜间降低饱和度提高明度 ---------- */
+  --primary: #8fa8cc;       /* 月光蓝 */
+  --primary-deep: #b8c8e0;  /* 月光白 */
+  --primary-soft: rgba(143, 168, 204, 0.16);
+  --success: #7ab89a;
+  --warning: #d4af7a;
+  --danger-soft: #c08888;
+
+  /* ---------- 液态玻璃 · 夜间 ---------- */
+  --lg-fill: rgba(16, 24, 44, 0.55);
+  --lg-fill-hover: rgba(22, 32, 56, 0.68);
+  --lg-fill-solid: rgba(22, 32, 56, 0.92);
+  --lg-highlight-top: rgba(200, 220, 240, 0.18); /* 月光曲面反光 */
+  --lg-highlight-left: rgba(200, 220, 240, 0.10);
+  --lg-shadow-bottom: rgba(0, 0, 0, 0.35);
+  --lg-shadow-right: rgba(0, 0, 0, 0.25);
+  --lg-shadow-outer: rgba(0, 0, 0, 0.30);
+  --lg-stroke-soft: rgba(200, 220, 240, 0.12);
+
+  /* ---------- 玻璃 · 夜间 ---------- */
+  --glass-fill: rgba(16, 24, 44, 0.42);
+  --glass-fill-hover: rgba(22, 32, 56, 0.56);
+  --glass-stroke: rgba(200, 220, 240, 0.18);
+  --glass-stroke-soft: rgba(200, 220, 240, 0.12);
+  --glass-fill-solid: rgba(22, 32, 56, 0.85);
+  --hairline: rgba(200, 220, 240, 0.14);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.30);
+
+  /* ---------- 云与海浪 · 夜间银白 ---------- */
+  --cloud-deco: rgba(200, 220, 240, 0.22);
+  --cloud-deco-soft: rgba(200, 220, 240, 0.12);
+  --wave-deco: rgba(143, 168, 204, 0.18);
+  --wave-deco-deep: rgba(184, 200, 224, 0.24);
+
+  /* ---------- 光标 · 夜间 ---------- */
+  --cursor-color: var(--primary);
+  --cursor-border: rgba(184, 200, 224, 0.6);
+  --cursor-fill: rgba(232, 238, 247, 0.85);
+
+  /* ---------- 骨架屏 · 夜间 ---------- */
+  --skeleton-base: rgba(143, 168, 204, 0.10);
+  --skeleton-shine: rgba(200, 220, 240, 0.18);
+}
+
+/* ================= 主题切换全站过渡 ================= */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition:
+    background-color var(--t-theme) ease,
+    background var(--t-theme) ease,
+    color var(--t-theme) ease,
+    border-color var(--t-theme) ease,
+    box-shadow var(--t-theme) ease,
+    fill var(--t-theme) ease,
+    stroke var(--t-theme) ease !important;
+}
+
+/* ================= 液态玻璃工具类 ================= */
+/* v0.4:融入「纯CSS液态玻璃」技巧 —— 更精细的 6 层 inset 阴影 + 对角线光晕 + 双边框 */
+.liquid-glass {
+  position: relative;
+  background: var(--lg-fill);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px double var(--lg-stroke-soft); /* 双边框,更有玻璃厚度感 */
+  border-radius: var(--r-glass);
+  /* 6 层阴影:顶/左高光 2 层(强+弱)、底/右阴影 2 层、整体内阴影、外阴影 */
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 6px -6px 1px -6px var(--lg-highlight-top),
+    inset -6px 6px 1px -6px var(--lg-highlight-left),
+    inset 0 0 2px var(--lg-shadow-bottom),
+    0 4px 24px var(--lg-shadow-outer);
+  transition:
+    background var(--t-base) var(--ease-air),
+    box-shadow var(--t-base) var(--ease-air),
+    transform var(--t-base) var(--ease-air);
+  overflow: hidden;
+}
+
+/* 对角线光晕:从左上到右下的玻璃反光 */
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    45deg,
+    var(--lg-highlight-top) 0%,
+    transparent 25%,
+    transparent 75%,
+    var(--lg-highlight-left) 100%
+  );
+  filter: blur(3px);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.liquid-glass > * {
+  position: relative;
+  z-index: 2;
+}
+
+.liquid-glass-hover:hover {
+  background: var(--lg-fill-hover);
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 6px -6px 1px -6px var(--lg-highlight-top),
+    inset -6px 6px 1px -6px var(--lg-highlight-left),
+    inset 0 0 2px var(--lg-shadow-bottom),
+    0 8px 32px var(--lg-shadow-outer);
+  transform: translateY(-2px);
+}
+
+.liquid-glass-lg {
+  border-radius: var(--r-glass-lg);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .liquid-glass {
+    background: var(--lg-fill-solid);
+  }
+}
+
+/* ================= 磨砂玻璃工具类(简化版) ================= */
 .glass {
   background: var(--glass-fill);
   backdrop-filter: blur(16px) saturate(1.1);
@@ -78,14 +281,108 @@
   box-shadow: var(--glass-shadow);
 }
 
-/* 不支持 backdrop-filter 时降级为半透实填，不破版 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass {
     background: var(--glass-fill-solid);
   }
 }
 
-/* 尊重用户的减少动态偏好：禁用位移 / 飘移，仅保留淡入 */
+/* ================= 数字等宽字体 ================= */
+.numeric,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ================= 云/海浪动画 ================= */
+@keyframes cloud-drift {
+  0% { transform: translateX(-15%) translateY(0); }
+  50% { transform: translateX(50%) translateY(-8px); }
+  100% { transform: translateX(115%) translateY(0); }
+}
+
+@keyframes cloud-drift-reverse {
+  0% { transform: translateX(115%) translateY(0); }
+  50% { transform: translateX(50%) translateY(-6px); }
+  100% { transform: translateX(-15%) translateY(0); }
+}
+
+@keyframes cloud-sway {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.02); }
+}
+
+@keyframes wave-flow {
+  0% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(-25%) translateY(-4px); }
+  100% { transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes wave-sway {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes wave-rise {
+  0% { transform: translateY(100%); opacity: 0; }
+  60% { transform: translateY(-5%); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes wave-recede {
+  0% { transform: translateY(0); opacity: 1; }
+  40% { transform: translateY(-3%); opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes cloud-pass {
+  /* 主题切换时全屏云层飘过 */
+  0% { transform: translateX(-100%); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* ================= 开屏动画(X 风格) ================= */
+@keyframes launch-zoom {
+  0% {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(24);
+    opacity: 0;
+  }
+}
+
+@keyframes launch-dissolve {
+  0% { opacity: 1; filter: blur(0); }
+  100% { opacity: 0; filter: blur(20px); }
+}
+
+@keyframes launch-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ================= Shimmer 扫光(按钮 hover) ================= */
+@keyframes shimmer-sweep {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+
+/* ================= 骨架屏云朵流动 ================= */
+@keyframes skeleton-cloud-flow {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ================= 减少动态偏好 ================= */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

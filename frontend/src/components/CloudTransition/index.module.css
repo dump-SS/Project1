@@ -1,0 +1,48 @@
+/* CloudTransition · 主题切换云层飘过
+ * 三层云以不同速度从左向右移动,产生纵深感。
+ * 使用 tokens.css 的 cloud-pass keyframes。 */
+
+.cloudTransition {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.cloud {
+  position: absolute;
+  background: var(--cloud-deco);
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0;
+}
+
+.cloudBack {
+  width: 60vw;
+  height: 30vh;
+  top: 10%;
+  left: -30%;
+  animation: cloud-pass 0.6s var(--ease-air) forwards;
+}
+
+.cloudMid {
+  width: 70vw;
+  height: 35vh;
+  top: 40%;
+  left: -35%;
+  animation: cloud-pass 0.6s var(--ease-air) 0.05s forwards;
+}
+
+.cloudFront {
+  width: 80vw;
+  height: 40vh;
+  bottom: 5%;
+  left: -40%;
+  animation: cloud-pass 0.6s var(--ease-air) 0.1s forwards;
+}
+
+/* 夜间模式:云层更淡 */
+:root[data-theme='night'] .cloud {
+  background: var(--cloud-deco-soft);
+}

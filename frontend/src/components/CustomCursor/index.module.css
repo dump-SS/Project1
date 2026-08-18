@@ -1,0 +1,51 @@
+/* CustomCursor · 自定义光标
+ * 默认 8px,hover 可点击元素时放大到 20px。
+ * 位置由 JS 通过 transform: translate(x, y) 控制。 */
+
+.cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--cursor-size);
+  height: var(--cursor-size);
+  margin-left: calc(var(--cursor-size) / -2);
+  margin-top: calc(var(--cursor-size) / -2);
+  border: 1.5px solid var(--cursor-border);
+  background: var(--cursor-fill);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99999;
+  opacity: 0;
+  transition:
+    width var(--t-fast) var(--ease-air),
+    height var(--t-fast) var(--ease-air),
+    margin-left var(--t-fast) var(--ease-air),
+    margin-top var(--t-fast) var(--ease-air),
+    background var(--t-fast) var(--ease-air),
+    opacity var(--t-fast) var(--ease-air);
+  will-change: transform;
+  box-shadow: 0 0 8px rgba(111, 168, 214, 0.25);
+}
+
+.cursorVisible {
+  opacity: 1;
+}
+
+.cursorHover {
+  width: var(--cursor-size-hover);
+  height: var(--cursor-size-hover);
+  margin-left: calc(var(--cursor-size-hover) / -2);
+  margin-top: calc(var(--cursor-size-hover) / -2);
+  background: var(--cursor-color);
+  border-color: var(--cursor-color);
+  box-shadow: 0 0 16px rgba(111, 168, 214, 0.45);
+}
+
+/* 夜间模式:光标阴影颜色调整 */
+:root[data-theme='night'] .cursor {
+  box-shadow: 0 0 8px rgba(184, 200, 224, 0.3);
+}
+
+:root[data-theme='night'] .cursorHover {
+  box-shadow: 0 0 16px rgba(184, 200, 224, 0.5);
+}

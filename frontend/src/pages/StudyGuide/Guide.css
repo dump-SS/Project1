@@ -1,9 +1,9 @@
 /* ===================================================================
-   StudyGuide · 起始页 · v0.2 人文风 · 空气感
-   className 与组件保持一致，仅改视觉皮肤。
+   StudyGuide · 起始页 · v0.3 商业级 · 蓝天/白云/海浪
+   className 与组件保持一致,仅改视觉皮肤。
    =================================================================== */
 
-/* 背景层：天空渐变 + 柔光晕 */
+/* 背景层:天空渐变(日)/ 深海月光(夜) */
 .page-background {
   position: fixed;
   inset: 0;
@@ -13,7 +13,70 @@
   overflow: hidden;
 }
 
-/* 柔光晕：低透明径向光，缓慢飘移，营造空气感 */
+/* ---------- 云朵装饰:散布边缘,不同速度漂移 ---------- */
+.cloud-deco {
+  position: absolute;
+  color: var(--cloud-deco);
+  filter: blur(1px);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.cloud-deco-1 {
+  width: 220px;
+  top: 8%;
+  left: -5%;
+  animation: cloud-drift 90s linear infinite;
+}
+
+.cloud-deco-2 {
+  width: 180px;
+  top: 22%;
+  right: -8%;
+  animation: cloud-drift-reverse 110s linear infinite;
+  opacity: 0.6;
+}
+
+.cloud-deco-3 {
+  width: 260px;
+  top: 48%;
+  left: -12%;
+  animation: cloud-drift 130s linear infinite;
+  opacity: 0.5;
+  filter: blur(2px);
+}
+
+.cloud-deco-4 {
+  width: 150px;
+  top: 65%;
+  right: -5%;
+  animation: cloud-drift-reverse 80s linear infinite;
+  opacity: 0.7;
+}
+
+/* ---------- 海浪装饰:页面底部,双层波浪,右端延伸至屏幕右侧外 ---------- */
+.wave-deco {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 130%; /* 超出屏幕右侧,右端延伸到屏幕外 */
+  height: 140px;
+  pointer-events: none;
+}
+
+.wave-deco-back {
+  color: var(--wave-deco);
+  z-index: 1;
+  animation: wave-flow 24s ease-in-out infinite;
+}
+
+.wave-deco-front {
+  color: var(--wave-deco-deep);
+  z-index: 2;
+  animation: wave-flow 18s ease-in-out infinite reverse;
+}
+
+/* 柔光晕:低透明径向光,缓慢飘移 */
 .page-background::before,
 .page-background::after {
   content: "";
@@ -28,7 +91,7 @@
   height: 62vmax;
   top: -22vmax;
   left: -16vmax;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 70%);
+  background: radial-gradient(circle, var(--cloud-deco) 0%, transparent 70%);
   animation: driftA 32s var(--ease-air) infinite alternate;
 }
 
@@ -37,7 +100,8 @@
   height: 56vmax;
   bottom: -20vmax;
   right: -13vmax;
-  background: radial-gradient(circle, rgba(243, 228, 206, 0.55) 0%, rgba(243, 228, 206, 0) 70%);
+  background: radial-gradient(circle, var(--dusk-warm) 0%, transparent 70%);
+  opacity: 0.55;
   animation: driftB 40s var(--ease-air) infinite alternate;
 }
 
@@ -68,46 +132,58 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Hero 标题 · 衬线大字，仪式感 */
+/* Hero 标题 · 衬线大字 · 起始页 34px,符合 v0.3 规范 */
 .page-title {
   margin: 0 0 8px;
   text-align: center;
   font-family: var(--font-serif);
-  font-size: 2.75rem;
+  font-size: 2.125rem; /* 34px */
   font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
   color: var(--ink);
+  text-shadow: 0 2px 12px rgba(53, 80, 127, 0.08);
 }
 
 .page-title .en {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 1.05rem;
+  font-size: 1rem; /* 16px 副标题 */
   font-weight: 400;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
   color: var(--ink-soft);
 }
 
-/* 状态解释条 / 推荐区：磨砂玻璃细条 */
+/* 状态解释条 / 推荐区:液态玻璃卡片 */
 .recommend {
   width: 100%;
   max-width: 520px;
   margin: 28px 0 6px;
-  padding: 16px 22px;
+  padding: 18px 24px;
   text-align: left;
-  background: var(--glass-fill);
-  backdrop-filter: blur(16px) saturate(1.1);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-  border: 1px solid var(--glass-stroke);
-  border-radius: var(--r-glass);
-  box-shadow: var(--glass-shadow);
+  background: var(--lg-fill);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--lg-stroke-soft);
+  border-radius: var(--r-card);
+  box-shadow:
+    inset 0 1px 0 0 var(--lg-highlight-top),
+    inset 1px 0 0 0 var(--lg-highlight-left),
+    inset 0 -1px 0 0 var(--lg-shadow-bottom),
+    0 4px 24px var(--lg-shadow-outer);
+  transition:
+    background var(--t-base) var(--ease-air),
+    box-shadow var(--t-base) var(--ease-air);
+}
+
+.recommend:hover {
+  background: var(--lg-fill-hover);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .recommend { background: var(--glass-fill-solid); }
+  .recommend { background: var(--lg-fill-solid); }
 }
 
 .recommend-line {
@@ -200,7 +276,7 @@
   width: 100%;
 }
 
-/* 输入框 · 磨砂玻璃胶囊，去重阴影 */
+/* 输入框 · 液态玻璃,focus 时主题色边框 + 光晕 */
 .editor-input {
   width: 100%;
   padding: 15px 60px 15px 22px;
@@ -208,19 +284,23 @@
   font-size: 1.05rem;
   font-weight: 400;
   color: var(--ink);
-  background: var(--glass-fill);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-stroke);
+  background: var(--lg-fill);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--lg-stroke-soft);
   border-radius: var(--r-pill);
-  box-shadow: var(--glass-shadow);
+  box-shadow:
+    inset 0 1px 0 0 var(--lg-highlight-top),
+    0 2px 12px var(--lg-shadow-outer);
   outline: none;
-  transition: border-color var(--t-base) var(--ease-air),
+  transition:
+    background var(--t-base) var(--ease-air),
+    border-color var(--t-base) var(--ease-air),
     box-shadow var(--t-base) var(--ease-air);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .editor-input { background: var(--glass-fill-solid); }
+  .editor-input { background: var(--lg-fill-solid); }
 }
 
 .editor-suffix {
@@ -244,8 +324,12 @@
 }
 
 .editor-input:focus {
+  background: var(--lg-fill-hover);
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(111, 168, 214, 0.20), var(--glass-shadow);
+  box-shadow:
+    inset 0 1px 0 0 var(--lg-highlight-top),
+    0 0 0 4px var(--primary-soft),
+    0 2px 12px var(--lg-shadow-outer);
 }
 
 .editor-warning {
@@ -280,8 +364,9 @@
   color: var(--danger-soft);
 }
 
-/* 进入按钮 · 胶囊描边主色，hover 反白 */
+/* 进入按钮 · 液态玻璃主按钮 + shimmer 扫光 */
 .enter-button {
+  position: relative;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -290,17 +375,34 @@
   font-family: var(--font-serif);
   font-size: 1.1rem;
   font-weight: 500;
-  color: var(--primary-deep);
-  background: transparent;
-  border: 1.5px solid var(--primary);
+  color: var(--on-photo);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+  border: none;
   border-radius: var(--r-pill);
   text-decoration: none;
   cursor: pointer;
   user-select: none;
-  transition: transform var(--t-base) var(--ease-air),
-    background var(--t-base) var(--ease-air),
-    color var(--t-base) var(--ease-air),
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    0 6px 20px var(--lg-shadow-outer);
+  text-shadow: 0 1px 2px rgba(0, 50, 120, 0.2);
+  transition:
+    transform var(--t-base) var(--ease-air),
     box-shadow var(--t-base) var(--ease-air);
+}
+
+/* shimmer 扫光 */
+.enter-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
 }
 
 .enter-button .enter-en {
@@ -310,21 +412,490 @@
   font-size: 0.72rem;
   font-weight: 400;
   letter-spacing: 0.28em;
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 .enter-button:hover {
   transform: translateY(-2px);
-  background: var(--primary);
-  color: var(--on-photo);
-  box-shadow: 0 10px 26px rgba(111, 168, 214, 0.35);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    0 10px 28px var(--lg-shadow-outer);
+}
+
+.enter-button:hover::before {
+  animation: shimmer-sweep 0.8s var(--ease-air);
 }
 
 .enter-button:active { transform: translateY(0); }
+
+.enter-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+
+.enter-button:disabled::before {
+  display: none;
+}
 
 @media (max-width: 480px) {
   .app { padding: 48px 16px 72px; }
   .page-title { font-size: 2rem; }
   .editor-label { font-size: 1.1rem; }
   .recommend { max-width: 100%; }
+}
+
+/* ===================================================================
+   v0.4 新增:学习科目选择器
+   =================================================================== */
+.subject-picker {
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 24px;
+}
+
+.subject-picker-label {
+  margin: 0 0 12px;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.subject-picker-label .en {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+}
+
+.subject-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.subject-chip {
+  padding: 8px 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  background: var(--lg-fill);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--lg-stroke-soft);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-air),
+    color var(--t-fast) var(--ease-air),
+    border-color var(--t-fast) var(--ease-air),
+    transform var(--t-fast) var(--ease-air);
+}
+
+.subject-chip:hover {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  transform: translateY(-1px);
+}
+
+.subject-chip-active,
+.subject-chip[aria-checked='true'] {
+  background: var(--primary);
+  color: var(--on-photo);
+  border-color: var(--primary);
+  font-weight: 500;
+}
+
+/* ===================================================================
+   v0.4 新增:计划确认弹窗(深色遮罩 + 突出弹窗)
+   =================================================================== */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(10, 16, 28, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: modal-mask-in var(--t-base) var(--ease-air);
+}
+
+.plan-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 210;
+  width: min(520px, calc(100vw - 48px));
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 28px 32px 24px;
+  background: var(--lg-fill-solid);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px double var(--lg-stroke-soft);
+  border-radius: var(--r-glass-lg);
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 0 0 2px var(--lg-shadow-bottom),
+    0 24px 64px var(--lg-shadow-outer);
+  animation: modal-in 0.4s var(--ease-spring);
+}
+
+.plan-modal-title {
+  margin: 0 0 4px;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.plan-modal-title .en {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.plan-modal-subtitle {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.plan-modal-body {
+  padding: 16px 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.plan-modal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  gap: 16px;
+}
+
+.plan-modal-label {
+  font-size: 13px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+
+.plan-modal-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-modal-tasks {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--hairline);
+}
+
+.plan-modal-tasks ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.plan-modal-more {
+  color: var(--ink-faint);
+  font-style: italic;
+  list-style: none;
+}
+
+.plan-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.plan-modal-btn {
+  padding: 10px 22px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--r-button);
+  cursor: pointer;
+  border: 1px double var(--lg-stroke-soft);
+  transition:
+    background var(--t-fast) var(--ease-air),
+    color var(--t-fast) var(--ease-air),
+    transform var(--t-fast) var(--ease-air),
+    box-shadow var(--t-fast) var(--ease-air);
+}
+
+.plan-modal-btn-ghost {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.plan-modal-btn-ghost:hover {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+
+.plan-modal-btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+  color: var(--on-photo);
+  border-color: transparent;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    0 4px 12px var(--lg-shadow-outer);
+}
+
+.plan-modal-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    0 6px 18px var(--lg-shadow-outer);
+}
+
+@keyframes modal-mask-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ===================================================================
+   v0.4 新增:黑场 + 横向液态玻璃窄条「进入计时 ENTER」
+   =================================================================== */
+.blackout-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #05070c;
+  animation: blackout-in 0.6s var(--ease-air);
+}
+
+.blackout-strip {
+  position: relative;
+  width: 100vw;
+  padding: 22px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--lg-fill);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-top: 1px double var(--lg-stroke-soft);
+  border-bottom: 1px double var(--lg-stroke-soft);
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 0 0 2px var(--lg-shadow-bottom),
+    0 12px 48px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  border-left: none;
+  border-right: none;
+  animation: strip-in 0.7s var(--ease-spring) 0.15s both;
+  transition:
+    background var(--t-base) var(--ease-air),
+    box-shadow var(--t-base) var(--ease-air);
+  overflow: hidden;
+}
+
+.blackout-strip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+  animation: strip-shimmer 2.2s ease-in-out infinite;
+}
+
+.blackout-strip:hover {
+  background: var(--lg-fill-hover);
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 0 0 2px var(--lg-shadow-bottom),
+    0 16px 56px rgba(0, 0, 0, 0.6);
+}
+
+.blackout-strip-text {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.blackout-strip-en {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  color: var(--primary-deep);
+  padding: 3px 10px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+}
+
+@keyframes blackout-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes strip-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes strip-shimmer {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  60%, 100% { transform: translateX(500%) skewX(-15deg); }
+}
+
+/* ===================================================================
+   v0.4 新增:水淹过渡(海浪抬升淹没页面 + 浪花飞溅)
+   =================================================================== */
+.flood-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.flood-wave {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 130%;
+  height: 130vh;
+  animation: flood-rise 1.3s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}
+
+.flood-wave path {
+  /* 让 SVG 内部路径也拉高到 100% 高度 */
+}
+
+.flood-wave-back {
+  color: var(--wave-deco);
+  z-index: 1;
+}
+
+.flood-wave-front {
+  color: var(--wave-deco-deep);
+  z-index: 2;
+  animation-delay: 0.1s;
+}
+
+@keyframes flood-rise {
+  0% {
+    transform: translateY(calc(100vh - 140px));
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 浪花飞溅:多个小圆形从不同位置上升 */
+.flood-foam {
+  position: absolute;
+  background: var(--cloud-deco);
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: 0;
+  z-index: 3;
+  animation: foam-rise 1.3s ease-out forwards;
+}
+
+.flood-foam-1 {
+  width: 24px; height: 24px;
+  left: 15%; bottom: 20%;
+  animation-delay: 0.15s;
+}
+
+.flood-foam-2 {
+  width: 16px; height: 16px;
+  left: 32%; bottom: 12%;
+  animation-delay: 0.25s;
+}
+
+.flood-foam-3 {
+  width: 32px; height: 32px;
+  left: 52%; bottom: 24%;
+  animation-delay: 0.1s;
+}
+
+.flood-foam-4 {
+  width: 12px; height: 12px;
+  left: 68%; bottom: 15%;
+  animation-delay: 0.32s;
+}
+
+.flood-foam-5 {
+  width: 20px; height: 20px;
+  left: 82%; bottom: 22%;
+  animation-delay: 0.2s;
+}
+
+.flood-foam-6 {
+  width: 18px; height: 18px;
+  left: 45%; bottom: 30%;
+  animation-delay: 0.28s;
+}
+
+@keyframes foam-rise {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(-40vh) scale(1.2);
+    opacity: 0;
+  }
 }

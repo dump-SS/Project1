@@ -200,9 +200,45 @@ Goal:
 - `index.html` 没有声明 favicon（提交记录里写了「添加favicon」，但对应的 `favicon.png` 没有被提交，`mock-server/generate-email-logo.mjs` 也因此一度指向一个不存在的文件——已改成指向 `logo-mark-on-light.png` 让 `npm start` 能跑起来，但 favicon 本身还是缺的，需要重新加）。
 - `StudyGuide` / `StudyPlanEditor` 的数据量驱动切换目前是摆设（两个入口都在导航条里，不会自动判断），等 `/learning-records` `/goals` 接口就绪后再接上，见上文说明。
 
+## 设计系统(v0.3 · 2026-08-19 重构)
+
+**视觉基调**:蓝天 + 白云 + 海浪,拟物/写实的液态玻璃(Liquid Glass)质感,参考 iOS 壁纸 + Linear 暗色 + Vercel 渐变。
+
+**双主题模式**:
+- 日间(默认):天空蓝渐变,白云,通透感强
+- 夜间:深海蓝-靛蓝渐变,银白云,月光高光
+- 切换入口:顶栏右侧 ☀️/🌙 按钮,全站 0.6s 平滑过渡
+- 状态管理:`ThemeContext.jsx`,localStorage 持久化(key: `epochx-theme`)
+
+**设计令牌**:
+- 单一真源:`frontend/src/styles/tokens.css` v0.3
+- 日夜间双套色板,通过 `[data-theme='day'|'night']` 属性切换
+- 圆角收紧:卡片 8-12px,大卡片 16px,按钮 6-8px
+- 液态玻璃工具类:`.liquid-glass`(多层高光:顶/左白色反光 + 底/右深色描边 + 内阴影曲面 + 外阴影)
+- 字体:标题衬线(Noto Serif SC)+ 正文细体(Noto Sans SC 350)+ 数字等宽(JetBrains Mono)
+
+**动效系统**:
+- 开屏动画:`LaunchScreen` 组件,X 风格 Logo 放大 + 镂空透视 + 云层溶解,localStorage 记录已播放
+- 页面过渡:`PageTransition` 组件,同级切换淡出+右滑入;`CloudTransition` 组件,主题切换全屏云层飘过
+- 自定义光标:`CustomCursor` 组件,8px 圆点,hover 可点击元素放大到 20px
+- 按钮 hover:上浮 2px + shimmer 扫光;卡片 hover:液态玻璃高光位移
+- 骨架屏:`.skeleton-cloud` 云朵形状流动
+
+**组件库**:
+- 液态玻璃按钮:`.btn-liquid` / `.btn-liquid-primary` / `.btn-liquid-ghost`
+- 液态玻璃输入框:`.input-liquid`(focus 时主题色边框 + 极淡光晕)
+- 液态玻璃 Tab:`.tab-liquid`(选中态底部 2px 细线 + 文字加粗)
+- 全部在 `global.css` 末尾,直接用 tokens.css 变量
+
+**导航结构**:
+- 6 项主导航横排:导学 / 计时 / 数据 / 复盘 / 建议 / 目标
+- "我的"下拉:设置 / 资料建档 / 监护人授权
+- 移动端:底部 6 Tab + "我的"抽屉
+
 ## 约定
 
 - 新页面放 `frontend/src/pages/`，路由在 `App.jsx` 注册。不要新建第二个前端工程。
-- 不要在组件里硬编码色值，一律从 `frontend/src/styles/theme.ts` 引用。
+- 不要在组件里硬编码色值，一律从 `frontend/src/styles/tokens.css` 引用(`--lg-*` / `--glass-*` / `--primary*` / `--ink*`)。
 - 不要在组件里直接 `fetch`，统一走 `frontend/src/services/`。
 - 新增接口字段前先改 `docs/openapi.yaml` —— 它是前后端与 QA 的唯一契约来源。
+- 改动**只限呈现层**,不要顺手改 service/hooks/数据语义(沿用上一任 agent 的铁律)。

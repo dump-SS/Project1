@@ -1,13 +1,13 @@
 ﻿.app {
-  /* v0.2：局部别名切到空气感色值（避免与 tokens 的同名 :root 变量自引用，此处直接取值）*/
-  --primary: #6fa8d6;
-  --primary-soft: #a9d4ec;
-  --primary-deep: #4a7cb0;
-  --ink: #2b3a55;
-  --ink-soft: #5c6e88;
-  --blue-1: rgba(255, 255, 255, 0.55);
-  --blue-2: #dcebf5;
-  --blue-3: #a9d4ec;
+  /* v0.3:局部别名桥接到 tokens.css,自动跟随日夜间主题切换 */
+  --primary: var(--primary);
+  --primary-soft: var(--sky-hi);
+  --primary-deep: var(--primary-deep);
+  --ink: var(--ink);
+  --ink-soft: var(--ink-soft);
+  --blue-1: var(--glass-fill);
+  --blue-2: var(--sky-lo);
+  --blue-3: var(--sky-hi);
   --glass: var(--glass-fill);
   --glass-strong: var(--glass-fill-solid);
   --serif: var(--font-serif);
@@ -60,7 +60,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(224, 238, 248, 0.2), rgba(224, 238, 248, 0.04) 40%, rgba(224, 238, 248, 0.1));
+  background: linear-gradient(180deg, var(--primary-soft), transparent 40%, var(--primary-soft));
 }
 
 /* ---------- 顶栏：最小空间，全部组件一行 ---------- */
@@ -78,8 +78,8 @@
   gap: 6px 14px;
   background: var(--glass);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(212, 231, 243, 0.65);
-  box-shadow: 0 8px 24px rgba(53, 80, 127, 0.1);
+  border: 1px solid var(--glass-stroke-soft);
+  box-shadow: 0 8px 24px var(--glass-shadow);
 }
 
 .brandLogo {
@@ -675,4 +675,21 @@
     font-size: 22px;
     min-width: 64px;
   }
+}
+
+/* ===================================================================
+   夜间模式覆盖 · v0.3
+   StudyTimer 保留独立"专注空间"色板,夜间模式下微调亮度和对比度,
+   不完全跟随全局深海主题——它的蓝白配色在夜间视觉上也成立。
+   =================================================================== */
+:root[data-theme='night'] .app {
+  /* 保持原色板,只调整背景图的滤镜让它在夜间不刺眼 */
+}
+
+:root[data-theme='night'] .bgSky::before {
+  filter: brightness(0.6) saturate(0.8);
+}
+
+:root[data-theme='night'] .bgSky::after {
+  background: linear-gradient(180deg, rgba(16, 24, 44, 0.4), rgba(16, 24, 44, 0.2) 40%, rgba(16, 24, 44, 0.5));
 }

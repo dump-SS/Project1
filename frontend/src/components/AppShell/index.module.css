@@ -1,229 +1,259 @@
-/* 色值对齐 src/styles/theme.ts（该文件为 .ts，JSX 组件里为保持与其余 CSS 文件一致的写法直接写字面量，
-   两边如需调整颜色请同步改）。*/
+/* AppShell v0.4 · 左侧边栏导航(支持折叠)+ 移动端底部 Tab
+ * 色值一律引用 tokens.css 变量,禁止硬编码。
+ * 边栏:展开 240px / 折叠 64px,液态玻璃质感。 */
 
 .shell {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
 }
 
-.bar {
-  position: sticky;
+/* ===== 左侧边栏 ===== */
+.sidebar {
+  position: fixed;
+  left: 0;
   top: 0;
+  bottom: 0;
   z-index: 100;
-  height: 56px;
-  flex: 0 0 auto;
+  width: 240px;
   display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 0 24px;
-  background: var(--glass-fill);
-  backdrop-filter: blur(16px) saturate(1.1);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-  border-bottom: 1px solid var(--glass-stroke);
-  box-shadow: 0 4px 24px rgba(53, 80, 127, 0.08);
+  flex-direction: column;
+  background: var(--lg-fill);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-right: 1px solid var(--lg-stroke-soft);
+  box-shadow:
+    inset -1px 0 0 0 var(--lg-highlight-top),
+    2px 0 24px var(--lg-shadow-outer);
+  transition: width var(--t-base) var(--ease-air);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .bar {
-    background: var(--glass-fill-solid);
+  .sidebar {
+    background: var(--lg-fill-solid);
   }
 }
 
+.sidebarCollapsed {
+  width: 64px;
+}
+
+/* 品牌区 */
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 12px;
+  padding: 20px 16px;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .logo {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .brandText {
   font-family: var(--font-serif);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 500;
   color: var(--ink);
-  letter-spacing: 0.02em;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
+/* 主导航 */
 .nav {
-  display: flex;
-  align-items: center;
-  gap: 18px;
   flex: 1 1 auto;
-  min-width: 0;
-  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .navLink {
-  position: relative;
-  flex-shrink: 0;
-  padding: 6px 4px;
-  font-size: 13px;
-  font-weight: 350;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
   color: var(--ink-soft);
   text-decoration: none;
+  border-radius: 8px;
   white-space: nowrap;
-  transition: color var(--t-base) var(--ease-air);
-}
-
-.navLink::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: -2px;
-  height: 1.5px;
-  border-radius: 2px;
-  background: var(--primary);
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform var(--t-base) var(--ease-air);
+  transition:
+    background var(--t-base) var(--ease-air),
+    color var(--t-base) var(--ease-air),
+    transform var(--t-base) var(--ease-air);
 }
 
 .navLink:hover {
+  background: var(--primary-soft);
   color: var(--primary-deep);
+  transform: translateX(2px);
 }
 
 .navLinkActive {
+  background: var(--primary-soft);
   color: var(--ink);
   font-weight: 500;
 }
 
-.navLinkActive::after {
-  transform: scaleX(1);
+.navIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: currentColor;
 }
 
-.account {
+.navIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.navLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navDivider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--hairline);
+}
+
+/* 底部操作区 */
+.sidebarFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.footerButton {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-shrink: 0;
-}
-
-.email {
-  font-size: 12px;
-  color: var(--ink-faint);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.logoutButton {
-  border: 1px solid var(--primary);
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-soft);
   background: transparent;
-  color: var(--primary-deep);
-  font-size: 12px;
-  padding: 5px 14px;
-  border-radius: var(--r-pill);
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
+  white-space: nowrap;
   transition:
     background var(--t-base) var(--ease-air),
     color var(--t-base) var(--ease-air);
 }
 
-.logoutButton:hover {
-  background: var(--primary);
-  color: var(--on-photo);
-}
-
-.content {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-/* ===== 桌面二级下拉 ===== */
-.navGroup {
-  position: relative;
-}
-
-.navGroupTrigger {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-}
-
-.dropdown {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%) translateY(6px);
-  min-width: 128px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  background: var(--glass-fill);
-  backdrop-filter: blur(16px) saturate(1.1);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-  border: 1px solid var(--glass-stroke);
-  border-radius: var(--r-glass);
-  box-shadow: var(--glass-shadow);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity var(--t-base) var(--ease-air),
-    transform var(--t-base) var(--ease-air), visibility var(--t-base);
-  z-index: 120;
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .dropdown { background: var(--glass-fill-solid); }
-}
-
-.navGroup:hover .dropdown,
-.navGroup:focus-within .dropdown {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateX(-50%) translateY(0);
-}
-
-.dropdownItem {
-  padding: 8px 12px;
-  border-radius: var(--r-button);
-  font-size: 13px;
-  font-weight: 350;
-  color: var(--ink-soft);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background var(--t-fast) var(--ease-air), color var(--t-fast) var(--ease-air);
-}
-
-.dropdownItem:hover {
-  background: rgba(111, 168, 214, 0.12);
+.footerButton:hover {
+  background: var(--primary-soft);
   color: var(--primary-deep);
 }
 
-.dropdownItemActive {
-  color: var(--ink);
-  font-weight: 500;
-  background: rgba(111, 168, 214, 0.14);
+.footerIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--primary-deep);
+  transition: transform var(--t-base) var(--ease-air);
 }
 
-/* ===== 移动端底部 Tab ===== */
+.footerIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.footerButton:hover .footerIcon {
+  transform: rotate(15deg) scale(1.1);
+}
+
+.footerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collapseButton {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.userEmail {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== 内容区 ===== */
+.content {
+  flex: 1 1 auto;
+  min-height: 100vh;
+  margin-left: 240px;
+  transition: margin-left var(--t-base) var(--ease-air);
+}
+
+.contentCollapsed {
+  margin-left: 64px;
+}
+
+/* ===== 移动端:底部 Tab ===== */
 .tabbar {
   display: none;
 }
 
 .tab {
   flex: 1;
-  border: none;
-  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 2px;
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 350;
+  font-size: 11px;
+  font-weight: 400;
   color: var(--ink-soft);
-  padding: 10px 0;
+  background: transparent;
+  border: none;
+  text-decoration: none;
   cursor: pointer;
   transition: color var(--t-base) var(--ease-air);
+}
+
+.tabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: currentColor;
+}
+
+.tabIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.tabLabel {
+  font-size: 10px;
 }
 
 .tabActive {
@@ -231,12 +261,14 @@
   font-weight: 500;
 }
 
-/* ===== 移动端二级抽屉 ===== */
+/* ===== 移动端「我的」抽屉 ===== */
 .sheetMask {
   position: fixed;
   inset: 0;
   z-index: 140;
-  background: rgba(43, 58, 85, 0.18);
+  background: rgba(43, 58, 85, 0.22);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   animation: maskIn var(--t-base) var(--ease-air);
 }
 
@@ -244,42 +276,63 @@
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 56px;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   z-index: 150;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: var(--glass-fill);
-  backdrop-filter: blur(18px) saturate(1.1);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  border-top: 1px solid var(--glass-stroke);
-  box-shadow: 0 -8px 32px rgba(53, 80, 127, 0.12);
+  background: var(--lg-fill-solid);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-top: 1px solid var(--lg-stroke-soft);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 32px var(--lg-shadow-outer);
   animation: sheetIn var(--t-base) var(--ease-air);
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .sheet { background: var(--glass-fill-solid); }
-}
-
 .sheetItem {
-  padding: 12px 14px;
-  border: none;
-  background: transparent;
-  border-radius: var(--r-button);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
   font-family: var(--font-sans);
   font-size: 14px;
-  font-weight: 350;
-  text-align: left;
+  font-weight: 400;
   color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  text-align: left;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-air),
+    color var(--t-fast) var(--ease-air);
+}
+
+.sheetItem:hover {
+  background: var(--primary-soft);
 }
 
 .sheetItemActive {
   color: var(--ink);
   font-weight: 500;
-  background: rgba(111, 168, 214, 0.14);
+  background: var(--primary-soft);
+}
+
+.sheetIcon {
+  color: var(--primary-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.sheetIcon svg {
+  width: 18px;
+  height: 18px;
 }
 
 @keyframes maskIn {
@@ -288,31 +341,20 @@
 }
 
 @keyframes sheetIn {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ===== 响应式 ===== */
 @media (max-width: 640px) {
-  .bar {
-    gap: 12px;
-    padding: 0 12px;
-  }
-
-  .brandText {
-    display: none;
-  }
-
-  .email {
-    display: none;
-  }
-
-  /* 移动端：顶栏藏起分组导航，改用底部 Tab */
-  .nav {
+  /* 移动端:隐藏左侧边栏,显示底部 Tab */
+  .sidebar {
     display: none;
   }
 
   .content {
-    padding-bottom: 56px;
+    margin-left: 0;
+    padding-bottom: 64px;
   }
 
   .tabbar {
@@ -323,18 +365,19 @@
     z-index: 130;
     display: flex;
     align-items: stretch;
-    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: var(--glass-fill);
-    backdrop-filter: blur(18px) saturate(1.1);
-    -webkit-backdrop-filter: blur(18px) saturate(1.1);
-    border-top: 1px solid var(--glass-stroke);
-    box-shadow: 0 -4px 24px rgba(53, 80, 127, 0.08);
+    background: var(--lg-fill-solid);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border-top: 1px solid var(--lg-stroke-soft);
+    box-shadow: 0 -4px 24px var(--lg-shadow-outer);
   }
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .tabbar {
-    background: var(--glass-fill-solid);
+  .tabbar,
+  .sheet {
+    background: var(--lg-fill-solid);
   }
 }

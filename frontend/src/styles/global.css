@@ -1,13 +1,13 @@
-/* ============ 文艺风全局样式 ============ */
+/* ============ v0.3 全局样式 · 液态玻璃主题系统 ============ */
 
 :root {
-  /* v0.2：旧变量名保留，值桥接到 tokens.css 的空气感令牌，避免逐处改引用 */
-  /* 主题色：晴空蓝 */
+  /* v0.3:旧变量名保留,值桥接到 tokens.css 的液态玻璃令牌,避免逐处改引用 */
+  /* 主题色:晴空蓝 */
   --color-primary: var(--primary);
   --color-primary-light: var(--sky-hi);
   --color-primary-dark: var(--primary-deep);
-  --color-primary-bg: rgba(111, 168, 214, 0.08);
-  --color-primary-bg-soft: rgba(111, 168, 214, 0.14);
+  --color-primary-bg: var(--primary-soft);
+  --color-primary-bg-soft: var(--primary-soft);
 
   /* 文字 */
   --color-text-heading: var(--ink);
@@ -20,19 +20,19 @@
   --color-error: var(--danger-soft);
   --color-warning: var(--warning);
 
-  /* 背景：天空渐变 + 玻璃卡片 */
+  /* 背景:天空渐变 + 玻璃卡片 */
   --color-bg-page: var(--bg-sky);
-  --color-bg-card: var(--glass-fill);
+  --color-bg-card: var(--lg-fill);
   --color-border: var(--glass-stroke);
   --color-border-soft: var(--hairline);
 
   /* 阴影 */
   --shadow-soft: var(--glass-shadow);
   --shadow-card: var(--glass-shadow);
-  --shadow-focus: 0 0 0 4px rgba(111, 168, 214, 0.20);
+  --shadow-focus: 0 0 0 4px var(--primary-soft);
 
-  /* 圆角 */
-  --radius-sm: 8px;
+  /* 圆角 · v0.3 收紧 */
+  --radius-sm: 6px;
   --radius-md: var(--r-button);
   --radius-lg: var(--r-glass);
   --radius-pill: var(--r-pill);
@@ -55,13 +55,14 @@ html, body, #root, .app-shell {
 
 body {
   font-family: var(--font-sans);
-  font-weight: 400;
+  font-weight: 350;
   color: var(--color-text-body);
   background: var(--color-bg-page);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.6;
+  line-height: 1.75;
+  letter-spacing: 0.02em;
 }
 
 /* ============ 字体层级 ============ */
@@ -70,8 +71,8 @@ h1, h2, h3, h4, h5, .font-serif {
   font-family: var(--font-serif);
   color: var(--color-text-heading);
   font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
 }
 
 body, p, span, label, input, button, textarea, select, a, div {
@@ -113,7 +114,7 @@ strong, b, .text-bold {
 .page-bg-decor::after {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, #D9EEFF 0%, transparent 70%);
+  background: radial-gradient(circle, var(--sky-mid) 0%, transparent 70%);
   bottom: -140px;
   right: -100px;
   opacity: 0.7;
@@ -135,13 +136,17 @@ strong, b, .text-bold {
   position: relative;
   width: 100%;
   max-width: 440px;
-  background: var(--color-bg-card);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 56px 40px 36px;
-  box-shadow: var(--shadow-card);
+  background: var(--lg-fill);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--lg-stroke-soft);
+  border-radius: var(--r-card);
+  padding: 48px 36px 32px;
+  box-shadow:
+    inset 0 1px 0 0 var(--lg-highlight-top),
+    inset 1px 0 0 0 var(--lg-highlight-left),
+    inset 0 -1px 0 0 var(--lg-shadow-bottom),
+    0 8px 32px var(--lg-shadow-outer);
   animation: cardIn var(--trans-slow);
 }
 
@@ -220,8 +225,9 @@ strong, b, .text-bold {
 
 .auth-title {
   font-family: var(--font-serif);
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--color-text-heading);
   margin-bottom: 8px;
 }
@@ -264,7 +270,7 @@ strong, b, .text-bold {
 .auth-tab.active {
   color: #fff;
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  box-shadow: 0 4px 14px rgba(74, 209, 255, 0.35);
+  box-shadow: 0 4px 14px var(--primary-soft);
 }
 
 /* ============ 表单 ============ */
@@ -423,12 +429,31 @@ strong, b, .text-bold {
   transition: all var(--trans-base);
   font-family: var(--font-sans);
   letter-spacing: 0.04em;
-  box-shadow: 0 6px 18px rgba(74, 209, 255, 0.30);
+  box-shadow: 0 6px 18px var(--primary-soft);
+  position: relative;
+  overflow: hidden;
+}
+
+/* shimmer 扫光效果 · v0.3 */
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
+}
+
+.btn-primary:hover:not(:disabled)::before {
+  animation: shimmer-sweep 0.8s var(--ease-air);
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 26px rgba(74, 209, 255, 0.42);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px var(--primary-soft);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -530,7 +555,7 @@ strong, b, .text-bold {
 .step-indicator .step.active {
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: #fff;
-  box-shadow: 0 4px 12px rgba(74, 209, 255, 0.35);
+  box-shadow: 0 4px 12px var(--primary-soft);
 }
 
 .step-indicator .step.done {
@@ -561,7 +586,7 @@ strong, b, .text-bold {
   .btn-primary { height: 46px; }
 }
 
-/* 登录页分栏在窄屏下退回单栏：隐藏视频，右侧表单占满 */
+/* 登录页分栏在窄屏下退回单栏:隐藏视频,右侧表单占满(origin/main 合并引入) */
 @media (max-width: 768px) {
   .auth-card--split {
     max-width: 440px;
@@ -575,7 +600,7 @@ strong, b, .text-bold {
   }
 }
 
-/* ============ Loading Spinner（登录 / 进入计划等场景复用） ============ */
+/* ============ Loading Spinner(登录 / 进入计划等场景复用) ============ */
 .spinner {
   display: inline-block;
   width: 16px;
@@ -594,4 +619,271 @@ strong, b, .text-bold {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ============ 自定义光标 · 桌面端隐藏原生光标 ============ */
+@media (hover: hover) and (pointer: fine) {
+  body.cursor-hidden,
+  body.cursor-hidden * {
+    cursor: none !important;
+  }
+}
+
+/* ============================================================
+ * v0.4 液态玻璃组件库 · 融入「纯CSS液态玻璃」技巧
+ * 按钮 / 输入框 / Tab 三类,直接使用 tokens.css 的液态玻璃变量。
+ * ============================================================ */
+
+/* ---------- 液态玻璃按钮 ---------- */
+.btn-liquid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--lg-fill);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px double var(--lg-stroke-soft); /* 双边框 */
+  border-radius: var(--r-button);
+  /* 6 层阴影:参考「纯CSS液态玻璃」 */
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 0 0 2px var(--lg-shadow-bottom),
+    0 4px 16px var(--lg-shadow-outer);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition:
+    background var(--t-base) var(--ease-air),
+    box-shadow var(--t-base) var(--ease-air),
+    transform var(--t-base) var(--ease-air),
+    font-size var(--t-fast) var(--ease-air);
+}
+
+/* shimmer 扫光 */
+.btn-liquid::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
+}
+
+.btn-liquid:hover:not(:disabled) {
+  background: var(--lg-fill-hover);
+  box-shadow:
+    inset 2px -2px 1px -1px var(--lg-highlight-top),
+    inset -2px 2px 1px -1px var(--lg-highlight-left),
+    inset 0 0 3px var(--lg-shadow-bottom),
+    0 6px 20px var(--lg-shadow-outer);
+  transform: translateY(-2px);
+  font-size: 13.5px; /* 按压效果:字号微缩 */
+}
+
+.btn-liquid:hover:not(:disabled)::before {
+  animation: shimmer-sweep 0.8s var(--ease-air);
+}
+
+.btn-liquid:active:not(:disabled) {
+  transform: translateY(0);
+  font-size: 13px; /* 按压时进一步缩小 */
+  box-shadow:
+    inset 2px -2px 2px -1px var(--lg-highlight-top),
+    inset -2px 2px 2px -1px var(--lg-highlight-left),
+    inset 0 0 4px var(--lg-shadow-bottom),
+    0 2px 8px var(--lg-shadow-outer);
+}
+
+.btn-liquid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+/* 主按钮 · 带主色渐变 */
+.btn-liquid-primary {
+  color: var(--on-photo);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+  border-color: transparent;
+  text-shadow: 0 1px 2px rgba(0, 50, 120, 0.2);
+}
+
+.btn-liquid-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--primary-deep) 0%, var(--primary) 100%);
+}
+
+/* 次按钮 · 透明背景 + 细边框 */
+.btn-liquid-ghost {
+  background: transparent;
+  border-color: var(--lg-stroke-soft);
+  color: var(--ink-soft);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.btn-liquid-ghost:hover:not(:disabled) {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-deep);
+  box-shadow: 0 2px 8px var(--lg-shadow-outer);
+}
+
+/* ---------- 液态玻璃输入框 ---------- */
+.input-liquid {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--lg-fill);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--lg-stroke-soft);
+  border-radius: var(--r-input);
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 0 var(--lg-highlight-top),
+    0 2px 8px var(--lg-shadow-outer);
+  transition:
+    background var(--t-base) var(--ease-air),
+    border-color var(--t-base) var(--ease-air),
+    box-shadow var(--t-base) var(--ease-air);
+}
+
+.input-liquid::placeholder {
+  color: var(--ink-faint);
+  font-weight: 300;
+}
+
+.input-liquid:hover:not(:disabled) {
+  background: var(--lg-fill-hover);
+  border-color: var(--primary);
+}
+
+.input-liquid:focus {
+  background: var(--lg-fill-hover);
+  border-color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 0 var(--lg-highlight-top),
+    0 0 0 4px var(--primary-soft),
+    0 2px 8px var(--lg-shadow-outer);
+}
+
+.input-liquid:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- 液态玻璃 Tab · 底部 2px 细线选中态 ---------- */
+.tab-liquid {
+  position: relative;
+  padding: 10px 16px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition:
+    color var(--t-base) var(--ease-air),
+    transform var(--t-base) var(--ease-air);
+}
+
+.tab-liquid::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--t-base) var(--ease-air);
+}
+
+.tab-liquid:hover {
+  color: var(--primary-deep);
+  transform: translateY(-1px);
+}
+
+.tab-liquid.active {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.tab-liquid.active::after {
+  transform: scaleX(1);
+}
+
+/* ---------- 骨架屏 · 流动云朵形状 ---------- */
+.skeleton-cloud {
+  position: relative;
+  overflow: hidden;
+  background: var(--skeleton-base);
+  border-radius: var(--r-card);
+  min-height: 80px;
+}
+
+.skeleton-cloud::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--skeleton-shine) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-cloud-flow 1.6s ease-in-out infinite;
+}
+
+/* 云朵形状骨架(装饰用) */
+.skeleton-cloud-shape {
+  display: inline-block;
+  width: 60px;
+  height: 24px;
+  background: var(--skeleton-base);
+  border-radius: 999px;
+  position: relative;
+}
+
+.skeleton-cloud-shape::before,
+.skeleton-cloud-shape::after {
+  content: '';
+  position: absolute;
+  background: var(--skeleton-base);
+  border-radius: 50%;
+}
+
+.skeleton-cloud-shape::before {
+  width: 24px;
+  height: 24px;
+  top: -12px;
+  left: 10px;
+}
+
+.skeleton-cloud-shape::after {
+  width: 18px;
+  height: 18px;
+  top: -9px;
+  right: 12px;
 }
