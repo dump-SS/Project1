@@ -84,6 +84,8 @@ function buildDayDetail(
     subjects,
     focusAvg: focusAvg === null ? null : round1(focusAvg),
     fatigueAvg: fatigueAvg === null ? null : round1(fatigueAvg),
+    /** 把原始记录按开始时间倒序排，便于 DayDetailPanel 列表渲染 */
+    records: [...records].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)),
   };
 }
 

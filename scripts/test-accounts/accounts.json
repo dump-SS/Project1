@@ -1,0 +1,40 @@
+{
+  "description": "EpochX 团队测试账号（开发/联调用，绝不用于生产）",
+  "smtp_mode": "mock",
+  "smtp_note": "team@epochx.dev 配 SMTP_PROVIDER=mock，验证码从后端日志取（grep MOCK-EMAIL）",
+  "accounts": [
+    {
+      "email": "team-coldstart@epochx.dev",
+      "password": "TestColdStart2026!",
+      "scenario": "冷启动：0 学习记录，仅完成建档。用于测试空状态、状态分返回 insufficient_data 等冷启动场景。",
+      "data": {
+        "onboarded": true,
+        "stage": "senior",
+        "grade": "高二",
+        "subjects": ["math", "chinese", "english"]
+      }
+    },
+    {
+      "email": "team-active@epochx.dev",
+      "password": "TestActive2026!",
+      "scenario": "活跃用户：已提交 14 条学习记录（3 天连击 + 趋势 + 高 windowScore）。用于测试 efficient_stable 状态、调权触发、复盘。",
+      "data": {
+        "onboarded": true,
+        "stage": "senior",
+        "grade": "高二",
+        "subjects": ["math", "english"]
+      }
+    },
+    {
+      "email": "team-fatigue@epochx.dev",
+      "password": "TestFatigue2026!",
+      "scenario": "疲劳预警：连续 5 条记录疲劳自评=5，触发 fatigue_warning 状态。用于测试疲劳告警文案、reduce_load 强度调整。",
+      "data": {
+        "onboarded": true,
+        "stage": "junior",
+        "grade": "初三",
+        "subjects": ["math"]
+      }
+    }
+  ]
+}

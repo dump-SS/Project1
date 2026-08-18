@@ -46,7 +46,7 @@ class PlanTaskDetail(PlanTask):
     model_config = ConfigDict(populate_by_name=True)
 
     removed: bool = Field(..., description="软删除标记")
-    user_adjusted: bool = Field(..., description="是否被用户手动调整过（算法反馈信号）")
+    user_adjusted: bool = Field(..., alias="userAdjusted", description="是否被用户手动调整过（算法反馈信号）")
     updated_at: datetime = Field(..., alias="updatedAt")
 
 

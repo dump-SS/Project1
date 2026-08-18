@@ -148,6 +148,16 @@ export interface LearningRecordCreated extends LearningRecord {
   } | null;
 }
 
+/**
+ * 删除学习记录后的响应（openapi.yaml LearningRecordDeleted）。
+ * 字段含义见 AssessmentSnapshot。
+ */
+export interface LearningRecordDeleted {
+  deleted: boolean;
+  recordId: string;
+  recalculatedAssessment: AssessmentSnapshot;
+}
+
 /* ---------- 个性化建议 ---------- */
 
 export interface RecommendationItem {
@@ -262,6 +272,31 @@ export interface GoalList {
   pagination: Pagination;
 }
 
+/**
+ * 创建目标请求体（openapi.yaml GoalCreate）。
+ * 至少传 type + subject + title；description / targetDate / templateId 可选。
+ * 字段长度与契约一致：title ≤ 50 字、description ≤ 200 字。
+ */
+export interface GoalCreate {
+  type: GoalType;
+  subject: Subject;
+  title: string;
+  description?: string;
+  targetDate?: string;
+  templateId?: string;
+}
+
+/**
+ * 更新目标请求体（openapi.yaml GoalUpdate）。字段全可选，但至少传一项。
+ * 归档通过 `status: 'archived'` 表达——契约里没有独立 DELETE，归档即"软删除"。
+ */
+export interface GoalUpdate {
+  title?: string;
+  description?: string;
+  targetDate?: string;
+  status?: GoalStatus;
+}
+
 /* ---------- 状态评估 ---------- */
 
 export interface StateBasedOn {
@@ -315,6 +350,10 @@ export interface SummaryDataPoints {
   recordCount?: number;
   subjects?: Subject[];
   planCompletionRatio?: number;
+  /** 复盘生成时记录的「今日已完成 N / M」快照（PRD 5.4）。
+   *  注意：这是 summary 生成时的瞬时值，不是当前实时数。 */
+  planCompletedCount?: number;
+  planTotalCount?: number;
   referencedAssessmentIds?: string[];
   minRequired?: number;
 }
@@ -328,6 +367,7 @@ export interface Summary {
   content: SummaryContent | null;
   dataPoints?: SummaryDataPoints;
   message?: string;
+  /** 用户已提交的反馈，未提交时为 null */
   feedback?: FeedbackRecord | null;
 }
 
@@ -336,7 +376,88 @@ export interface SummaryList {
   pagination: Pagination;
 }
 
+/** 手动触发复盘后的受理响应（openapi.yaml SummaryPending） */
+export interface SummaryPending {
+  summaryId: string;
+  periodStart: string;
+  periodEnd: string;
+  generation: GenerationStatus;
+  createdAt: string;
+}
+
+/** 复盘反馈提交结果（openapi.yaml SummaryFeedbackResult） */
 export interface SummaryFeedbackResult {
   summaryId: string;
+  feedback: FeedbackRecord;
+}
+
+/* ---------- 用户与设置（openapi.yaml 0.5 节） ---------- */
+
+/** 监护人授权状态 */
+export type GuardianAuthorizationStatus = 'pending' | 'active' | 'revoked' | 'expired';
+
+export interface GuardianAuthorization {
+  status: GuardianAuthorizationStatus;
+  /** 授权到期时间，active 时出现 */
+  expiresAt?: string;
+}
+
+/** 当前用户资料（openapi.yaml User） */
+export interface User {
+  userId: string;
+  stage: Stage;
+  grade: string;
+  subjects: Subject[];
+  guardianAuthorization: GuardianAuthorization;
+  /** 是否已完成建档引导 */
+  onboardingCompleted: boolean;
+}
+
+/** 幂等建档请求体，字段全必填（openapi.yaml UserProfilePut） */
+export interface UserProfilePut {
+  stage: Stage;
+  grade: string;
+  subjects: Subject[];
+}
+
+/** 局部更新请求体，字段全可选（openapi.yaml UserProfilePatch） */
+export interface UserProfilePatch {
+  stage?: Stage;
+  grade?: string;
+  subjects?: Subject[];
+}
+
+/** 监护人授权请求体：邮箱/手机号二选一必填（openapi.yaml GuardianAuthorizationRequest） */
+export interface GuardianAuthorizationRequest {
+  guardianEmail?: string;
+  guardianPhone?: string;
+}
+
+/* ---------- 个性化建议（openapi.yaml 6.x） ---------- */
+
+/** 手动请求建议后的受理响应 */
+export interface RecommendationPending {
+  recommendationId: string;
+  scene: RecScene;
+  subject?: Subject | null;
+  generation: GenerationStatus;
+  createdAt: string;
+}
+
+/** 手动请求生成建议请求体（scene 必填；post_session 场景建议必传 subject） */
+export interface RecommendationCreate {
+  scene: RecScene;
+  subject?: Subject;
+  recordId?: string;
+}
+
+export interface RecommendationList {
+  items: Recommendation[];
+  pagination: Pagination;
+}
+
+/** 建议反馈提交结果 */
+export interface RecommendationFeedbackResult {
+  recommendationId: string;
   feedback: FeedbackRecord;
 }

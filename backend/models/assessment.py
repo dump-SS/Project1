@@ -51,3 +51,12 @@ class AssessmentSnapshot(Base):
     computed_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False, index=True
     )
+
+    # 用户反馈：该状态判断是否准确（PRD 9 节指标，AI 调权迭代用）
+    # null=未反馈，true/false=已反馈，PUT 幂等覆盖
+    feedback_accurate: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=None
+    )
+    feedback_submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )

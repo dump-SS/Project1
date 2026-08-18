@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import styles from './index.module.css'
 import { subjectLabels } from '@/styles/theme'
 import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
 import { putRecommendationFeedback } from '@/services/feedback'
+import { getPlanByDate, localDateString } from '@/services/plans'
 
 const FOCUS_LABELS = { 1: '分心', 2: '一般', 3: '还好', 4: '专注', 5: '非常专注' }
 const FATIGUE_LABELS = { 1: '精神', 2: '轻微', 3: '一般', 4: '疲劳', 5: '非常疲劳' }
@@ -69,7 +71,7 @@ function RatingButtons({ value, onChange, options, wide = false }) {
   )
 }
 
-function SelfAssessment({ task, error, onConfirm, onSkip }) {
+function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
   const [completion, setCompletion] = useState('completed')
   const [focus, setFocus] = useState(null)
   const [fatigue, setFatigue] = useState(null)
@@ -89,6 +91,17 @@ function SelfAssessment({ task, error, onConfirm, onSkip }) {
         <span className={styles.popTitle}>任务完成</span>
         <span className={styles.popText}>「{task}」已完成</span>
       </div>
+
+      {/* 今日计划完成计数（PRD 5.3：让用户感知"今天做完了几个"） */}
+      {planTaskStats && planTaskStats.total > 0 && (
+        <div className={styles.planStats}>
+          今日已完成
+          <strong className={styles.planStatsNum}>
+            {planTaskStats.completed} / {planTaskStats.total}
+          </strong>
+          个计划任务
+        </div>
+      )}
 
       <div className={styles.selfSection}>
         <span className={styles.selfLabel}>完成情况</span>
@@ -265,24 +278,58 @@ function RecommendationPanel({ recommendation, onOk, onRestart }) {
 }
 
 export default function StudyTimerPage() {
-  const [task, setTask] = useState('复习函数章节')
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task)
+  // 兜底文案：未读到当日计划时使用，避免空白任务显示
+  const FALLBACK_TASK = '今日学习（待编辑）'
 
-  const [subject, setSubject] = useState('math')
+  // 接 location.state：StudyPlanEditor / StudyGuide 点「进入」时透传。
+  // - availableMinutes：覆盖默认 25 分钟（计划设了 60，番茄钟就该是 60）
+  // - task：覆盖 fallback 任务（用户输入的主题或规则引擎推荐）
+  // - subject：与任务配套
+  // 直接访问 /study-timer 路由时 state 为空，保留原默认值 25 + FALLBACK_TASK
+  const location = useLocation()
+  const navState = location.state || {}
+  const initialMinutes = Number.isInteger(navState.availableMinutes) && navState.availableMinutes > 0
+    ? navState.availableMinutes
+    : 25
+
+  const [task, setTask] = useState(navState.task || FALLBACK_TASK)
+  const [taskSource, setTaskSource] = useState(navState.task ? 'plan' : 'fallback') // 'plan' | 'edited' | 'fallback'
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(navState.task || FALLBACK_TASK)
+
+  // 学科默认值：state 透传 > 任务字符串解析（如「数学 · 函数与导数 · 巩固」前缀）
+  // 解析不到时维持 math
+  const initialSubject = (() => {
+    if (typeof navState.subject === 'string' && navState.subject) return navState.subject
+    const t = navState.task
+    if (typeof t === 'string') {
+      const hit = Object.entries(subjectLabels).find(([, label]) => t.startsWith(`${label} ·`))
+      if (hit) return hit[0]
+    }
+    return 'math'
+  })()
+  const [subject, setSubject] = useState(initialSubject)
 
   const [mode, setMode] = useState('focus')
-  const [focusMinutes, setFocusMinutes] = useState(25)
+  // 关键：focusMinutes 默认值改为 state 透传的可用分钟（PRD 5.1：计划与执行端一致）
+  const [focusMinutes, setFocusMinutes] = useState(initialMinutes)
   const [breakMinutes, setBreakMinutes] = useState(5)
-  const [remaining, setRemaining] = useState(25 * 60)
+  const [remaining, setRemaining] = useState(initialMinutes * 60)
   const [isRunning, setIsRunning] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [sessionStart, setSessionStart] = useState(null)
+
+  // 标记：state 透传时跳过 useEffect 拉 plan（任务已确定，避免 100% 重复拉取）
+  const skipPlanFetch = Boolean(navState.task && navState.availableMinutes)
 
   const [popupPhase, setPopupPhase] = useState('selfAssessment')
   const [recId, setRecId] = useState(null)
   const [recommendation, setRecommendation] = useState(null)
   const [popupError, setPopupError] = useState(null)
+
+  // 今日计划完成计数（PRD 5.3：完成弹窗里展示「今日已完成 N / M」）
+  // mount 拉一次，自评提交成功后拉一次
+  const [planTaskStats, setPlanTaskStats] = useState({ completed: 0, total: 0 })
 
   const timerRef = useRef(null)
 
@@ -324,6 +371,54 @@ export default function StudyTimerPage() {
     stopTimer()
     setRemaining(totalSeconds)
   }, [mode, totalSeconds, stopTimer])
+
+  // 挂载时拉取今日 plan 的所有 tasks 算完成计数（弹窗展示用）
+  // 不依赖 skipPlanFetch（state 透传时也要统计展示）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const plan = await getPlanByDate(localDateString())
+      if (cancelled) return
+      const tasks = plan?.tasks || []
+      const completed = tasks.filter((t) => t.status === 'completed').length
+      setPlanTaskStats({ completed, total: tasks.length })
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // 提交自评后刷新计数（PRD 5.3：完成弹窗展示「今日已完成 N/M」实时数）
+  const refreshPlanStats = useCallback(async () => {
+    const plan = await getPlanByDate(localDateString())
+    const tasks = plan?.tasks || []
+    setPlanTaskStats({
+      completed: tasks.filter((t) => t.status === 'completed').length,
+      total: tasks.length,
+    })
+  }, [])
+
+  // 挂载时拉取当日计划的第一条任务作为默认学习任务。
+  // - 命中 → 用「学科 · 方向」做默认文案，并把学科选项切到对应 subject
+  // - 未命中或网络异常 → 保留 FALLBACK_TASK，不阻塞计时主流程
+  // - 透传 state 时跳过：任务/学科已从 location.state 取到
+  useEffect(() => {
+    if (skipPlanFetch) return
+    let cancelled = false
+    ;(async () => {
+      const plan = await getPlanByDate(localDateString())
+      if (cancelled) return
+      const first = plan?.tasks?.[0]
+      if (!first) return
+      const subjectLabel = subjectLabels[first.subject] ?? first.subject
+      const next = `${subjectLabel} · ${first.topic}`
+      setTask(next)
+      setDraft(next)
+      setTaskSource('plan')
+      if (first.subject) setSubject(first.subject)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [skipPlanFetch])
 
   useEffect(() => {
     if (!recId) return
@@ -378,6 +473,10 @@ export default function StudyTimerPage() {
         selfReport,
       })
 
+      // 刷新今日计划完成计数（PRD 5.3：弹窗里展示「今日已完成 N/M」）
+      // 在设置 recId 之前先调，让弹窗切到 recommendation 前数据已就绪
+      refreshPlanStats().catch(() => {}); // 失败不影响主流程
+
       if (result.recommendation?.recommendationId) {
         setRecId(result.recommendation.recommendationId)
         setPopupPhase('polling')
@@ -404,7 +503,10 @@ export default function StudyTimerPage() {
 
   const handleSaveTask = () => {
     const next = draft.trim()
-    if (next) setTask(next)
+    if (next) {
+      setTask(next)
+      setTaskSource('edited')
+    }
     setDraft(next || task)
     setEditing(false)
   }
@@ -523,6 +625,7 @@ export default function StudyTimerPage() {
             <SelfAssessment
               task={task}
               error={popupError}
+              planTaskStats={planTaskStats}
               onConfirm={handleConfirmSelfReport}
               onSkip={handleDone}
             />

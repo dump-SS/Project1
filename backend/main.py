@@ -116,16 +116,25 @@ async def validation_exception_handler(
 
 
 # --- 注册业务路由（与 openapi.yaml tags 一一对应）---
-from routes import assessment, goal, learning_record, plan, recommendation, summary, user
+# 契约 servers.url = /api/v1（openapi.yaml 第 20 行），路由必须挂在同一前缀下，
+# 否则前端按契约请求 /api/v1/learning-records 会 404。
+# /health 是基础设施探活、不属于契约资源，留在根路径。
+from fastapi import APIRouter as _APIRouter
+
+from routes import assessment, auth, goal, learning_record, plan, recommendation, summary, user
+
+api_v1 = _APIRouter(prefix="/api/v1")
+api_v1.include_router(auth.router)
+api_v1.include_router(user.router)
+api_v1.include_router(goal.router)
+api_v1.include_router(plan.router)
+api_v1.include_router(learning_record.router)
+api_v1.include_router(assessment.router)
+api_v1.include_router(recommendation.router)
+api_v1.include_router(summary.router)
 
 app.include_router(health.router)
-app.include_router(user.router)
-app.include_router(goal.router)
-app.include_router(plan.router)
-app.include_router(learning_record.router)
-app.include_router(assessment.router)
-app.include_router(recommendation.router)
-app.include_router(summary.router)
+app.include_router(api_v1)
 
 
 if __name__ == "__main__":

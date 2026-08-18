@@ -50,6 +50,13 @@ class GoalSummary(GoalBase):
 
     target_date: date | None = Field(None, alias="targetDate")
     status: str = Field(..., description="active / archived")
+    outcome: str | None = Field(
+        None,
+        description="归档终态，仅 status=archived 时有值；achieved / abandoned / expired",
+    )
+    completion_note: str | None = Field(
+        None, alias="completionNote", max_length=200, description="目标完成总结（归档时可填）"
+    )
     progress: GoalProgress
 
 
@@ -96,6 +103,12 @@ class GoalUpdate(BaseModel):
     description: str | None = Field(None, max_length=200)
     target_date: date | None = Field(None, alias="targetDate")
     status: str | None = Field(None, description="active / archived（归档代替删除）")
+    outcome: str | None = Field(
+        None, description="归档终态：achieved / abandoned / expired（仅 status=archived 时有意义）"
+    )
+    completion_note: str | None = Field(
+        None, alias="completionNote", max_length=200, description="归档完成总结"
+    )
 
 
 class GoalList(BaseModel):

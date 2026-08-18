@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import StudyEditor from '../StudyPlanEditor/StudyEditor.jsx'
 import EnterButton from '../StudyPlanEditor/EnterButton.jsx'
-import { createPlan, localDateString } from '../../services/plans'
+import TaskList from '../StudyPlanEditor/TaskList.jsx'
+import { createPlan, getPlanByDate, localDateString } from '../../services/plans'
 import { isNetworkError } from '../../services/http'
 import { subjectLabels } from '@/styles/theme'
 import './index.css'
@@ -24,42 +25,109 @@ export default function StudyGuide() {
   const [minutes, setMinutes] = useState('')
   // 推荐学科：来自本次生成的计划任务（规则引擎，非 LLM）
   const [recommendation, setRecommendation] = useState('')
+  // 当前已生成的计划（用于渲染 TaskList 与标记完成）
+  const [plan, setPlan] = useState(null)
+  // 是否已经生成过计划（用于决定「进入」点击是「生成」还是「跳转」）
+  const [hasGenerated, setHasGenerated] = useState(false)
+  // 当日是否已有计划（用于在点进入时自动 regenerate，避免 409）
+  const [hasExistingPlan, setHasExistingPlan] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [offlineNote, setOfflineNote] = useState('')
 
-  const handleAutoFill = () => {
-    if (recommendation) setTaskValue(recommendation)
-  }
+  // 挂载时查当日是否已有计划（用于决定 createPlan 时是否传 regenerate）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const existing = await getPlanByDate(localDateString())
+      if (!cancelled && existing) {
+        setHasExistingPlan(true)
+        if (existing.availableMinutes != null && !minutes) setMinutes(String(existing.availableMinutes))
+      }
+    })()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** 点「进入」：先同步生成计划（POST /plans），成功后跳专注计时页 */
-  const handleEnter = async () => {
+  /**
+   * 公共兜底：缺分钟时给个默认 60，然后调 createPlan，成功后回填 recommendation + plan。
+   * 仅在 StudyGuide 内部使用，不影响其他页面。
+   */
+  const generatePlanNow = async () => {
     setSubmitError('')
     setOfflineNote('')
     if (!MINUTES_VALIDATOR(minutes)) {
-      setSubmitError('请先填写 10-600 的可用学习分钟数')
-      return false
+      setMinutes('60')
     }
+    const minutesNum = MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60
+    const { plan: created, fromCache } = await createPlan({
+      planDate: localDateString(),
+      availableMinutes: minutesNum,
+      // 当日已有计划时自动覆盖（用户改过分钟即视为要重生成）
+      regenerate: hasExistingPlan || undefined,
+    })
+    // 规则引擎：从计划任务里挑一条当推荐，替代原硬编码常量 DEFAULT_SUBJECT
+    const first = created.tasks?.[0]
+    let rec = ''
+    if (first) {
+      const label = subjectLabels[first.subject] ?? first.subject
+      rec = `${label} · ${first.topic}`
+      setRecommendation(rec)
+    }
+    if (fromCache) {
+      setOfflineNote('离线取用上次成功计划')
+    }
+    setPlan(created)
+    setHasGenerated(true)
+    setHasExistingPlan(true)  // 生成后一定存在
+    return rec
+  }
+
+  const handleAutoFill = async () => {
+    // 已有推荐：直接回填学习任务输入框
+    if (recommendation) {
+      setTaskValue(recommendation)
+      return
+    }
+    // 冷启动兜底：用户尚未点过「进入」/生成计划时，
+    // 自动用默认分钟生成计划，再把推荐回填到学习任务输入框。
+    // 避免空点 AUTO 没有任何反应的死循环。
     try {
-      const { plan, fromCache } = await createPlan({
-        planDate: localDateString(),
-        availableMinutes: Number(minutes),
-      })
-      // 规则引擎：从计划任务里挑一条当推荐，替代原硬编码常量 DEFAULT_SUBJECT
-      // 离线回退时 plan 为缓存计划，同样含有 tasks，AUTO 填充可继续工作
-      const first = plan.tasks?.[0]
-      if (first) {
-        const label = subjectLabels[first.subject] ?? first.subject
-        setRecommendation(`${label} · ${first.topic}`)
-      }
-      // 网络失败回退到缓存时 createPlan 会返回缓存计划并标记 fromCache
-      if (fromCache) {
-        setOfflineNote('离线取用上次成功计划')
-      }
-      return true
+      const rec = await generatePlanNow()
+      if (rec) setTaskValue(rec)
     } catch (err) {
-      setSubmitError(isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'))
+      setSubmitError(
+        isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'),
+      )
+    }
+  }
+
+  /**
+   * 点「进入」：
+   *  - 第一次点击：同步生成计划（POST /plans），成功后停留在页面展示任务列表，等待用户标记完成
+   *  - 后续点击：放行 EnterButton 跳转 /study-timer
+   */
+  const handleEnter = async () => {
+    if (hasGenerated) return true
+    try {
+      await generatePlanNow()
+      // 生成成功后留在本页面，让用户能完成/调整任务；下一次点「进入」才跳转
+      return false
+    } catch (err) {
+      setSubmitError(
+        isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'),
+      )
       return false
     }
+  }
+
+  /** 任务 PATCH 成功后，更新本地 plan 的对应 task 字段 */
+  const handleTaskUpdated = (updated) => {
+    setPlan((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) => (t.taskId === updated.taskId ? { ...t, ...updated } : t)),
+      }
+    })
   }
 
   return (
@@ -102,10 +170,21 @@ export default function StudyGuide() {
           onChange={(event) => setMinutes(event.target.value)}
         />
 
+        {plan && <TaskList plan={plan} onTaskUpdated={handleTaskUpdated} />}
+
         {submitError && <p className="submit-error">{submitError}</p>}
         {offlineNote && <p className="submit-error">{offlineNote}</p>}
 
-        <EnterButton to="/study-timer" onBeforeNavigate={handleEnter} />
+        <EnterButton
+          to="/study-timer"
+          onBeforeNavigate={handleEnter}
+          state={{
+            // 番茄钟页接 state 来同步可用分钟 + 任务（PRD 5.1：计划与执行端参数一致）
+            availableMinutes: MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60,
+            task: taskValue || recommendation || null,
+            planId: plan?.planId || null,
+          }}
+        />
       </main>
     </>
   )

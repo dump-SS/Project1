@@ -33,6 +33,10 @@ class Goal(Base):
     template_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", index=True)
+    # 归档终态（仅 status=archived 时有值）：achieved / abandoned / expired
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 归档完成总结（≤200 字）
+    completion_note: Mapped[str | None] = mapped_column(String(256), nullable=True)
     planned_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

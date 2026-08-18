@@ -15,7 +15,7 @@ client = TestClient(app)
 
 def _post(subject: str, focus: int, fatigue: int, started: str, emotion: str = "positive"):
     return client.post(
-        "/learning-records",
+        "/api/v1/learning-records",
         json={
             "subject": subject,
             "startedAt": started,
@@ -34,7 +34,9 @@ def _post(subject: str, focus: int, fatigue: int, started: str, emotion: str = "
 def test_cold_start_returns_insufficient_data():
     """冷启动：不足 min_records（3）条时，引擎必须返回 insufficient_data
     且不输出 windowScore/trend（PRD 5.2「数据不足时不下结论」）。"""
-    r = _post("biology", 5, 1, "2026-08-01T08:00:00+08:00")
+    # 使用全套测试中未被其他用例写入的学科，避免模块级 TestClient 共享 SQLite
+    # 时被其它测试污染，失去"冷启动"前提。
+    r = _post("chinese", 5, 1, "2026-08-01T08:00:00+08:00")
     assert r.status_code == 201
     assessment = r.json()["assessment"]
     assert assessment["stateLabel"] == "insufficient_data"
@@ -84,7 +86,7 @@ def test_window_ordering_is_deterministic():
     trends = set()
     scores = set()
     for _ in range(5):
-        body = client.get("/assessments/current?subject=history").json()
+        body = client.get("/api/v1/assessments/current?subject=history").json()
         item = body["items"][0]
         trends.add(item.get("trend"))
         scores.add(item.get("windowScore"))
@@ -98,7 +100,7 @@ def test_current_assessment_has_explainability():
     for hour in ["08", "09", "10"]:
         _post("geography", 4, 2, f"2026-08-05T{hour}:00:00+08:00")
 
-    body = client.get("/assessments/current?subject=geography").json()
+    body = client.get("/api/v1/assessments/current?subject=geography").json()
     item = body["items"][0]
     assert item["displayText"], "缺少面向用户的自然语言说明"
     assert item["basedOn"]["recordIds"], "缺少参与计算的记录 ID"
@@ -113,7 +115,7 @@ def test_history_accumulates_snapshots():
     for hour in ["08", "09", "10", "11"]:
         _post("politics", 4, 2, f"2026-08-06T{hour}:00:00+08:00")
 
-    body = client.get("/assessments?subject=politics").json()
+    body = client.get("/api/v1/assessments?subject=politics").json()
     assert body["subject"] == "politics"
     assert len(body["items"]) >= 1
     point = body["items"][0]

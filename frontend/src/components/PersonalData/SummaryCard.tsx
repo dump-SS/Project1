@@ -105,6 +105,10 @@ function SummaryCard() {
   }, []);
 
   const content = summary?.content;
+  const dataPoints = summary?.dataPoints;
+  // 复盘生成时记录的「今日已完成 N / M」快照（PRD 5.4）
+  const planCompleted = dataPoints?.planCompletedCount;
+  const planTotal = dataPoints?.planTotalCount;
 
   return (
     <SectionCard
@@ -117,6 +121,17 @@ function SummaryCard() {
     >
       {content ? (
         <div className={styles.body}>
+          {/* 累计完成计数（PRD 5.4） */}
+          {planTotal != null && planTotal > 0 && (
+            <div className={styles.metaRow}>
+              <span className={styles.metaLabel}>复盘时累计完成</span>
+              <strong className={styles.metaValue}>
+                {planCompleted ?? 0} / {planTotal}
+              </strong>
+              <span className={styles.metaHint}>个计划任务</span>
+            </div>
+          )}
+
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>总览</h3>
             <p className={styles.text}>{content.overview}</p>

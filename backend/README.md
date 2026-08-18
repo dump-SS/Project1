@@ -4,13 +4,17 @@ FastAPI + Pydantic v2 + SQLAlchemy 2.0 + SQLite，严格按 [`docs/openapi.yaml`
 
 ## 当前阶段
 
-**阶段 3（进行中）：状态量化已接入真实引擎**
+**阶段 3（进行中）：状态量化 + 建议状态机已接入真实引擎**
 
 - ✅ **状态计算已接引擎**：`POST /learning-records`、`DELETE /learning-records/{id}`、
   `GET /assessments/current`、`GET /assessments` 全部落库并调
   [`state_engine`](state_engine/) 真实计算，不再返回 mock 常量。
   接入点是 [`state_calculator.py`](state_calculator.py)——即 main.py 注释里预留的那个模块。
-- ⏳ **AI 生成仍是 mock**：`routes/recommendation.py` / `routes/summary.py` 等待 `ai_suggestion.py`。
+- ✅ **建议生成链路已接入**：提交学习记录会真实插入 Recommendation pending 行，
+  再经 [`ai_suggestion.py`](ai_suggestion.py) 生成并写回；默认 MockProvider 走规则模板兜底，
+  前端轮询同一个 recommendationId 可拿到 `ready + source=template`。
+- ⏳ **复盘状态机已接入，真实 LLM 待配置**：记录不足时返回 `insufficient_data`；
+  MockProvider/真实 LLM 失败时严格返回 `failed`，不伪造 `template`（PRD 5.4）。
 - ⏳ 其余资源路由（goal / plan / user）仍读 [mock_data.py](mock_data.py)。
 
 计算分层（PRD 6.1 铁律：模型负责表达，规则负责事实）：
@@ -81,9 +85,13 @@ backend/
 │   ├── plan.py              /plans
 │   ├── learning_record.py   /learning-records
 │   ├── assessment.py        /assessments
-│   ├── recommendation.py    /recommendations
-│   └── summary.py           /summaries
+│   ├── recommendation.py    /recommendations（ORM + ai_suggestion）
+│   └── summary.py           /summaries（ORM + ai_suggestion）
 ├── state_calculator.py      编排层：ORM ↔ 引擎输入 ↔ 契约 dict（阶段 3 接入点）
+├── ai_suggestion.py         AI 编排：provider → 安全审核 → 兜底/失败 → ORM
+├── llm_provider.py          供应商抽象：MockProvider / OpenAICompatibleProvider
+├── template_fallback.py     规则模板兜底（PRD 5.3）
+├── safety_filter.py         内容安全审核 hook（PRD 6.3）
 ├── state_engine/            纯计算引擎（零外部依赖，PRD 5.2）
 │   ├── types.py             引擎数据类型 + 权重配置 + 标签阈值
 │   ├── scoring.py           单次状态分（PRD 5.2§1 公式）
@@ -169,7 +177,15 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 ## 下一步要做
 
 - [x] 接入 `state_calculator.py` 替换 `routes/learning_record.py` 里的 mock 重算
-- [ ] 接入 `ai_suggestion.py` 替换 `routes/recommendation.py` + `routes/summary.py` 里的 mock
+- [x] 接入 `ai_suggestion.py` 替换 `routes/recommendation.py` + `routes/summary.py` 的 mock；
+      默认 MockProvider 验证模板兜底，真实 LLM 等 `.env` 配置 API key / base_url / model
+- [x] 真实 LLM 已验证（aiping.cn / Step-3.5-Flash，OpenAI 兼容 Bearer）：
+      端到端 source=llm 通过；超时 60s + 1 次重试 + 异常全兜底（超时/解析失败走模板，绝不 500）
+- [x] 异步生成（PRD 6.4）：三条 POST 路由改 BackgroundTasks，立即返回 pending 句柄；
+      实测 POST 从最坏 ~2min 降到 ~2s，LLM 在后台自开 session 完成并写终态，前端轮询读取
+- [ ] 进程内并发上限 / 任务队列：BackgroundTasks 在单进程内跑，高并发下需要队列（Celery/RQ）+ 去重
+- [ ] AICallLog 持久化：当前用 logging 留痕，PRD 6.5 的正式调用记录表待建
+- [ ] 真实速率限制（PRD 6.4）：config 有建议 5/天、复盘 1/天配额，尚未计数/返回 429
 - [ ] **给 `learning_records` 加自增序列列**：当前窗口排序用
       `(started_at, created_at, id)`，保证了确定性；但同一秒内批量插入且
       `started_at` 相同时，无法还原真实插入顺序（趋势斜率可能与实际录入次序不符）。

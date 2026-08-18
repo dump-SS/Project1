@@ -13,6 +13,11 @@ import StudyTimerPage from './pages/StudyTimer/index.jsx'
 import StudyPlanEditor from './pages/StudyPlanEditor/index.jsx'
 import StudyGuide from './pages/StudyGuide/index.jsx'
 import SettingsPage from './pages/Settings/index.jsx'
+import SummaryReviewPage from './pages/SummaryReview/index.tsx'
+import Goals from './pages/Goals/index.jsx'
+import RecommendationsPage from './pages/Recommendations/index.tsx'
+import ProfileSetupPage from './pages/ProfileSetup/index.tsx'
+import GuardianAuthPage from './pages/GuardianAuth/index.tsx'
 
 export default function App() {
   return (
@@ -33,7 +38,12 @@ export default function App() {
               <Route path="/study-timer" element={<StudyTimerPage />} />
               <Route path="/study-plan" element={<StudyPlanEditor />} />
               <Route path="/study-guide" element={<StudyGuide />} />
+              <Route path="/goals" element={<Goals />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/summary-review" element={<SummaryReviewPage />} />
+              <Route path="/recommendations" element={<RecommendationsPage />} />
+              <Route path="/profile-setup" element={<ProfileSetupPage />} />
+              <Route path="/guardian-auth" element={<GuardianAuthPage />} />
             </Route>
           </Route>
 

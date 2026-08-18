@@ -20,6 +20,10 @@ from __future__ import annotations
 
 from database import Base, engine
 
+# auth 迁移：先把 AuthUser/AuthCode/AuthSession 注册进 Base.metadata，
+# 才能在下面的 create_all 时一并建表
+from auth.models import AuthCode, AuthSession, AuthUser
+
 from .assessment import AssessmentSnapshot
 from .goal import Goal
 from .learning_record import LearningRecord
@@ -27,6 +31,7 @@ from .plan import Plan, PlanTask
 from .recommendation import Recommendation
 from .summary import Summary
 from .user import GuardianAuthorization, Settings, User
+from .weight import UserWeightConfig, WeightAdjustLog
 
 # 所有 ORM 类注册完成后，立即建表（幂等）。
 # SQLite 开发/测试环境需要；生产迁移方案引入后可移除。
@@ -43,4 +48,9 @@ __all__ = [
     "AssessmentSnapshot",
     "Recommendation",
     "Summary",
+    "UserWeightConfig",
+    "WeightAdjustLog",
+    "AuthUser",
+    "AuthCode",
+    "AuthSession",
 ]

@@ -169,15 +169,17 @@ def test_record_input_rejects_bad_values() -> None:
 # ---------- 8. 接口能响应（鉴权跳过，current_user 永远返回 mock）----------
 
 def test_get_me() -> None:
-    r = client.get("/me")
+    r = client.get("/api/v1/me")
     assert r.status_code == 200
     body = r.json()
     assert body["userId"] == "u_10237"
-    assert body["guardianAuthorization"]["status"] == "active"
+    # 未建档用户 guardian 状态为 pending（之前 mock 永远返 active 是假数据）
+    assert body["guardianAuthorization"]["status"] == "pending"
+    assert body["onboardingCompleted"] is False
 
 
 def test_list_goals_uses_camelcase_pagination() -> None:
-    r = client.get("/goals")
+    r = client.get("/api/v1/goals")
     assert r.status_code == 200
     body = r.json()
     assert "pagination" in body
@@ -201,7 +203,7 @@ def test_create_learning_record_validation() -> None:
             "emotion": "positive", "difficultyFeel": "easy",
         },
     }
-    r = client.post("/learning-records", json=payload)
+    r = client.post("/api/v1/learning-records", json=payload)
     assert r.status_code == 201
     body = r.json()
     assert body["subject"] == "math"
@@ -214,16 +216,30 @@ def test_create_learning_record_validation() -> None:
 
 def test_settings_update_validation_at_route() -> None:
     """PATCH /me/settings 空 body 应被 Pydantic 拒掉并返回 400 + 统一格式。"""
-    r = client.patch("/me/settings", json={})
+    r = client.patch("/api/v1/me/settings", json={})
     assert r.status_code == 400
     body = r.json()
     assert "error" in body
     assert body["error"]["code"] == "VALIDATION_FAILED"
 
 
+def test_settings_are_scoped_by_current_user() -> None:
+    r = client.patch(
+        "/api/v1/me/settings",
+        headers={"X-User-ID": "u_settings_a"},
+        json={"sendTextToAI": True},
+    )
+    assert r.status_code == 200
+    assert r.json()["sendTextToAI"] is True
+
+    r = client.get("/api/v1/me/settings", headers={"X-User-ID": "u_settings_b"})
+    assert r.status_code == 200
+    assert r.json()["sendTextToAI"] is False
+
+
 def test_guardian_request_validation_at_route() -> None:
     """POST /me/guardian-authorization 空 body 应被拒。"""
-    r = client.post("/me/guardian-authorization", json={})
+    r = client.post("/api/v1/me/guardian-authorization", json={})
     assert r.status_code == 400
     body = r.json()
     assert body["error"]["code"] == "VALIDATION_FAILED"
@@ -231,7 +247,7 @@ def test_guardian_request_validation_at_route() -> None:
 
 def test_error_response_uses_unified_format() -> None:
     """所有非 2xx 都返回 { error: { code, message, field? } }。"""
-    r = client.patch("/me/settings", json={})
+    r = client.patch("/api/v1/me/settings", json={})
     body = r.json()
     Error.model_validate(body)  # 强校验：必须能解析为 Error schema
 
@@ -241,11 +257,11 @@ def test_error_response_uses_unified_format() -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "/goals",
-        "/plans",
-        "/learning-records",
-        "/recommendations",
-        "/summaries",
+        "/api/v1/goals",
+        "/api/v1/plans",
+        "/api/v1/learning-records",
+        "/api/v1/recommendations",
+        "/api/v1/summaries",
     ],
 )
 def test_list_endpoints_have_pagination(path: str) -> None:
@@ -259,7 +275,7 @@ def test_list_endpoints_have_pagination(path: str) -> None:
 
 def test_assessments_returns_history_not_list() -> None:
     """GET /assessments 返回单学科历史（subject + items），不是分页列表。"""
-    r = client.get("/assessments?subject=math")
+    r = client.get("/api/v1/assessments?subject=math")
     assert r.status_code == 200
     body = r.json()
     assert "subject" in body

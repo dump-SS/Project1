@@ -16,7 +16,9 @@ export default function StudyEditor({ cnLabel, enLabel, placeholder, validate, v
   const [internalValue, setInternalValue] = useState('')
   // 受控模式：外部传入 value 时使用外部值，否则退化为内部状态
   const value = controlledValue !== undefined ? controlledValue : internalValue
-  const invalid = validate ? !validate(value) : false
+  // 仅在有内容且校验失败时显示红字；空值不视为「无效输入」，
+  // 避免页面初始打开时红字常亮吓人。校验函数返回 false 且值非空才算 invalid。
+  const showWarning = Boolean(validate) && value !== '' && !validate(value)
 
   const handleChange = (event) => {
     if (onChange) {
@@ -47,7 +49,7 @@ export default function StudyEditor({ cnLabel, enLabel, placeholder, validate, v
         </span>
       </div>
 
-      {invalid && <p className="editor-warning">无效输入 Invalid input</p>}
+      {showWarning && <p className="editor-warning">无效输入 Invalid input</p>}
     </section>
   )
 }

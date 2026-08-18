@@ -3,9 +3,9 @@
  * 该接口由服务端规则引擎同步返回，不走 LLM（PRD 8.2：AI 不可用时仍能看计划）。
  * 新用户无历史数据时响应里 adaptedFrom 为 null，走规则模板。
  */
-import { apiPost, isNetworkError } from './http';
+import { apiGet, apiPost, apiPatch, isNetworkError } from './http';
 import { cacheGet, cacheSet } from './localFallback';
-import type { Plan } from '@/types/api';
+import type { Plan, PlanTask } from '@/types/api';
 
 /** localStorage 最近一次成功计划缓存 key */
 export const LAST_PLAN_CACHE_KEY = 'plan:last';
@@ -48,4 +48,47 @@ export function localDateString(date: Date = new Date()): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * 计划任务更新请求体。对应 openapi.yaml「2.1 updatePlanTask」
+ * (PATCH /plans/{planId}/tasks/{taskId})，至少传一项。
+ * 本次前端只用到 status（标记完成），estimatedMinutes/removed 留给未来手动改时长/删除。
+ */
+export type PlanTaskUpdate = {
+  status?: PlanTask['status'];
+  estimatedMinutes?: number;
+  removed?: boolean;
+};
+
+/**
+ * 调整任务 / 确认完成。
+ * @returns 更新后的任务对象。契约里响应是 PlanTaskDetail（含 removed/userAdjusted/updatedAt），
+ *          这些字段前端当前不消费，按 PlanTask 形态透传即可，未来需要再补 PlanTaskDetail 类型。
+ */
+export async function updatePlanTask(
+  planId: string,
+  taskId: string,
+  patch: PlanTaskUpdate,
+): Promise<PlanTask> {
+  return apiPatch<PlanTask>(`/plans/${encodeURIComponent(planId)}/tasks/${encodeURIComponent(taskId)}`, patch);
+}
+
+/**
+ * 拉取指定日期的计划（openapi.yaml GET /plans，支持 date_from/date_to）。
+ * 用于 StudyTimer 在挂载时读今日计划的第一条任务做默认学习任务，
+ * 避免页面上硬编码「复习函数章节」与真实业务脱节。
+ *
+ * @returns 当日计划对象；当日无计划时返回 null（不抛错，让调用方走兜底文案）。
+ */
+export async function getPlanByDate(date: string): Promise<Plan | null> {
+  try {
+    const result = await apiGet<{ items: Plan[]; pagination: { page: number; pageSize: number; total: number } }>(
+      `/plans?date_from=${encodeURIComponent(date)}&date_to=${encodeURIComponent(date)}&page=1&page_size=1`,
+    );
+    return result.items?.[0] ?? null;
+  } catch {
+    // 网络/服务异常时降级为 null，让调用方决定是否走兜底（不阻断专注计时主流程）
+    return null;
+  }
 }

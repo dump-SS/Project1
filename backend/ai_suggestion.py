@@ -1,0 +1,661 @@
+"""AI 建议生成编排层（PRD 5.3 / 5.4 / 6.4）。
+
+职责：组装上下文 → 调 LLM provider → 安全审核 → 失败走兜底 → 写回 ORM。
+不含公式计算（在 state_engine），不含 HTTP 逻辑（在 routes）。
+
+生成模式（PRD 6.4 异步语义）：
+- 路由用 FastAPI BackgroundTasks 调 run_recommendation_generation /
+  run_summary_generation（本模块提供），POST 立即返回 pending 句柄；
+- 后台任务自开 SessionLocal（路由请求的 session 在响应后已被 get_db
+  关闭，不能复用），生成完把 ORM 行更新为终态；
+- 前端轮询 GET /{id} 读终态。生成中 items 为 null（契约 0.3）。
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import datetime
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from config import settings
+from llm_provider import get_provider
+from models.learning_record import LearningRecord
+from models.assessment import AssessmentSnapshot
+from models.recommendation import Recommendation
+from models.summary import Summary
+from models.user import Settings as SettingsORM
+from privacy_filter import sanitize_text
+from safety_filter import check, is_crisis_signal, CRISIS_RESPONSE
+from state_calculator import compute_window_for_records, orm_record_to_engine_input
+from template_fallback import build_template_recommendation
+
+logger = logging.getLogger(__name__)
+
+MIN_RECORDS_FOR_SUMMARY = 5  # PRD 5.4：数据不足时不硬凑
+
+
+def _get_send_text_to_ai(db: Session, user_id: str) -> bool:
+    """读用户的 sendTextToAI 开关（PRD 6.2 数据出域边界）。
+
+    默认 False（models/user.py Settings.send_text_to_ai default=False）：
+    未主动开启时，用户文本（note/description）不进 LLM prompt，只用结构化特征。
+    开启后：note 经 privacy_filter 脱敏（手机号/身份证号/邮箱）后进 prompt。
+    """
+    cfg = db.get(SettingsORM, user_id)
+    if cfg is None:
+        return False  # 默认不发送文本
+    return bool(cfg.send_text_to_ai)
+
+
+def generate_recommendation(
+    db: Session,
+    rec_id: str,
+    user_id: str,
+    scene: str,
+    subject: str | None,
+    record_id: str | None,
+    trigger_record_row: LearningRecord | None = None,
+) -> None:
+    """生成单次学习建议（PRD 5.3）。
+
+    在 POST /learning-records 或 POST /recommendations 时调用。
+    流程：读窗口 → 组装上下文 → LLM → 安全审核 → 失败走模板兜底 → 写回 ORM。
+    建议任何情况下都给得出内容（PRD 5.3 / 验收标准）。
+    """
+    rec = db.get(Recommendation, rec_id)
+    if rec is None:
+        logger.error("[AI] Recommendation %s 不存在", rec_id)
+        return
+
+    subj = subject or trigger_record_row.subject if trigger_record_row else subject or "other"
+
+    # 读窗口（最近 7 条），拿状态标签和信号。
+    # 空窗口也要算一次（引擎按 cold-start 返回 insufficient_data），
+    # 否则 window 未定义、下方无条件引用 → UnboundLocalError → 后台异常只记日志 → 永远 pending。
+    rows = _window_rows(db, user_id, subj)
+    engine_inputs = [orm_record_to_engine_input(r) for r in rows]
+    window = compute_window_for_records(engine_inputs)
+    state_label = window.state_label.value
+    plan_completion_ratio = None
+    record_focus = trigger_record_row.self_report_focus if trigger_record_row else None
+    record_fatigue = trigger_record_row.self_report_fatigue if trigger_record_row else None
+    assessment_id = rec.based_on_assessment_id if rows else None
+
+    # 今日计划完成情况（PRD 5.3：让 LLM 知道用户已完成几个，输出更贴上下文）
+    # 与 trigger_record_row 关联：若本次提交对应某个 plan_task，从完成列表里剔除它
+    # （避免「刚提交、计数 +1 但 LLM 看到的还是 0」的竞态）
+    today_completed = _compute_today_completed_tasks(db, user_id)
+    if trigger_record_row and trigger_record_row.plan_task_id:
+        today_completed = [
+            t for t in today_completed
+            if t.get("taskId") != trigger_record_row.plan_task_id
+        ]
+    today_completed_count, today_total_count = _compute_today_task_total(db, user_id)
+
+    # 危机信号检查（PRD 6.3）：不过 LLM，直接走硬编码文案
+    if trigger_record_row and is_crisis_signal(
+        f"{trigger_record_row.self_report_emotion} {trigger_record_row.note or ''}"
+    ):
+        items = [{"title": "关心一下你的状态", "content": CRISIS_RESPONSE}]
+        _finalize_recommendation(db, rec, items, "template", state_label, assessment_id, record_id,
+                                  "检测到可能的危机信号，切换为审定文案")
+        return
+
+    # PRD 6.2 数据出域边界：sendTextToAI 开关控制 note 是否进 prompt
+    # 默认关闭：只用结构化特征，不发送用户文本
+    # 开启后：note 经 privacy_filter 脱敏（手机号/身份证号/邮箱/QQ）后进 prompt
+    send_text = _get_send_text_to_ai(db, user_id)
+    user_note: str | None = None
+    if send_text and trigger_record_row and trigger_record_row.note:
+        user_note = sanitize_text(trigger_record_row.note)
+        if not user_note.strip():
+            user_note = None
+
+    # 尝试 LLM 生成
+    provider = get_provider()
+    system, user = _build_recommendation_prompt(
+        subject=subj,
+        state_label=state_label,
+        window_score=window.window_score if window.data_sufficient else None,
+        trend=window.trend.value if window.trend else None,
+        record_count=window.record_count,
+        plan_completion_ratio=plan_completion_ratio,
+        focus=trigger_record_row.self_report_focus if trigger_record_row else None,
+        fatigue=trigger_record_row.self_report_fatigue if trigger_record_row else None,
+        emotion=trigger_record_row.self_report_emotion if trigger_record_row else None,
+        difficulty_feel=trigger_record_row.self_report_difficulty_feel if trigger_record_row else None,
+        completion=trigger_record_row.behavior_completion if trigger_record_row else None,
+        duration_minutes=trigger_record_row.duration_minutes if trigger_record_row else None,
+        signals=window.signals,
+        recent_rows_summary=_format_recent_records(
+            list(rows) + ([trigger_record_row] if trigger_record_row and trigger_record_row not in rows else [])
+        ),
+        user_note=user_note,
+        today_completed=today_completed,
+        today_completed_count=today_completed_count,
+        today_total_count=today_total_count,
+    )
+    llm_text = provider.generate(user, context={"system": system, "scene": scene, "subject": subj})
+
+    if llm_text:
+        # 安全审核
+        passed, reason = check(llm_text)
+        if passed:
+            items = _parse_llm_items(llm_text)
+            if items:
+                _finalize_recommendation(db, rec, items, "llm", state_label, assessment_id, record_id,
+                                          f"LLM 生成，依据{subj}状态（{state_label}）")
+                return
+        else:
+            logger.warning("[AI] 建议 LLM 内容被安全审核拦截: %s", reason)
+
+    # 兜底：规则模板
+    items, explain = build_template_recommendation(
+        state_label, subj, record_focus, record_fatigue, plan_completion_ratio
+    )
+    _finalize_recommendation(db, rec, items, "template", state_label, assessment_id, record_id, explain)
+
+
+def generate_summary(
+    db: Session,
+    summary_id: str,
+    user_id: str,
+    period_start,
+    period_end,
+) -> None:
+    """生成周期复盘（PRD 5.4）。
+
+    复盘不做模板兜底：LLM 失败即 failed，数据不足即 insufficient_data。
+    """
+    summ = db.get(Summary, summary_id)
+    if summ is None:
+        logger.error("[AI] Summary %s 不存在", summary_id)
+        return
+
+    # 拉区间内记录
+    rows = db.execute(
+        select(LearningRecord).where(
+            LearningRecord.user_id == user_id,
+            LearningRecord.started_at >= period_start,
+            LearningRecord.started_at <= period_end,
+        ).order_by(LearningRecord.started_at.asc())
+    ).scalars().all()
+
+    record_count = len(rows)
+
+    # 数据不足
+    if record_count < MIN_RECORDS_FOR_SUMMARY:
+        summ.generation_status = "insufficient_data"
+        summ.generation_completed_at = datetime.utcnow()
+        summ.data_record_count = record_count
+        summ.data_min_required = MIN_RECORDS_FOR_SUMMARY
+        summ.message = "本周记录较少，暂不生成完整复盘"
+        db.commit()
+        logger.info("[AI] 复盘 %s 数据不足（%d < %d）", summary_id, record_count, MIN_RECORDS_FOR_SUMMARY)
+        return
+
+    # 组装 dataPoints
+    subjects = sorted(set(r.subject for r in rows))
+    snap_rows = db.execute(
+        select(AssessmentSnapshot).where(
+            AssessmentSnapshot.user_id == user_id,
+            AssessmentSnapshot.subject.in_(subjects),
+        ).order_by(AssessmentSnapshot.computed_at.asc())
+    ).scalars().all()
+    state_labels = [s.state_label for s in snap_rows if s.data_sufficient]
+    referenced_ids = [s.id for s in snap_rows]
+    plan_completion_ratio = _compute_plan_completion(db, user_id)
+    # 今日完成情况（PRD 5.4：复盘应能反映用户"今天都做了哪些任务"）
+    today_completed = _compute_today_completed_tasks(db, user_id)
+    today_completed_count, today_total_count = _compute_today_task_total(db, user_id)
+
+    # PRD 6.2 数据出域边界：sendTextToAI 开关控制 note 是否进 prompt
+    send_text = _get_send_text_to_ai(db, user_id)
+    notes_summary: str | None = None
+    if send_text:
+        # 收集区间内有 note 的记录，逐条脱敏后拼接
+        note_lines = []
+        for r in rows:
+            if r.note:
+                safe_note = sanitize_text(r.note)
+                if safe_note.strip():
+                    note_lines.append(f"- {r.started_at.strftime('%m-%d')} {r.subject}: {safe_note}")
+        if note_lines:
+            notes_summary = "\n".join(note_lines)
+
+    # 尝试 LLM 生成
+    provider = get_provider()
+    prompt = _build_summary_prompt(
+        rows, snap_rows, plan_completion_ratio, notes_summary,
+        today_completed_count=today_completed_count,
+        today_total_count=today_total_count,
+        today_completed=today_completed,
+    )
+    llm_text = provider.generate(prompt, {"period": f"{period_start}~{period_end}"})
+
+    if llm_text:
+        passed, reason = check(llm_text)
+        if passed:
+            content = _parse_llm_summary(llm_text)
+            if content:
+                _finalize_summary(db, summ, content, "llm", record_count, subjects,
+                                  plan_completion_ratio, referenced_ids,
+                                  today_completed_count=today_completed_count,
+                                  today_total_count=today_total_count)
+                return
+        else:
+            logger.warning("[AI] 复盘 LLM 内容被安全审核拦截: %s", reason)
+
+    # 复盘严格不做模板兜底（PRD 5.4 / 契约 GenerationStatus 互斥约束）。
+    # 即使 MockProvider 返回 None，也必须 failed，不能伪造 source=template 的完整复盘。
+    summ.generation_status = "failed"
+    summ.generation_completed_at = datetime.utcnow()
+    summ.message = "生成失败，请稍后再试"
+    db.commit()
+    logger.warning("[AI] 复盘 %s LLM 生成失败或不可用，标记 failed", summary_id)
+
+
+# ---------- 内部工具 ----------
+
+def _window_rows(db: Session, user_id: str, subject: str, limit: int = 7) -> list[LearningRecord]:
+    rows = db.execute(
+        select(LearningRecord).where(
+            LearningRecord.user_id == user_id,
+            LearningRecord.subject == subject,
+        ).order_by(
+            LearningRecord.started_at.desc(),
+            LearningRecord.created_at.desc(),
+            LearningRecord.id.desc(),
+        ).limit(limit)
+    ).scalars().all()
+    return list(reversed(rows))
+
+
+def _finalize_recommendation(
+    db: Session, rec: Recommendation,
+    items: list[dict], source: str, state_label: str,
+    assessment_id: str | None, record_id: str | None, explain: str,
+) -> None:
+    rec.generation_status = "ready"
+    rec.generation_source = source
+    rec.generation_completed_at = datetime.utcnow()
+    rec.items = json.dumps(items, ensure_ascii=False)
+    rec.based_on_state_label = state_label
+    rec.based_on_assessment_id = assessment_id
+    rec.based_on_record_id = record_id
+    rec.based_on_explain = explain
+    db.commit()
+    logger.info("[AI] 建议 %s 生成完成 source=%s items=%d", rec.id, source, len(items))
+
+
+def _finalize_summary(
+    db: Session, summ: Summary,
+    content: dict, source: str,
+    record_count: int, subjects: list[str],
+    plan_completion_ratio: float | None, referenced_ids: list[str],
+    today_completed_count: int = 0, today_total_count: int = 0,
+) -> None:
+    summ.generation_status = "ready"
+    summ.generation_source = source
+    summ.generation_completed_at = datetime.utcnow()
+    summ.content_overview = content.get("overview")
+    summ.content_patterns = json.dumps(content.get("patterns", []), ensure_ascii=False)
+    summ.content_suggestions = json.dumps(content.get("suggestions", []), ensure_ascii=False)
+    summ.content_encouragement = content.get("encouragement")
+    summ.data_record_count = record_count
+    summ.data_subjects = json.dumps(subjects, ensure_ascii=False)
+    summ.data_plan_completion_ratio = plan_completion_ratio
+    summ.data_referenced_assessment_ids = json.dumps(referenced_ids, ensure_ascii=False)
+    # PRD 5.4：复盘 dataPoints 补「今日完成 N / M」计数
+    summ.data_plan_completed_count = today_completed_count
+    summ.data_plan_total_count = today_total_count
+    db.commit()
+    logger.info("[AI] 复盘 %s 生成完成 source=%s", summ.id, source)
+
+
+def _compute_plan_completion(db: Session, user_id: str) -> float | None:
+    """从 plan_tasks 表算真实计划完成率（PRD 5.4 复盘 dataPoints）。
+
+    ratio = completed / total（未软删除的任务）。
+    无任务时返回 None（复盘 prompt 里显示为 null）。
+    """
+    from models.plan import PlanTask as PlanTaskORM
+    from sqlalchemy import func as sa_func
+
+    total = db.execute(
+        select(sa_func.count()).select_from(PlanTaskORM).where(
+            PlanTaskORM.user_id == user_id,
+            PlanTaskORM.removed.is_(False),
+        )
+    ).scalar_one()
+    if total == 0:
+        return None
+    completed = db.execute(
+        select(sa_func.count()).select_from(PlanTaskORM).where(
+            PlanTaskORM.user_id == user_id,
+            PlanTaskORM.removed.is_(False),
+            PlanTaskORM.status == "completed",
+        )
+    ).scalar_one()
+    return round(completed / total, 2)
+
+
+def _compute_today_completed_tasks(
+    db: Session, user_id: str, plan_date=None,
+) -> list[dict]:
+    """今日已完成的 plan_tasks 列表（按 priority 升序）。
+
+    用途：单次建议 / 周期复盘 LLM 上下文（PRD 5.3 / 5.4）
+    - 让 LLM 知道「用户今天已经做了 N 个任务」而不是只看到一个抽象数字
+    - 让 SummaryCard / StudyTimer 完成弹窗能展示「今日已完成 N / M」
+
+    边界：
+    - plan_date 传 None 时回退到「created_at 所在自然日」（推荐传 plan.plan_date）
+    - 软删除任务（removed=True）不计
+    - status=completed 才计；pending/in_progress 不计
+    """
+    from datetime import date as _date
+    from models.plan import Plan as PlanORM
+    from models.plan import PlanTask as PlanTaskORM
+
+    # 找用户当日 plan（plan_date=今日）
+    if plan_date is None:
+        plan_date = _date.today().isoformat()
+    plan = db.execute(
+        select(PlanORM).where(
+            PlanORM.user_id == user_id,
+            PlanORM.plan_date == plan_date,
+        )
+    ).scalars().first()
+    if plan is None:
+        return []
+
+    rows = db.execute(
+        select(PlanTaskORM).where(
+            PlanTaskORM.plan_id == plan.id,
+            PlanTaskORM.removed.is_(False),
+            PlanTaskORM.status == "completed",
+        ).order_by(PlanTaskORM.priority.asc(), PlanTaskORM.id.asc())
+    ).scalars().all()
+    return [
+        {
+            "taskId": r.id,
+            "subject": r.subject,
+            "topic": r.topic,
+            "estimatedMinutes": r.estimated_minutes,
+            "priority": r.priority,
+        }
+        for r in rows
+    ]
+
+
+def _compute_today_task_total(
+    db: Session, user_id: str, plan_date=None,
+) -> tuple[int, int]:
+    """今日 plan 的「总任务数 / 已完成数」。
+
+    返回 (completed_count, total_count)；当日无 plan 时返回 (0, 0)。
+    """
+    from datetime import date as _date
+    from models.plan import Plan as PlanORM
+    from models.plan import PlanTask as PlanTaskORM
+
+    if plan_date is None:
+        plan_date = _date.today().isoformat()
+    plan = db.execute(
+        select(PlanORM).where(
+            PlanORM.user_id == user_id,
+            PlanORM.plan_date == plan_date,
+        )
+    ).scalars().first()
+    if plan is None:
+        return (0, 0)
+
+    rows = db.execute(
+        select(PlanTaskORM).where(
+            PlanTaskORM.plan_id == plan.id,
+            PlanTaskORM.removed.is_(False),
+        )
+    ).scalars().all()
+    completed = sum(1 for r in rows if r.status == "completed")
+    return (completed, len(rows))
+
+
+def _load_prompt_file(filename: str) -> str:
+    """读 prompts/ 下的提示词模板。模板集中放文件，方便迭代与审计。"""
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "prompts", filename)
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _strip_template_controls(text: str) -> tuple[str, str]:
+    """把模板切成 (system, user) 两块。
+
+    模板必须有两个独立行（位置任意）标记 SYSTEM / USER：
+        SYSTEM:
+        ...system body...
+        USER:
+        ...user body...
+    用行级别定位，避免正则在长 body 里被 `#` 字符干扰。
+    """
+    import re
+    sys_match = re.search(r"(?m)^#?\s*SYSTEM\s*:\s*$", text)
+    user_match = re.search(r"(?m)^#?\s*USER\s*:\s*$", text)
+    if not sys_match or not user_match or user_match.start() <= sys_match.end():
+        raise ValueError("prompt template missing or malformed SYSTEM/USER markers")
+    system = text[sys_match.end():user_match.start()].strip()
+    user = text[user_match.end():].strip()
+    return system, user
+
+
+def _format_recent_records(rows: list) -> str:
+    """最近 N 条记录的最简摘要（用于 prompt 上下文回顾）。"""
+    lines = []
+    for r in rows[-7:]:
+        lines.append(
+            f"- {r.started_at.strftime('%m-%d %H:%M')} "
+            f"focus={r.self_report_focus} fatigue={r.self_report_fatigue} "
+            f"emotion={r.self_report_emotion} completion={r.behavior_completion}"
+        )
+    return "\n".join(lines) or "（无历史记录）"
+
+
+def _build_recommendation_prompt(
+    subject: str, state_label: str,
+    window_score: float | None,
+    trend: str | None,
+    record_count: int,
+    plan_completion_ratio: float | None,
+    focus: int | None, fatigue: int | None,
+    emotion: str | None, difficulty_feel: str | None,
+    completion: str | None, duration_minutes: int | None,
+    signals: list[str],
+    recent_rows_summary: str,
+    user_note: str | None = None,
+    today_completed: list[dict] | None = None,
+    today_completed_count: int = 0,
+    today_total_count: int = 0,
+) -> tuple[str, str]:
+    """从 prompts/suggestion.txt 渲染 system/user 两段。
+
+    返回 (system, user)，调用方分别作为 chat 的 system / user message 发送。
+    这样能保留 system role 的硬约束，符合 OpenAI/Anthropic 通用约定。
+
+    user_note：用户填写的本次学习备注（经 privacy_filter 脱敏）。
+    None 表示用户未开启 sendTextToAI 或 note 为空，prompt 里该字段显示为"未提供"。
+
+    today_completed / today_completed_count / today_total_count：
+    让 LLM 知道用户今天已经完成几个任务（PRD 5.3 建议生成 + 5.4 复盘都需要）。
+    """
+    template = _load_prompt_file("suggestion.txt")
+    system, user = _strip_template_controls(template)
+
+    # 今日完成任务的人类可读摘要（喂给 LLM）
+    if today_completed:
+        completed_lines = [
+            f"- {t['subject']} · {t['topic']}（{t['estimatedMinutes']} min）"
+            for t in today_completed
+        ]
+        today_completed_str = "\n".join(completed_lines)
+    else:
+        today_completed_str = "（无）"
+
+    user = user.format(
+        subject=subject,
+        stateLabel=state_label,
+        windowScore=window_score if window_score is not None else "null（数据不足）",
+        trend=trend if trend is not None else "null（数据不足）",
+        recordCount=record_count,
+        planCompletionRatio=(
+            f"{plan_completion_ratio:.2f}" if plan_completion_ratio is not None
+            else "null（未接入计划）"
+        ),
+        focus=focus if focus is not None else "null",
+        fatigue=fatigue if fatigue is not None else "null",
+        emotion=emotion if emotion is not None else "null",
+        difficultyFeel=difficulty_feel if difficulty_feel is not None else "null",
+        completion=completion if completion is not None else "null",
+        durationMinutes=duration_minutes if duration_minutes is not None else "null",
+        signals=("; ".join(signals) if signals else "（无特殊信号）"),
+        recentRecordsSummary=recent_rows_summary,
+        userNote=user_note if user_note else "（未提供，用户未开启文本出域或本次无备注）",
+        todayCompletedCount=today_completed_count,
+        todayTotalCount=today_total_count,
+        todayCompletedList=today_completed_str,
+    )
+    return system, user
+
+
+def _build_summary_prompt(
+    rows, snap_rows, plan_ratio, notes_summary: str | None = None,
+    today_completed_count: int = 0, today_total_count: int = 0,
+    today_completed: list[dict] | None = None,
+) -> str:
+    notes_section = ""
+    if notes_summary:
+        notes_section = (
+            f"\n用户备注（已脱敏，可用于理解上下文，勿原样引用）：\n{notes_summary}\n"
+        )
+    completed_section = ""
+    if today_completed:
+        completed_lines = [
+            f"- {t['subject']} · {t['topic']}（{t['estimatedMinutes']} min）"
+            for t in today_completed
+        ]
+        completed_section = (
+            f"\n今日已完成 / 总任务数：{today_completed_count} / {today_total_count}\n"
+            f"今日已完成任务：\n" + "\n".join(completed_lines) + "\n"
+        )
+    return (
+        f"你是一个学习状态助手。根据以下周期数据生成一份学习复盘。\n"
+        f"记录数：{len(rows)}\n学科：{sorted(set(r.subject for r in rows))}\n"
+        f"状态快照数：{len(snap_rows)}\n计划完成率：{plan_ratio}\n"
+        f"{notes_section}"
+        f"{completed_section}"
+        f"要求：包含 overview（概述）、patterns（观察到的规律，列表）、"
+        f"suggestions（建议，1-3条）、encouragement（鼓励收尾）；"
+        f"必须基于真实数据，禁止编造；语气鼓励、中性；不涉及心理诊断。"
+    )
+
+
+def _extract_json_block(text: str) -> str:
+    """LLM 输出容错第 1 层：提取 markdown ```json ... ``` 围栏里的内容。
+
+    即使 prompt 明确要求纯 JSON，模型偶发仍会包一层 ``` 或加前后说明文字。
+    提不出来就原样返回，让第 2 层（json.loads）自行判断。
+    """
+    import re
+
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    return match.group(1).strip() if match else text
+
+
+def _parse_llm_items(text: str) -> list[dict] | None:
+    """从 LLM 文本解析 items 列表，两层容错：先纯 JSON、再 markdown 围栏提取。"""
+    for candidate in (text, _extract_json_block(text)):
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(data, list) and data:
+            return data
+        if isinstance(data, dict) and isinstance(data.get("items"), list) and data["items"]:
+            return data["items"]
+    return None
+
+
+def _parse_llm_summary(text: str) -> dict | None:
+    """从 LLM 文本解析 SummaryContent 结构，两层容错同 _parse_llm_items。"""
+    for candidate in (text, _extract_json_block(text)):
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(data, dict) and "overview" in data:
+            return data
+    return None
+
+
+# ---------- 后台任务入口（供 BackgroundTasks 调用；自开 session，不复用请求级 session） ----------
+
+def run_recommendation_generation(
+    recommendation_id: str,
+    user_id: str,
+    scene: str,
+    subject: str | None,
+    record_id: str | None,
+) -> None:
+    """后台生成建议。路由响应返回后执行，耗时的 LLM 调用不阻塞用户。"""
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        trigger = db.get(LearningRecord, record_id) if record_id else None
+        generate_recommendation(db, recommendation_id, user_id, scene, subject, record_id, trigger)
+    except Exception as e:
+        # 异常必须置 failed——只记日志会让行永远停在 pending（契约 0.3 要求终态）。
+        # 建议按契约 6.1 的失败回退原则：LLM 失败走 template 兜底；
+        # 若连模板兜底都异常（如空窗口触发），则标 failed，绝不悬挂。
+        logger.exception("[AI] 后台建议生成异常 recommendation_id=%s: %s", recommendation_id, e)
+        try:
+            rec = db.get(Recommendation, recommendation_id)
+            if rec and rec.generation_status == "pending":
+                rec.generation_status = "failed"
+                rec.generation_completed_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            logger.exception("[AI] 置 failed 时二次异常")
+    finally:
+        db.close()
+
+
+def run_summary_generation(
+    summary_id: str,
+    user_id: str,
+    period_start,
+    period_end,
+) -> None:
+    """后台生成复盘。同 run_recommendation_generation。"""
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        generate_summary(db, summary_id, user_id, period_start, period_end)
+    except Exception as e:
+        # 同 run_recommendation_generation：异常必须置 failed，不能悬挂。
+        logger.exception("[AI] 后台复盘生成异常 summary_id=%s: %s", summary_id, e)
+        try:
+            summ = db.get(Summary, summary_id)
+            if summ and summ.generation_status == "pending":
+                summ.generation_status = "failed"
+                summ.generation_completed_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            logger.exception("[AI] 复盘置 failed 时二次异常")
+    finally:
+        db.close()
