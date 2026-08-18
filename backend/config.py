@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 仓库根目录（与 docs/ 平级）
@@ -52,6 +53,22 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def _normalize_sqlite_path(self) -> "Settings":
+        """把 sqlite 相对路径（如 ./data.db）锚定到 backend 目录。
+
+        SQLite 相对路径依赖进程工作目录，uvicorn / 测试 / 脚本的 cwd 不一致时
+        会连到不同文件、或报「unable to open database file」。这里统一转成
+        基于 BACKEND_DIR 的绝对路径，消除 cwd 依赖。
+        """
+        url = self.database_url
+        if url.startswith("sqlite:///") and not url.startswith("sqlite:////"):
+            raw = url[len("sqlite:///"):]
+            if raw and not Path(raw).is_absolute():
+                abs_path = (BACKEND_DIR / raw).resolve()
+                self.database_url = f"sqlite:///{abs_path.as_posix()}"
+        return self
 
 
 settings = Settings()
