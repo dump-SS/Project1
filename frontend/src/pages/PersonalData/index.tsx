@@ -20,6 +20,7 @@ import SubjectCard from '@/components/PersonalData/SubjectCard';
 import FocusCard from '@/components/PersonalData/FocusCard';
 import CalendarCard from '@/components/PersonalData/CalendarCard';
 import GoalsCard from '@/components/PersonalData/GoalsCard';
+import SummaryCard from '@/components/PersonalData/SummaryCard';
 import styles from './index.module.css';
 import { antdThemeToken } from '@/styles/theme';
 import { dayjs } from '@/utils/aggregate';
@@ -48,6 +49,7 @@ function PersonalData() {
             <FocusCard />
             <CalendarCard />
             <GoalsCard />
+            <SummaryCard />
           </div>
 
           <footer className={styles.pageFooter}>愿你与自己的节奏和解 · 学习状态智能助手</footer>

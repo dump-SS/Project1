@@ -2,11 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import styles from './index.module.css'
 import { subjectLabels } from '@/styles/theme'
 import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
+import { putRecommendationFeedback } from '@/services/feedback'
 
 const FOCUS_LABELS = { 1: '分心', 2: '一般', 3: '还好', 4: '专注', 5: '非常专注' }
 const FATIGUE_LABELS = { 1: '精神', 2: '轻微', 3: '一般', 4: '疲劳', 5: '非常疲劳' }
 const EMOTION_LABELS = { positive: '积极', neutral: '一般', negative: '消极' }
 const DIFFICULTY_LABELS = { easy: '简单', moderate: '适中', hard: '困难' }
+const COMPLETION_LABELS = { completed: '完成', partial: '部分完成', abandoned: '放弃' }
+const RATING_LABELS = { useful: '有用', neutral: '一般', not_useful: '没用' }
 
 function formatTime(totalSeconds) {
   if (totalSeconds <= 0) return '00:00'
@@ -67,6 +70,7 @@ function RatingButtons({ value, onChange, options, wide = false }) {
 }
 
 function SelfAssessment({ task, error, onConfirm, onSkip }) {
+  const [completion, setCompletion] = useState('completed')
   const [focus, setFocus] = useState(null)
   const [fatigue, setFatigue] = useState(null)
   const [emotion, setEmotion] = useState(null)
@@ -76,7 +80,7 @@ function SelfAssessment({ task, error, onConfirm, onSkip }) {
 
   const submit = () => {
     if (!complete) return
-    onConfirm({ focus, fatigue, emotion, difficultyFeel })
+    onConfirm({ focus, fatigue, emotion, difficultyFeel, completion })
   }
 
   return (
@@ -84,6 +88,19 @@ function SelfAssessment({ task, error, onConfirm, onSkip }) {
       <div className={styles.popHeader}>
         <span className={styles.popTitle}>任务完成</span>
         <span className={styles.popText}>「{task}」已完成</span>
+      </div>
+
+      <div className={styles.selfSection}>
+        <span className={styles.selfLabel}>完成情况</span>
+        <RatingButtons
+          value={completion}
+          onChange={setCompletion}
+          wide
+          options={['completed', 'partial', 'abandoned'].map((c) => ({
+            value: c,
+            label: COMPLETION_LABELS[c],
+          }))}
+        />
       </div>
 
       <div className={styles.selfSection}>
@@ -150,20 +167,71 @@ function SelfAssessment({ task, error, onConfirm, onSkip }) {
 }
 
 function RecommendationPanel({ recommendation, onOk, onRestart }) {
+  const [feedbackRating, setFeedbackRating] = useState(null)
+  const [feedbackSent, setFeedbackSent] = useState(false)
+  const [feedbackError, setFeedbackError] = useState(null)
+
   const status = recommendation?.generation?.status
   const items = recommendation?.items
+  const recId = recommendation?.recommendationId
+  const existingFeedback = recommendation?.feedback
+  const showFeedback = status === 'ready' && items && items.length > 0 && recId
+
+  const handleFeedback = async (rating) => {
+    if (!recId || feedbackSent) return
+    setFeedbackRating(rating)
+    setFeedbackError(null)
+    try {
+      await putRecommendationFeedback(recId, rating)
+      setFeedbackSent(true)
+    } catch {
+      setFeedbackError('反馈提交失败')
+      setFeedbackRating(null)
+    }
+  }
 
   let body
   if (status === 'ready' && items && items.length > 0) {
     body = (
-      <div className={styles.recList}>
-        {items.map((item, index) => (
-          <div key={index} className={styles.recItem}>
-            <div className={styles.recTitle}>{item.title}</div>
-            <div className={styles.recContent}>{item.content}</div>
+      <>
+        <div className={styles.recList}>
+          {items.map((item, index) => (
+            <div key={index} className={styles.recItem}>
+              <div className={styles.recTitle}>{item.title}</div>
+              <div className={styles.recContent}>{item.content}</div>
+            </div>
+          ))}
+        </div>
+        {showFeedback && (
+          <div className={styles.feedbackSection}>
+            <span className={styles.feedbackLabel}>
+              {existingFeedback
+                ? '已收到你的评价'
+                : feedbackSent
+                  ? '感谢反馈'
+                  : '这些建议对你有帮助吗？'}
+            </span>
+            {!existingFeedback && !feedbackSent && (
+              <div className={styles.feedbackRow}>
+                {['useful', 'neutral', 'not_useful'].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    className={[
+                      styles.feedbackBtn,
+                      feedbackRating === r ? styles.feedbackBtnActive : '',
+                    ].join(' ')}
+                    onClick={() => handleFeedback(r)}
+                  >
+                    {RATING_LABELS[r]}
+                  </button>
+                ))}
+              </div>
+            )}
+            {feedbackError && <div className={styles.popError}>{feedbackError}</div>}
           </div>
-        ))}
-      </div>
+        )}
+      </>
     )
   } else if (status === 'insufficient_data') {
     body = (
@@ -297,7 +365,8 @@ export default function StudyTimerPage() {
     setPopupError(null)
   }
 
-  const handleConfirmSelfReport = async (selfReport) => {
+  const handleConfirmSelfReport = async (payload) => {
+    const { completion, ...selfReport } = payload
     setPopupPhase('submitting')
     setPopupError(null)
     try {
@@ -305,7 +374,7 @@ export default function StudyTimerPage() {
         subject,
         startedAt: sessionStart || new Date(Date.now() - focusMinutes * 60000).toISOString(),
         durationMinutes: focusMinutes,
-        behavior: { completion: 'completed' },
+        behavior: { completion },
         selfReport,
       })
 

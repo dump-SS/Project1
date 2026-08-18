@@ -1,0 +1,101 @@
+.body {
+  font-family: var(--font-body);
+  color: #2c3e50;
+}
+
+.section {
+  margin-bottom: 18px;
+}
+
+.sectionTitle {
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  color: #5ba3c4;
+  letter-spacing: 0.5px;
+  margin: 0 0 6px;
+}
+
+.text {
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  line-height: var(--line-height);
+  margin: 0;
+  color: #2c3e50;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--size-body);
+  font-weight: var(--weight-light);
+  line-height: var(--line-height);
+  color: #2c3e50;
+}
+
+.list li {
+  margin-bottom: 4px;
+}
+
+.empty {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #a9bcca;
+  text-align: center;
+  padding: 12px 0;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ---------- 反馈 ---------- */
+.feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #e8f4fd;
+}
+
+.feedbackLabel {
+  font-size: var(--size-caption);
+  font-weight: var(--weight-light);
+  color: #8ca3b5;
+  letter-spacing: 0.5px;
+}
+
+.feedbackRow {
+  display: flex;
+  gap: 8px;
+}
+
+.feedbackBtn {
+  font-family: var(--font-body);
+  font-size: var(--size-caption);
+  font-weight: var(--weight-regular);
+  color: #8ca3b5;
+  background: #f7fbfe;
+  border: 1px solid #d4e2ec;
+  border-radius: 8px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.feedbackBtn:hover {
+  border-color: #7ec8e3;
+  background: #eef8fd;
+  color: #5ba3c4;
+}
+
+.feedbackBtnActive {
+  background: linear-gradient(120deg, #5ba3c4, #7ec8e3);
+  border-color: #7ec8e3;
+  color: #ffffff;
+}
+
+.feedbackError {
+  font-size: 11px;
+  color: #d46b6b;
+}

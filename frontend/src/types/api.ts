@@ -178,6 +178,11 @@ export interface Recommendation {
   feedback?: FeedbackRecord | null;
 }
 
+export interface RecommendationFeedbackResult {
+  recommendationId: string;
+  feedback: FeedbackRecord;
+}
+
 /* ---------- 学习计划 ---------- */
 
 export interface PlanTask {
@@ -323,9 +328,15 @@ export interface Summary {
   content: SummaryContent | null;
   dataPoints?: SummaryDataPoints;
   message?: string;
+  feedback?: FeedbackRecord | null;
 }
 
 export interface SummaryList {
   items: Summary[];
   pagination: Pagination;
+}
+
+export interface SummaryFeedbackResult {
+  summaryId: string;
+  feedback: FeedbackRecord;
 }
