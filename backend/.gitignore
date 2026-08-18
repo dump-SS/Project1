@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 *.pyc
 
+# Runtime logs
+uvicorn_*.log
+
 # Data
 *.db
 *.db-journal
