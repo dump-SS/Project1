@@ -3,7 +3,7 @@
  * 该接口由服务端规则引擎同步返回，不走 LLM（PRD 8.2：AI 不可用时仍能看计划）。
  * 新用户无历史数据时响应里 adaptedFrom 为 null，走规则模板。
  */
-import { apiPost, apiPatch, isNetworkError } from './http';
+import { apiGet, apiPost, apiPatch, isNetworkError } from './http';
 import { cacheGet, cacheSet } from './localFallback';
 import type { Plan, PlanTask } from '@/types/api';
 
@@ -72,4 +72,23 @@ export async function updatePlanTask(
   patch: PlanTaskUpdate,
 ): Promise<PlanTask> {
   return apiPatch<PlanTask>(`/plans/${encodeURIComponent(planId)}/tasks/${encodeURIComponent(taskId)}`, patch);
+}
+
+/**
+ * 拉取指定日期的计划（openapi.yaml GET /plans，支持 date_from/date_to）。
+ * 用于 StudyTimer 在挂载时读今日计划的第一条任务做默认学习任务，
+ * 避免页面上硬编码「复习函数章节」与真实业务脱节。
+ *
+ * @returns 当日计划对象；当日无计划时返回 null（不抛错，让调用方走兜底文案）。
+ */
+export async function getPlanByDate(date: string): Promise<Plan | null> {
+  try {
+    const result = await apiGet<{ items: Plan[]; pagination: { page: number; pageSize: number; total: number } }>(
+      `/plans?date_from=${encodeURIComponent(date)}&date_to=${encodeURIComponent(date)}&page=1&page_size=1`,
+    );
+    return result.items?.[0] ?? null;
+  } catch {
+    // 网络/服务异常时降级为 null，让调用方决定是否走兜底（不阻断专注计时主流程）
+    return null;
+  }
 }

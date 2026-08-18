@@ -32,8 +32,54 @@ export default function StudyGuide() {
   const [submitError, setSubmitError] = useState('')
   const [offlineNote, setOfflineNote] = useState('')
 
-  const handleAutoFill = () => {
-    if (recommendation) setTaskValue(recommendation)
+  /**
+   * 公共兜底：缺分钟时给个默认 60，然后调 createPlan，成功后回填 recommendation + plan。
+   * 仅在 StudyGuide 内部使用，不影响其他页面。
+   */
+  const generatePlanNow = async () => {
+    setSubmitError('')
+    setOfflineNote('')
+    if (!MINUTES_VALIDATOR(minutes)) {
+      setMinutes('60')
+    }
+    const minutesNum = MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60
+    const { plan: created, fromCache } = await createPlan({
+      planDate: localDateString(),
+      availableMinutes: minutesNum,
+    })
+    // 规则引擎：从计划任务里挑一条当推荐，替代原硬编码常量 DEFAULT_SUBJECT
+    const first = created.tasks?.[0]
+    let rec = ''
+    if (first) {
+      const label = subjectLabels[first.subject] ?? first.subject
+      rec = `${label} · ${first.topic}`
+      setRecommendation(rec)
+    }
+    if (fromCache) {
+      setOfflineNote('离线取用上次成功计划')
+    }
+    setPlan(created)
+    setHasGenerated(true)
+    return rec
+  }
+
+  const handleAutoFill = async () => {
+    // 已有推荐：直接回填学习任务输入框
+    if (recommendation) {
+      setTaskValue(recommendation)
+      return
+    }
+    // 冷启动兜底：用户尚未点过「进入」/生成计划时，
+    // 自动用默认分钟生成计划，再把推荐回填到学习任务输入框。
+    // 避免空点 AUTO 没有任何反应的死循环。
+    try {
+      const rec = await generatePlanNow()
+      if (rec) setTaskValue(rec)
+    } catch (err) {
+      setSubmitError(
+        isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'),
+      )
+    }
   }
 
   /**
@@ -43,32 +89,14 @@ export default function StudyGuide() {
    */
   const handleEnter = async () => {
     if (hasGenerated) return true
-    setSubmitError('')
-    setOfflineNote('')
-    if (!MINUTES_VALIDATOR(minutes)) {
-      setSubmitError('请先填写 10-600 的可用学习分钟数')
-      return false
-    }
     try {
-      const { plan: created, fromCache } = await createPlan({
-        planDate: localDateString(),
-        availableMinutes: Number(minutes),
-      })
-      // 规则引擎：从计划任务里挑一条当推荐，替代原硬编码常量 DEFAULT_SUBJECT
-      const first = created.tasks?.[0]
-      if (first) {
-        const label = subjectLabels[first.subject] ?? first.subject
-        setRecommendation(`${label} · ${first.topic}`)
-      }
-      if (fromCache) {
-        setOfflineNote('离线取用上次成功计划')
-      }
-      setPlan(created)
-      setHasGenerated(true)
+      await generatePlanNow()
       // 生成成功后留在本页面，让用户能完成/调整任务；下一次点「进入」才跳转
       return false
     } catch (err) {
-      setSubmitError(isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'))
+      setSubmitError(
+        isNetworkError(err) ? '服务暂不可用，请稍后再试' : (err?.message ?? '计划生成失败，请稍后再试'),
+      )
       return false
     }
   }
