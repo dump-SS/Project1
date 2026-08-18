@@ -1,7 +1,7 @@
-.page {
+﻿.page {
   position: relative;
   min-height: 100vh;
-  background: #f7fbfe;
+  background: var(--bg-sky); background-attachment: fixed;
   padding: 56px 24px 80px;
   overflow: hidden;
 }
@@ -92,10 +92,10 @@
 }
 
 .card {
-  background: var(--color-bg-card);
+  background: var(--glass-fill); backdrop-filter: blur(16px) saturate(1.1); -webkit-backdrop-filter: blur(16px) saturate(1.1);
   border: 1px solid var(--color-border);
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  box-shadow: 0 2px 12px rgba(53, 80, 127, 0.10);
   padding: 28px 32px;
   display: flex;
   flex-direction: column;

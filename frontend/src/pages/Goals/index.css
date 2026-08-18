@@ -1,33 +1,14 @@
+/**
+ * Goals 局部令牌 · v0.2 桥接到 tokens.css。
+ * 不再设置全局 body { font-family: serif }——正文走无衬线细体，标题才用衬线。
+ */
 :root {
-  /* 设计令牌（与 StudyPlanEditor 对齐，避免重复维护） */
-  --color-text: #000000;
-  --color-button-bg: #ffffff;
-  --color-input-bg: #ffffff;
-  --color-bg-start: #ffffff;
-  --color-bg-end: #009fff;
-
-  /* 文艺风衬线字体 */
-  --font-serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, "Times New Roman", serif;
+  --color-text: var(--ink);
+  --font-serif: "Noto Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
 }
 
-* {
+.app *,
+.app *::before,
+.app *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html,
-body {
-  height: 100%;
-}
-
-body {
-  font-family: var(--font-serif);
-  color: var(--color-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#root {
-  min-height: 100%;
 }

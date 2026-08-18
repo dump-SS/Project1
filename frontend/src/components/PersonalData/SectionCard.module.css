@@ -1,13 +1,24 @@
-.card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 24px 28px 28px;
-  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
-  transition: box-shadow 0.3s ease;
+﻿.card {
+  background: var(--glass-fill);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-glass);
+  padding: 28px 30px 30px;
+  box-shadow: var(--glass-shadow);
+  transition: box-shadow var(--t-base) var(--ease-air),
+    transform var(--t-base) var(--ease-air);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card {
+    background: var(--glass-fill-solid);
+  }
 }
 
 .card:hover {
-  box-shadow: 0 4px 18px rgba(126, 200, 227, 0.18);
+  box-shadow: 0 12px 40px rgba(53, 80, 127, 0.16);
+  transform: translateY(-2px);
 }
 
 .header {
@@ -17,7 +28,7 @@
   gap: 16px;
   padding-bottom: 16px;
   margin-bottom: 24px;
-  border-bottom: 1px solid #e8f4fd;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .titleGroup {
@@ -30,7 +41,7 @@
 .index {
   font-family: var(--font-title);
   font-size: 15px;
-  color: #7ec8e3;
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -38,7 +49,7 @@
   font-family: var(--font-title);
   font-size: var(--size-section-title);
   font-weight: var(--weight-medium);
-  color: #5ba3c4;
+  color: var(--primary-deep);
   letter-spacing: 0.5px;
   white-space: nowrap;
 }
@@ -46,7 +57,7 @@
 .subtitle {
   font-size: var(--size-caption);
   font-weight: var(--weight-light);
-  color: #8ca3b5;
+  color: var(--ink-soft);
   letter-spacing: 0.3px;
 }
 
@@ -60,9 +71,9 @@
 .placeholderBadge {
   font-size: 11px;
   font-weight: var(--weight-light);
-  color: #8ca3b5;
-  background: #f7fbfe;
-  border: 1px solid #e8f4fd;
+  color: var(--ink-soft);
+  background: rgba(255,255,255,0.5);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   padding: 2px 10px;
   cursor: help;
@@ -84,13 +95,13 @@
 .loadingHint {
   font-size: 11px;
   font-weight: var(--weight-light);
-  color: #b5dffa;
+  color: var(--ink-faint);
   white-space: nowrap;
 }
 
 .body {
   font-family: var(--font-body);
-  color: #2c3e50;
+  color: var(--ink);
 }
 
 @media (max-width: 720px) {

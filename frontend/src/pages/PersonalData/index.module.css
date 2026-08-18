@@ -1,7 +1,8 @@
 .page {
   position: relative;
   min-height: 100vh;
-  background: #f7fbfe;
+  background: var(--bg-sky);
+  background-attachment: fixed;
   padding: 56px 24px 80px;
   overflow: hidden;
 }
@@ -52,38 +53,39 @@
 }
 
 .pageTitle {
-  font-family: var(--font-title);
+  font-family: var(--font-serif);
   font-size: var(--size-page-title);
-  font-weight: var(--weight-medium);
-  color: #2c3e50;
-  letter-spacing: 3px;
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  letter-spacing: 0.01em;
   line-height: 1.4;
 }
 
 .pageSubtitle {
   margin: 12px 0 0;
   font-size: var(--size-body);
-  font-weight: var(--weight-light);
-  /* 比全局次要文字色（#8CA3B5）深一档：这行压在天空图上，用原色对比度不足 */
-  color: #6d8598;
-  letter-spacing: 1px;
+  font-weight: var(--w-regular);
+  /* 压在天空图上，用次文冷灰蓝保证对比度 */
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
   line-height: var(--line-height);
 }
 
 .sections {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 40px;
 }
 
 .pageFooter {
   margin-top: 56px;
   text-align: center;
-  font-family: var(--font-title);
+  font-family: var(--font-serif);
+  font-style: italic;
   font-size: var(--size-caption);
-  font-weight: var(--weight-light);
-  letter-spacing: 2px;
-  color: #b3c6d3;
+  font-weight: var(--w-light);
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
 }
 
 @media (max-width: 720px) {

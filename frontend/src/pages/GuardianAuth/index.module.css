@@ -1,7 +1,7 @@
-.page {
+﻿.page {
   position: relative;
   min-height: 100vh;
-  background: #f7fbfe;
+  background: var(--bg-sky); background-attachment: fixed;
   padding: 56px 24px 80px;
   overflow: hidden;
 }
@@ -91,10 +91,12 @@
 }
 
 .card {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  background: var(--glass-fill);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-glass);
+  box-shadow: var(--glass-shadow);
   padding: 28px 32px;
   display: flex;
   flex-direction: column;
@@ -186,7 +188,7 @@
   align-self: flex-start;
   font-family: var(--font-sans);
   font-size: 14px;
-  color: #fff;
+  color: var(--on-photo);
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   border: none;
   border-radius: 10px;
@@ -209,7 +211,7 @@
   font-family: var(--font-sans);
   font-size: 14px;
   color: var(--color-error);
-  background: #fff;
+  background: transparent;
   border: 1px solid var(--color-error);
   border-radius: 10px;
   padding: 9px 24px;
@@ -218,7 +220,7 @@
 }
 
 .dangerBtn:hover:not(:disabled) {
-  color: #fff;
+  color: var(--on-photo);
   background: var(--color-error);
 }
 
@@ -230,32 +232,32 @@
 /* ───── 演示用扩展样式 ───── */
 
 .statusTag.status_pending {
-  background: #fff7e8;
-  border-color: #ffd591;
-  color: #ad6800;
+  background: rgba(235, 196, 139, 0.16);
+  border-color: var(--warning);
+  color: #b98a3e;
 }
 
 .statusTag.status_active {
-  background: #e8f7ee;
-  border-color: #95de8b;
-  color: #1a7f37;
+  background: rgba(143, 211, 182, 0.16);
+  border-color: var(--success);
+  color: #4a9e78;
 }
 
 .statusTag.status_revoked {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #475569;
+  background: rgba(147, 166, 190, 0.14);
+  border-color: var(--ink-faint);
+  color: var(--ink-soft);
 }
 
 .statusTag.status_expired {
-  background: #fff1f0;
-  border-color: #ffa39e;
-  color: #a8071a;
+  background: rgba(216, 155, 155, 0.16);
+  border-color: var(--danger-soft);
+  color: #c06767;
 }
 
 .channelTabs {
   display: inline-flex;
-  background: #eef6fb;
+  background: rgba(255,255,255,0.5);
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
   padding: 3px;
@@ -280,9 +282,9 @@
 }
 
 .channelTabActive {
-  background: #fff;
+  background: transparent;
   color: var(--color-primary-dark);
-  box-shadow: 0 1px 3px rgba(74, 209, 255, 0.25);
+  box-shadow: 0 1px 3px rgba(111, 168, 214, 0.25);
 }
 
 .agreeRow {
@@ -315,7 +317,7 @@
   font-family: var(--font-sans);
   font-size: 14px;
   color: var(--color-primary-dark);
-  background: #fff;
+  background: transparent;
   border: 1px solid var(--color-primary);
   border-radius: 10px;
   padding: 9px 24px;
@@ -445,7 +447,7 @@
 
 .logAt {
   font-family: var(--font-mono, monospace);
-  color: #94a3b8;
+  color: var(--ink-faint);
   flex-shrink: 0;
 }
 

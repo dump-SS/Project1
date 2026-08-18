@@ -1,6 +1,6 @@
-.page {
+﻿.page {
   min-height: 100vh;
-  background: #f7fbfe;
+  background: var(--bg-sky); background-attachment: fixed;
   padding: 48px 24px 80px;
 }
 
@@ -10,24 +10,24 @@
 }
 
 .title {
-  font-family: 'Noto Serif SC', 'Songti SC', serif;
+  font-family: var(--font-serif);
   font-size: 26px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--ink);
   letter-spacing: 2px;
   margin: 0 0 8px;
 }
 
 .subtitle {
   font-size: 14px;
-  color: #8ca3b5;
+  color: var(--ink-soft);
   margin: 0 0 32px;
 }
 
 .card {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(126, 200, 227, 0.12);
+  background: var(--glass-fill); backdrop-filter: blur(16px) saturate(1.1); -webkit-backdrop-filter: blur(16px) saturate(1.1); border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-glass);
+  box-shadow: var(--glass-shadow);
   padding: 8px 24px;
 }
 
@@ -40,7 +40,7 @@
 }
 
 .item + .item {
-  border-top: 1px solid #e8f4fd;
+  border-top: 1px solid var(--hairline);
 }
 
 .itemBody {
@@ -51,14 +51,14 @@
 .itemTitle {
   font-size: 15px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--ink);
   margin: 0 0 6px;
 }
 
 .itemDesc {
   font-size: 13px;
   line-height: 1.7;
-  color: #8ca3b5;
+  color: var(--ink-soft);
   margin: 0;
 }
 
@@ -69,14 +69,14 @@
 
 .hint {
   font-size: 12px;
-  color: #8ca3b5;
+  color: var(--ink-soft);
   padding: 16px 0;
   margin: 0;
 }
 
 .error {
   font-size: 13px;
-  color: #f5c88e;
+  color: var(--warning);
   padding: 16px 0;
   margin: 0;
 }
@@ -111,7 +111,7 @@
 
 .weightDesc {
   font-size: 13px;
-  color: #8ca3b5;
+  color: var(--ink-soft);
   margin: 0;
   line-height: 1.6;
 }
@@ -120,7 +120,7 @@
   flex-shrink: 0;
   font-size: 14px;
   color: #fff;
-  background: linear-gradient(135deg, #4ad1ff 0%, #2a8dcc 100%);
+  background: linear-gradient(135deg, #6fa8d6 0%, #4a7cb0 100%);
   border: none;
   border-radius: 8px;
   padding: 9px 22px;
@@ -139,7 +139,7 @@
   border-radius: 6px;
 }
 
-.weightError { color: #f5c88e; background: rgba(245, 200, 142, 0.08); }
+.weightError { color: var(--warning); background: rgba(245, 200, 142, 0.08); }
 .weightOk { color: #95de8b; background: rgba(149, 222, 139, 0.08); }
 
 .weightGrid {
@@ -160,7 +160,7 @@
 
 .weightCellLabel {
   font-size: 12px;
-  color: #8ca3b5;
+  color: var(--ink-soft);
   letter-spacing: 0.3px;
 }
 
@@ -168,7 +168,7 @@
   font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
   font-size: 18px;
   font-weight: 600;
-  color: #4ad1ff;
+  color: #8fc4e8;
 }
 
 .weightUpdatedAt {
@@ -188,7 +188,7 @@
 
 .logEmpty {
   font-size: 13px;
-  color: #8ca3b5;
+  color: var(--ink-soft);
   margin: 8px 0 0;
 }
 
@@ -219,7 +219,7 @@
 .logTime {
   font-family: var(--font-mono, monospace);
   font-size: 12px;
-  color: #8ca3b5;
+  color: var(--ink-soft);
 }
 
 .logTagOk,
@@ -241,7 +241,7 @@
 
 .logRevertReason {
   font-size: 12px;
-  color: #f5c88e;
+  color: var(--warning);
   margin: 6px 0 0;
 }
 
@@ -252,7 +252,7 @@
 
 .logDetail summary {
   cursor: pointer;
-  color: #4ad1ff;
+  color: #8fc4e8;
   user-select: none;
 }
 

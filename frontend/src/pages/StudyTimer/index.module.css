@@ -1,16 +1,17 @@
-.app {
-  --primary: #4ad1ff;
-  --primary-soft: #a5e4ff;
-  --primary-deep: #2fb7e8;
-  --ink: #33506b;
-  --ink-soft: #6d88a0;
-  --blue-1: #eaf5fc;
-  --blue-2: #e0eef8;
-  --blue-3: #d4e7f3;
-  --glass: rgba(226, 240, 249, 0.42);
-  --glass-strong: rgba(222, 238, 248, 0.58);
-  --serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
-  --sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+﻿.app {
+  /* v0.2：局部别名切到空气感色值（避免与 tokens 的同名 :root 变量自引用，此处直接取值）*/
+  --primary: #6fa8d6;
+  --primary-soft: #a9d4ec;
+  --primary-deep: #4a7cb0;
+  --ink: #2b3a55;
+  --ink-soft: #5c6e88;
+  --blue-1: rgba(255, 255, 255, 0.55);
+  --blue-2: #dcebf5;
+  --blue-3: #a9d4ec;
+  --glass: var(--glass-fill);
+  --glass-strong: var(--glass-fill-solid);
+  --serif: var(--font-serif);
+  --sans: var(--font-sans);
   --script: 'Great Vibes', 'Dancing Script', 'Segoe Script', 'Edwardian Script ITC', 'Brush Script MT', 'Snell Roundhand', 'Kaiti SC', 'KaiTi', 'STKaiti', cursive;
 
   position: relative;
@@ -78,7 +79,7 @@
   background: var(--glass);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(212, 231, 243, 0.65);
-  box-shadow: 0 8px 24px rgba(70, 150, 190, 0.1);
+  box-shadow: 0 8px 24px rgba(53, 80, 127, 0.1);
 }
 
 .brandLogo {
@@ -135,7 +136,7 @@
 
 .taskInput:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(111, 168, 214, 0.18);
 }
 
 .iconBtn {
@@ -152,7 +153,7 @@
 }
 
 .iconBtn:hover {
-  background: rgba(74, 209, 255, 0.12);
+  background: rgba(111, 168, 214, 0.12);
   border-color: var(--primary);
 }
 
@@ -194,14 +195,14 @@
 
 .subjectSelect:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(111, 168, 214, 0.18);
 }
 
 /* 模式切换 */
 .modeTabs {
   display: flex;
   gap: 4px;
-  background: rgba(74, 209, 255, 0.1);
+  background: rgba(111, 168, 214, 0.1);
   padding: 3px;
 }
 
@@ -252,7 +253,7 @@
 
 .durationInput:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(111, 168, 214, 0.18);
 }
 
 .durationUnit {
@@ -293,7 +294,7 @@
 .btn.primary {
   color: var(--blue-1);
   background: var(--primary);
-  box-shadow: 0 5px 14px rgba(74, 209, 255, 0.35);
+  box-shadow: 0 5px 14px rgba(111, 168, 214, 0.35);
 }
 
 .btn.primary:hover {
@@ -336,11 +337,11 @@
   font-size: clamp(72px, 14vw, 150px);
   line-height: 1;
   letter-spacing: 2px;
-  background: linear-gradient(120deg, var(--primary-deep) 10%, var(--primary) 55%, #9d6bff 100%);
+  background: linear-gradient(120deg, var(--primary-deep) 10%, var(--primary) 55%, #f3e4ce 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 8px 28px rgba(74, 209, 255, 0.3));
+  filter: drop-shadow(0 8px 28px rgba(111, 168, 214, 0.3));
   animation: breathe 7s ease-in-out infinite;
 }
 
@@ -369,13 +370,13 @@
   padding: 22px 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82));
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(74, 209, 255, 0.22);
+  border: 1px solid rgba(111, 168, 214, 0.22);
   border-radius: 16px;
   box-shadow:
-    inset 0 0 0 1px rgba(74, 209, 255, 0.08),
-    0 0 12px 2px rgba(74, 209, 255, 0.18),
-    0 0 28px 8px rgba(74, 209, 255, 0.12),
-    0 0 58px 18px rgba(47, 183, 232, 0.08);
+    inset 0 0 0 1px rgba(111, 168, 214, 0.08),
+    0 0 12px 2px rgba(111, 168, 214, 0.18),
+    0 0 28px 8px rgba(111, 168, 214, 0.12),
+    0 0 58px 18px rgba(74, 124, 176, 0.08);
   animation: popDrop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.1);
 }
 
@@ -412,8 +413,8 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: linear-gradient(120deg, rgba(74, 209, 255, 0.08), rgba(74, 209, 255, 0.18));
-  border: 1px solid rgba(74, 209, 255, 0.28);
+  background: linear-gradient(120deg, rgba(111, 168, 214, 0.08), rgba(111, 168, 214, 0.18));
+  border: 1px solid rgba(111, 168, 214, 0.28);
   border-radius: 8px;
   font-family: var(--sans);
   font-size: 12px;
@@ -471,7 +472,7 @@
   letter-spacing: 1px;
   color: var(--primary);
   background: transparent;
-  border: 1px solid rgba(74, 209, 255, 0.4);
+  border: 1px solid rgba(111, 168, 214, 0.4);
   border-radius: 8px;
   padding: 5px 16px;
   cursor: pointer;
@@ -480,7 +481,7 @@
 }
 
 .popRestart:hover {
-  background: rgba(74, 209, 255, 0.08);
+  background: rgba(111, 168, 214, 0.08);
   border-color: var(--primary);
 }
 
@@ -488,7 +489,7 @@
   font-family: var(--sans);
   font-size: 12px;
   text-align: center;
-  color: #d46b6b;
+  color: #d89b9b;
 }
 
 .popLoading {
@@ -540,7 +541,7 @@
 
 .selfBtn:hover {
   border-color: var(--primary);
-  background: rgba(74, 209, 255, 0.08);
+  background: rgba(111, 168, 214, 0.08);
 }
 
 .selfBtnActive {
@@ -581,7 +582,7 @@
 
 .recItem {
   background: var(--blue-1);
-  border: 1px solid rgba(74, 209, 255, 0.18);
+  border: 1px solid rgba(111, 168, 214, 0.18);
   border-radius: 12px;
   padding: 12px 14px;
 }
@@ -617,7 +618,7 @@
   align-items: center;
   gap: 8px;
   padding-top: 6px;
-  border-top: 1px solid rgba(74, 209, 255, 0.15);
+  border-top: 1px solid rgba(111, 168, 214, 0.15);
 }
 
 .feedbackLabel {
@@ -648,7 +649,7 @@
 
 .feedbackBtn:hover {
   border-color: var(--primary);
-  background: rgba(74, 209, 255, 0.08);
+  background: rgba(111, 168, 214, 0.08);
   color: var(--primary-deep);
 }
 
