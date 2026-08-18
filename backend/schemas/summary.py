@@ -31,6 +31,9 @@ class SummaryDataPoints(BaseModel):
     record_count: int | None = Field(None, alias="recordCount")
     subjects: list[Subject] | None = None
     plan_completion_ratio: float | None = Field(None, alias="planCompletionRatio")
+    # 今日计划完成计数（PRD 5.4：让前端 SummaryCard 显示「今日已完成 N / M」）
+    plan_completed_count: int | None = Field(None, alias="planCompletedCount")
+    plan_total_count: int | None = Field(None, alias="planTotalCount")
     referenced_assessment_ids: list[str] | None = Field(None, alias="referencedAssessmentIds")
     min_required: int | None = Field(None, alias="minRequired")
 

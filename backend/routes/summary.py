@@ -61,6 +61,10 @@ def _orm_to_dict(row: SummaryORM) -> dict:
         data_points["subjects"] = json.loads(row.data_subjects)
     if row.data_plan_completion_ratio is not None:
         data_points["planCompletionRatio"] = row.data_plan_completion_ratio
+    if row.data_plan_completed_count is not None:
+        data_points["planCompletedCount"] = row.data_plan_completed_count
+    if row.data_plan_total_count is not None:
+        data_points["planTotalCount"] = row.data_plan_total_count
     if row.data_referenced_assessment_ids:
         data_points["referencedAssessmentIds"] = json.loads(row.data_referenced_assessment_ids)
     if row.data_min_required is not None:

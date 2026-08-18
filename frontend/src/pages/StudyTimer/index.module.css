@@ -407,6 +407,29 @@
   color: var(--primary);
 }
 
+.planStats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: linear-gradient(120deg, rgba(74, 209, 255, 0.08), rgba(74, 209, 255, 0.18));
+  border: 1px solid rgba(74, 209, 255, 0.28);
+  border-radius: 8px;
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--primary-deep);
+}
+
+.planStatsNum {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--primary-deep);
+  letter-spacing: 0;
+  padding: 0 2px;
+}
+
 .popActions {
   display: flex;
   align-items: center;

@@ -71,7 +71,7 @@ function RatingButtons({ value, onChange, options, wide = false }) {
   )
 }
 
-function SelfAssessment({ task, error, onConfirm, onSkip }) {
+function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
   const [completion, setCompletion] = useState('completed')
   const [focus, setFocus] = useState(null)
   const [fatigue, setFatigue] = useState(null)
@@ -91,6 +91,17 @@ function SelfAssessment({ task, error, onConfirm, onSkip }) {
         <span className={styles.popTitle}>任务完成</span>
         <span className={styles.popText}>「{task}」已完成</span>
       </div>
+
+      {/* 今日计划完成计数（PRD 5.3：让用户感知"今天做完了几个"） */}
+      {planTaskStats && planTaskStats.total > 0 && (
+        <div className={styles.planStats}>
+          今日已完成
+          <strong className={styles.planStatsNum}>
+            {planTaskStats.completed} / {planTaskStats.total}
+          </strong>
+          个计划任务
+        </div>
+      )}
 
       <div className={styles.selfSection}>
         <span className={styles.selfLabel}>完成情况</span>
@@ -316,6 +327,10 @@ export default function StudyTimerPage() {
   const [recommendation, setRecommendation] = useState(null)
   const [popupError, setPopupError] = useState(null)
 
+  // 今日计划完成计数（PRD 5.3：完成弹窗里展示「今日已完成 N / M」）
+  // mount 拉一次，自评提交成功后拉一次
+  const [planTaskStats, setPlanTaskStats] = useState({ completed: 0, total: 0 })
+
   const timerRef = useRef(null)
 
   const totalSeconds = (mode === 'focus' ? focusMinutes : breakMinutes) * 60
@@ -356,6 +371,30 @@ export default function StudyTimerPage() {
     stopTimer()
     setRemaining(totalSeconds)
   }, [mode, totalSeconds, stopTimer])
+
+  // 挂载时拉取今日 plan 的所有 tasks 算完成计数（弹窗展示用）
+  // 不依赖 skipPlanFetch（state 透传时也要统计展示）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const plan = await getPlanByDate(localDateString())
+      if (cancelled) return
+      const tasks = plan?.tasks || []
+      const completed = tasks.filter((t) => t.status === 'completed').length
+      setPlanTaskStats({ completed, total: tasks.length })
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // 提交自评后刷新计数（PRD 5.3：完成弹窗展示「今日已完成 N/M」实时数）
+  const refreshPlanStats = useCallback(async () => {
+    const plan = await getPlanByDate(localDateString())
+    const tasks = plan?.tasks || []
+    setPlanTaskStats({
+      completed: tasks.filter((t) => t.status === 'completed').length,
+      total: tasks.length,
+    })
+  }, [])
 
   // 挂载时拉取当日计划的第一条任务作为默认学习任务。
   // - 命中 → 用「学科 · 方向」做默认文案，并把学科选项切到对应 subject
@@ -433,6 +472,10 @@ export default function StudyTimerPage() {
         behavior: { completion },
         selfReport,
       })
+
+      // 刷新今日计划完成计数（PRD 5.3：弹窗里展示「今日已完成 N/M」）
+      // 在设置 recId 之前先调，让弹窗切到 recommendation 前数据已就绪
+      refreshPlanStats().catch(() => {}); // 失败不影响主流程
 
       if (result.recommendation?.recommendationId) {
         setRecId(result.recommendation.recommendationId)
@@ -582,6 +625,7 @@ export default function StudyTimerPage() {
             <SelfAssessment
               task={task}
               error={popupError}
+              planTaskStats={planTaskStats}
               onConfirm={handleConfirmSelfReport}
               onSkip={handleDone}
             />

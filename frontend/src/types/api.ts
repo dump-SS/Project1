@@ -350,6 +350,10 @@ export interface SummaryDataPoints {
   recordCount?: number;
   subjects?: Subject[];
   planCompletionRatio?: number;
+  /** 复盘生成时记录的「今日已完成 N / M」快照（PRD 5.4）。
+   *  注意：这是 summary 生成时的瞬时值，不是当前实时数。 */
+  planCompletedCount?: number;
+  planTotalCount?: number;
   referencedAssessmentIds?: string[];
   minRequired?: number;
 }

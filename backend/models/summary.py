@@ -43,6 +43,9 @@ class Summary(Base):
     data_record_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     data_subjects: Mapped[str | None] = mapped_column(String(256), nullable=True)  # JSON 列表
     data_plan_completion_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 今日完成计数（PRD 5.4：让前端 SummaryCard 显示「今日已完成 N / M」）
+    data_plan_completed_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    data_plan_total_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     data_referenced_assessment_ids: Mapped[str | None] = mapped_column(String(512), nullable=True)  # JSON
     data_min_required: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

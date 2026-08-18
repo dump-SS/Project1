@@ -61,13 +61,19 @@ USER:
 - 趋势：{trend}  # up / flat / down
 - 窗口记录数：{recordCount}
 - 计划完成率（0-1）：{planCompletionRatio}  # 可能为 null
-- 本次记录关键数据：
-  - 专注度自评：{focus}/5
-  - 疲劳度自评：{fatigue}/5
-  - 情绪自评：{emotion}  # positive / neutral / negative
-  - 难度感受：{difficultyFeel}  # easy / moderate / hard
-  - 完成度：{completion}  # completed / partial / abandoned
-  - 学习时长（分钟）：{durationMinutes}
+
+# 今日计划完成情况（PRD 5.3：让建议贴合用户当下节奏）
+- 今日已完成 / 总任务数：{todayCompletedCount} / {todayTotalCount}
+- 今日已完成任务列表：
+{todayCompletedList}
+
+# 本次记录关键数据
+- 专注度自评：{focus}/5
+- 疲劳度自评：{fatigue}/5
+- 情绪自评：{emotion}  # positive / neutral / negative
+- 难度感受：{difficultyFeel}  # easy / moderate / hard
+- 完成度：{completion}  # completed / partial / abandoned
+- 学习时长（分钟）：{durationMinutes}
 - 可解释信号（来自规则层，可直接引用）：{signals}
 - 用户本次备注（已脱敏）：{userNote}  # 未开启文本出域或无备注时为"未提供"
 

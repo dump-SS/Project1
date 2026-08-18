@@ -3,6 +3,40 @@
   color: #2c3e50;
 }
 
+/* 累计完成计数（PRD 5.4：复盘时记录的 N / M 快照） */
+.metaRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  background: linear-gradient(120deg, rgba(74, 209, 255, 0.06), rgba(74, 209, 255, 0.16));
+  border: 1px solid rgba(74, 209, 255, 0.25);
+  border-radius: 8px;
+}
+
+.metaLabel {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #5ba3c4;
+}
+
+.metaValue {
+  font-family: var(--font-title);
+  font-size: 15px;
+  font-weight: var(--weight-medium);
+  color: #2c3e50;
+  letter-spacing: 0.5px;
+}
+
+.metaHint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: #5a6b7a;
+  margin-left: auto;
+}
+
 .section {
   margin-bottom: 18px;
 }
