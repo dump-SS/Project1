@@ -141,6 +141,34 @@ app.include_router(health.router)
 app.include_router(api_v1)
 
 
+# --- 前端静态托管 + SPA 回退（生产环境，与 API 同端口，无跨域）---
+# FRONTEND_DIR 默认取 backend/ 的上级目录下的 frontend/，
+# 服务器布局为 /epochx/{backend,frontend}，本地仓库布局同样成立，无需额外配置。
+import os
+from pathlib import Path
+
+from fastapi.responses import FileResponse
+
+FRONTEND_DIR = Path(
+    os.getenv("FRONTEND_DIR", str(Path(__file__).resolve().parent.parent / "frontend"))
+).resolve()
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    """静态文件优先，找不到回退 index.html（SPA 路由），并防目录穿越。"""
+    candidate = (FRONTEND_DIR / full_path).resolve()
+    if full_path and candidate.is_file() and candidate.is_relative_to(FRONTEND_DIR):
+        return FileResponse(candidate)
+    index = FRONTEND_DIR / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    return JSONResponse(
+        status_code=404,
+        content={"error": {"code": "FRONTEND_NOT_DEPLOYED", "message": "前端产物未部署"}},
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
 
