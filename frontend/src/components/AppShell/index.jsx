@@ -146,6 +146,24 @@ const Icon = ({ name, size = 18 }) => {
           <path d="M9 13l6 6M15 13l-6 6" />
         </svg>
       )
+    case 'chat':
+      // AI 辅导 · 对话气泡
+      return (
+        <svg {...props}>
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          <path d="M8.5 10.5h7M8.5 13.5h4" />
+        </svg>
+      )
+    case 'community':
+      // 匿名群体对比 · 人群
+      return (
+        <svg {...props}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      )
     default:
       return null
   }
@@ -161,6 +179,8 @@ const PRIMARY_NAV = [
   { to: '/goals', label: '目标', icon: 'goal' },
   { to: '/knowledge', label: '学科', icon: 'knowledge' },
   { to: '/error-book', label: '错题', icon: 'errorBook' },
+  { to: '/chat', label: 'AI辅导', icon: 'chat' },
+  { to: '/community/upload', label: '群体', icon: 'community' },
 ]
 
 // 「我的」下拉:3 个低频页
