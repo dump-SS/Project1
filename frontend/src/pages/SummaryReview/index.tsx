@@ -54,6 +54,9 @@ export default function SummaryReviewPage() {
   const [periodStart, setPeriodStart] = useState<string>(initial.current.start)
   const [periodEnd, setPeriodEnd] = useState<string>(initial.current.end)
 
+  // v2.2：按 dimension 分 tab（状态与规划 / 知识内容）
+  const [dimension, setDimension] = useState<'state_and_plan' | 'knowledge'>('state_and_plan')
+
   const [generating, setGenerating] = useState(false)
   const [polling, setPolling] = useState(false)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -77,15 +80,19 @@ export default function SummaryReviewPage() {
 
   // 挂载时拉取复盘列表，把与当前默认区间匹配的最新一条直接展示出来。
   // 解决「库里已有 1 条复盘数据但页面不展示」的问题。
+  // v2.2：按当前 dimension 过滤（未标注 dimension 的旧数据默认 state_and_plan）。
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
         const result = await listSummaries(1, 20)
         if (cancelled) return
-        const matched = (result.items ?? []).find(
+        const inDimension = (result.items ?? []).filter(
+          (s) => (s.dimension ?? 'state_and_plan') === dimension,
+        )
+        const matched = inDimension.find(
           (s) => s.periodStart === initial.current.start && s.periodEnd === initial.current.end,
-        ) ?? result.items?.[0]
+        ) ?? inDimension[0]
         if (!matched) return
         if (!isSummaryTerminal(matched.generation?.status)) return
         setSummary(matched)
@@ -103,7 +110,7 @@ export default function SummaryReviewPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [dimension])
 
   const canGenerate = isValidRange(periodStart, periodEnd) && !generating
 
@@ -165,6 +172,27 @@ export default function SummaryReviewPage() {
       <header className={styles.header}>
         <h1 className={styles.title}>学习总结 / 复盘</h1>
         <p className={styles.subtitle}>把一段时间的记录与状态变化，整理成看得懂、用得上的复盘。</p>
+        <div className={styles.tabs} role="tablist">
+          {([
+            ['state_and_plan', '状态与规划'],
+            ['knowledge', '知识内容'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={dimension === key}
+              className={`${styles.tab} ${dimension === key ? styles.tabActive : ''}`}
+              onClick={() => {
+                setDimension(key)
+                setSummary(null)
+                setError(null)
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <section className={styles.panel}>

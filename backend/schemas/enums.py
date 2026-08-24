@@ -75,6 +75,7 @@ class StateLabel(str, Enum):
 class RecScene(str, Enum):
     post_session = "post_session"
     weekly_review = "weekly_review"
+    post_session_knowledge = "post_session_knowledge"  # 板块二内容维度建议（v2.2）
 
 
 class GenerationSource(str, Enum):

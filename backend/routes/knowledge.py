@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from llm_provider import get_provider
 from .deps import current_user
@@ -31,6 +31,9 @@ from schemas.user import User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["知识复盘"])
+
+# 知识复盘每日频率限制（PRD 6.4 / config.rate_limit_summary_per_day，进程内计数 MVP 够用）
+_KNOWLEDGE_SUMMARY_DAILY: dict[str, int] = {}
 
 # --- 知识复盘 prompt ---
 
@@ -113,6 +116,19 @@ def create_knowledge_summary(
 
     出域内容仅为知识聚合白名单字段（EgressGuard 校验），错题原文永不出域。
     """
+    # 每日频率限制（PRD 6.4 控成本）
+    from config import settings
+
+    today = __import__("datetime").date.today().isoformat()
+    key = f"{_user.user_id}:{today}"
+    used = _KNOWLEDGE_SUMMARY_DAILY.get(key, 0)
+    if used >= settings.rate_limit_summary_per_day:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RATE_LIMITED", "message": "今日知识复盘次数已达上限，请明天再试"},
+        )
+    _KNOWLEDGE_SUMMARY_DAILY[key] = used + 1
+
     text: str | None = None
     try:
         provider = get_provider()

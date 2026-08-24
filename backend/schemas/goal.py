@@ -57,6 +57,9 @@ class GoalSummary(GoalBase):
     completion_note: str | None = Field(
         None, alias="completionNote", max_length=200, description="目标完成总结（归档时可填）"
     )
+    point_ids: list[str] = Field(
+        default_factory=list, alias="pointIds", description="目标绑定的知识点 ID（板块二 v2.2，可选）"
+    )
     progress: GoalProgress
 
 
@@ -89,6 +92,7 @@ class GoalCreate(BaseModel):
     description: str | None = Field(None, max_length=200, description="≤200 字自由文本")
     target_date: date | None = Field(None, alias="targetDate", description="短期目标建议必填")
     template_id: str | None = Field(None, alias="templateId", description="从预设模板创建时带上")
+    point_ids: list[str] | None = Field(None, alias="pointIds", description="绑定知识点 ID（v2.2，可选）")
 
 
 class GoalUpdate(BaseModel):
@@ -109,6 +113,7 @@ class GoalUpdate(BaseModel):
     completion_note: str | None = Field(
         None, alias="completionNote", max_length=200, description="归档完成总结"
     )
+    point_ids: list[str] | None = Field(None, alias="pointIds", description="绑定知识点 ID（v2.2，可选）")
 
 
 class GoalList(BaseModel):
