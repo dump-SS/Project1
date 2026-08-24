@@ -173,10 +173,33 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
   };
 
   /* ----- 关键词匹配 ----- */
-  const handleMatch = () => {
+  const handleMatch = async () => {
     const keyword: string = form.getFieldValue('keyword') ?? '';
-    const found = matchKnowledge(keyword);
     setMatchTried(true);
+    // v2.1 转正：真实 /knowledge/points/match 优先，失败回退本地词表（demo 兼容）
+    try {
+      const { matchKnowledgePoints } = await import('@/services/knowledgeV2');
+      const resp = await matchKnowledgePoints(keyword, subject, 5);
+      if (resp.items.length > 0) {
+        const top = resp.items[0];
+        const found: KnowledgeEntry = {
+          name: top.name,
+          keywords: [top.name],
+          mastery: top.confidence,
+          definition: top.name,
+          errorTip: '',
+        };
+        setMatchResult(found);
+        const current: string[] = form.getFieldValue('knowledgeNames') ?? [];
+        if (!current.includes(found.name)) {
+          form.setFieldValue('knowledgeNames', [found.name, ...current]);
+        }
+        return;
+      }
+    } catch {
+      // 后端未就绪 → 走下面的本地词表
+    }
+    const found = matchKnowledge(keyword);
     setMatchResult(found);
     if (found) {
       // 命中 → 自动预填入关联知识点（用户可改）

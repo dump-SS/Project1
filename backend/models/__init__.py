@@ -26,6 +26,16 @@ from auth.models import AuthCode, AuthSession, AuthUser
 
 from .assessment import AssessmentSnapshot
 from .goal import Goal
+from .knowledge import (
+    EmbeddingRef,
+    ErrorPoint,
+    ErrorRecord,
+    KnowledgePoint,
+    KnowledgePointRelation,
+    KnowledgeSubject,
+    PointMastery,
+    ReviewLog,
+)
 from .learning_record import LearningRecord
 from .plan import Plan, PlanTask
 from .recommendation import Recommendation
@@ -53,4 +63,12 @@ __all__ = [
     "AuthUser",
     "AuthCode",
     "AuthSession",
+    "KnowledgeSubject",
+    "KnowledgePoint",
+    "KnowledgePointRelation",
+    "ErrorRecord",
+    "ErrorPoint",
+    "PointMastery",
+    "ReviewLog",
+    "EmbeddingRef",
 ]

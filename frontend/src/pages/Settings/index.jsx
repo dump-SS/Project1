@@ -18,6 +18,12 @@ const SWITCH_ITEMS = [
     description:
       '开启后，你填写的学习目标描述、任务备注等文字会发送给第三方 AI 服务，用于生成更贴合的建议。关闭后你填写的文字不会发送给第三方 AI，仅使用结构化特征生成建议（PRD 6.2 明示告知）。',
   },
+  {
+    key: 'knowledgeAiEgressEnabled',
+    title: '知识复盘 AI 出域',
+    description:
+      '开启后，学科知识复盘可调用云端 AI 生成（仅发送经过 EgressGuard 白名单校验的结构化特征，错题原文/作答/答案永不上传）。关闭后知识复盘使用本地规则模板（PRD 12.6）。',
+  },
 ]
 
 export default function SettingsPage() {
@@ -27,6 +33,7 @@ export default function SettingsPage() {
   const [values, setValues] = useState({
     aiWeightTuningEnabled: true,
     sendTextToAI: false,
+    knowledgeAiEgressEnabled: false,
   })
 
   useEffect(() => {
@@ -39,6 +46,7 @@ export default function SettingsPage() {
         setValues({
           aiWeightTuningEnabled: data.aiWeightTuningEnabled,
           sendTextToAI: data.sendTextToAI,
+          knowledgeAiEgressEnabled: data.knowledgeAiEgressEnabled ?? false,
         })
       })
       .catch((err) => {
@@ -65,6 +73,7 @@ export default function SettingsPage() {
       setValues({
         aiWeightTuningEnabled: data.aiWeightTuningEnabled,
         sendTextToAI: data.sendTextToAI,
+        knowledgeAiEgressEnabled: data.knowledgeAiEgressEnabled ?? false,
       })
     } catch (err) {
       setError(

@@ -22,6 +22,7 @@ import CalendarCard from '@/components/PersonalData/CalendarCard';
 import GoalsCard from '@/components/PersonalData/GoalsCard';
 import SummaryCard from '@/components/PersonalData/SummaryCard';
 import StateBreakdownCard from '@/components/PersonalData/StateBreakdownCard';
+import MasteryCard from '@/components/PersonalData/MasteryCard';
 import styles from './index.module.css';
 import { antdThemeToken } from '@/styles/theme';
 import { dayjs } from '@/utils/aggregate';
@@ -51,6 +52,7 @@ function PersonalData() {
             <CalendarCard />
             <GoalsCard />
             <StateBreakdownCard />
+            <MasteryCard />
             <SummaryCard />
           </div>
 

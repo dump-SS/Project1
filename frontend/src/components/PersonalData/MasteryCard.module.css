@@ -1,0 +1,76 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hero {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.masteryValue {
+  font-size: 32px;
+  font-weight: 700;
+  font-family: var(--font-title, inherit);
+}
+
+.heroLabel {
+  color: var(--color-text-secondary, #666);
+}
+
+.sampleHint {
+  color: var(--color-text-faint, #999);
+  font-size: 12px;
+}
+
+.dim {
+  color: var(--color-text-faint, #999);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 96px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+}
+
+.barName {
+  font-size: 13px;
+  color: var(--color-text-secondary, #555);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barTrack {
+  height: 8px;
+  background: var(--color-bg-muted, #eee);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.barPct {
+  font-size: 12px;
+  text-align: right;
+  color: var(--color-text-secondary, #666);
+}
+
+.masteryLow { color: #cf1322; }
+.masteryMid { color: #d48806; }
+.masteryHigh { color: #389e0d; }
+.masteryDim { color: #999; }

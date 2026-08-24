@@ -18,10 +18,31 @@ __all__ = ["LLMProvider", "get_provider", "MockProvider"]
 
 
 class LLMProvider(Protocol):
-    """供应商统一接口：给 prompt + 上下文，返回生成的文本或 None。"""
+    """供应商统一接口：给 prompt + 上下文，返回生成的文本或 None。
+
+    context 里可带 data_class（PRD 12.6）：provider 层对 knowledge_raw 二次兜底拒绝，
+    防止业务代码绕过上层的 EgressGuard#check 直接调用。
+    """
 
     def generate(self, prompt: str, context: dict | None = None) -> str | None:
         ...
+
+
+def _enforce_egress(prompt: str, context: dict | None) -> None:
+    """provider 层兜底：knowledge_raw 出域直接拒绝（多层防线，PRD 12.6）。"""
+    data_class = (context or {}).get("data_class")
+    if data_class is None:
+        return  # 板块一历史调用未声明：默认按 state_plan 放行（向后兼容）
+    from egress_guard import Guard, KNOWLEDGE_RAW
+
+    if data_class == KNOWLEDGE_RAW:
+        from egress_guard import EgressViolation
+
+        raise EgressViolation("knowledge_raw 禁止出域（provider 层兜底拦截）")
+    # 聚合包白名单校验：调用方传的出域 payload 以 context["egress_fields"] 声明
+    fields = (context or {}).get("egress_fields")
+    if fields is not None:
+        Guard.check(fields, data_class)
 
 
 class MockProvider:
@@ -31,6 +52,7 @@ class MockProvider:
     """
 
     def generate(self, prompt: str, context: dict | None = None) -> str | None:
+        _enforce_egress(prompt, context)
         logger.info("[LLM] MockProvider 返回 None，将走规则兜底")
         return None
 
@@ -74,6 +96,7 @@ class OpenAICompatibleProvider:
             return None
 
     def generate(self, prompt: str, context: dict | None = None) -> str | None:
+        _enforce_egress(prompt, context)
         import json
         import time
 

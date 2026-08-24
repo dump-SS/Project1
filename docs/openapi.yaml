@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: 学习状态智能助手 API（板块一 MVP）
-  version: 1.0.0
+  title: 学习状态智能助手 API（板块一 + 板块二 MVP）
+  version: 1.5.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -44,6 +44,18 @@ tags:
     description: 流程环节 ⑤ 返回建议（异步生成 + 模板兜底）
   - name: 学习总结与复盘
     description: 周期复盘（异步生成，不做模板兜底）
+  - name: 学科知识库
+    description: |
+      板块二（PRD v1.4 第 12 节）：学科知识点只读浏览、概念关联图谱、文本匹配知识点。
+      全部需登录；数据来源于 kb_subjects / kb_points / kb_point_relations。
+  - name: 错题本
+    description: |
+      板块二：错题录入（原文只在本地 embedding，永不出域）、CRUD、软删、间隔复习。
+      错题原文/作答/正确答案/自述错因属 knowledge_raw，按 PRD 12.6 禁止出域（CI 断言）。
+  - name: 知识点掌握
+    description: 板块二：mastery 五因子规则计算（公式固定、权重入库），样本不足时不下数值结论。
+  - name: 知识复盘
+    description: 板块二：学科级周期知识复盘（异步生成 + RAG + EgressGuard + 审核层），复用 summaries 表。
 
 paths:
   # ==================== 鉴权会话（外部账号体系，登录前公开） ====================
@@ -1690,6 +1702,646 @@ paths:
           $ref: '#/components/responses/GuardianAuthorizationExpired'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ==================== 板块二：学科知识库（PRD 12.3.1） ====================
+  /knowledge/subjects:
+    get:
+      tags: [学科知识库]
+      operationId: listKnowledgeSubjects
+      summary: 已启用学科列表
+      description: 返回 enabled=true 的学科，含知识点数与内容版本。全部需登录。
+      responses:
+        '200':
+          description: 学科列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSubjectList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge/subjects/{subjectCode}/points:
+    get:
+      tags: [学科知识库]
+      operationId: listKnowledgePoints
+      summary: 学科知识点树
+      description: 返回该学科全部 enabled 知识点（扁平列表，parentId 构树）。
+      parameters:
+        - name: subjectCode
+          in: path
+          required: true
+          description: 学科代码（如 math）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 知识点列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgePointList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge/points/{pointId}:
+    get:
+      tags: [学科知识库]
+      operationId: getKnowledgePoint
+      summary: 单点详情（定义/易错点/关联关系）
+      parameters:
+        - name: pointId
+          in: path
+          required: true
+          description: 知识点 ID（kp_ 前缀）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 知识点详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgePointDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge/subjects/{subjectCode}/graph:
+    get:
+      tags: [学科知识库]
+      operationId: getKnowledgeGraph
+      summary: 学科概念关联图谱（节点 + 边）
+      description: v2.1 可先返回树形占位；v2.3 补力导向图全量数据。边 type 见 KnowledgePointRelationType。
+      parameters:
+        - name: subjectCode
+          in: path
+          required: true
+          description: 学科代码
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 图谱数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeGraph'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge/points/match:
+    get:
+      tags: [学科知识库]
+      operationId: matchKnowledgePoints
+      summary: 文本 → 候选知识点 Top-K
+      description: |
+        错题录入第四步使用。优先走本地 embedding 余弦 Top-5；
+        向量库/embedding 未就绪时降级为名称关键词模糊匹配（接口形态不变）。
+        出域边界：匹配仅在本机计算，不调用云端 LLM。
+      parameters:
+        - name: text
+          in: query
+          required: true
+          description: 待匹配文本（题目/错因摘要，≤4000 字）
+          schema:
+            type: string
+            maxLength: 4000
+        - name: subject
+          in: query
+          required: false
+          description: 限定学科代码，缺省跨学科
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: 返回条数，默认 5，上限 10
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
+      responses:
+        '200':
+          description: 候选知识点
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgePointMatchList'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 板块二：错题本（PRD 12.3.2） ====================
+  /error-book:
+    get:
+      tags: [错题本]
+      operationId: listErrorBook
+      summary: 错题列表
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          description: 按学科过滤
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - name: status
+          in: query
+          required: false
+          description: 按状态过滤（open/resolved）
+          schema:
+            type: string
+            enum: [open, resolved]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 错题列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBookList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [错题本]
+      operationId: createErrorRecord
+      summary: 错题录入（原文不出域，异步 embedding + 候选知识点匹配）
+      description: |
+        原文（rawText/studentAnswer/correctAnswer/errorNote）只在本地落库与本地向量化，
+        永不进入出域 payload（EgressGuard knowledge_raw 拒绝序列化，CI 断言）。
+        返回 201 + 记录 ID；候选知识点由 GET /knowledge/points/match 另行获取，用户确认后 PATCH 关联。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorRecordCreate'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRecord'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /error-book/{errorId}:
+    get:
+      tags: [错题本]
+      operationId: getErrorRecord
+      summary: 错题详情
+      parameters:
+        - name: errorId
+          in: path
+          required: true
+          description: 错题 ID（err_ 前缀）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 错题详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRecord'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [错题本]
+      operationId: updateErrorRecord
+      summary: 改错因/状态/关联知识点
+      parameters:
+        - name: errorId
+          in: path
+          required: true
+          description: 错题 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorRecordUpdate'
+      responses:
+        '200':
+          description: 更新后的错题
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRecord'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [错题本]
+      operationId: deleteErrorRecord
+      summary: 软删错题（deleted_at，对齐 goals/archive 风格）
+      parameters:
+        - name: errorId
+          in: path
+          required: true
+          description: 错题 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRecordDeleted'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /error-book/{errorId}/review:
+    post:
+      tags: [错题本]
+      operationId: reviewErrorRecord
+      summary: 提交复习结果（艾宾浩斯间隔复习）
+      description: recallCorrect 驱动下一次复习间隔（1/2/4/7/15 天），写入 kb_review_logs 并触发 mastery 重算。
+      parameters:
+        - name: errorId
+          in: path
+          required: true
+          description: 错题 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmit'
+      responses:
+        '200':
+          description: 复习已记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResult'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 板块二：知识点掌握（PRD 12.3.4） ====================
+  /mastery/points/{pointId}:
+    get:
+      tags: [知识点掌握]
+      operationId: getPointMastery
+      summary: 单点掌握度 + 置信度 + 样本量
+      description: 样本 <3 时 mastery 为 null 且 code=KB_INSUFFICIENT_MASTERY_DATA 语义（HTTP 200 + dataSufficient=false）。
+      parameters:
+        - name: pointId
+          in: path
+          required: true
+          description: 知识点 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 单点掌握度
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointMasteryResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mastery/subjects/{subjectCode}:
+    get:
+      tags: [知识点掌握]
+      operationId: getSubjectMastery
+      summary: 学科聚合掌握度 + 子项贡献
+      parameters:
+        - name: subjectCode
+          in: path
+          required: true
+          description: 学科代码
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 学科掌握度
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubjectMasteryResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mastery/subjects/{subjectCode}/timeline:
+    get:
+      tags: [知识点掌握]
+      operationId: getMasteryTimeline
+      summary: 掌握度时间序列
+      parameters:
+        - name: subjectCode
+          in: path
+          required: true
+          description: 学科代码
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          description: 起始日期 YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: 结束日期 YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 时间序列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MasteryTimeline'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 板块二：知识复盘（PRD 12.3.5） ====================
+  /knowledge-summary:
+    post:
+      tags: [知识复盘]
+      operationId: createKnowledgeSummary
+      summary: 生成学科知识复盘（异步，RAG + EgressGuard + 审核层）
+      description: |
+        改造自旧的无状态文案接口：加 current_user 鉴权、结构化入参（periodStart/End/subject 必填）、
+        异步生成、落 summaries 表（dimension=knowledge）。LLM 输入仅含 knowledge_aggregated
+        白名单字段（检索片段元信息/掌握度数值/状态摘要），原文永不出域。生成中返回 pending 句柄轮询。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeSummaryCreate'
+      responses:
+        '202':
+          description: 已受理，异步生成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryPending'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags: [知识复盘]
+      operationId: listKnowledgeSummaries
+      summary: 知识复盘列表（summary-review 知识 tab 数据源）
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 复盘列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge-summary/{summaryId}:
+    get:
+      tags: [知识复盘]
+      operationId: getKnowledgeSummary
+      summary: 知识复盘详情（dimension=knowledge）
+      parameters:
+        - $ref: '#/components/parameters/SummaryId'
+      responses:
+        '200':
+          description: 复盘详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 板块二：错题归因（合规改造，原文不出域） ====================
+  /error-parse:
+    post:
+      tags: [错题本]
+      operationId: parseErrorRecord
+      summary: 错题归因分析（RAG 合规形态：LLM 只看检索片段与错因候选，不看原文）
+      description: |
+        替代旧版「原文直发云端」的违规形态。入参引用已入库错题（errorId），
+        后端本地检索相关知识点片段 + 生成错因候选枚举，出域内容仅为 knowledge_aggregated
+        白名单字段（知识点名称/定义/易错点 + 结构化错因候选），由 EgressGuard 强校验。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorParseRequest'
+      responses:
+        '200':
+          description: 归因分析结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorParseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 契约漂移补录（板块一在用接口，此前未入契约） ====================
+  /daily-summary:
+    get:
+      tags: [学习总结与复盘]
+      operationId: getDailySummary
+      summary: 单日一句话学习总结
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: 日期 YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 日总结
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailySummary'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/weight-config:
+    get:
+      tags: [用户与设置]
+      operationId: getWeightConfig
+      summary: 读取当前权重 + 最近调权日志
+      responses:
+        '200':
+          description: 权重配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeightConfig'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/weight-config/tune-now:
+    post:
+      tags: [用户与设置]
+      operationId: tuneWeightsNow
+      summary: 手动触发一次调权（演示用）
+      responses:
+        '200':
+          description: 调权结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TuneNowResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/state-breakdown:
+    get:
+      tags: [用户与设置]
+      operationId: getStateBreakdown
+      summary: 按当前权重计算的窗口分 + 子分贡献分解
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Subject'
+      responses:
+        '200':
+          description: 状态分解
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateBreakdown'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /recommendation-content:
+    get:
+      tags: [个性化建议]
+      operationId: getRecommendationContent
+      summary: 导学计划页学习内容推荐（LLM 驱动）
+      responses:
+        '200':
+          description: 推荐内容
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationContent'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1853,6 +2505,37 @@ components:
               code: EMAIL_NOT_REGISTERED
               message: 该邮箱尚未注册，请先注册
               field: email
+    KbTextTooLong:
+      description: 错题原文超过 4000 字上限（PRD 12.3.2）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: KB_TEXT_TOO_LONG
+              message: 错题文本过长，请精简到 4000 字以内
+              field: rawText
+    KbEmbeddingFailed:
+      description: 本地 embedding 不可用，录入可降级为手动选知识点
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: KB_EMBEDDING_FAILED
+              message: 知识点匹配服务暂不可用，请手动选择知识点
+    KbInsufficientMasteryData:
+      description: 掌握度样本不足（<3），不下数值结论
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: KB_INSUFFICIENT_MASTERY_DATA
+              message: 该知识点样本不足，继续积累后会生成掌握度
 
   schemas:
     # ---------- 枚举字典（PRD 0.4） ----------
@@ -2151,7 +2834,7 @@ components:
     Settings:
       type: object
       description: 用户设置。权重数值（α、β 及各子权重）不通过任何用户侧接口暴露（PRD 5.2）
-      required: [aiWeightTuningEnabled, sendTextToAI, updatedAt]
+      required: [aiWeightTuningEnabled, sendTextToAI, knowledgeAiEgressEnabled, updatedAt]
       properties:
         aiWeightTuningEnabled:
           type: boolean
@@ -2159,6 +2842,9 @@ components:
         sendTextToAI:
           type: boolean
           description: 是否允许自由文本出域，默认 false；关闭时仅用结构化特征生成
+        knowledgeAiEgressEnabled:
+          type: boolean
+          description: 是否允许知识复盘 AI 出域（PRD 12.6），默认 false；关闭时知识复盘走本地规则模板
         updatedAt:
           type: string
           format: date-time
@@ -2174,6 +2860,9 @@ components:
         sendTextToAI:
           type: boolean
           description: 默认 false；关闭时目标描述等自由文本不出域，仅用结构化特征生成
+        knowledgeAiEgressEnabled:
+          type: boolean
+          description: 默认 false；开启后知识复盘可用云端 LLM（经 EgressGuard 白名单）
     GuardianAuthorizationRequest:
       type: object
       description: 监护人邮箱与手机号二选一必填
@@ -2242,6 +2931,11 @@ components:
           maxLength: 200
           nullable: true
           description: 目标完成总结（归档时可填），≤200 字；前端已按可选字段读取
+        pointIds:
+          type: array
+          description: 目标绑定的知识点 ID（v2.2，可选，用于「建议先补」短板提示）
+          items:
+            type: string
         progress:
           $ref: '#/components/schemas/GoalProgress'
         createdAt:
@@ -2934,6 +3628,11 @@ components:
         summaryId:
           type: string
           description: 复盘 ID
+        dimension:
+          type: string
+          description: 复盘维度（板块二知识复盘 = knowledge；板块一状态与规划 = state_and_plan）
+          enum: [state_and_plan, knowledge]
+          default: state_and_plan
         periodStart:
           type: string
           format: date
@@ -3015,3 +3714,499 @@ components:
           description: 复盘 ID
         feedback:
           $ref: '#/components/schemas/FeedbackRecord'
+
+    # ==================== 板块二：学科知识库（PRD 12.3.1） ====================
+    KnowledgeSubject:
+      type: object
+      description: 已启用学科（kb_subjects）
+      required: [subjectCode, name, pointCount, version]
+      properties:
+        subjectCode:
+          type: string
+          description: 学科代码（math/physics/english）
+        name:
+          type: string
+          description: 学科显示名
+        gradeBand:
+          type: string
+          description: 学段（junior/senior/other）
+        pointCount:
+          type: integer
+          description: 已启用知识点数
+        version:
+          type: string
+          description: 内容数据版本号
+    KnowledgeSubjectList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeSubject'
+    KnowledgePoint:
+      type: object
+      description: 学科知识点（kb_points）
+      required: [pointId, subjectCode, code, name, definition, difficulty, examWeight]
+      properties:
+        pointId:
+          type: string
+          description: 知识点 ID（kp_ 前缀）
+        subjectCode:
+          type: string
+        code:
+          type: string
+          description: 知识点唯一代码，如 math.func.monotonicity
+        name:
+          type: string
+        definition:
+          type: string
+          description: 概念定义
+        parentId:
+          type: string
+          nullable: true
+          description: 父知识点 ID；构图谱树
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: 难度 1-5
+        examWeight:
+          type: number
+          description: 考试权重（学科聚合掌握度占比用），0-1 的小数
+        errorTip:
+          type: string
+          description: 易错点提示
+    KnowledgePointList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgePoint'
+    KnowledgePointRelationType:
+      type: string
+      description: 概念关系四类（PRD 12.3.3）
+      enum: [prerequisite, derived, contrast, applied_in]
+    KnowledgePointRelation:
+      type: object
+      required: [srcPointId, dstPointId, type]
+      properties:
+        srcPointId:
+          type: string
+        dstPointId:
+          type: string
+        type:
+          $ref: '#/components/schemas/KnowledgePointRelationType'
+        weight:
+          type: number
+          description: 关系权重 0-1
+    KnowledgePointDetail:
+      type: object
+      required: [pointId]
+      properties:
+        pointId:
+          type: string
+        subjectCode:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        definition:
+          type: string
+        parentId:
+          type: string
+          nullable: true
+        difficulty:
+          type: integer
+        examWeight:
+          type: number
+        errorTip:
+          type: string
+        relations:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgePointRelation'
+    KnowledgeGraph:
+      type: object
+      description: 学科概念图谱（v2.1 树形占位；v2.3 全量力导向）
+      required: [subjectCode, nodes, edges]
+      properties:
+        subjectCode:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgePoint'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgePointRelation'
+    KnowledgePointMatch:
+      type: object
+      required: [pointId, name, confidence, matchedBy]
+      properties:
+        pointId:
+          type: string
+        name:
+          type: string
+        subjectCode:
+          type: string
+        confidence:
+          type: number
+          description: 匹配置信度 0-1
+        matchedBy:
+          type: string
+          description: 匹配方式（embedding / keyword_fallback）
+          enum: [embedding, keyword_fallback]
+    KnowledgePointMatchList:
+      type: object
+      required: [items, matchedBy]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgePointMatch'
+        matchedBy:
+          type: string
+          enum: [embedding, keyword_fallback]
+
+    # ==================== 板块二：错题本（PRD 12.3.2） ====================
+    ErrorRecordCreate:
+      type: object
+      required: [subject, rawText]
+      properties:
+        subject:
+          $ref: '#/components/schemas/Subject'
+        rawText:
+          type: string
+          maxLength: 4000
+          description: 错题原文（仅本地，永不出域）
+        studentAnswer:
+          type: string
+          maxLength: 4000
+          description: 学生作答
+        correctAnswer:
+          type: string
+          maxLength: 4000
+          description: 正确答案
+        errorType:
+          type: string
+          description: 错因分类，如 concept/calculation/careless
+        errorNote:
+          type: string
+          maxLength: 4000
+          description: 自述错因
+        pointIds:
+          type: array
+          description: 用户确认关联的知识点 ID
+          items:
+            type: string
+    ErrorRecordUpdate:
+      type: object
+      description: 错题局部更新，至少传一项
+      minProperties: 1
+      properties:
+        errorType:
+          type: string
+        errorNote:
+          type: string
+          maxLength: 4000
+        status:
+          type: string
+          enum: [open, resolved]
+        pointIds:
+          type: array
+          items:
+            type: string
+    LinkedPoint:
+      type: object
+      required: [pointId, confidence]
+      properties:
+        pointId:
+          type: string
+        name:
+          type: string
+        confidence:
+          type: number
+    ErrorRecord:
+      type: object
+      required: [errorId, subject, rawText, status, createdAt]
+      properties:
+        errorId:
+          type: string
+        subject:
+          $ref: '#/components/schemas/Subject'
+        rawText:
+          type: string
+          maxLength: 4000
+        studentAnswer:
+          type: string
+          nullable: true
+        correctAnswer:
+          type: string
+          nullable: true
+        errorType:
+          type: string
+          nullable: true
+        errorNote:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [open, resolved]
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinkedPoint'
+        createdAt:
+          type: string
+          format: date-time
+        lastReviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ErrorBookList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    ErrorRecordDeleted:
+      type: object
+      required: [deleted, errorId]
+      properties:
+        deleted:
+          type: boolean
+        errorId:
+          type: string
+    ReviewSubmit:
+      type: object
+      required: [recallCorrect]
+      properties:
+        recallCorrect:
+          type: boolean
+          description: 这次复习是否回忆正确
+    ReviewResult:
+      type: object
+      required: [correct, nextReviewAt, intervalDays]
+      properties:
+        correct:
+          type: boolean
+        nextReviewAt:
+          type: string
+          format: date
+          description: 下一次复习日期（回忆正确按 1/2/4/7/15 递进；错误回到 1 天）
+        intervalDays:
+          type: integer
+          description: 下次复习间隔天数
+    ErrorParseRequest:
+      type: object
+      description: 错题归因（合规形态）：引用已入库错题，原文不出域
+      required: [errorId]
+      properties:
+        errorId:
+          type: string
+    ErrorParseResponse:
+      type: object
+      required: [parse, source, basedOn]
+      properties:
+        parse:
+          type: string
+          description: 归因分析文案
+        source:
+          type: string
+          enum: [llm, template]
+        basedOn:
+          type: array
+          description: 检索到的知识点片段（名称，供前端展示依据）
+          items:
+            type: string
+
+    # ==================== 板块二：知识点掌握（PRD 12.3.4） ====================
+    PointMasteryResult:
+      type: object
+      required: [pointId, dataSufficient, sampleSize]
+      properties:
+        pointId:
+          type: string
+        mastery:
+          type: number
+          nullable: true
+          description: 0-1 掌握度；样本 <3 时为 null
+        dataSufficient:
+          type: boolean
+          description: 样本 >=3 才为 true
+        sampleSize:
+          type: integer
+        factors:
+          type: object
+          description: 五因子明细（错误率/正确率/近度/保持/未解决），样本充足时出现
+          additionalProperties:
+            type: number
+        updatedAt:
+          type: string
+          format: date-time
+    SubjectMasteryResult:
+      type: object
+      required: [subjectCode, dataSufficient, sampleSize]
+      properties:
+        subjectCode:
+          type: string
+        mastery:
+          type: number
+          nullable: true
+        dataSufficient:
+          type: boolean
+        sampleSize:
+          type: integer
+        points:
+          type: array
+          description: 子知识点掌握度贡献列表
+          items:
+            $ref: '#/components/schemas/PointMasteryResult'
+    MasteryTimelinePoint:
+      type: object
+      required: [date, mastery]
+      properties:
+        date:
+          type: string
+          format: date
+        mastery:
+          type: number
+          nullable: true
+        sampleSize:
+          type: integer
+    MasteryTimeline:
+      type: object
+      required: [subjectCode, items]
+      properties:
+        subjectCode:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MasteryTimelinePoint'
+
+    # ==================== 板块二：知识复盘（PRD 12.3.5） ====================
+    KnowledgeSummaryCreate:
+      type: object
+      required: [periodStart, periodEnd, subject]
+      properties:
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+          description: 区间长度 3-31 天
+        subject:
+          $ref: '#/components/schemas/Subject'
+
+    # ==================== 契约漂移补录 schema ====================
+    DailySummary:
+      type: object
+      required: [date, summary]
+      properties:
+        date:
+          type: string
+          format: date
+        summary:
+          type: string
+          description: 一句话总结（≤60 字）
+    WeightSnapshot:
+      type: object
+      required: [alpha, beta, w1, w2, w3, w4, w5, w6]
+      properties:
+        alpha: { type: number }
+        beta: { type: number }
+        w1: { type: number }
+        w2: { type: number }
+        w3: { type: number }
+        w4: { type: number }
+        w5: { type: number }
+        w6: { type: number }
+    WeightAdjustLogItem:
+      type: object
+      required: [id, before, after, reason, reverted, effectiveAt]
+      properties:
+        id: { type: string }
+        before:
+          $ref: '#/components/schemas/WeightSnapshot'
+        after:
+          $ref: '#/components/schemas/WeightSnapshot'
+        reason: { type: string }
+        reverted: { type: boolean }
+        revertReason: { type: string, nullable: true }
+        effectiveAt:
+          type: string
+          format: date-time
+    WeightConfig:
+      type: object
+      required: [current, updatedAt, recentLogs]
+      properties:
+        current:
+          $ref: '#/components/schemas/WeightSnapshot'
+        updatedAt:
+          type: string
+          format: date-time
+        recentLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeightAdjustLogItem'
+    TuneNowResult:
+      type: object
+      required: [tuned, message]
+      properties:
+        tuned: { type: boolean }
+        message: { type: string }
+    StateBreakdown:
+      type: object
+      required:
+        - subject
+        - windowScore
+        - behaviorSubAvg
+        - selfReportSubAvg
+        - recordCount
+        - windowSize
+      properties:
+        subject:
+          $ref: '#/components/schemas/Subject'
+        windowScore:
+          type: number
+          nullable: true
+        behaviorSubAvg: { type: number }
+        selfReportSubAvg: { type: number }
+        behaviorContribution: { type: number }
+        selfReportContribution: { type: number }
+        behaviorShare: { type: number }
+        selfReportShare: { type: number }
+        recordCount: { type: integer }
+        stateLabel:
+          $ref: '#/components/schemas/StateLabel'
+        trend:
+          $ref: '#/components/schemas/Trend'
+        signals:
+          type: array
+          items: { type: string }
+        weights:
+          $ref: '#/components/schemas/WeightSnapshot'
+        windowSize: { type: integer }
+    RecommendationContent:
+      type: object
+      required: [eligible, recordCount, recentWindowDays, reason, fromLLM]
+      properties:
+        eligible: { type: boolean }
+        recordCount: { type: integer }
+        recentWindowDays: { type: integer }
+        subject:
+          $ref: '#/components/schemas/Subject'
+        topic: { type: string, nullable: true }
+        reason: { type: string }
+        fromLLM: { type: boolean }

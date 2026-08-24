@@ -24,6 +24,8 @@ class Summary(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # 复盘维度（板块二 v2.2）：state_and_plan（板块一，默认） / knowledge（板块二知识复盘）
+    dimension: Mapped[str] = mapped_column(String(32), nullable=False, default="state_and_plan")
 
     period_start: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     period_end: Mapped[date] = mapped_column(Date, nullable=False, index=True)

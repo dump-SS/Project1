@@ -94,6 +94,9 @@ class Settings(BaseModel):
 
     ai_weight_tuning_enabled: bool = Field(..., alias="aiWeightTuningEnabled", description="默认 true")
     send_text_to_ai: bool = Field(..., alias="sendTextToAI", description="默认 false")
+    knowledge_ai_egress_enabled: bool = Field(
+        False, alias="knowledgeAiEgressEnabled", description="默认 false：知识复盘 AI 出域开关（PRD 12.6）"
+    )
     updated_at: datetime = Field(..., alias="updatedAt")
 
 
@@ -107,11 +110,16 @@ class SettingsUpdate(BaseModel):
 
     ai_weight_tuning_enabled: bool | None = Field(None, alias="aiWeightTuningEnabled")
     send_text_to_ai: bool | None = Field(None, alias="sendTextToAI")
+    knowledge_ai_egress_enabled: bool | None = Field(None, alias="knowledgeAiEgressEnabled")
 
     @model_validator(mode="after")
     def _at_least_one(self) -> "SettingsUpdate":
-        if self.ai_weight_tuning_enabled is None and self.send_text_to_ai is None:
-            raise ValueError("至少传一项（aiWeightTuningEnabled 或 sendTextToAI）")
+        if (
+            self.ai_weight_tuning_enabled is None
+            and self.send_text_to_ai is None
+            and self.knowledge_ai_egress_enabled is None
+        ):
+            raise ValueError("至少传一项（aiWeightTuningEnabled / sendTextToAI / knowledgeAiEgressEnabled）")
         return self
 
 

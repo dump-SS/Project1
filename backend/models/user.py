@@ -49,6 +49,7 @@ class Settings(Base):
     )  # 1:1 with User.id（不建 FK，省得删用户时麻烦）
     ai_weight_tuning_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     send_text_to_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    knowledge_ai_egress_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
