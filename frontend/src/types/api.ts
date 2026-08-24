@@ -362,6 +362,8 @@ export interface Summary {
   summaryId: string;
   periodStart?: string;
   periodEnd?: string;
+  /** 复盘维度：state_and_plan（板块一默认）/ knowledge（板块二知识复盘） */
+  dimension?: 'state_and_plan' | 'knowledge';
   generation: GenerationStatus;
   /** 数据不足或生成失败时为 null */
   content: SummaryContent | null;

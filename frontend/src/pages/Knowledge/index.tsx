@@ -10,6 +10,7 @@ import { Modal, Tree, theme as antdTheme } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import { fetchKnowledgePoints, type KnowledgePoint } from '@/services/knowledgeV2';
 import { fetchSubjectMastery } from '@/services/mastery';
+import KnowledgeGraphView from './Graph';
 import './index.css';
 
 interface KnowledgeNode {
@@ -310,8 +311,20 @@ export default function Knowledge() {
           onOk={() => setGraphOpen(false)}
           okText="知道了"
           cancelButtonProps={{ style: { display: 'none' } }}
+          width={720}
         >
-          <p>图谱功能将在 v2.3 上线。</p>
+          <KnowledgeGraphView
+            subjectCode="math"
+            onSelect={(p) => {
+              setSelected({
+                label: p.name,
+                mastery: masteryMap[p.pointId] ?? 0,
+                definition: p.definition,
+                errorTip: p.errorTip ?? '',
+              });
+              setGraphOpen(false);
+            }}
+          />
         </Modal>
       </main>
     </>

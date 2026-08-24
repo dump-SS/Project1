@@ -2342,6 +2342,74 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # ==================== 板块三：群体匿名参照（仅预留，x-status: planned） ====================
+  /community/features:
+    post:
+      x-status: planned
+      tags: [知识复盘]
+      operationId: uploadCommunityFeatures
+      summary: 匿名特征值上传（规划中，不实施）
+      description: 板块三预留。显式授权后上传匿名化特征值；原文与身份字段禁止上传（PRD 10.2/10.3）。
+      responses:
+        '501':
+          description: 尚未实现
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: NOT_IMPLEMENTED
+                  message: 板块三尚未上线
+
+  /community/aggregate:
+    get:
+      x-status: planned
+      tags: [知识复盘]
+      operationId: getCommunityAggregate
+      summary: 群体聚合统计（规划中，不实施）
+      description: 只下发服务端聚合后的分位数/直方图桶，含最小群体规模校验。
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Subject'
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '501':
+          description: 尚未实现
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: NOT_IMPLEMENTED
+                  message: 板块三尚未上线
+
+  /me/community-consent:
+    get:
+      x-status: planned
+      tags: [用户与设置]
+      operationId: getCommunityConsent
+      summary: 匿名聚合授权状态（规划中，不实施）
+      responses:
+        '501':
+          description: 尚未实现
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: NOT_IMPLEMENTED
+                  message: 板块三尚未上线
+
 components:
   securitySchemes:
     sessionCookie:
@@ -2577,8 +2645,8 @@ components:
       enum: [efficient_stable, fatigue_warning, emotion_blocked, fluctuating_up, insufficient_data]
     RecScene:
       type: string
-      description: 建议场景：post_session=单次学习后，weekly_review=阶段回顾
-      enum: [post_session, weekly_review]
+      description: 建议场景：post_session=单次学习后，weekly_review=阶段回顾，post_session_knowledge=内容维度建议（板块二 v2.2）
+      enum: [post_session, weekly_review, post_session_knowledge]
     GenerationSource:
       type: string
       description: 生成来源：llm=模型生成，template=模板兜底

@@ -30,6 +30,13 @@ import {
   type KnowledgeSummaryResponse,
   type ErrorParseResponse,
 } from '@/services/knowledge';
+import {
+  fetchErrorBook,
+  createErrorRecord,
+  deleteErrorRecord,
+  reviewErrorRecord,
+  type ErrorRecord as ApiErrorRecord,
+} from '@/services/errorBook';
 import { KNOWLEDGE_BASE, matchKnowledge, type KnowledgeEntry } from '@/utils/matchKnowledge';
 import './index.css';
 
@@ -87,7 +94,52 @@ const REASON_LABEL: Record<ErrorReason, string> = {
 
 const storageKey = (s: Subject) => `errors_${s}`;
 
-const readErrors = (s: Subject): ErrorItem[] => {
+/** 后端 ErrorRecord → 页面 ErrorItem（字段映射，保持既有 UI 不动） */
+const toItem = (r: ApiErrorRecord): ErrorItem => ({
+  id: r.errorId,
+  questionText: r.rawText,
+  reason: (['concept', 'calculation', 'reading', 'method', 'other'] as ErrorReason[])
+    .includes(r.errorType as ErrorReason)
+    ? (r.errorType as ErrorReason)
+    : 'other',
+  knowledgeNames: (r.points ?? []).map((p) => p.name ?? p.pointId),
+  createdAt: new Date(r.createdAt).getTime(),
+});
+
+/** 拉取某学科错题（替换原 localStorage readErrors） */
+const loadErrors = async (s: Subject): Promise<ErrorItem[]> => {
+  // 后端未就绪时退回 localStorage（演示兼容，不静默）
+  try {
+    const res = await fetchErrorBook({ subject: s, page: 1, pageSize: 50 });
+    return (res.items ?? []).map(toItem);
+  } catch {
+    try {
+      const raw = localStorage.getItem(storageKey(s));
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  }
+};
+
+/** 新增错题：优先走后端，失败退回 localStorage */
+const saveError = async (s: Subject, item: ErrorItem): Promise<void> => {
+  try {
+    await createErrorRecord({
+      subject: s,
+      rawText: item.questionText,
+      errorType: item.reason,
+    });
+  } catch {
+    const list = readErrorsLocal(s);
+    list.unshift(item);
+    localStorage.setItem(storageKey(s), JSON.stringify(list));
+  }
+};
+
+const readErrorsLocal = (s: Subject): ErrorItem[] => {
   try {
     const raw = localStorage.getItem(storageKey(s));
     if (!raw) return [];
@@ -96,10 +148,6 @@ const readErrors = (s: Subject): ErrorItem[] => {
   } catch {
     return [];
   }
-};
-
-const writeErrors = (s: Subject, list: ErrorItem[]) => {
-  localStorage.setItem(storageKey(s), JSON.stringify(list));
 };
 
 const genId = () => `err_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -139,11 +187,18 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
   const [summaryById, setSummaryById] = useState<Record<string, { loading: boolean; data?: KnowledgeSummaryResponse; error?: string }>>({});
   const [parseById, setParseById] = useState<Record<string, { loading: boolean; data?: ErrorParseResponse; error?: string }>>({});
 
-  // 切学科时重读 localStorage
+  // 切学科时从后端加载（失败回退 localStorage）
   useEffect(() => {
-    setList(readErrors(subject));
+    let cancelled = false;
+    setList([]);
+    loadErrors(subject).then((items) => {
+      if (!cancelled) setList(items);
+    });
     setMatchResult(null);
     setMatchTried(false);
+    return () => {
+      cancelled = true;
+    };
   }, [subject]);
 
   const isEmpty = list.length === 0;
@@ -159,9 +214,9 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
         knowledgeNames: values.knowledgeNames ?? [],
         createdAt: Date.now(),
       };
+      await saveError(subject, item);
       const next = [item, ...list];
       setList(next);
-      writeErrors(subject, next);
       form.resetFields();
       setMatchResult(null);
       setMatchTried(false);
@@ -260,6 +315,24 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
     } catch {
       setParseById((m) => ({ ...m, [item.id]: { loading: false, error: 'failed' } }));
       messageApi.error('解析生成失败，请稍后重试');
+    }
+  };
+
+  /* ----- 复习（艾宾浩斯，v2.2） ----- */
+  const [reviewById, setReviewById] = useState<Record<string, { loading: boolean; nextReviewAt?: string; intervalDays?: number }>>({});
+
+  const handleReview = async (item: ErrorItem, recallCorrect: boolean) => {
+    setReviewById((m) => ({ ...m, [item.id]: { loading: true } }));
+    try {
+      const res = await reviewErrorRecord(item.id, recallCorrect);
+      setReviewById((m) => ({
+        ...m,
+        [item.id]: { loading: false, nextReviewAt: res.nextReviewAt, intervalDays: res.intervalDays },
+      }));
+      messageApi.success(recallCorrect ? `已记住，下次 ${res.nextReviewAt} 复习` : '再接再厉，明天再复习一次');
+    } catch {
+      setReviewById((m) => ({ ...m, [item.id]: { loading: false } }));
+      messageApi.error('复习记录失败，请稍后再试');
     }
   };
 
@@ -460,7 +533,48 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
                     >
                       AI 解析
                     </Button>
+                    <Button
+                      size="small"
+                      loading={reviewById[item.id]?.loading}
+                      onClick={() => handleReview(item, true)}
+                    >
+                      记住了
+                    </Button>
+                    <Button
+                      size="small"
+                      loading={reviewById[item.id]?.loading}
+                      onClick={() => handleReview(item, false)}
+                    >
+                      没记住
+                    </Button>
+                    <Button
+                      danger
+                      type="text"
+                      onClick={async () => {
+                        try {
+                          await deleteErrorRecord(item.id);
+                          setList((prev) => prev.filter((x) => x.id !== item.id));
+                          messageApi.success('已删除（软删）');
+                        } catch {
+                          // 后端未就绪：仅本地移除，不提示失败
+                          setList((prev) => prev.filter((x) => x.id !== item.id));
+                          try {
+                            const local = readErrorsLocal(subject).filter((x) => x.id !== item.id);
+                            localStorage.setItem(storageKey(subject), JSON.stringify(local));
+                          } catch {}
+                        }
+                      }}
+                    >
+                      删除
+                    </Button>
                   </div>
+
+                  {reviewById[item.id]?.nextReviewAt && (
+                    <div className="eb-review">
+                      下次复习：{reviewById[item.id].nextReviewAt}
+                      （间隔 {reviewById[item.id].intervalDays} 天）
+                    </div>
+                  )}
 
                   {summary?.data && (
                     <div className="eb-summary">

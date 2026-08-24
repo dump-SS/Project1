@@ -58,6 +58,14 @@ def _aggregate_progress(db: Session, goal_id: str) -> dict:
 
 def _orm_to_goal_summary(row: GoalORM, progress: dict) -> dict:
     """ORM Goal → GoalSummary 形状（camelCase dict）。"""
+    import json as _json
+
+    point_ids = []
+    if row.point_ids:
+        try:
+            point_ids = _json.loads(row.point_ids)
+        except (ValueError, TypeError):
+            point_ids = []
     return {
         "goalId": row.id,
         "type": row.type,
@@ -67,6 +75,7 @@ def _orm_to_goal_summary(row: GoalORM, progress: dict) -> dict:
         "status": row.status,
         "outcome": row.outcome,
         "completionNote": row.completion_note,
+        "pointIds": point_ids,
         "progress": progress,
     }
 
@@ -95,6 +104,7 @@ def create_goal(
         description=body.description,
         target_date=body.target_date,
         template_id=body.template_id,
+        point_ids=__import__("json").dumps(body.point_ids) if body.point_ids else None,
         status="active",
     )
     db.add(row)
@@ -200,6 +210,8 @@ def update_goal(
         row.outcome = body.outcome
     if body.completion_note is not None:
         row.completion_note = body.completion_note
+    if body.point_ids is not None:
+        row.point_ids = __import__("json").dumps(body.point_ids)
 
     db.commit()
     db.refresh(row)

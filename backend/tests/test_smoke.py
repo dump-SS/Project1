@@ -78,7 +78,7 @@ def test_enum_values_match_openapi() -> None:
     }
     assert {s.value for s in Stage} == {"junior", "senior"}
     assert {s.value for s in Trend} == {"up", "flat", "down"}
-    assert {s.value for s in RecScene} == {"post_session", "weekly_review"}
+    assert {s.value for s in RecScene} == {"post_session", "weekly_review", "post_session_knowledge"}
     assert {s.value for s in GenerationSource} == {"llm", "template"}
     assert {s.value for s in Rating} == {"useful", "neutral", "not_useful"}
     assert {s.value for s in TaskStatus} == {

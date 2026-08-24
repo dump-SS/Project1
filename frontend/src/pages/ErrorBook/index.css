@@ -358,3 +358,12 @@
     margin-left: 0;
   }
 }
+
+.eb-review {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--color-bg-muted, #f3f7fb);
+  color: var(--color-ink, #333);
+  font-size: 13px;
+}

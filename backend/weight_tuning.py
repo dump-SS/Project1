@@ -185,7 +185,7 @@ def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment 
         f"近期特征: {summary}\n"
         "请输出调整后的 JSON。"
     )
-    text = provider.generate(prompt, context={"system": system})
+    text = provider.generate(prompt, context={"system": system, "data_class": "state_plan"})
     if not text:
         logger.info("[AI 调权] LLM 未返回文本")
         return None

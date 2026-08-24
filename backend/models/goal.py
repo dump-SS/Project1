@@ -37,6 +37,8 @@ class Goal(Base):
     outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # 归档完成总结（≤200 字）
     completion_note: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # 板块二：目标绑定知识点 ID（v2.2，JSON 列表，可空）
+    point_ids: Mapped[str | None] = mapped_column(String(512), nullable=True)
     planned_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

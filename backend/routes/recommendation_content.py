@@ -184,7 +184,7 @@ def get_recommendation_content(
     text = None
     try:
         provider = get_provider()
-        text = provider.generate(user_prompt, context={"system": system})
+        text = provider.generate(user_prompt, context={"system": system, "data_class": "state_plan"})
     except Exception as e:  # noqa: BLE001 — 任何 LLM 异常都降级
         logger.warning("[RECOMMEND] LLM 调用异常: %s: %s", type(e).__name__, e)
 

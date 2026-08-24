@@ -50,6 +50,11 @@ def _reset_db():
         if "data_plan_completed_count" not in cols:
             # 老 DB，重建
             Base.metadata.drop_all(bind=engine)
+    # 板块二 v2.2：goals.point_ids 也是新列，老库需重建
+    if insp.has_table("goals"):
+        cols = {c["name"] for c in insp.get_columns("goals")}
+        if "point_ids" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)
