@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
 
+    # --- 板块二：本地 embedding 开关（ADR：local/cloud/off，默认 off 走 name_fuzzy 降级）---
+    kb_embed_mode: str = "off"
+
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
     smtp_host: str = "smtp.163.com"
     smtp_port: int = 465

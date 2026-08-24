@@ -1,0 +1,41 @@
+# 数据库迁移规范（alembic）
+
+自板块二起，所有 schema 变更走 alembic，不再依赖 `Base.metadata.create_all`（PRD 12.4 / gap 清单 §3.1 前置）。
+
+## 环境
+
+- 配置：`backend/alembic.ini` + `backend/alembic/env.py`
+- 连接串不在 ini 里写死，统一由 `backend/config.py` 的 `settings.database_url` 注入
+- `target_metadata = backend 所有 ORM 模型的 Base.metadata`（`import models` 触发注册）
+
+## 基线
+
+`alembic/versions/ee1d7e6e893c_baseline_all_existing_tables.py` 是首个 revision，
+等于「板块一 create_all 产物」。从空库 `alembic upgrade head` 可重建全部表。
+
+## 规范
+
+1. **只增不改**：板块一存量表结构只允许新增可空列/新表，不破坏现有调用方
+   （如 `summaries.dimension`、`users 设置项` 均为可空新增）。
+2. 每张新增 `kb_*` 表、每个新增列，都要一个独立 revision，命名 `add_<thing>`。
+3. 生成：`alembic revision --autogenerate -m "..."`，然后**人工审查** autogenerate 结果
+   ——SQLite 的 autogenerate 对改列/删列支持很弱，涉及这类操作需手写 `op.add_column`。
+4. 提交前：`alembic upgrade head` 必须在空库上跑通（验证脚本模式见下）。
+5. CI 检查：模型与迁移一致性（后续接入 schemathesis / 自研脚本比对 metadata 与 DB）。
+
+## 命令
+
+```powershell
+cd backend
+.venv\Scripts\alembic.exe upgrade head          # 应用全部迁移
+.venv\Scripts\alembic.exe downgrade -1          # 回滚一步
+.venv\Scripts\alembic.exe revision --autogenerate -m "add kb_xxx"
+```
+
+## 验证（空库重建）
+
+```powershell
+cd backend
+# 用独立 sqlite 文件模拟空库，跑 upgrade head 后比对表清单
+# （示例脚本曾为 _verify_migrate.py，验证后已删；新迁移沿用同一模式）
+```

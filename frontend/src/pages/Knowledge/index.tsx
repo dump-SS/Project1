@@ -5,9 +5,11 @@
  * 数据：硬编码（PRD 12.2 选型决策后才会接真实知识库）
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Modal, Tree, theme as antdTheme } from 'antd';
 import type { DataNode } from 'antd/es/tree';
+import { fetchKnowledgePoints, type KnowledgePoint } from '@/services/knowledgeV2';
+import { fetchSubjectMastery } from '@/services/mastery';
 import './index.css';
 
 interface KnowledgeNode {
@@ -86,11 +88,119 @@ function useMasteryTone() {
 export default function Knowledge() {
   const [selected, setSelected] = useState<KnowledgeNode>(() => KNOWLEDGE_TREE.函数[0]);
   const [graphOpen, setGraphOpen] = useState(false);
+  const [points, setPoints] = useState<KnowledgePoint[] | null>(null);
   const masteryTone = useMasteryTone();
 
-  /** 树形数据：根节点为学科，下面挂分类与叶子 */
-  const treeData: DataNode[] = useMemo(
-    () => [
+  // v2.1 转正：真实 API 数据优先，失败回退硬编码树（保留 UI，不白屏）
+  useEffect(() => {
+    let cancelled = false;
+    fetchKnowledgePoints('math')
+      .then((items) => {
+        if (!cancelled) setPoints(items);
+      })
+      .catch(() => {
+        // 后端未就绪：保持 null，UI 走硬编码 fallback
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 从掌握度 API 拿单点 mastery（失败回退 0，显示「数据积累中」） */
+  const [masteryMap, setMasteryMap] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchSubjectMastery('math')
+      .then((res) => {
+        if (cancelled) return;
+        const m: Record<string, number> = {};
+        for (const p of res.points ?? []) {
+          if (p.mastery !== null) m[p.pointId] = p.mastery;
+        }
+        setMasteryMap(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 树形数据：后端真实知识点 → 分类树；后端未就绪时回退硬编码 */
+  const treeData: DataNode[] = useMemo(() => {
+    if (points && points.length > 0) {
+      // 真实数据：以父节点为分类，叶子为知识点
+      const roots = points.filter((p) => !p.parentId);
+      const childrenOf = (pid: string | null) =>
+        points.filter((p) => p.parentId === pid);
+      return [
+        {
+          title: '数学',
+          key: 'math',
+          selectable: false,
+          children: roots.map((root) => ({
+            title: root.name,
+            key: `math-${root.pointId}`,
+            selectable: false,
+            children: childrenOf(root.pointId).map((cp) => {
+              const mastery = masteryMap[cp.pointId] ?? 0;
+              const dataNode: DataNode = {
+                title: (
+                  <span className="kb-tree-leaf">
+                    <span
+                      className="kb-tree-dot"
+                      style={{ background: mastery ? masteryTone(mastery) : '#ccc' }}
+                    />
+                    <span className="kb-tree-label">{cp.name}</span>
+                    <span
+                      className="kb-tree-pct"
+                      style={{ color: mastery ? masteryTone(mastery) : '#999' }}
+                    >
+                      {mastery ? `${Math.round(mastery * 100)}%` : '积累中'}
+                    </span>
+                  </span>
+                ),
+                key: `math-${cp.pointId}`,
+                isLeaf: true,
+                selectable: true,
+              };
+              (dataNode as DataNode & { __node: KnowledgeNode }).__node = {
+                label: cp.name,
+                mastery,
+                definition: cp.definition,
+                errorTip: cp.errorTip ?? '',
+              };
+              return dataNode;
+            }).concat(
+              // 根节点本身也可作为知识点选中（无子节点的单点）
+              childrenOf(root.pointId).length === 0
+                ? [(() => {
+                    const mastery = masteryMap[root.pointId] ?? 0;
+                    const dataNode: DataNode = {
+                      title: (
+                        <span className="kb-tree-leaf">
+                          <span className="kb-tree-dot" style={{ background: mastery ? masteryTone(mastery) : '#ccc' }} />
+                          <span className="kb-tree-label">{root.name}</span>
+                        </span>
+                      ),
+                      key: `math-${root.pointId}-leaf`,
+                      isLeaf: true,
+                      selectable: true,
+                    };
+                    (dataNode as DataNode & { __node: KnowledgeNode }).__node = {
+                      label: root.name,
+                      mastery,
+                      definition: root.definition,
+                      errorTip: root.errorTip ?? '',
+                    };
+                    return dataNode;
+                  })()]
+                : [],
+            ),
+          })),
+        },
+      ];
+    }
+    return [
       {
         title: '数学',
         key: 'math',
@@ -117,15 +227,13 @@ export default function Knowledge() {
               isLeaf: true,
               selectable: true,
             };
-            // 自定义数据挂在 DataNode 上，onSelect 中通过 info.node.__node 取出
             (dataNode as DataNode & { __node: KnowledgeNode }).__node = n;
             return dataNode;
           }),
         })),
       },
-    ],
-    [],
-  );
+    ];
+  }, [points, masteryMap]);
 
   const onSelect = (keys: React.Key[], info: { node: DataNode }) => {
     if (!keys.length) return;

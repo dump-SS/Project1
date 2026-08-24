@@ -1,22 +1,24 @@
-"""知识复盘 + 错题解析（PRD v1.4 板块二）。
+"""知识复盘 + 错题归因 schema（PRD v1.4 板块二，P0 合规整改后）。
 
-与板块一 5.4 复盘（summaries，`dimension=state_and_plan`）的边界：
-本模块针对「学科知识内容维度」——输入是错题摘要 / 知识点掌握度变化 /
-错题原文与作答，输出是知识复盘或错题解析文案。
+与旧版差异（对齐 docs/openapi.yaml v1.5）：
+- ErrorParseRequest：不再接收 question_text/student_answer/correct_answer 原文，
+  改为引用已入库错题（errorId）；原文只本地检索、永不出域。
+- KnowledgeSummaryCreate：知识复盘请求改为结构化入参（学科/周期），
+  不再接收前端自由拼装的 error_summary/mastery_changes/state_context 文本。
+  v2.2 起改为 periodStart/periodEnd/subject 并异步落库 summaries 表。
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class KnowledgeSummaryRequest(BaseModel):
+class KnowledgeSummaryCreate(BaseModel):
     """知识复盘请求（POST /api/v1/knowledge-summary）。"""
 
-    subject: str = Field(..., description="学科，如「数学」")
-    period: str = Field(..., description="复盘周期，如「本周」")
-    error_summary: str = Field(..., description="错题摘要，含数量与集中出错的知识点")
-    mastery_changes: str = Field(..., description="知识点掌握度变化")
-    state_context: str = Field(..., description="整体学习状态描述")
+    model_config = ConfigDict(populate_by_name=True)
+
+    subject: str = Field(..., alias="subject", description="学科，如 math / 数学")
+    period: str = Field(..., alias="period", description="复盘周期，如「本周」")
 
 
 class KnowledgeSummaryResponse(BaseModel):
@@ -25,24 +27,15 @@ class KnowledgeSummaryResponse(BaseModel):
     summary: str = Field(..., description="LLM 生成的知识复盘文案")
 
 
-class MatchedKnowledge(BaseModel):
-    """错题匹配到的知识点。"""
-
-    name: str = Field(..., description="知识点名称")
-    definition: str = Field(..., description="知识点定义")
-    error_tip: str = Field(..., description="易错点提示")
-
-
 class ErrorParseRequest(BaseModel):
-    """错题解析请求（POST /api/v1/error-parse）。"""
+    """错题归因请求（合规形态）。"""
 
-    question_text: str = Field(..., description="题目内容")
-    student_answer: str = Field(..., description="学生作答")
-    correct_answer: str = Field(..., description="正确答案")
-    matched_knowledge: MatchedKnowledge = Field(..., description="匹配到的知识点")
+    model_config = ConfigDict(populate_by_name=True)
+
+    error_id: str = Field(..., alias="errorId", description="已入库错题 ID（err_ 前缀），原文不出域")
 
 
 class ErrorParseResponse(BaseModel):
-    """错题解析响应。"""
+    """错题归因响应。"""
 
     parse: str = Field(..., description="LLM 生成的智能解析")

@@ -51,6 +51,7 @@ def _serialize_settings(settings):
         {
             "aiWeightTuningEnabled": settings.ai_weight_tuning_enabled,
             "sendTextToAI": settings.send_text_to_ai,
+            "knowledgeAiEgressEnabled": settings.knowledge_ai_egress_enabled,
             "updatedAt": settings.updated_at,
         }
     )
@@ -136,6 +137,8 @@ def patch_settings(
         settings.ai_weight_tuning_enabled = body.ai_weight_tuning_enabled
     if body.send_text_to_ai is not None:
         settings.send_text_to_ai = body.send_text_to_ai
+    if body.knowledge_ai_egress_enabled is not None:
+        settings.knowledge_ai_egress_enabled = body.knowledge_ai_egress_enabled
 
     db.commit()
     db.refresh(settings)
