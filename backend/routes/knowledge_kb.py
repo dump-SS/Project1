@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from embedding_service import embed_text, embed_mode
+from mastery_engine import compute_mastery, gather_inputs
 from models.knowledge import (
     KnowledgePoint as KnowledgePointORM,
     KnowledgePointRelation as KnowledgePointRelationORM,
@@ -240,7 +241,7 @@ def get_point(
 @router.get(
     "/subjects/{subject_code}/graph",
     response_model=KnowledgeGraph,
-    summary="学科概念关联图谱（v2.1 树形占位）",
+    summary="学科概念关联图谱（含薄弱路径高亮）",
 )
 def get_graph(
     subject_code: str,
@@ -259,10 +260,20 @@ def get_graph(
             KnowledgePointRelationORM.src_id.in_([p.id for p in rows])
         )
     ).scalars().all()
+
+    # 薄弱路径高亮（v2.3 增量）：mastery<0.4 且样本充足的知识点 id
+    weak_ids: list[str] = []
+    for p in rows:
+        inputs = gather_inputs(db, _user.user_id, p.id)
+        result = compute_mastery(p.id, inputs)
+        if result.data_sufficient and result.mastery is not None and result.mastery < 0.4:
+            weak_ids.append(p.id)
+
     return KnowledgeGraph.model_validate(
         {
             "subjectCode": subject_code,
             "nodes": [_point_to_item(p) for p in rows],
             "edges": [_rel_to_item(r) for r in rels],
+            "weakPointIds": weak_ids,
         }
     )

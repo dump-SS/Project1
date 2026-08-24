@@ -57,6 +57,7 @@ class KnowledgeGraph(BaseModel):
     subject_code: str = Field(..., alias="subjectCode")
     nodes: List[KnowledgePoint]
     edges: List[KnowledgePointRelation]
+    weak_point_ids: List[str] = Field(default_factory=list, alias="weakPointIds")
 
 
 class KnowledgePointMatch(BaseModel):

@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
+from mastery_engine import compute_weakness_hints
 from models.assessment import AssessmentSnapshot as AssessmentSnapshotORM
 from models.goal import Goal as GoalORM
 from models.plan import Plan as PlanORM
@@ -33,6 +34,7 @@ from schemas.plan import (
     PlanTask,
     PlanTaskDetail,
     PlanTaskUpdate,
+    PlanWeaknessHint,
 )
 from schemas.user import User
 from state_calculator import gen_id
@@ -185,7 +187,7 @@ def _orm_task_to_dict(row: PlanTaskORM) -> dict:
     }
 
 
-def _orm_plan_to_dict(row: PlanORM, tasks: list[PlanTaskORM]) -> dict:
+def _orm_plan_to_dict(row: PlanORM, tasks: list[PlanTaskORM], weakness: list[dict] | None = None) -> dict:
     adapted_from = None
     if row.adapted_from_assessment_id:
         adapted_from = {
@@ -200,6 +202,7 @@ def _orm_plan_to_dict(row: PlanORM, tasks: list[PlanTaskORM]) -> dict:
         "availableMinutes": row.available_minutes,
         "adaptedFrom": adapted_from,
         "tasks": [_orm_task_to_dict(t) for t in tasks],
+        "weaknessHints": weakness or [],
         "createdAt": row.created_at.isoformat(),
     }
 
@@ -305,7 +308,10 @@ def create_plan(
     db.refresh(plan_row)
 
     tasks = _load_plan_tasks(db, plan_id)
-    return Plan.model_validate(_orm_plan_to_dict(plan_row, tasks))
+    # 板块二短板提示（v2.3）：按用户目标涉及的学科查 mastery<0.7 升序 Top-3
+    subject_codes = sorted({g.subject for g in goals if getattr(g, "subject", None)})
+    weakness = compute_weakness_hints(db, _user.user_id, subject_codes or None)
+    return Plan.model_validate(_orm_plan_to_dict(plan_row, tasks, weakness=weakness))
 
 
 @router.get("", response_model=PlanList, summary="计划列表")

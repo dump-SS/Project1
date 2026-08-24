@@ -212,6 +212,13 @@ export interface PlanAdaptation {
   note: string;
 }
 
+export interface PlanWeaknessHint {
+  pointId: string;
+  pointName: string;
+  mastery: number;
+  subjectCode?: string | null;
+}
+
 export interface Plan {
   planId: string;
   planDate: string;
@@ -219,6 +226,8 @@ export interface Plan {
   /** 新用户无历史数据时为 null */
   adaptedFrom: PlanAdaptation | null;
   tasks: PlanTask[];
+  /** 板块二短板提示（v2.3 增量）；新用户无 mastery 数据时为空数组 */
+  weaknessHints?: PlanWeaknessHint[];
   createdAt: string;
 }
 

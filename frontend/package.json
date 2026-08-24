@@ -18,7 +18,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.26.0",
     "recharts": "^2.13.3",
-    "vis-network": "^10.1.2"
+    "vis-network": "^10.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

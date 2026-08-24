@@ -3206,6 +3206,12 @@ components:
           type: string
           format: date-time
           description: 生成时间
+        weaknessHints:
+          type: array
+          description: 板块二短板提示（v2.3 增量）；新用户无 mastery 数据时为空数组
+          items:
+            $ref: '#/components/schemas/PlanWeaknessHint'
+          default: []
     PlanCreate:
       type: object
       description: 生成计划请求体
@@ -3899,7 +3905,7 @@ components:
             $ref: '#/components/schemas/KnowledgePointRelation'
     KnowledgeGraph:
       type: object
-      description: 学科概念图谱（v2.1 树形占位；v2.3 全量力导向）
+      description: 学科概念图谱（v2.1 树形占位；v2.3 全量力导向）；weakPointIds 为 v2.3 薄弱路径高亮增量
       required: [subjectCode, nodes, edges]
       properties:
         subjectCode:
@@ -3912,6 +3918,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/KnowledgePointRelation'
+        weakPointIds:
+          type: array
+          description: 当前用户该学科下 mastery<0.4 且样本充足的知识点 id；无数据时为空数组
+          items:
+            type: string
+          default: []
+    PlanWeaknessHint:
+      type: object
+      description: 学习计划短板提示（v2.3）；按 mastery 升序，仅含样本充足的点
+      required: [pointId, pointName, mastery]
+      properties:
+        pointId:
+          type: string
+        pointName:
+          type: string
+        mastery:
+          type: number
+          format: float
+          description: 0-1
+        subjectCode:
+          type: string
+
     KnowledgePointMatch:
       type: object
       required: [pointId, name, confidence, matchedBy]

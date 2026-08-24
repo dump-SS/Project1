@@ -37,12 +37,19 @@ def _enforce_egress(prompt: str, context: dict | None) -> None:
 
     if data_class == KNOWLEDGE_RAW:
         from egress_guard import EgressViolation
+        from ai_call_log import log_egress_block
 
+        log_egress_block(context, "knowledge_raw 禁止出域（provider 层兜底）")
         raise EgressViolation("knowledge_raw 禁止出域（provider 层兜底拦截）")
     # 聚合包白名单校验：调用方传的出域 payload 以 context["egress_fields"] 声明
     fields = (context or {}).get("egress_fields")
     if fields is not None:
-        Guard.check(fields, data_class)
+        try:
+            Guard.check(fields, data_class)
+        except Exception as e:  # EgressViolation 或其他
+            from ai_call_log import log_egress_block
+            log_egress_block(context, f"白名单拦截: {e}")
+            raise
 
 
 class MockProvider:
@@ -54,6 +61,8 @@ class MockProvider:
     def generate(self, prompt: str, context: dict | None = None) -> str | None:
         _enforce_egress(prompt, context)
         logger.info("[LLM] MockProvider 返回 None，将走规则兜底")
+        from ai_call_log import log_call
+        log_call(context, latency_ms=0, success=False, error_msg="mock_provider_no_output")
         return None
 
 
@@ -100,6 +109,9 @@ class OpenAICompatibleProvider:
         import json
         import time
 
+        from ai_call_log import log_call
+
+        start = time.monotonic()
         url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
         # prompts/suggestion.txt 拆 SYSTEM / USER 两块；这里把它们分别放进 messages。
         # MockProvider 不需要 system；这样真实 LLM 也能拿到硬约束。
@@ -133,8 +145,15 @@ class OpenAICompatibleProvider:
                     logger.info("[LLM] 重试成功")
                 else:
                     logger.info("[LLM] 生成成功，长度 %d", len(text))
+                log_call(context, latency_ms=int((time.monotonic() - start) * 1000), success=True)
                 return text
         logger.warning("[LLM] 重试 %d 次后仍失败，将走兜底", self.MAX_RETRIES)
+        log_call(
+            context,
+            latency_ms=int((time.monotonic() - start) * 1000),
+            success=False,
+            error_msg="retries_exhausted",
+        )
         return None
 
 

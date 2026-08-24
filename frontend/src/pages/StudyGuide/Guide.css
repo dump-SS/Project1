@@ -364,6 +364,40 @@
   color: var(--danger-soft);
 }
 
+/* 板块二短板提示（v2.3 Plan.weaknessHints） */
+.weakness-hints {
+  width: 100%;
+  max-width: 520px;
+  margin: 8px 0 18px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(250, 173, 20, 0.08);
+  border: 1px solid rgba(250, 173, 20, 0.35);
+  text-align: left;
+}
+.weakness-hints .weakness-title {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--warning-soft, #d48806);
+}
+.weakness-hints ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.weakness-hints li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--ink-strong, #333);
+  line-height: 1.6;
+}
+.weakness-hints .weakness-mastery {
+  color: var(--danger-soft, #cf1322);
+  font-variant-numeric: tabular-nums;
+}
 /* 进入按钮 · 液态玻璃主按钮 + shimmer 扫光 */
 .enter-button {
   position: relative;

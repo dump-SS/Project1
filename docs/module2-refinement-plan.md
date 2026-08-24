@@ -1,10 +1,12 @@
 # 板块二 完善计划细则（PR #35/#36 交付后 · 下一迭代）
 
-- 版本：v1.0
-- 日期：2026-08-24
+- 版本：v1.1
+- 日期：2026-08-24（v1.1 同日追加「已交付」状态）
 - 输入文档：`docs/module2-backlog.md`（团队 backlog，执行层真源）、`docs/module2-3-as-built-vs-plan.md`（计划 vs 实际偏差）、PRD v1.4 §12、PRD 12.9 验收标准
 - 定位：本细则是 `module2-backlog.md` 的**可执行展开**——每条 backlog 落到具体文件改动点、契约影响、测试要求与 DoD；不重复 backlog 的优先级结论，只补执行细节
 - 阅读对象：后端、前端、QA
+
+> **交付状态（2026-08-24）**：W1-3 薄弱路径高亮、W2-3 StudyGuide 短板提示、W3-1 自动周复盘、W3-2 AICallLog 持久化已实现并合入（见文末 §10）。W1-1/1-2（embedding/RAG）依赖真实模型，W1-4（OCR）与 W4（压测）依赖 POC/造数，未在本批次执行。
 
 ---
 
@@ -196,3 +198,16 @@ QA      W1 测试用例           W2 走查               W4 全量执行
 - 执行状态追踪以 `docs/module2-backlog.md` 为准，本细则每完成一项回写 backlog 状态列；
 - 契约变更（W1-3 weakPointIds、W2-3 weaknessHints）先改 openapi.yaml 再实现（契约先行铁律）；
 - 验收口径以 PRD 12.9 + 计划书 §8 为最终标准。
+
+## 10. 已交付项（2026-08-24）
+
+| 编号 | 项 | 改动摘要 | 测试 |
+|---|---|---|---|
+| W1-3 | 薄弱路径高亮 | openapi `KnowledgeGraph.weakPointIds`；`mastery_engine.gather_inputs/compute_weakness_hints` 抽出公共函数；`knowledge_kb.get_graph` 计算 mastery<0.4 且样本足的点；前端 `Graph.tsx` 弱节点描边+光晕 | `test_weakness_hints.py` |
+| W2-3 | StudyGuide 短板提示 | openapi `PlanWeaknessHint` + `Plan.weaknessHints`；`plan.create_plan` 查 mastery<0.7 升序 Top-3；前端 `StudyGuide` 提示条 + 样式 | `test_weakness_hints.py` |
+| W3-1 | 自动周复盘 | `jobs/weekly_knowledge_summary.py`：本周 ≥3 条记录触发、跨周去重、系统触发不限流；`main.py` lifespan 挂 asyncio 定时器 | `test_weekly_summary_job.py` |
+| W3-2 | AICallLog 持久化 | `models/ai_call_log.py`（无身份字段）+ alembic `a6b5c4d3e2f1`；`ai_call_log.py` 写入器 + `llm_provider` 接入（含 egress 拦截留痕） | `test_ai_call_log.py` |
+| — | 修 vis-network 版本 | PR #36 误写 `^10.1.2`（不存在），改为 `^10.1.0`，修复 `npm install` 失败 | 前端 typecheck 通过 |
+
+- 验证：后端全量 212 passed / 1 skipped / 1 failed（唯一失败为无关的 SMTP 邮件用例，环境依赖且 flaky）；前端 `npm run typecheck` 通过。
+- 未在本批次：W1-1/1-2（需真实 embedding 模型）、W1-4（OCR POC）、W4-1/2/3（压测/演示/降级矩阵，需造数）、W2-1/2-2/2-5（前端纯增强，未在本次范围）。

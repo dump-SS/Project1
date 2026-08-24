@@ -69,11 +69,12 @@ export async function fetchKnowledgePoint(pointId: string): Promise<KnowledgePoi
   return apiGet<KnowledgePointDetail>(`/knowledge/points/${pointId}`);
 }
 
-/** GET /knowledge/subjects/{code}/graph 图谱（v2.1 树形占位） */
+/** GET /knowledge/subjects/{code}/graph 图谱（v2.1 树形占位，v2.3 关系边 + 薄弱路径） */
 export async function fetchKnowledgeGraph(subjectCode: string): Promise<{
   subjectCode: string;
   nodes: KnowledgePoint[];
   edges: KnowledgePointRelation[];
+  weakPointIds?: string[];
 }> {
   return apiGet(`/knowledge/subjects/${subjectCode}/graph`);
 }

@@ -45,6 +45,7 @@ export default function KnowledgeGraphView({ subjectCode, onSelect }: Props) {
         // 把 mastery 混进 point（挂在 definition 前的临时字段不可行，用本地映射）
         setPoints(graph.nodes);
         setMasteryMap(mm);
+        setWeakPointIds(graph.weakPointIds ?? []);
         setEdges(
           graph.edges.map((e) => ({
             from: e.srcPointId,
@@ -61,18 +62,28 @@ export default function KnowledgeGraphView({ subjectCode, onSelect }: Props) {
   }, [subjectCode]);
 
   const [masteryMap, setMasteryMap] = useState<Record<string, number>>({});
+  const [weakPointIds, setWeakPointIds] = useState<string[]>([]);
   const [edges, setEdges] = useState<Array<{ from: string; to: string }>>([]);
   const networkRef = useRef<Network | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || points.length === 0) return;
+    const weakSet = new Set(weakPointIds);
     const nodes = new DataSet(
-      points.map((p) => ({
-        id: p.pointId,
-        label: p.name,
-        color: { background: tone(masteryMap[p.pointId]), border: '#fff' },
-        title: `<b>${p.name}</b><br/>${p.definition ?? ''}`,
-      })),
+      points.map((p) => {
+        const isWeak = weakSet.has(p.pointId);
+        return {
+          id: p.pointId,
+          label: p.name,
+          color: { background: tone(masteryMap[p.pointId]), border: '#fff' },
+          borderWidth: isWeak ? 3 : 1,
+          // 薄弱路径高亮：外阴影光晕（vis-network 支持 shadow）
+          shadow: isWeak
+            ? { enabled: true, color: 'rgba(207,19,34,0.45)', size: 18, x: 0, y: 0 }
+            : { enabled: false },
+          title: `<b>${p.name}</b><br/>${p.definition ?? ''}${isWeak ? '<br/><i>薄弱知识点</i>' : ''}`,
+        };
+      }),
     );
     const network = new Network(
       containerRef.current,
@@ -97,7 +108,7 @@ export default function KnowledgeGraphView({ subjectCode, onSelect }: Props) {
       networkRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, edges, masteryMap]);
+  }, [points, edges, masteryMap, weakPointIds]);
 
   if (error) return <p style={{ color: '#999', padding: 16 }}>{error}</p>;
   if (points.length === 0) return <p style={{ color: '#999', padding: 16 }}>加载图谱中…</p>;

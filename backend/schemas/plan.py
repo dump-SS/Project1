@@ -84,6 +84,17 @@ class PlanAdaptation(BaseModel):
     note: str = Field(..., description="面向用户的调整说明")
 
 
+class PlanWeaknessHint(BaseModel):
+    """板块二短板提示（v2.3 增量）。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    point_id: str = Field(..., alias="pointId")
+    point_name: str = Field(..., alias="pointName")
+    mastery: float = Field(..., description="0-1，样本充足且 <0.7 才出现")
+    subject_code: str | None = Field(None, alias="subjectCode")
+
+
 class Plan(BaseModel):
     """学习计划。"""
 
@@ -123,6 +134,9 @@ class Plan(BaseModel):
         None, alias="adaptedFrom", description="新用户无历史数据时为 null"
     )
     tasks: list[PlanTask]
+    weakness_hints: list[PlanWeaknessHint] = Field(
+        default_factory=list, alias="weaknessHints", description="板块二短板提示；新用户为空"
+    )
     created_at: datetime = Field(..., alias="createdAt")
 
 

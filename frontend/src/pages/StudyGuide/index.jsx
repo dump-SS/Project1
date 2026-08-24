@@ -235,6 +235,20 @@ export default function StudyGuide() {
 
         {plan && stage === 'idle' && <TaskList plan={plan} onTaskUpdated={handleTaskUpdated} />}
 
+        {plan?.weaknessHints && plan.weaknessHints.length > 0 && (
+          <div className="weakness-hints" role="note">
+            <p className="weakness-title">建议先补</p>
+            <ul>
+              {plan.weaknessHints.map((h) => (
+                <li key={h.pointId}>
+                  {h.pointName}
+                  <span className="weakness-mastery">当前掌握 {Math.round(h.mastery * 100)}%</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {submitError && <p className="submit-error">{submitError}</p>}
         {offlineNote && <p className="submit-error">{offlineNote}</p>}
 

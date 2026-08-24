@@ -30,7 +30,19 @@ from routes import health  # noqa: F401
 async def lifespan(app: FastAPI):
     """启动时建表；关闭时释放连接。"""
     Base.metadata.create_all(bind=engine)
+
+    # 板块二自动周复盘定时任务（v2.2-4）：单机 asyncio 定时器，失败不阻断启动
+    scheduler_task = None
+    try:
+        from jobs.weekly_knowledge_summary import start_weekly_summary_scheduler
+        scheduler_task = start_weekly_summary_scheduler()
+    except Exception:  # noqa: BLE001 — 定时器可选能力，不影响核心启动
+        pass
+
     yield
+
+    if scheduler_task is not None:
+        scheduler_task.cancel()
     engine.dispose()
 
 

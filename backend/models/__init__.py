@@ -42,6 +42,7 @@ from .recommendation import Recommendation
 from .summary import Summary
 from .user import GuardianAuthorization, Settings, User
 from .weight import UserWeightConfig, WeightAdjustLog
+from .ai_call_log import AICallLog
 
 # 所有 ORM 类注册完成后，立即建表（幂等）。
 # SQLite 开发/测试环境需要；生产迁移方案引入后可移除。
@@ -71,4 +72,5 @@ __all__ = [
     "PointMastery",
     "ReviewLog",
     "EmbeddingRef",
+    "AICallLog",
 ]

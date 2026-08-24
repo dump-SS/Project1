@@ -111,3 +111,104 @@ def compute_mastery(point_id: str, inputs: MasteryInputs, weights: MasteryWeight
             "unresolved": round(unresolved_factor, 4),
         },
     )
+
+
+def gather_inputs(db: "object", user_id: str, point_id: str) -> MasteryInputs:
+    """从 db 聚合单点 mastery 计算输入（错题数/未解决数/复习数/新近度）。
+
+    抽出为公共函数供 knowledge_kb（图谱薄弱路径）与 plan（短板提示）复用，
+    避免在多个 route 里各自实现导致口径漂移。db 为 SQLAlchemy Session。
+    """
+    from sqlalchemy import select
+
+    from models.knowledge import (
+        ErrorPoint as ErrorPointORM,
+        ErrorRecord as ErrorRecordORM,
+        ReviewLog as ReviewLogORM,
+    )
+
+    err_ids = [
+        r[0]
+        for r in db.execute(
+            select(ErrorPointORM.error_id).where(ErrorPointORM.point_id == point_id)
+        ).all()
+    ]
+    if not err_ids:
+        return MasteryInputs()
+
+    errors = db.execute(
+        select(ErrorRecordORM).where(
+            ErrorRecordORM.id.in_(err_ids),
+            ErrorRecordORM.user_id == user_id,
+            ErrorRecordORM.deleted_at.is_(None),
+        )
+    ).scalars().all()
+    unresolved = sum(1 for e in errors if e.status == "open")
+
+    logs = db.execute(
+        select(ReviewLogORM)
+        .where(ReviewLogORM.error_id.in_(err_ids))
+        .order_by(ReviewLogORM.reviewed_at.desc())
+    ).scalars().all()
+    recall_ok = sum(1 for lg in logs if lg.recall_correct)
+
+    days_since = None
+    if logs:
+        from datetime import datetime
+
+        latest = logs[0].reviewed_at
+        if latest.tzinfo is not None:
+            latest = latest.replace(tzinfo=None)
+        days_since = (datetime.utcnow() - latest).total_seconds() / 86400.0
+
+    return MasteryInputs(
+        error_count=len(errors),
+        unresolved_count=unresolved,
+        review_count=len(logs),
+        recall_correct_count=recall_ok,
+        days_since_last_review=days_since,
+    )
+
+
+def compute_weakness_hints(
+    db: "object",
+    user_id: str,
+    subject_codes: list[str] | None,
+    threshold: float = 0.7,
+    limit: int = 3,
+) -> list[dict]:
+    """计算短板提示（v2.3 Plan.weaknessHints）。
+
+    遍历用户在给定学科下的知识点，计算 mastery，筛选 mastery<threshold 且样本充足者，
+    按 mastery 升序取 Top-N。返回 dict 列表，与 PlanWeaknessHint schema 对齐。
+    subject_codes 为空或无匹配知识点时返回空列表。
+    """
+    from sqlalchemy import select
+
+    from models.knowledge import (
+        KnowledgePoint as KnowledgePointORM,
+        KnowledgeSubject as KnowledgeSubjectORM,
+    )
+
+    q = select(KnowledgePointORM).where(KnowledgePointORM.enabled.is_(True))
+    if subject_codes:
+        q = q.where(KnowledgePointORM.subject_code.in_(subject_codes))
+    points = db.execute(q).scalars().all()
+
+    candidates: list[tuple[float, KnowledgePointORM]] = []
+    for p in points:
+        inputs = gather_inputs(db, user_id, p.id)
+        result = compute_mastery(p.id, inputs)
+        if result.data_sufficient and result.mastery is not None and result.mastery < threshold:
+            candidates.append((result.mastery, p))
+
+    candidates.sort(key=lambda x: x[0])
+    return [
+        {
+            "pointId": p.id,
+            "pointName": p.name,
+            "mastery": m,
+            "subjectCode": p.subject_code,
+        }
+        for m, p in candidates[:limit]
+    ]

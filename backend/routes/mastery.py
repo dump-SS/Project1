@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from mastery_engine import MasteryInputs, compute_mastery
+from mastery_engine import MasteryInputs, compute_mastery, gather_inputs
 from models.knowledge import (
     ErrorPoint as ErrorPointORM,
     ErrorRecord as ErrorRecordORM,
@@ -33,45 +33,8 @@ router = APIRouter(prefix="/mastery", tags=["知识点掌握"])
 
 
 def _gather_inputs(db: Session, user_id: str, point_id: str) -> MasteryInputs:
-    err_ids = [
-        r[0]
-        for r in db.execute(
-            select(ErrorPointORM.error_id).where(ErrorPointORM.point_id == point_id)
-        ).all()
-    ]
-    if not err_ids:
-        return MasteryInputs()
-
-    errors = db.execute(
-        select(ErrorRecordORM).where(
-            ErrorRecordORM.id.in_(err_ids),
-            ErrorRecordORM.user_id == user_id,
-            ErrorRecordORM.deleted_at.is_(None),
-        )
-    ).scalars().all()
-    unresolved = sum(1 for e in errors if e.status == "open")
-
-    logs = db.execute(
-        select(ReviewLogORM)
-        .where(ReviewLogORM.error_id.in_(err_ids))
-        .order_by(ReviewLogORM.reviewed_at.desc())
-    ).scalars().all()
-    recall_ok = sum(1 for l in logs if l.recall_correct)
-
-    days_since = None
-    if logs:
-        latest = logs[0].reviewed_at
-        if latest.tzinfo is not None:
-            latest = latest.replace(tzinfo=None)
-        days_since = (datetime.utcnow() - latest).total_seconds() / 86400.0
-
-    return MasteryInputs(
-        error_count=len(errors),
-        unresolved_count=unresolved,
-        review_count=len(logs),
-        recall_correct_count=recall_ok,
-        days_since_last_review=days_since,
-    )
+    """向后兼容薄包装：实际逻辑迁至 mastery_engine.gather_inputs 供多路由复用。"""
+    return gather_inputs(db, user_id, point_id)
 
 
 def recompute_and_store(db: Session, user_id: str, point_id: str) -> PointMasteryORM:
