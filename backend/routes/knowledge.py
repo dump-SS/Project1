@@ -305,10 +305,15 @@ def _build_error_parse_prompt(error_id: str) -> tuple[str, dict]:
 def _retrieve_error_points(error_id: str) -> list[dict]:
     """本地检索错题关联的知识点（原文不出库、不出域）。
 
-    v2.1 建 kb_error_points/kb_points 表后接真实查询；
-    当前返回空列表（提示走通用兜底）。
+    路径 1（既有）：按 error_id 查错题已绑定知识点（kb_error_points）。
+    路径 2（T8 新增）：错题原文向量化 → 向量库召回相似错题/知识点 → 取关联知识点，
+      与路径 1 并集去重（同名合并）。embedding off/失败/向量库空时静默跳过路径 2。
+      错题原文仅用于本地向量化（embedding 出域已有 2026-08-25 决策豁免），
+      召回结果只取知识点元信息，原文不出域。
     """
-    # 兜底：不把 error_id 当原文，仅尝试真实表（表未建时静默返回空）。
+    merged: dict[str, dict] = {}
+
+    # 路径 1：错题已绑定知识点（v2.1 建表后启用；表未建时静默跳过）
     try:
         from database import SessionLocal
         from sqlalchemy import text as _sa_text
@@ -323,9 +328,63 @@ def _retrieve_error_points(error_id: str) -> list[dict]:
                 ),
                 {"eid": error_id},
             ).mappings().all()
-            return [dict(r) for r in rows]
+            for r in rows:
+                merged[r["name"]] = {
+                    "name": r["name"],
+                    "definition": r["definition"] or "",
+                    "error_tip": r["error_tip"] or "",
+                }
         finally:
             db.close()
     except Exception as e:  # noqa: BLE001 — 表未建/连接失败均降级
         logger.info("[ERROR_PARSE] 知识库检索不可用（%s），走通用兜底", type(e).__name__)
-        return []
+
+    # 路径 2：向量召回（T8）
+    try:
+        from embedding_service import embed_mode, embed_text
+        from vector_store import search as vector_search
+        from models.knowledge import ErrorPoint as ErrorPointORM
+        from models.knowledge import ErrorRecord as ErrorRecordORM
+        from models.knowledge import KnowledgePoint as KnowledgePointORM
+
+        if embed_mode() not in ("local", "api"):
+            return list(merged.values())[:5]
+        db = SessionLocal()
+        try:
+            row = db.get(ErrorRecordORM, error_id)
+            if row is None or not row.raw_text or not row.raw_text.strip():
+                return list(merged.values())[:5]
+            vec = embed_text(row.raw_text)
+            if vec is None:
+                return list(merged.values())[:5]
+            hits = vector_search(vec, top_k=5)
+            seen_errors: set[str] = set()
+            for hit_id, _sim in hits:
+                # point 类型 ref：命中即知识点
+                kp = db.get(KnowledgePointORM, hit_id)
+                if kp is not None:
+                    if kp.subject_code == row.subject:
+                        merged.setdefault(kp.name, {
+                            "name": kp.name,
+                            "definition": kp.definition or "",
+                            "error_tip": kp.error_tip or "",
+                        })
+                    continue
+                # error 类型 ref：取其关联知识点（同一错题只查一次）
+                if hit_id in seen_errors:
+                    continue
+                seen_errors.add(hit_id)
+                for ep in db.query(ErrorPointORM).filter(ErrorPointORM.error_id == hit_id).all():
+                    kp2 = db.get(KnowledgePointORM, ep.point_id)
+                    if kp2 is not None and kp2.subject_code == row.subject:
+                        merged.setdefault(kp2.name, {
+                            "name": kp2.name,
+                            "definition": kp2.definition or "",
+                            "error_tip": kp2.error_tip or "",
+                        })
+        finally:
+            db.close()
+    except Exception as e:  # noqa: BLE001 — embedding 失败不影响既有路径
+        logger.info("[ERROR_PARSE] 向量召回不可用（%s），仅用关联知识点", type(e).__name__)
+
+    return list(merged.values())[:5]

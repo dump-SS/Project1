@@ -219,5 +219,13 @@ T4 复盘触发(2d)     T8 RAG(2d)        T9 OCR 决策(穿插)
 - 质量门：语义相关率 4/4 ≥ 3/5，**通过**。
 - key 只写本地 `backend/.env`（gitignore，未跟踪），未泄入仓库。
 
+### T8 RAG 检索链（已交付 2026-08-25）
+
+- `routes/knowledge.py` `_retrieve_error_points` 增向量召回路径：错题原文向量化 → FAISS 召回（point 类型 ref 直接取知识点 / error 类型 ref 取其关联知识点）→ 与已绑定知识点并集去重；学科过滤 + embedding 失败静默降级。
+- 出域保持只含 `pointName/pointDefinition`（`retrievedFragmentSnippets`），prompt 内元信息含易错点，**原文不出域**（`test_egress_ci.py` 规则不变全绿）。
+- 顺带修复：路径 1 原 SQL 返回 `definition/error_tip` 可能为 None 导致 f-string 输出 "None" 的问题（`or ""`）。
+- 验证：5 个新单测（绑定路径 / point ref 召回 / error ref 召回 / 向量失败降级 / 跨学科过滤）；真实 E2E——未绑定知识点的错题「求等差数列前 n 项和时公式记错了」向量召回 Top-2 = 数列求和、等差数列，语义正确；全量 234 passed / 1 skipped / 1 failed（失败为无关 SMTP 用例）。
+- 依赖说明：知识点向量化写入时机待 D1 内容导入（当前 FAISS 以错题向量为主，召回路径已兼容两种 ref 类型，D1 后自动增强）。
+
 - 细则修正：T4 原假设「POST 202 → 轮询 GET /knowledge-summary/{id}」过时——后端 `POST /knowledge-summary` 实际**同步返回 summary**，前端按同步语义实现。
 
