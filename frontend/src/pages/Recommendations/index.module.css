@@ -328,3 +328,15 @@
   color: var(--color-success);
   margin: 0;
 }
+
+
+.group {
+  margin-top: 20px;
+}
+
+.groupTitle {
+  font-family: var(--font-title, inherit);
+  font-size: 15px;
+  color: var(--color-ink, #333);
+  margin: 0 0 10px;
+}

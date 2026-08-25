@@ -32,8 +32,45 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["知识复盘"])
 
-# 知识复盘每日频率限制（PRD 6.4 / config.rate_limit_summary_per_day，进程内计数 MVP 够用）
-_KNOWLEDGE_SUMMARY_DAILY: dict[str, int] = {}
+# 知识复盘每日频率限制（PRD 6.4 / config.rate_limit_summary_per_day，S0-T5 已持久化到 rate_limit_counters）
+def _consume_knowledge_summary_budget(user_id: str) -> None:
+    """每日限流：查/增 rate_limit_counters；达限抛 429。系统触发（沿用 W3-1）不计入用户限额。"""
+    from datetime import datetime, timedelta
+
+    from config import settings
+    from database import SessionLocal
+    from models.rate_limit import RateLimitCounter
+
+    db = SessionLocal()
+    try:
+        today = datetime.utcnow().date()
+        row = (
+            db.query(RateLimitCounter)
+            .filter(
+                RateLimitCounter.user_id == user_id,
+                RateLimitCounter.bucket_key == "knowledge_summary",
+                RateLimitCounter.bucket_date >= today,
+            )
+            .first()
+        )
+        if row is None:
+            row = RateLimitCounter(
+                id=f"rl_{__import__('uuid').uuid4().hex[:12]}",
+                user_id=user_id,
+                bucket_key="knowledge_summary",
+                bucket_date=datetime.utcnow(),
+                count=0,
+            )
+            db.add(row)
+        if row.count >= settings.rate_limit_summary_per_day:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={"code": "RATE_LIMITED", "message": "今日知识复盘次数已达上限，请明天再试"},
+            )
+        row.count += 1
+        db.commit()
+    finally:
+        db.close()
 
 # --- 知识复盘 prompt ---
 
@@ -116,18 +153,8 @@ def create_knowledge_summary(
 
     出域内容仅为知识聚合白名单字段（EgressGuard 校验），错题原文永不出域。
     """
-    # 每日频率限制（PRD 6.4 控成本）
-    from config import settings
-
-    today = __import__("datetime").date.today().isoformat()
-    key = f"{_user.user_id}:{today}"
-    used = _KNOWLEDGE_SUMMARY_DAILY.get(key, 0)
-    if used >= settings.rate_limit_summary_per_day:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"code": "RATE_LIMITED", "message": "今日知识复盘次数已达上限，请明天再试"},
-        )
-    _KNOWLEDGE_SUMMARY_DAILY[key] = used + 1
+    # 每日频率限制（PRD 6.4 控成本，S0-T5：持久化到 rate_limit_counters，重启不丢）
+    _consume_knowledge_summary_budget(_user.user_id)
 
     text: str | None = None
     try:

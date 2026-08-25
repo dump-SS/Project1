@@ -39,6 +39,7 @@ from .knowledge import (
 from .learning_record import LearningRecord
 from .plan import Plan, PlanTask
 from .recommendation import Recommendation
+from .rate_limit import RateLimitCounter
 from .summary import Summary
 from .user import GuardianAuthorization, Settings, User
 from .weight import UserWeightConfig, WeightAdjustLog
@@ -73,4 +74,5 @@ __all__ = [
     "ReviewLog",
     "EmbeddingRef",
     "AICallLog",
+    "RateLimitCounter",
 ]

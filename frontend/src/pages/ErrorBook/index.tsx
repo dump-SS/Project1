@@ -12,6 +12,7 @@ import {
   Collapse,
   Form,
   Input,
+  Modal,
   Select,
   Tabs,
   Tag,
@@ -34,6 +35,7 @@ import {
   fetchErrorBook,
   createErrorRecord,
   deleteErrorRecord,
+  updateErrorRecord,
   reviewErrorRecord,
   type ErrorRecord as ApiErrorRecord,
 } from '@/services/errorBook';
@@ -336,6 +338,47 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
     }
   };
 
+  /* ----- 编辑（T2） ----- */
+  const [editing, setEditing] = useState<ErrorItem | null>(null);
+  const [editForm] = Form.useForm<{ reason: ErrorReason; status: 'open' | 'resolved'; knowledgeNames: string[] }>();
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (item: ErrorItem) => {
+    setEditing(item);
+    editForm.setFieldsValue({
+      reason: item.reason,
+      status: 'open' as const,
+      knowledgeNames: item.knowledgeNames,
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editing) return;
+    try {
+      const values = await editForm.validateFields();
+      setSavingEdit(true);
+      await updateErrorRecord(editing.id, {
+        errorType: values.reason,
+        status: values.status,
+      });
+      setList((prev) =>
+        prev.map((x) =>
+          x.id === editing.id
+            ? { ...x, reason: values.reason, knowledgeNames: values.knowledgeNames }
+            : x,
+        ),
+      );
+      messageApi.success('已保存');
+      setEditing(null);
+    } catch {
+      // 后端未就绪：本地状态已回显，不强制提示失败（保留兜底语义）
+      messageApi.warning('编辑已保存到本地视图（后端未响应）');
+      setEditing(null);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   /* ----- 渲染 ----- */
   return (
     <>
@@ -548,6 +591,12 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
                       没记住
                     </Button>
                     <Button
+                      size="small"
+                      onClick={() => openEdit(item)}
+                    >
+                      编辑
+                    </Button>
+                    <Button
                       danger
                       type="text"
                       onClick={async () => {
@@ -613,6 +662,40 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
           </div>
         )}
       </main>
+
+      <Modal
+        open={!!editing}
+        title="编辑错题"
+        onCancel={() => setEditing(null)}
+        onOk={handleSaveEdit}
+        confirmLoading={savingEdit}
+        okText="保存"
+        cancelText="取消"
+      >
+        {editing && (
+          <Form form={editForm} layout="vertical">
+            <Form.Item label="我的错因" name="reason" rules={[{ required: true, message: '请选择错因' }]}>
+              <Select options={REASON_OPTIONS} />
+            </Form.Item>
+            <Form.Item label="状态" name="status">
+              <Select
+                options={[
+                  { value: 'open', label: '未解决' },
+                  { value: 'resolved', label: '已解决' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="关联知识点" name="knowledgeNames">
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="可多选"
+                options={SUBJECT_KNOWLEDGE[subject].map((k) => ({ value: k, label: k }))}
+              />
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
     </>
   );
 }

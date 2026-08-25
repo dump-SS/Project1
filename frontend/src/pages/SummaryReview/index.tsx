@@ -7,6 +7,10 @@ import {
   listSummaries,
   submitSummaryFeedback,
 } from '../../services/summary'
+import {
+  createKnowledgeSummary,
+  isRateLimited,
+} from '../../services/knowledgeSummary'
 import type { Rating, Summary } from '@/types/api'
 
 const RATING_OPTIONS = [
@@ -161,6 +165,28 @@ export default function SummaryReviewPage() {
     }
   }
 
+  /* ----- 知识复盘（S0-T4）：知识 tab 主动触发，三异常态有明确文案 ----- */
+  const [knowledgeGenerating, setKnowledgeGenerating] = useState(false)
+  const [knowledgeSummary, setKnowledgeSummary] = useState<string | null>(null)
+
+  const handleGenerateKnowledge = async () => {
+    setError(null)
+    setKnowledgeSummary(null)
+    setKnowledgeGenerating(true)
+    try {
+      const res = await createKnowledgeSummary('math', '本周')
+      setKnowledgeSummary(res.summary)
+    } catch (err) {
+      if (isRateLimited(err)) {
+        setError('今日知识复盘次数已达上限，请明天再试')
+      } else {
+        setError(err instanceof Error ? err.message : '知识复盘生成失败，请稍后再试')
+      }
+    } finally {
+      setKnowledgeGenerating(false)
+    }
+  }
+
   const generationStatus = summary?.generation.status
   const terminal = generationStatus && generationStatus in TERMINAL_REASON
     ? TERMINAL_REASON[generationStatus as keyof typeof TERMINAL_REASON]
@@ -223,9 +249,28 @@ export default function SummaryReviewPage() {
             disabled={!canGenerate}
             onClick={handleGenerate}
           >
-            {generating ? (polling ? '生成中…' : '创建中…') : '生成复盘'}
+            {generating ? (polling ? '生成中…' : '创建中…') : dimension === 'knowledge' ? '生成知识复盘' : '生成复盘'}
           </button>
         </div>
+
+        {dimension === 'knowledge' && (
+          <div className={styles.knowledgeRow}>
+            <button
+              type="button"
+              className={styles.generateBtn}
+              disabled={knowledgeGenerating}
+              onClick={handleGenerateKnowledge}
+            >
+              {knowledgeGenerating ? '生成中…' : '生成本周知识复盘（数学）'}
+            </button>
+            {knowledgeSummary && (
+              <div className={styles.knowledgeResult}>
+                <h2 className={styles.blockTitle}>知识复盘</h2>
+                <p className={styles.overview}>{knowledgeSummary}</p>
+              </div>
+            )}
+          </div>
+        )}
         {!isValidRange(periodStart, periodEnd) && (
           <p className={styles.hint}>区间长度需在 3–31 天之间。</p>
         )}

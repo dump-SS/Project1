@@ -40,7 +40,7 @@ export type StateLabel =
   | 'fluctuating_up'
   | 'insufficient_data';
 
-export type RecScene = 'post_session' | 'weekly_review';
+export type RecScene = 'post_session' | 'weekly_review' | 'post_session_knowledge';
 
 export type GenerationSource = 'llm' | 'template';
 
