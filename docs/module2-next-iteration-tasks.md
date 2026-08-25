@@ -9,15 +9,26 @@
 ---
 
 ## 0. 剩余工作一句话
+（2026-08-25 决策更新）算法侧剩 **embedding 启用 → RAG 检索**。经团队评估与协调，embedding 允许适当出域，改为**接入第三方 embedding API**，同时预留**自有服务器模型接入位**（方案见 §0.1）。前端剩 **4 个闭环缺口**（全部纯前端或小契约增量，可立即开工）；工程债剩 **mastery 调权 + 限流持久化**；验收侧剩 **OCR 决策 + 压测/演示/降级矩阵**（需造数）。
 
-算法侧剩 **embedding 启用 → RAG 检索**（需模型文件，全迭代关键路径）；前端剩 **4 个闭环缺口**（全部纯前端或小契约增量，可立即开工）；工程债剩 **mastery 调权 + 限流持久化**；验收侧剩 **OCR 决策 + 压测/演示/降级矩阵**（需造数）。
+### 0.1 本次决策：embedding 走第三方 API + 预留自有服务器
+
+- **背景**：原方案是本地 `bge-small-zh-v1.5`（本地不出域，但需 ~102MB 模型文件，部署重）。团队评估后可**适当出域**，故改用第三方 embedding API（现网通常是可联网拿到的），部署更轻。
+- **目标形态**：`embedding_service.py` 保持「local / cloud / off 三模」，新增 `api`（或沿用 `cloud`）模式调用第三方 embedding API；`api` 模式是**全新实现**（当前 `cloud` 分支只是占位返回 None），同时按「**provider 即插即用**」设计预留自有服务器模型接入位——自有模型通常走 OpenAI 兼容 `/embeddings`，届时只需新增一个 provider 配置即可切换。
+- **出域边界**：文本向量化把**题干原文**发给第三方（PRD 12.6 的"错题原文不出域"对 LLM 已有豁免，embedding 一并纳入风险评估栏；涉未成年人数据的字段脱敏后再出域，随 PRD §7 数据分类执行）。**向量本身是本地 FAISS 检索，不回传**；检索片段原文**仍不出域**（T8 不变）。
+- **统一入口**：`kb_embed_mode` 枚举扩展为 `off | local | api`（可暂不删 `cloud` 字符串，保兼容），由 `embedding_service.embed_text` 暴露；`knowledge_kb.match_points:155` 的 `if mode == "local"` 需同时认 `api`/`local` 两个取值，或改为 `mode in ("local","api")`。
+- **现网现状核实（2026-08-25）**：
+  - `backend/config.py:41`：仅 `kb_embed_mode: str = "off"`，无第三方 API 密钥/端点配置项，需新增；
+  - `backend/embedding_service.py`：三模骨架与 `cloud` 占位分支已就绪（`embed_text:48-51`），但 `api` 模式未实现；且局部逻辑需修（见 T7 改动点）；
+  - `backend/routes/knowledge_kb.py:155`：`match_points` 只认 `mode == "local"` 走向量路径，需扩展；
+  - **`backend/vector_store.py:37/49`：`search`/`add` 当前是空壳（恒返回空/False），真正的 FAISS 检索/写入尚未实现**——这是"向量匹配真生效"的隐藏前置，即使接入 embedding，不实现它仍是 name_fuzzy。此项在本细则单独列为 T7b，是 T7 的硬依赖。
 
 ## 1. 阶段总览
 
 | 阶段 | 内容 | 前置条件 | 建议顺序 |
 |---|---|---|---|
 | **S0 纯代码项**（可立即开工） | T1-T6：前端 4 项 + 限流持久化 + mastery 调权 | 无 | T1→T2→T3→T4→T5→T6 |
-| **S1 算法真实化** | T7 embedding 启用、T8 RAG 检索链 | 需下载 bge-small-zh-v1.5 模型（~102MB） | T7→T8（串行，关键路径） |
+| **S1 算法真实化** | T7 embedding API 接入（+T7b FAISS 实装）、T8 RAG 检索链 | 需第三方 embedding API 凭证；T7b 依赖 FAISS 装库 | T7→T7b→T8（串行，关键路径） |
 | **S2 验收与决策** | T9 OCR POC 决策、T10 压测、T11 演示脚本、T12 降级矩阵 | T10/T12 依赖 S1 完成（要测向量降级态） | T9 可随时，T10-T12 收在 S1 后 |
 
 ---
@@ -91,24 +102,44 @@
 
 ---
 
-## 3. S1 算法真实化（关键路径，需模型文件）
+## 3. S1 算法真实化（关键路径：第三方 embedding API + FAISS 实装 + RAG）
 
-### T7 启用本地 embedding（backlog B3 / 原 W1-1）· 3d —— 全迭代第一优先级
+### T7 接入第三方 embedding API + 预留自有服务器接入位（backlog B3 / 原 W1-1，改走 API）· 2d —— 全迭代第一优先级
 
-- **现状核实**（比上份细则假设的更乐观）：`embedding_service.py` 懒加载（`_get_model`）已就位、`embed_text` 失败返回 `None`；`vector_store.py` faiss `add/search` 已实现；`routes/knowledge_kb.py:147-210` 的 `/points/match` **已是「embedding 优先、失败/off 降级 name_fuzzy」双路径**。真正缺的只有：模型文件、`config.py:41` 的 `kb_embed_mode` 从 `off` 切 `local`、依赖声明与验证文档。
+> 采纳 2026-08-25 决策：embedding 改为第三方 API（可适当出域），自有服务器模型接入位预留。**不采用本地 bge 模型方案**（本地模型仍可作为 `local` 模式保留在代码里，供无网/离线环境或日后自建时启用，但不在本批次默认启用）。
+
+- **现状核实**：`embedding_service.py` 三模骨架 + `cloud` 占位分支已就绪，但 `api` 模式未实现、`match_points` 只认 `local`、`config` 无第三方 API 配置项、`vector_store` 为空壳（见 **T7b**）。
 - **改动点**：
-  - 获取 bge-small-zh-v1.5 模型文件（本地下载或挂载卷，方案写入 `docs/`）；
-  - 通过环境变量 `KB_EMBED_MODE=local` 启用，**不改 `config.py:41` 默认值**（CI/无模型环境保持 off）；
-  - `embedding_service.py` 补「模型文件缺失」的明确报错与降级日志（当前静默返回 None，排障困难）；
-  - `pyproject.toml`：`sentence-transformers` 放 optional extra（`pip install .[embed]`），确认 `faiss-cpu` 在主依赖；
-  - 部署文档：模型获取/打包/挂载方案 + CI 不装模型的说明。
-- **契约影响**：无。
+  1. **配置**（`config.py` + `.env.example`）：新增 `embed_api_key`、`embed_base_url`、`embed_model`、`embed_provider`（默认 `openai_compatible`）。沿用现有 LLM 的格式：BASE_URL 指向 `/v1/embeddings` 接口（OpenAI 兼容协议，Bearer 鉴权），KEY 走环境变量，不落库。
+  2. **provider 模式**（`embedding_service.py`）：新增 `EmbeddingProvider` 抽象 `embed(text) -> list[float] | None`，两个实现——
+     - `ApiEmbeddingProvider`（默认，走第三方 OpenAI 兼容 `/embeddings`，`httpx` 同步/复用现有 `llm_provider` 的 HTTP 客户端与超时配置）；
+     - `LocalEmbeddingProvider`（包装现有 `_get_model()` bge），供 `local` 模式/日后自建；
+     - provider 选择由 `embed_provider` 决定。**这即是自有服务器接入位**：日后自有模型只需提供 OpenAI 兼容 `/embeddings` 端点，改 `embed_base_url` 即可，无需改 match 链路。
+  3. **模式分支**（`embedding_service.embed_text:42-59`）：`mode = embed_mode()` 增 `api` 分支；把 `off → return None` 移回 `try` 内（现位于 `try` 之外），并修 `cloud` 占位分支——`api` 失败/凭证缺失返回 None 走 name_fuzzy 降级，记 warning 日志；`local` 分支保留。
+     - 若保留 `cloud` 字符串别名，则 `api` 与 `cloud` 二选一收纳进 provider 判断，避免语义混乱。
+  4. **match 链路**（`routes/knowledge_kb.py:155`）：`if mode == "local"` 改为认 `api`/`local`（`mode in ("local","api")`）；`matchedBy` 语义保持（embedding），可加 `source="api"`/`source="local"` 便于区分（写 openapi 时按需）。
+  5. **向量一致性**：确保第三方返回维度与 `EMBED_DIM` 对齐（或改从返回体取），写入 FAISS 时以实际维度为准（T7b）。
+- **契约影响**：无（`/knowledge/points/match` 形态不变）；若新增 `source` 字段需同步 openapi。
 - **测试要求**：
-  - 单测：mock 模型断言 match 走向量路径；模型缺失时降级 name_fuzzy 且不报错、有日志；
-  - 质量门：同一题干分别跑 name_fuzzy 与向量模式，Top-5 语义相关人工评估 ≥3/5 通过；**不达标则回退 name_fuzzy 上线，向量保留为实验开关**（备选 m3e-small，ADR 已留位）。
-- **DoD**：`KB_EMBED_MODE=local` 下错题录入→知识点建议走向量 Top-5；启动增量 < 3s（懒加载）。
+  - 单测：mock HTTP 返回的向量断言 `embed_text` 走向量、`match_points` 走出 embedding 路径；第三方 API 超时/凭证缺失/非 200 时降级 name_fuzzy 且不报错、有日志；
+  - 手动/集成：用真实第三方凭证跑一遍，错题录入 → 知识点建议 Top-5 语义相关率 ≥3/5 为通过；
+  - provider 两分支（api/local）各跑一次。
+- **DoD**：`kb_embed_mode=api` 下错题录入→知识点建议走向量 Top-5；API 挂时降级 name_fuzzy；自有服务器接入位可用（改 `embed_base_url` 即切换）；启动无本地大模型加载（比本地方案轻，无模型打包成本）。
+- **依赖**：T7b（FAISS 实装）；第三方 embedding API 凭证。
 
-### T8 RAG 检索链接通（backlog C5 / 原 W1-2）· 2d · 依赖 T7
+### T7b FAISS 检索/写入实装（backlog B3 隐藏前置 · 2026-08-25 新列）· 1.5-2d
+
+- **现状核实**：`vector_store.py:37 search` 与 `:49 add` 当前是空壳（恒返回 []/False），`_index_root()` 的索引目录逻辑已就位，`kb_embeddings` 参考表已存在（由错误本 API 写入）。这是「从链路通到向量真生效」的隐藏阻塞：**即使 embedding 接入，不实现 FAISS 则匹配仍走 name_fuzzy**。
+- **改动点**：
+  - `vector_store.add`：用 `faiss.IndexFlatIP` 建索引 + 存 `vector_id ↔ ref` 映射（内存 + 可选 `.faiss`/`.npz` 落盘到 `_index_root()`，MVP 可仅内存、重建时从 `kb_embeddings` 表重灌）；`model`/`dim` 参数记录到引用，支持不同模型维度隔离。
+  - `vector_store.search`：`index.search(vec, top_k)` 返回 `[(ref_id, similarity)]`；索引缺失/FAISS 未装返回 []（现状语义保留，调用方 name_fuzzy 兜底）。
+  - 写入时机：现有写 `kb_embeddings` 的调用点（`knowledge_kb`/`knowledge.py` 落知识库时）同步调 `add`；`faiss-cpu` 确认在 `pyproject` 主依赖。
+- **契约影响**：无。
+- **测试要求**：单测：`add` 若干 → `search` 命中 Top-K 且相似度递减；重建后索引可从 `kb_embeddings` 重灌；FAISS 缺席时返回空不抛错。
+- **DoD**：有真实向量的知识点可被向量检索命中；无向量/FAISS 挂时 name_fuzzy 兜底。
+- **依赖**：无（可与 T7 并行实现，T8 E2E 前两者须都完成）。
+
+### T8 RAG 检索链接通（backlog C5 / 原 W1-2）· 2d · 依赖 T7 + T7b
 
 - **现状核实**：`routes/knowledge.py:250 _build_error_parse_prompt` 已按 error_id 本地检索关联知识点，且出域压缩为「知识点名 + 定义」（`retrievedFragmentSnippets` 已在白名单 `egress_guard.py:54`）。**缺的是**：题干 rawText 向量化 → kb_points 检索 Top-K 这一步（当前只查错题已绑定的点，未绑定时检索为空、走中性提示）。
 - **改动点**：
@@ -136,9 +167,9 @@
 
 - 5 核心场景（知识库浏览/错题录入建议/复习/mastery 展示/知识复盘）脚本化走查 + 纳入回归；可重复执行、结果留档。
 
-### T12 降级链路矩阵（原 W4-3）· 2d · 依赖 T7/T8（要覆盖向量挂的场景）
+### T12 降级链路矩阵（原 W4-3）· 2d · 依赖 T7/T7b/T8（要覆盖向量与 API 挂的场景）
 
-- embedding 挂 / LLM 挂 / 向量库挂 / 网络断 四态 × 核心流程；断言无空白页、均有降级提示；计划书 §8 验收清单 6 项逐条打勾。
+- embedding API 挂 / LLM 挂 / 向量库(FAISS)挂 / 网络断 四态 × 核心流程；断言无空白页、均有降级提示；计划书 §8 验收清单 6 项逐条打勾。
 
 ### 上线门（不变，对齐 PRD 12.9）
 
@@ -152,12 +183,12 @@ T10/T11/T12 全绿 + D2/D4 法务通过 + 错题原文 100% 不出域 CI 断言�
 第1周          第2周                第3周
 T1 分组(1d)    T5 限流(1d)          T10 压测(2d)
 T2 错题编辑(1.5d) T6 调权(2d)       T11 演示脚本(1.5d)
-T3 目标选择器(1.5d) T7 embedding(3d) T12 降级矩阵(2d)
-T4 复盘触发(2d)   T8 RAG(2d)         T9 OCR 决策(穿插)
+T3 目标选择器(1.5d) T7 embedding-API(2d)+T7b FAISS(2d) T12 降级矩阵(2d)
+T4 复盘触发(2d)     T8 RAG(2d)        T9 OCR 决策(穿插)
 ```
 
-- 关键路径：**T7 → T8 → T12**；S0 六项与 T7/T8 可完全并行（T7/T8 需要模型下载环境，建议尽早启动下载）。
-- 若只有一人：按 T1→T2→T3→T4→T5→T6→T7→T8→T9→T10→T11→T12 顺序，约 20 人日。
+- 关键路径：**T7 → T7b → T8 → T12**；S0 六项与 S1 可并行。T7 改走第三方 API 后**无需本地模型下载**，T7 与 T7b 可先行（T7b 只需装 `faiss-cpu`），是当前最快能推动的算法进度点。
+- 若只有一人：按 T1→T2→T3→T4→T5→T6→T7→T7b→T8→T9→T10→T11→T12 顺序，约 22 人日。
 
 ## 6. 与既有文档的关系
 
