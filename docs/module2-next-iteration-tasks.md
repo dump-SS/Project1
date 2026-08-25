@@ -209,5 +209,15 @@ T4 复盘触发(2d)     T8 RAG(2d)        T9 OCR 决策(穿插)
 | T7 | embedding 第三方 API 接入 | 本批 | config 增 `embed_api_key/base_url/model`（OpenAI 兼容 `/v1/embeddings`）；`embedding_service.embed_text` 增 `api` 分支（超时/重试/配置缺失均降级 name_fuzzy）；`match_points` 认 `local/api`；自有服务器接入位=换 base_url/model 即可 |
 | T7b | FAISS 实装 | 本批 | `vector_store.py` IndexFlatIP + L2 归一化（内积=余弦）+ 落盘持久化（`kb_vectors/`）+ `rebuild_index`；`_async_embed_error` 挂 `add`；`pyproject` 补 `faiss-cpu` |
 
+### 真实联调（2026-08-25，智谱 embedding-3）
+
+- 接入：`KB_EMBED_MODE=api` + 智谱 `open.bigmodel.cn/api/paas/v4` + `embedding-3`，真实返回 **2048 维**向量。
+- 过程：lmuai 网关上游故障（`upstream authentication failed` + 模型列表空）→ 改用智谱，key 换为智谱令牌后成功。
+- 结果（6 个数学知识点种子，库已清理）：
+  - 向量检索 4/4 查询 Top-1 命中（单调 / 等差 / 极值 / 数量积），相似度区分度明显（Top-1 vs Top-2 间隔 ≥0.1）；
+  - HTTP `/points/match` 三条查询均 `matchedBy=embedding`，Top-1 全部正确——**真实 embedding 全链路（录入→入库→检索→路由）跑通**。
+- 质量门：语义相关率 4/4 ≥ 3/5，**通过**。
+- key 只写本地 `backend/.env`（gitignore，未跟踪），未泄入仓库。
+
 - 细则修正：T4 原假设「POST 202 → 轮询 GET /knowledge-summary/{id}」过时——后端 `POST /knowledge-summary` 实际**同步返回 summary**，前端按同步语义实现。
 
