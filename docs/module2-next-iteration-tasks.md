@@ -206,6 +206,8 @@ T4 复盘触发(2d)     T8 RAG(2d)        T9 OCR 决策(穿插)
 | T2 修复 | 错题编辑 status 回显 + pointIds 提交 | 本批（验收后修复） | `ErrorItem` 增 `status`/`pointIdByName`；`openEdit` 回显实际状态；PATCH 携带反查的 `pointIds` |
 | T4 修复 | 复盘学科选择 | 本批 | 去掉硬编码 `math`，加 math/physics/english 下拉；按同步返回语义实现（非 202+轮询） |
 | T6 补全 | mastery 调权写入侧 | 本批 | `_suggest_weights` 扩展 m1..m5；`_validate_mastery_weights` 区间/归一化/单次变动校验；`WeightAdjustLog` 增 before/after_m* 快照列 + 迁移 `a1b2c3d4e5f6`；落库留痕 |
+| T7 | embedding 第三方 API 接入 | 本批 | config 增 `embed_api_key/base_url/model`（OpenAI 兼容 `/v1/embeddings`）；`embedding_service.embed_text` 增 `api` 分支（超时/重试/配置缺失均降级 name_fuzzy）；`match_points` 认 `local/api`；自有服务器接入位=换 base_url/model 即可 |
+| T7b | FAISS 实装 | 本批 | `vector_store.py` IndexFlatIP + L2 归一化（内积=余弦）+ 落盘持久化（`kb_vectors/`）+ `rebuild_index`；`_async_embed_error` 挂 `add`；`pyproject` 补 `faiss-cpu` |
 
 - 细则修正：T4 原假设「POST 202 → 轮询 GET /knowledge-summary/{id}」过时——后端 `POST /knowledge-summary` 实际**同步返回 summary**，前端按同步语义实现。
 

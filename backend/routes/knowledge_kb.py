@@ -144,7 +144,7 @@ def match_points(
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ) -> KnowledgePointMatchList:
-    """本地匹配：优先 embedding，失败/off 走 name_fuzzy 关键词。不调云端。"""
+    """文本匹配：优先 embedding（api=第三方出域 / local=本地模型），失败/off 走 name_fuzzy 关键词。"""
     if not text or not text.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -152,7 +152,7 @@ def match_points(
         )
 
     mode = embed_mode()
-    if mode == "local":
+    if mode in ("local", "api"):
         vec = embed_text(text)
         if vec is not None:
             from vector_store import search

@@ -183,7 +183,7 @@ def create_error(
 
 
 def _async_embed_error(error_id: str) -> None:
-    """后台任务：对错题原文做本地 embedding 并写 kb_embeddings 引用。
+    """后台任务：对错题原文做 embedding 并写 kb_embeddings 引用 + 向量索引。
 
     embed off / 失败均静默降级——录入已成功，匹配走 name_fuzzy，不阻断。
     """
@@ -208,6 +208,10 @@ def _async_embed_error(error_id: str) -> None:
         ))
         row.vector_id = ref_id
         db.commit()
+        # 向量本体入本地 FAISS 索引（引用表不含向量，落盘才能检索）
+        from vector_store import add as vector_add
+
+        vector_add(vec, ref_id, "error", error_id, embed_mode(), len(vec))
     except Exception as e:  # noqa: BLE001
         logger.warning("[ERROR_BOOK] 异步 embedding 失败: %s", e)
     finally:

@@ -37,8 +37,15 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
 
-    # --- 板块二：本地 embedding 开关（ADR：local/cloud/off，默认 off 走 name_fuzzy 降级）---
+    # --- 板块二：embedding 开关（ADR：local/cloud/off，默认 off 走 name_fuzzy 降级）---
+    # api = 第三方 OpenAI 兼容 /v1/embeddings（2026-08-25 决策：允许适当出域，预留自有服务器接入位）
     kb_embed_mode: str = "off"
+    embed_api_key: str = ""
+    embed_base_url: str = ""
+    embed_model: str = ""
+    # 单次 API 调用超时（秒）与重试次数（共 attempts = retries + 1）
+    embed_request_timeout: int = 60
+    embed_max_retries: int = 1
 
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
     smtp_host: str = "smtp.163.com"
