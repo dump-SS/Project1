@@ -370,3 +370,18 @@
   background: var(--color-primary, #4096ff);
   border-color: var(--color-primary, #4096ff);
 }
+
+
+.knowledgeRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.knowledgeResult {
+  padding: 14px;
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: 10px;
+  background: var(--color-bg-card, #fff);
+}

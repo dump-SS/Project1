@@ -6,6 +6,7 @@ import {
   updateGoal,
 } from '../../services/goals'
 import { isNetworkError } from '../../services/http'
+import { fetchKnowledgePoints } from '../../services/knowledgeV2'
 import { subjectLabels } from '@/styles/theme'
 import { dayjs } from '@/utils/aggregate'
 import './index.css'
@@ -39,6 +40,7 @@ const emptyForm = () => ({
   title: '',
   description: '',
   targetDate: '',
+  pointIds: [],
 })
 
 /**
@@ -51,6 +53,7 @@ function goalToForm(goal) {
     title: goal.title,
     description: goal.description ?? '',
     targetDate: goal.targetDate ?? '',
+    pointIds: goal.pointIds ?? [],
   }
 }
 
@@ -63,6 +66,25 @@ export default function Goals() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
+  /** 知识点候选（学科联动，T3） */
+  const [points, setPoints] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    setPoints([])
+    if (form.subject) {
+      fetchKnowledgePoints(form.subject)
+        .then((items) => {
+          if (!cancelled) setPoints(items)
+        })
+        .catch(() => {
+          if (!cancelled) setPoints([])
+        })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [form.subject])
 
   /** 拉取一次，把 active/finished 装进本地 state */
   const load = async () => {
@@ -131,6 +153,7 @@ export default function Goals() {
         title: form.title.trim(),
         description: form.description?.trim() || undefined,
         targetDate: form.targetDate || undefined,
+        pointIds: form.pointIds ?? [],
       }
       if (editingId) {
         const updated = await updateGoal(editingId, payload)
@@ -296,6 +319,32 @@ export default function Goals() {
             />
             <span className="editor-suffix" aria-hidden="true">e<sup>x</sup></span>
           </label>
+
+          {points.length > 0 && (
+            <div className="goal-form-field">
+              <span className="goal-form-label">绑定知识点 Point · 可选（学科联动）</span>
+              <div className="goal-points">
+                {points.map((p) => {
+                  const checked = (form.pointIds ?? []).includes(p.pointId)
+                  return (
+                    <label key={p.pointId} className="goal-point-chip">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const cur = form.pointIds ?? []
+                          const next = checked ? cur.filter((x) => x !== p.pointId) : [...cur, p.pointId]
+                          setForm((prev) => ({ ...prev, pointIds: next }))
+                        }}
+                      />
+                      <span>{p.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <span className="editor-suffix" aria-hidden="true">e<sup>x</sup></span>
+            </div>
+          )}
 
           <div className="goal-form-actions">
             {editingId ? (

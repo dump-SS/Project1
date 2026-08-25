@@ -182,7 +182,15 @@ export default function RecommendationsPage() {
           <p className={styles.empty}>还没有建议，先在左侧选择学科请求一条吧。</p>
         )}
 
-        {items.map((rec) => {
+        {(() => {
+          const stateItems = items.filter((r) => r.scene !== 'post_session_knowledge')
+          const knowledgeItems = items.filter((r) => r.scene === 'post_session_knowledge')
+          return (
+            <>
+              {stateItems.length > 0 && (
+                <div className={styles.group}>
+                  <h2 className={styles.groupTitle}>状态建议</h2>
+                  {stateItems.map((rec) => {
           const draft = drafts[rec.recommendationId]
           const subjectLabel = rec.subject ? (subjectLabels[rec.subject] ?? rec.subject) : ''
           return (
@@ -251,7 +259,43 @@ export default function RecommendationsPage() {
               )}
             </article>
           )
-        })}
+                  })}
+                </div>
+              )}
+              {knowledgeItems.length > 0 && (
+                <div className={styles.group}>
+                  <h2 className={styles.groupTitle}>内容建议</h2>
+                  {knowledgeItems.map((rec) => {
+                    const subjectLabel = rec.subject ? (subjectLabels[rec.subject] ?? rec.subject) : ''
+                    return (
+                      <article key={rec.recommendationId} className={styles.card}>
+                        <div className={styles.cardHead}>
+                          <span className={styles.subjectTag}>{subjectLabel}</span>
+                          <span className={styles.time}>{formatTime(rec.generation.completedAt)}</span>
+                        </div>
+                        {rec.generation.status === 'ready' && rec.items?.length ? (
+                          <div className={styles.items}>
+                            {rec.items.map((item, i) => (
+                              <div key={i} className={styles.item}>
+                                <h3 className={styles.itemTitle}>{item.title}</h3>
+                                <p className={styles.itemContent}>{item.content}</p>
+                              </div>
+                            ))}
+                            {rec.basedOn?.explain && (
+                              <p className={styles.basedOn}>依据：{rec.basedOn.explain}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className={styles.emptyItem}>建议生成中或不可用。</p>
+                        )}
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )
+        })()}
       </section>
     </div>
   )

@@ -38,6 +38,13 @@ class UserWeightConfig(Base):
     w5: Mapped[float] = mapped_column(Float, nullable=False, default=1 / 3)
     w6: Mapped[float] = mapped_column(Float, nullable=False, default=1 / 3)
 
+    # 内容维度权重（mastery 五因子 α₁..α₅，v2.2 T6；∈[0.1,0.5] 归一化，默认等权）
+    m1: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
+    m2: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
+    m3: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
+    m4: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
+    m5: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )

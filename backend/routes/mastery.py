@@ -32,6 +32,36 @@ from .deps import current_user
 router = APIRouter(prefix="/mastery", tags=["知识点掌握"])
 
 
+def _get_mastery_weights(db: Session, user_id: str):
+    """读用户内容维度权重（S0-T6）。
+
+    - 用户关闭 AI 调权 → 固定默认等权（每组 0.2）；
+    - 有 UserWeightConfig → 读 m1..m5；
+    - 越界/非法 → 回退默认（防御性，正常由 weight_tuning 保证）。
+    """
+    from mastery_engine import MasteryWeights
+    from models.user import Settings as SettingsModel
+    from models.weight import UserWeightConfig
+
+    settings = db.get(SettingsModel, user_id)
+    if settings is not None and not settings.ai_weight_tuning_enabled:
+        return MasteryWeights()
+    cfg = db.get(UserWeightConfig, user_id)
+    if cfg is None:
+        return MasteryWeights()
+    try:
+        w = MasteryWeights(
+            w_error=cfg.m1, w_accuracy=cfg.m2, w_recency=cfg.m3,
+            w_retention=cfg.m4, w_unresolved=cfg.m5,
+        )
+        values = [w.w_error, w.w_accuracy, w.w_recency, w.w_retention, w.w_unresolved]
+        if any(v < 0.1 or v > 0.5 for v in values) or abs(sum(values) - 1.0) > 1e-6:
+            return MasteryWeights()
+        return w
+    except Exception:  # noqa: BLE001 — 表未迁移等异常回退默认
+        return MasteryWeights()
+
+
 def _gather_inputs(db: Session, user_id: str, point_id: str) -> MasteryInputs:
     """向后兼容薄包装：实际逻辑迁至 mastery_engine.gather_inputs 供多路由复用。"""
     return gather_inputs(db, user_id, point_id)
@@ -40,7 +70,7 @@ def _gather_inputs(db: Session, user_id: str, point_id: str) -> MasteryInputs:
 def recompute_and_store(db: Session, user_id: str, point_id: str) -> PointMasteryORM:
     """重算单点 mastery 并落 kb_point_mastery（触发式：错题保存/复习提交后调用）。"""
     inputs = _gather_inputs(db, user_id, point_id)
-    result = compute_mastery(point_id, inputs)
+    result = compute_mastery(point_id, inputs, weights=_get_mastery_weights(db, user_id))
 
     row = db.get(PointMasteryORM, (user_id, point_id))
     if row is None:
@@ -69,7 +99,7 @@ def get_point_mastery(
             detail={"code": "RESOURCE_NOT_FOUND", "message": "知识点不存在"},
         )
     inputs = _gather_inputs(db, _user.user_id, point_id)
-    result = compute_mastery(point_id, inputs)
+    result = compute_mastery(point_id, inputs, weights=_get_mastery_weights(db, _user.user_id))
     return {
         "pointId": point_id,
         "mastery": result.mastery,
@@ -114,7 +144,7 @@ def get_subject_mastery(
     samples = 0
     for p in points:
         inputs = _gather_inputs(db, _user.user_id, p.id)
-        result = compute_mastery(p.id, inputs)
+        result = compute_mastery(p.id, inputs, weights=_get_mastery_weights(db, _user.user_id))
         item = {
             "pointId": p.id,
             "mastery": result.mastery,

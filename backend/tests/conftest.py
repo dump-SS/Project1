@@ -55,6 +55,11 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("goals")}
         if "point_ids" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # S0-T6：user_weight_configs.m1 内容权重列，老库需重建
+    if insp.has_table("user_weight_configs"):
+        cols = {c["name"] for c in insp.get_columns("user_weight_configs")}
+        if "m1" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)
