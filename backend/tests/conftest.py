@@ -60,6 +60,11 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("user_weight_configs")}
         if "m1" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # S0-T6（写入侧）：weight_adjust_logs.before_m1 留痕快照列，老库需重建
+    if insp.has_table("weight_adjust_logs"):
+        cols = {c["name"] for c in insp.get_columns("weight_adjust_logs")}
+        if "before_m1" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

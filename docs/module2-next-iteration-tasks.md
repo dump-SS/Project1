@@ -69,14 +69,14 @@
 
 ### T4 知识复盘主动触发入口 + 轮询（backlog A4 / 原 W2-4）· 2d
 
-- **现状核实**：`pages/SummaryReview/index.tsx` 已有生成按钮 + 轮询骨架（`:61` polling state、`:130` 轮询至 generation 终态、`:226` 按钮文案三态），可直接复用；后端 `POST /knowledge-summary`（`routes/knowledge.py:106`）与 `GET /knowledge-summary/{id}` 的 `generation_status` 均已就绪，429 限流已返回。
+- **现状核实（2026-08-25 修正）**：`POST /knowledge-summary`（`routes/knowledge.py:148`）是**同步返回 `summary`**（非 202/异步），后端无 `GET /knowledge-summary/{id}`、也无 `insufficient_data` 分支；板块一那套「202 → 轮询 → generation_status」异步链路**没有**用在板块二知识复盘上。前端应按同步语义实现，而非复制板块一轮询。
 - **改动点**：
-  - SummaryReview 知识 tab 内加「生成本周知识复盘」按钮（带学科选择）→ POST 202 → 复用现有轮询模式轮询至 `ready` → 渲染；
-  - 三态提示：429「今日已达上限」、`failed` 失败态、`insufficient_data` 数据不足态，均不白屏；
-  - service 走 `services/summaries.ts`（若缺 knowledge-summary 封装则补，不改既有函数语义）。
+  - SummaryReview 知识 tab 内加「生成本周知识复盘」按钮 + **学科选择**（math/physics/english）→ 直调 `POST /knowledge-summary`，同步把 `summary` 渲染出来；
+  - 异常态：429「今日已达上限」、其它错误「生成失败」两类提示，不白屏；
+  - service 走 `services/knowledgeSummary.ts`（`createKnowledgeSummary` + `isRateLimited`）。
 - **契约影响**：无。
-- **测试要求**：手动走查触发→轮询→渲染全链路 + 三异常态。
-- **DoD**：用户可在知识 tab 手动触发并看到生成全过程；三种异常态均有明确文案。
+- **测试要求**：手动走查触发→渲染全链路 + 429/其它错误两态。
+- **DoD**：用户可选学科并手动触发，看到生成结果；两种异常态均有明确文案，无空白页。
 
 ### T5 限流持久化（backlog B5 / 原 W3-4）· 1d（复用 AICallLog 则 0.5d）
 
@@ -195,3 +195,17 @@ T4 复盘触发(2d)     T8 RAG(2d)        T9 OCR 决策(穿插)
 - 状态追踪以 `docs/module2-backlog.md` 为准，每完成一项回写状态列；
 - 契约变更先改 `docs/openapi.yaml`（本阶段仅 T1 可能涉及 RecScene 枚举核对，其余零契约改动）；
 - 完成后在本文件追加「已交付项」章节，格式沿用 `module2-refinement-plan.md` §10。
+
+---
+
+## 7. 已交付 / 修复项
+
+| 编号 | 项 | 交付批次 | 摘要 |
+|---|---|---|---|
+| T1-T6 | S0 纯代码项 | PR #37（`b894062`） | 前端分组/错题编辑/目标选择器/复盘触发 + 限流持久化 + mastery 调权读取侧 |
+| T2 修复 | 错题编辑 status 回显 + pointIds 提交 | 本批（验收后修复） | `ErrorItem` 增 `status`/`pointIdByName`；`openEdit` 回显实际状态；PATCH 携带反查的 `pointIds` |
+| T4 修复 | 复盘学科选择 | 本批 | 去掉硬编码 `math`，加 math/physics/english 下拉；按同步返回语义实现（非 202+轮询） |
+| T6 补全 | mastery 调权写入侧 | 本批 | `_suggest_weights` 扩展 m1..m5；`_validate_mastery_weights` 区间/归一化/单次变动校验；`WeightAdjustLog` 增 before/after_m* 快照列 + 迁移 `a1b2c3d4e5f6`；落库留痕 |
+
+- 细则修正：T4 原假设「POST 202 → 轮询 GET /knowledge-summary/{id}」过时——后端 `POST /knowledge-summary` 实际**同步返回 summary**，前端按同步语义实现。
+

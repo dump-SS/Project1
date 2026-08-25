@@ -80,6 +80,18 @@ class WeightAdjustLog(Base):
     after_w5: Mapped[float] = mapped_column(Float, nullable=False)
     after_w6: Mapped[float] = mapped_column(Float, nullable=False)
 
+    # 内容维度权重（mastery 五因子，S0-T6；可空以兼容历史留痕行）
+    before_m1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    before_m2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    before_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
+    before_m4: Mapped[float | None] = mapped_column(Float, nullable=True)
+    before_m5: Mapped[float | None] = mapped_column(Float, nullable=True)
+    after_m1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    after_m2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    after_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
+    after_m4: Mapped[float | None] = mapped_column(Float, nullable=True)
+    after_m5: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     # 模型返回的理由（PRD 6.5 可解释性）
     reason: Mapped[str] = mapped_column(Text, nullable=False)
 

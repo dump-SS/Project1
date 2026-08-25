@@ -18,7 +18,6 @@ from models.learning_record import LearningRecord
 from models.user import Settings as SettingsModel
 from models.weight import UserWeightConfig, WeightAdjustLog
 from state_engine.types import WeightConfig
-from state_engine.weights import WeightAdjustment
 from weight_tuning import _should_tune, _suggest_weights, tune_user_weights
 
 
@@ -160,9 +159,9 @@ def test_suggest_weights_parses_fenced_json(monkeypatch):
     )
     monkeypatch.setattr(weight_tuning, "get_provider", lambda: _FakeProvider(fenced))
     adj = _suggest_weights({}, WeightConfig())
-    assert isinstance(adj, WeightAdjustment)
-    assert adj.alpha == 0.55
-    assert adj.reason == "疲劳信号增强"
+    assert isinstance(adj, dict)
+    assert adj["alpha"] == 0.55
+    assert adj["reason"] == "疲劳信号增强"
 
 
 def test_suggest_weights_returns_none_on_garbage(monkeypatch):
@@ -228,5 +227,61 @@ def test_tune_invalid_reverts_and_logs(monkeypatch):
         assert len(logs) == 1
         assert logs[0].reverted is True
         assert logs[0].revert_reason, "回退时必须记录拒绝理由"
+    finally:
+        db.close()
+
+
+# ---------- S0-T6：内容维度（mastery）权重写入 ----------
+
+_VALID_JSON_WITH_M = (
+    '{"alpha": 0.55, "beta": 0.45, "w1": 0.35, "w2": 0.30, "w3": 0.35, '
+    '"w4": 0.40, "w5": 0.30, "w6": 0.30, '
+    '"m1": 0.25, "m2": 0.25, "m3": 0.2, "m4": 0.15, "m5": 0.15, "reason": "内容维度调权"}'
+)
+
+_INVALID_M_JSON = (
+    '{"alpha": 0.55, "beta": 0.45, "w1": 0.35, "w2": 0.30, "w3": 0.35, '
+    '"w4": 0.40, "w5": 0.30, "w6": 0.30, '
+    '"m1": 0.9, "m2": 0.03, "m3": 0.03, "m4": 0.02, "m5": 0.02, "reason": "内容越界"}'
+)
+
+
+def test_tune_persists_mastery_weights(monkeypatch):
+    _add_records("u_m_mastery", 10)
+    monkeypatch.setattr(weight_tuning, "get_provider", lambda: _FakeProvider(_VALID_JSON_WITH_M))
+
+    db = SessionLocal()
+    try:
+        assert tune_user_weights(db, "u_m_mastery") is True
+        cfg = db.get(UserWeightConfig, "u_m_mastery")
+        assert cfg is not None
+        assert abs(cfg.m1 - 0.25) < 1e-6
+        assert abs(cfg.m2 - 0.25) < 1e-6
+        assert abs(cfg.m5 - 0.15) < 1e-6
+    finally:
+        db.close()
+
+    # 留痕含内容权重快照
+    db = SessionLocal()
+    try:
+        log = db.query(WeightAdjustLog).filter(WeightAdjustLog.user_id == "u_m_mastery").one()
+        assert log.reverted is False
+        assert log.after_m1 == 0.25
+        assert log.before_m1 == 0.2
+    finally:
+        db.close()
+
+
+def test_tune_reverts_on_invalid_mastery_weights(monkeypatch):
+    _add_records("u_m_invalid", 10)
+    monkeypatch.setattr(weight_tuning, "get_provider", lambda: _FakeProvider(_INVALID_M_JSON))
+
+    db = SessionLocal()
+    try:
+        assert tune_user_weights(db, "u_m_invalid") is False
+        cfg = db.get(UserWeightConfig, "u_m_invalid")
+        assert cfg is not None
+        # 内容权重越界 → 保持默认 0.2（回退到当前权重）
+        assert abs(cfg.m1 - 0.2) < 1e-6
     finally:
         db.close()

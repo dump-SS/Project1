@@ -52,6 +52,9 @@ interface ErrorItem {
   questionText: string;
   reason: ErrorReason;
   knowledgeNames: string[];
+  /** 知识点名 → 后端 pointId（编辑提交时反查，避免丢关联） */
+  pointIdByName: Record<string, string>;
+  status: 'open' | 'resolved';
   createdAt: number;
 }
 
@@ -105,6 +108,10 @@ const toItem = (r: ApiErrorRecord): ErrorItem => ({
     ? (r.errorType as ErrorReason)
     : 'other',
   knowledgeNames: (r.points ?? []).map((p) => p.name ?? p.pointId),
+  pointIdByName: Object.fromEntries(
+    (r.points ?? []).filter((p) => p.pointId).map((p) => [p.name ?? p.pointId, p.pointId]),
+  ),
+  status: r.status === 'resolved' ? 'resolved' : 'open',
   createdAt: new Date(r.createdAt).getTime(),
 });
 
@@ -214,6 +221,8 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
         questionText: values.questionText.trim(),
         reason: values.reason,
         knowledgeNames: values.knowledgeNames ?? [],
+        pointIdByName: {},
+        status: 'open',
         createdAt: Date.now(),
       };
       await saveError(subject, item);
@@ -347,8 +356,8 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
     setEditing(item);
     editForm.setFieldsValue({
       reason: item.reason,
-      status: 'open' as const,
-      knowledgeNames: item.knowledgeNames,
+      status: item.status ?? 'open',
+      knowledgeNames: item.knowledgeNames ?? [],
     });
   };
 
@@ -357,14 +366,24 @@ function ErrorBookInner({ messageApi }: ErrorBookProps) {
     try {
       const values = await editForm.validateFields();
       setSavingEdit(true);
+      // 知识点名反查 pointId 提交；无从反查的旧数据跳过（不误绑）
+      const pointIds = (values.knowledgeNames ?? [])
+        .map((n) => editing.pointIdByName?.[n])
+        .filter((id): id is string => Boolean(id));
       await updateErrorRecord(editing.id, {
         errorType: values.reason,
         status: values.status,
+        pointIds,
       });
       setList((prev) =>
         prev.map((x) =>
           x.id === editing.id
-            ? { ...x, reason: values.reason, knowledgeNames: values.knowledgeNames }
+            ? {
+                ...x,
+                reason: values.reason,
+                status: values.status,
+                knowledgeNames: values.knowledgeNames,
+              }
             : x,
         ),
       );

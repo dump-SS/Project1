@@ -56,6 +56,12 @@ def _current_weights(cfg: UserWeightConfig) -> WeightConfig:
     )
 
 
+def _current_mastery_weights(cfg: UserWeightConfig) -> dict[str, float]:
+    return {
+        "m1": cfg.m1, "m2": cfg.m2, "m3": cfg.m3, "m4": cfg.m4, "m5": cfg.m5,
+    }
+
+
 def _should_tune(db: Session, user_id: str) -> bool:
     """是否触发调权：距上次调权 ≥ TUNE_INTERVAL_DAYS 或从未调权且记录数达标。
 
@@ -153,23 +159,28 @@ def _extract_json_block(text: str) -> str:
     return match.group(1).strip() if match else text
 
 
-def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment | None:
+def _suggest_weights(features: dict, current: WeightConfig, current_mastery: dict[str, float] | None = None) -> dict | None:
     """向 LLM 请求调权建议（PRD 5.2：输出建议值 + 理由）。
 
+    返回解析后的 dict（含 alpha/beta/w1..w6 与 m1..m5 与 reason）；解析失败返回 None。
     prompt 结构说明：
     - system 短：硬约束 + JSON 字段定义（避免被切到 user 字段导致空响应）
     - user 短：当前权重 + 关键特征摘要
     - 长 features 不直接塞 user，缩短 prompt 总长度以适配 Doubao-Seed-2.0-mini
     """
+    if current_mastery is None:
+        current_mastery = {"m1": 0.2, "m2": 0.2, "m3": 0.2, "m4": 0.2, "m5": 0.2}
     provider = get_provider()
     system = (
         "你是 EpochX AI 调权助手。\n"
         "硬约束：\n"
         "1. alpha 和 beta 都在 [0.3, 0.7] 之间，alpha + beta = 1\n"
         "2. 行为子项 w1/w2/w3 和自评子项 w4/w5/w6 各在 [0.1, 0.5]，同组和为 1\n"
-        "3. 任一权重与当前值变动不超过 0.1\n"
-        "4. 只输出一个 JSON 对象，不要 markdown 围栏，不要解释文字\n"
-        'JSON：{"alpha":0.5,"beta":0.5,"w1":0.33,"w2":0.33,"w3":0.34,"w4":0.33,"w5":0.33,"w6":0.34,"reason":"调整理由(中文,≤80字)"}'
+        "3. 内容子项 m1/m2/m3/m4/m5 各在 [0.1, 0.5]，五者和为 1（mastery 五因子）\n"
+        "4. 任一权重与当前值变动不超过 0.1\n"
+        "5. 只输出一个 JSON 对象，不要 markdown 围栏，不要解释文字\n"
+        'JSON：{"alpha":0.5,"beta":0.5,"w1":0.33,"w2":0.33,"w3":0.34,"w4":0.33,"w5":0.33,"w6":0.34,'
+        '"m1":0.2,"m2":0.2,"m3":0.2,"m4":0.2,"m5":0.2,"reason":"调整理由(中文,≤80字)"}'
     )
     # 摘要：避免长 JSON 触发模型拒答
     summary = (
@@ -182,6 +193,8 @@ def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment 
     prompt = (
         f"当前权重 alpha={current.alpha} beta={current.beta} "
         f"w1-6={current.w1},{current.w2},{current.w3},{current.w4},{current.w5},{current.w6}\n"
+        f"当前内容权重 m1-5={current_mastery['m1']},{current_mastery['m2']},{current_mastery['m3']},"
+        f"{current_mastery['m4']},{current_mastery['m5']}\n"
         f"近期特征: {summary}\n"
         "请输出调整后的 JSON。"
     )
@@ -194,16 +207,49 @@ def _suggest_weights(features: dict, current: WeightConfig) -> WeightAdjustment 
     for candidate in (text, _extract_json_block(text)):
         try:
             data = json.loads(candidate)
-            return WeightAdjustment(
-                alpha=data["alpha"], beta=data["beta"],
-                w1=data["w1"], w2=data["w2"], w3=data["w3"],
-                w4=data["w4"], w5=data["w5"], w6=data["w6"],
-                reason=data.get("reason", "未提供理由"),
-            )
+            # w1..w6 必需（行为/自评维度）；m1..m5 若缺失则保持当前值（不强制，兼容旧模型输出）
+            proposed_m = {
+                "m1": data.get("m1", current_mastery["m1"]),
+                "m2": data.get("m2", current_mastery["m2"]),
+                "m3": data.get("m3", current_mastery["m3"]),
+                "m4": data.get("m4", current_mastery["m4"]),
+                "m5": data.get("m5", current_mastery["m5"]),
+            }
+            return {
+                "alpha": data["alpha"],
+                "beta": data["beta"],
+                "w1": data["w1"], "w2": data["w2"], "w3": data["w3"],
+                "w4": data["w4"], "w5": data["w5"], "w6": data["w6"],
+                "m1": proposed_m["m1"], "m2": proposed_m["m2"], "m3": proposed_m["m3"],
+                "m4": proposed_m["m4"], "m5": proposed_m["m5"],
+                "reason": data.get("reason", "未提供理由"),
+            }
         except (json.JSONDecodeError, KeyError, TypeError):
             continue
     logger.warning("[AI 调权] LLM 返回格式非法，无法解析: %s", text[:200])
     return None
+
+
+def _validate_mastery_weights(values: dict[str, float], current: dict[str, float]) -> tuple[bool, str | None, list[float]]:
+    """校验内容维度权重（mastery 五因子）。
+
+    规则（对齐 PRD 5.2 与 S0-T6 DoD）：各 ∈ [0.1, 0.5]、五者和 ≈ 1、单次变动 ≤ 0.1。
+    Returns: (valid, rejection_reason, normalized[5])
+    """
+    keys = ("m1", "m2", "m3", "m4", "m5")
+    try:
+        raw = [float(values[k]) for k in keys]
+    except (KeyError, TypeError, ValueError) as e:
+        return False, f"内容权重字段非法: {e}", []
+    if any(v < 0.1 or v > 0.5 for v in raw):
+        return False, "内容权重越界（应 ∈ [0.1, 0.5]）", []
+    if abs(sum(raw) - 1.0) > 1e-3:
+        return False, "内容权重未归一化（m1..m5 和应 = 1）", []
+    for k, v in zip(keys, raw):
+        if abs(v - float(current[k])) > 0.1 + 1e-9:
+            return False, "内容权重单次变动超过 0.1", []
+    normalized = [round(v, 6) for v in raw]
+    return True, None, normalized
 
 
 def tune_user_weights(db: Session, user_id: str) -> bool:
@@ -217,24 +263,39 @@ def tune_user_weights(db: Session, user_id: str) -> bool:
 
     cfg = _get_or_create_weight_config(db, user_id)
     current = _current_weights(cfg)
+    current_mastery = _current_mastery_weights(cfg)
 
     # 组装特征 → LLM 建议
     features = _build_features(db, user_id)
-    proposed = _suggest_weights(features, current)
+    proposed = _suggest_weights(features, current, current_mastery)
     if proposed is None:
         logger.info("[AI 调权] 用户 %s LLM 未给出有效建议，跳过", user_id)
         return False
 
     # 硬限制校验（PRD 5.2：不依赖提示词约束，代码层强制）
-    result = validate_adjustment(current, proposed)
+    # 状态维度走 state_engine 校验；内容维度（m1..m5）单独校验
+    state_proposal = WeightAdjustment(
+        alpha=proposed["alpha"], beta=proposed["beta"],
+        w1=proposed["w1"], w2=proposed["w2"], w3=proposed["w3"],
+        w4=proposed["w4"], w5=proposed["w5"], w6=proposed["w6"],
+        reason=proposed["reason"],
+    )
+    result = validate_adjustment(current, state_proposal)
+    m_valid, m_reason, m_normalized = _validate_mastery_weights(proposed, current_mastery)
 
-    if result.valid and result.new_weights:
+    # 内容维度建议若缺失（模型未输出 m），视为通过但不做内容权重调整
+    m_present = any(k in proposed for k in ("m1", "m2", "m3", "m4", "m5"))
+
+    if result.valid and result.new_weights and (m_valid or not m_present):
         # 通过：更新权重表
         new_w = result.new_weights
         cfg.alpha = new_w.alpha
         cfg.beta = new_w.beta
         cfg.w1, cfg.w2, cfg.w3 = new_w.w1, new_w.w2, new_w.w3
         cfg.w4, cfg.w5, cfg.w6 = new_w.w4, new_w.w5, new_w.w6
+        if m_valid and m_normalized:
+            cfg.m1, cfg.m2, cfg.m3, cfg.m4, cfg.m5 = m_normalized
+        after_m = _current_mastery_weights(cfg)
         cfg.updated_at = datetime.utcnow()
 
         # 留痕
@@ -247,15 +308,22 @@ def tune_user_weights(db: Session, user_id: str) -> bool:
             after_alpha=new_w.alpha, after_beta=new_w.beta,
             after_w1=new_w.w1, after_w2=new_w.w2, after_w3=new_w.w3,
             after_w4=new_w.w4, after_w5=new_w.w5, after_w6=new_w.w6,
-            reason=proposed.reason,
+            before_m1=current_mastery["m1"], before_m2=current_mastery["m2"], before_m3=current_mastery["m3"],
+            before_m4=current_mastery["m4"], before_m5=current_mastery["m5"],
+            after_m1=after_m["m1"], after_m2=after_m["m2"], after_m3=after_m["m3"],
+            after_m4=after_m["m4"], after_m5=after_m["m5"],
+            reason=proposed["reason"],
             reverted=False,
         )
         db.add(log)
         db.commit()
-        logger.info("[AI 调权] 用户 %s 权重已调整: %s", user_id, proposed.reason)
+        logger.info("[AI 调权] 用户 %s 权重已调整: %s", user_id, proposed["reason"])
         return True
 
     # 越界：回退到当前权重（不是初始值，PRD 5.2 明确要求）
+    rejection = result.rejection_reason or ""
+    if m_present and not m_valid and m_reason:
+        rejection = (rejection + "; " if rejection else "") + m_reason
     log = WeightAdjustLog(
         id=f"wlog_{user_id}_{int(datetime.utcnow().timestamp())}",
         user_id=user_id,
@@ -265,15 +333,19 @@ def tune_user_weights(db: Session, user_id: str) -> bool:
         after_alpha=current.alpha, after_beta=current.beta,
         after_w1=current.w1, after_w2=current.w2, after_w3=current.w3,
         after_w4=current.w4, after_w5=current.w5, after_w6=current.w6,
-        reason=proposed.reason,
+        before_m1=current_mastery["m1"], before_m2=current_mastery["m2"], before_m3=current_mastery["m3"],
+        before_m4=current_mastery["m4"], before_m5=current_mastery["m5"],
+        after_m1=current_mastery["m1"], after_m2=current_mastery["m2"], after_m3=current_mastery["m3"],
+        after_m4=current_mastery["m4"], after_m5=current_mastery["m5"],
+        reason=proposed["reason"],
         reverted=True,
-        revert_reason=result.rejection_reason,
+        revert_reason=rejection,
     )
     db.add(log)
     db.commit()
     logger.warning(
         "[AI 调权] 用户 %s 模型建议越界，已回退到当前权重: %s",
-        user_id, result.rejection_reason,
+        user_id, rejection,
     )
     return False
 
