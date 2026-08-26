@@ -29,9 +29,9 @@ def _post_record(subject: str, hour: str, focus: int = 4, fatigue: int = 2):
 def test_record_creates_real_recommendation_then_poll_gets_template():
     """核心闭环：POST record 创建 pending 行，轮询同 id 得 ready/template 内容。"""
     # 先积累足够记录，确保 assessment 有真实标签
-    _post_record("biology", "08")
-    _post_record("biology", "09")
-    created = _post_record("biology", "10", focus=4, fatigue=4)
+    _post_record("SW", "08")
+    _post_record("SW", "09")
+    created = _post_record("SW", "10", focus=4, fatigue=4)
 
     assert created.status_code == 201
     handle = created.json()["recommendation"]
@@ -55,7 +55,7 @@ def test_skip_recommendation_creates_no_task():
     r = client.post(
         "/api/v1/learning-records",
         json={
-            "subject": "history",
+            "subject": "LS",
             "startedAt": "2026-08-12T11:00:00+08:00",
             "durationMinutes": 30,
             "behavior": {"completion": "completed"},
@@ -69,7 +69,7 @@ def test_skip_recommendation_creates_no_task():
 
 def test_recommendation_feedback_persists():
     """PUT feedback 应真实写回 ORM，GET 详情可读。"""
-    created = _post_record("geography", "08")
+    created = _post_record("DL", "08")
     rec_id = created.json()["recommendation"]["recommendationId"]
     put = client.put(f"/api/v1/recommendations/{rec_id}/feedback", json={"rating": "useful", "reason": "很具体"})
     assert put.status_code == 200
@@ -100,7 +100,7 @@ def test_summary_insufficient_data_is_not_template():
 def test_summary_mock_provider_fails_not_template():
     """MockProvider 下足够数据的复盘 → failed，符合「复盘不做模板兜底」。"""
     for hour in ["08", "09", "10", "11", "12"]:
-        _post_record("politics", hour)
+        _post_record("ZZ", hour)
 
     r = client.post("/api/v1/summaries", json={"periodStart": "2026-08-12", "periodEnd": "2026-08-16"})
     assert r.status_code == 202

@@ -34,7 +34,7 @@ def _post_record(client, hour: str, focus: int = 5, fatigue: int = 1):
     return client.post(
         "/api/v1/learning-records",
         json={
-            "subject": "math",
+            "subject": "SX",
             "startedAt": f"2026-08-12T{hour}:00:00+08:00",
             "durationMinutes": 30,
             "behavior": {"completion": "completed", "accuracy": 0.85, "interruptions": 0},

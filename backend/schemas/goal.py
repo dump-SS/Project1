@@ -39,7 +39,7 @@ class GoalSummary(GoalBase):
             "example": {
                 "goalId": "g_5501",
                 "type": "short_term",
-                "subject": "math",
+                "subject": "SX",
                 "title": "两周后期中考试数学 120+",
                 "targetDate": "2026-08-30",
                 "status": "active",
@@ -78,7 +78,7 @@ class GoalCreate(BaseModel):
         json_schema_extra={
             "example": {
                 "type": "short_term",
-                "subject": "math",
+                "subject": "SX",
                 "title": "两周后期中考试数学 120+",
                 "description": "函数和数列这两章不太熟，想重点补",
                 "targetDate": "2026-08-30",

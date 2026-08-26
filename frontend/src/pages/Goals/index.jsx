@@ -15,7 +15,7 @@ import './App.css'
 /**
  * 目标类型 / 学科的可选项。复用 openapi.yaml 的枚举：
  * - type: short_term / long_term
- * - subject: Subject 全 10 项（chinese..other）
+ * - subject: Subject 全 10 项（YW..other）
  */
 const GOAL_TYPES = [
   { value: 'short_term', cn: '短期', en: 'Short Term' },

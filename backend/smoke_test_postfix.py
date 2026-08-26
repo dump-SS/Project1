@@ -55,7 +55,7 @@ def main(base: str, user_id: str) -> int:
     code, body = http("PUT", f"{base}/me", headers, {
         "stage": "senior",
         "grade": "高三",
-        "subjects": ["math", "chinese", "english"],
+        "subjects": ["SX", "YW", "YY"],
     })
     if code != 200:
         failures.append(f"PUT /me 失败 code={code} body={body}")
@@ -65,7 +65,7 @@ def main(base: str, user_id: str) -> int:
     # 2) 建 1 个目标（POST /goals）
     code, body = http("POST", f"{base}/goals", headers, {
         "type": "short_term",
-        "subject": "math",
+        "subject": "SX",
         "title": "smoke-test 数学目标",
     })
     if code != 201:
@@ -99,7 +99,7 @@ def main(base: str, user_id: str) -> int:
 
     # 4) POST /learning-records（让状态评估有数据）
     code, rec = http("POST", f"{base}/learning-records", headers, {
-        "subject": "math",
+        "subject": "SX",
         "startedAt": (datetime.now() - timedelta(minutes=25)).isoformat() + "Z",
         "durationMinutes": 25,
         "behavior": {"completion": "completed"},

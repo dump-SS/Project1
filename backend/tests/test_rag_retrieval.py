@@ -14,7 +14,7 @@ from models.knowledge import ErrorPoint, ErrorRecord, KnowledgePoint
 from routes.knowledge import _retrieve_error_points
 
 
-def _seed(monkeypatch, subject: str = "math") -> str:
+def _seed(monkeypatch, subject: str = "SX") -> str:
     """造错题 + 2 个知识点（其中 1 个绑定到错题），返回 error_id。"""
     db = SessionLocal()
     try:
@@ -69,7 +69,7 @@ def test_vector_recall_error_ref(monkeypatch):
     db = SessionLocal()
     try:
         db.add(ErrorRecord(
-            id="err_similar", user_id="u_t8", subject="math",
+            id="err_similar", user_id="u_t8", subject="SX",
             raw_text="判断复合函数的单调性",
         ))
         db.add(ErrorPoint(id="erp_2", error_id="err_similar", point_id="kp_unbound", confidence=1.0))
@@ -101,11 +101,11 @@ def test_vector_recall_failure_falls_back(monkeypatch):
 
 def test_vector_recall_cross_subject_filtered(monkeypatch):
     """跨学科召回被过滤：英语知识点不进入数学错题的检索结果。"""
-    _seed(monkeypatch, subject="math")
+    _seed(monkeypatch, subject="SX")
     db = SessionLocal()
     try:
         db.add(KnowledgePoint(
-            id="kp_en", subject_code="english", code="eng.tense",
+            id="kp_en", subject_code="YY", code="eng.tense",
             name="时态辨析", definition="动词时态", error_tip="注意主谓一致",
         ))
         db.commit()

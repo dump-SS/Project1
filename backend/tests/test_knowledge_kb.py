@@ -19,14 +19,14 @@ client = TestClient(app)
 def _seed_kb():
     db = SessionLocal()
     try:
-        db.add(KnowledgeSubject(id="ks_math", code="math", name="数学", version="1.0", enabled=True))
+        db.add(KnowledgeSubject(id="ks_math", code="SX", name="数学", version="1.0", enabled=True))
         db.flush()
         db.add(KnowledgePoint(
-            id="kp_1", subject_code="math", code="math.func", name="函数",
+            id="kp_1", subject_code="SX", code="math.func", name="函数",
             definition="函数是集合间的对应关系", error_tip="注意定义域", difficulty=2, exam_weight=0.1,
         ))
         db.add(KnowledgePoint(
-            id="kp_2", subject_code="math", code="math.func.monotonicity", name="函数单调性",
+            id="kp_2", subject_code="SX", code="math.func.monotonicity", name="函数单调性",
             definition="随自变量增减的性质", parent_id="kp_1", difficulty=3, exam_weight=0.05,
         ))
         db.add(KnowledgePointRelation(
@@ -42,12 +42,12 @@ def test_subjects_list():
     r = client.get("/api/v1/knowledge/subjects")
     assert r.status_code == 200
     body = r.json()
-    assert body["items"][0]["subjectCode"] == "math"
+    assert body["items"][0]["subjectCode"] == "SX"
     assert body["items"][0]["pointCount"] == 2
 
 
 def test_points_list():
-    r = client.get("/api/v1/knowledge/subjects/math/points")
+    r = client.get("/api/v1/knowledge/subjects/SX/points")
     assert r.status_code == 200
     body = r.json()
     assert len(body["items"]) == 2
@@ -62,16 +62,16 @@ def test_point_detail_has_relations():
 
 
 def test_graph_placeholder():
-    r = client.get("/api/v1/knowledge/subjects/math/graph")
+    r = client.get("/api/v1/knowledge/subjects/SX/graph")
     assert r.status_code == 200
     body = r.json()
-    assert body["subjectCode"] == "math"
+    assert body["subjectCode"] == "SX"
     assert len(body["nodes"]) == 2
     assert len(body["edges"]) == 1
 
 
 def test_match_fuzzy_fallback():
-    r = client.get("/api/v1/knowledge/points/match", params={"text": "函数 单调性", "subject": "math"})
+    r = client.get("/api/v1/knowledge/points/match", params={"text": "函数 单调性", "subject": "SX"})
     assert r.status_code == 200
     body = r.json()
     assert body["matchedBy"] == "keyword_fallback"

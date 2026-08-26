@@ -27,7 +27,7 @@ class StateResult(BaseModel):
         json_schema_extra={
             "example": {
                 "assessmentId": "a_7742",
-                "subject": "math",
+                "subject": "SX",
                 "windowScore": 0.48,
                 "trend": "down",
                 "stateLabel": "fatigue_warning",
@@ -89,7 +89,7 @@ class AssessmentHistory(BaseModel):
         populate_by_name=True,
         json_schema_extra={
             "example": {
-                "subject": "math",
+                "subject": "SX",
                 "items": [
                     {"date": "2026-08-14", "windowScore": 0.61, "stateLabel": "efficient_stable", "trend": "flat"},
                     {"date": "2026-08-15", "windowScore": 0.55, "stateLabel": "fluctuating_up", "trend": "down"},

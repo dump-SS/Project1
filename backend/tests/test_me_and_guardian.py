@@ -31,37 +31,37 @@ def test_put_me_onboarding():
     r = client.put("/api/v1/me", json={
         "stage": "senior",
         "grade": "高二",
-        "subjects": ["math", "english", "physics"],
+        "subjects": ["SX", "YY", "WL"],
     }, headers={"X-User-ID": "new_user_test_2"})
     assert r.status_code == 200
     body = r.json()
     assert body["onboardingCompleted"] is True
     assert body["stage"] == "senior"
     assert body["grade"] == "高二"
-    assert body["subjects"] == ["math", "english", "physics"]
+    assert body["subjects"] == ["SX", "YY", "WL"]
 
 
 def test_put_me_is_idempotent():
     """PUT /me 幂等：重复建档覆盖，不报错。"""
     headers = {"X-User-ID": "new_user_test_3"}
     client.put("/api/v1/me", json={
-        "stage": "junior", "grade": "初二", "subjects": ["math"],
+        "stage": "junior", "grade": "初二", "subjects": ["SX"],
     }, headers=headers)
     r = client.put("/api/v1/me", json={
-        "stage": "senior", "grade": "高三", "subjects": ["math", "physics"],
+        "stage": "senior", "grade": "高三", "subjects": ["SX", "WL"],
     }, headers=headers)
     assert r.status_code == 200
     body = r.json()
     assert body["stage"] == "senior"
     assert body["grade"] == "高三"
-    assert body["subjects"] == ["math", "physics"]
+    assert body["subjects"] == ["SX", "WL"]
 
 
 def test_patch_me_partial_update():
     """PATCH /me 局部更新，未传字段保持不变。"""
     headers = {"X-User-ID": "new_user_test_4"}
     client.put("/api/v1/me", json={
-        "stage": "senior", "grade": "高二", "subjects": ["math", "english"],
+        "stage": "senior", "grade": "高二", "subjects": ["SX", "YY"],
     }, headers=headers)
     # 只改 grade
     r = client.patch("/api/v1/me", json={"grade": "高三"}, headers=headers)
@@ -69,7 +69,7 @@ def test_patch_me_partial_update():
     body = r.json()
     assert body["grade"] == "高三"
     assert body["stage"] == "senior"  # 未传，保持
-    assert body["subjects"] == ["math", "english"]  # 未传，保持
+    assert body["subjects"] == ["SX", "YY"]  # 未传，保持
 
 
 def test_patch_me_404_when_not_onboarded():
@@ -83,7 +83,7 @@ def test_get_me_after_onboarding_reflects_orm():
     """建档后 GET /me 返回 ORM 真实资料（不再返 mock 常量）。"""
     headers = {"X-User-ID": "new_user_test_5"}
     client.put("/api/v1/me", json={
-        "stage": "junior", "grade": "初三", "subjects": ["chinese", "math"],
+        "stage": "junior", "grade": "初三", "subjects": ["YW", "SX"],
     }, headers=headers)
     r = client.get("/api/v1/me", headers=headers)
     assert r.status_code == 200
@@ -91,7 +91,7 @@ def test_get_me_after_onboarding_reflects_orm():
     assert body["onboardingCompleted"] is True
     assert body["stage"] == "junior"
     assert body["grade"] == "初三"
-    assert body["subjects"] == ["chinese", "math"]
+    assert body["subjects"] == ["YW", "SX"]
 
 
 # ---------- guardian-authorization 状态机 ----------
@@ -100,7 +100,7 @@ def _onboard_and_submit_guardian(user_id: str, email: str = "parent@example.com"
     """建档 + 提交监护人授权的共用前置流程。"""
     headers = {"X-User-ID": user_id}
     client.put("/api/v1/me", json={
-        "stage": "senior", "grade": "高二", "subjects": ["math"],
+        "stage": "senior", "grade": "高二", "subjects": ["SX"],
     }, headers=headers)
     client.post("/api/v1/me/guardian-authorization", json={
         "guardianEmail": email,
@@ -198,7 +198,7 @@ def test_guardian_revoke_when_no_authorization_is_204():
     """无授权记录时 DELETE 也返 204（幂等）。"""
     # 先建档但没提交 guardian
     client.put("/api/v1/me", json={
-        "stage": "senior", "grade": "高二", "subjects": ["math"],
+        "stage": "senior", "grade": "高二", "subjects": ["SX"],
     }, headers={"X-User-ID": "never_submit_guardian"})
     r = client.delete("/api/v1/me/guardian-authorization", headers={"X-User-ID": "never_submit_guardian"})
     assert r.status_code == 204

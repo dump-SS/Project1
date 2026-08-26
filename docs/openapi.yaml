@@ -413,7 +413,7 @@ paths:
                 userId: u_10237
                 stage: senior
                 grade: 高二
-                subjects: [math, english, physics]
+                subjects: [SX, YY, WL]
                 guardianAuthorization:
                   status: active
                   expiresAt: '2026-09-10T00:00:00+08:00'
@@ -438,7 +438,7 @@ paths:
             example:
               stage: senior
               grade: 高二
-              subjects: [math, english, physics]
+              subjects: [SX, YY, WL]
       responses:
         '200':
           description: 建档后的用户对象
@@ -450,7 +450,7 @@ paths:
                 userId: u_10237
                 stage: senior
                 grade: 高二
-                subjects: [math, english, physics]
+                subjects: [SX, YY, WL]
                 guardianAuthorization:
                   status: active
                   expiresAt: '2026-09-10T00:00:00+08:00'
@@ -476,7 +476,7 @@ paths:
             schema:
               $ref: '#/components/schemas/UserProfilePatch'
             example:
-              subjects: [math, english, physics, chemistry]
+              subjects: [SX, YY, WL, HX]
       responses:
         '200':
           description: 更新后的用户对象
@@ -488,7 +488,7 @@ paths:
                 userId: u_10237
                 stage: senior
                 grade: 高二
-                subjects: [math, english, physics, chemistry]
+                subjects: [SX, YY, WL, HX]
                 guardianAuthorization:
                   status: active
                   expiresAt: '2026-09-10T00:00:00+08:00'
@@ -637,7 +637,7 @@ paths:
               $ref: '#/components/schemas/GoalCreate'
             example:
               type: short_term
-              subject: math
+              subject: SX
               title: 两周后期中考试数学 120+
               description: 函数和数列这两章不太熟，想重点补
               targetDate: '2026-08-30'
@@ -651,7 +651,7 @@ paths:
               example:
                 goalId: g_5501
                 type: short_term
-                subject: math
+                subject: SX
                 title: 两周后期中考试数学 120+
                 description: 函数和数列这两章不太熟，想重点补
                 targetDate: '2026-08-30'
@@ -701,7 +701,7 @@ paths:
                 items:
                   - goalId: g_5501
                     type: short_term
-                    subject: math
+                    subject: SX
                     title: 两周后期中考试数学 120+
                     targetDate: '2026-08-30'
                     status: active
@@ -766,7 +766,7 @@ paths:
               example:
                 goalId: g_5501
                 type: short_term
-                subject: math
+                subject: SX
                 title: 两周后期中考试数学 120+
                 description: 函数和数列这两章不太熟，想重点补
                 targetDate: '2026-09-05'
@@ -825,14 +825,14 @@ paths:
                   note: 最近状态偏疲劳，本次总时长下调，单任务时长缩短并增加间隔
                 tasks:
                   - taskId: t_30011
-                    subject: math
+                    subject: SX
                     topic: 函数图像与性质 · 巩固已学
                     estimatedMinutes: 40
                     priority: 1
                     status: pending
                     goalId: g_5501
                   - taskId: t_30012
-                    subject: english
+                    subject: YY
                     topic: 单词短时高频复习
                     estimatedMinutes: 20
                     priority: 2
@@ -894,7 +894,7 @@ paths:
                     adaptedFrom: null
                     tasks:
                       - taskId: t_30011
-                        subject: math
+                        subject: SX
                         topic: 函数图像与性质 · 巩固已学
                         estimatedMinutes: 40
                         priority: 1
@@ -935,7 +935,7 @@ paths:
                   note: 最近状态偏疲劳，本次总时长下调，单任务时长缩短并增加间隔
                 tasks:
                   - taskId: t_30011
-                    subject: math
+                    subject: SX
                     topic: 函数图像与性质 · 巩固已学
                     estimatedMinutes: 40
                     priority: 1
@@ -979,7 +979,7 @@ paths:
                 $ref: '#/components/schemas/PlanTaskDetail'
               example:
                 taskId: t_30011
-                subject: math
+                subject: SX
                 topic: 函数图像与性质 · 巩固已学
                 estimatedMinutes: 30
                 priority: 1
@@ -1016,7 +1016,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RecordInput'
             example:
-              subject: math
+              subject: SX
               startedAt: '2026-08-16T19:00:00+08:00'
               durationMinutes: 45
               planTaskId: t_30011
@@ -1040,7 +1040,7 @@ paths:
                 $ref: '#/components/schemas/LearningRecordCreated'
               example:
                 recordId: r_88012
-                subject: math
+                subject: SX
                 startedAt: '2026-08-16T19:00:00+08:00'
                 durationMinutes: 45
                 planTaskId: t_30011
@@ -1056,7 +1056,7 @@ paths:
                   difficultyFeel: hard
                 assessment:
                   assessmentId: a_7742
-                  subject: math
+                  subject: SX
                   windowScore: 0.48
                   trend: down
                   stateLabel: fatigue_warning
@@ -1111,7 +1111,7 @@ paths:
               example:
                 items:
                   - recordId: r_88012
-                    subject: math
+                    subject: SX
                     startedAt: '2026-08-16T19:00:00+08:00'
                     durationMinutes: 45
                     planTaskId: t_30011
@@ -1157,7 +1157,7 @@ paths:
                 recordId: r_88012
                 recalculatedAssessment:
                   assessmentId: null
-                  subject: math
+                  subject: SX
                   stateLabel: insufficient_data
                   dataSufficient: false
                   recordCount: 2
@@ -1197,7 +1197,7 @@ paths:
               example:
                 items:
                   - assessmentId: a_7742
-                    subject: math
+                    subject: SX
                     windowScore: 0.48
                     trend: down
                     stateLabel: fatigue_warning
@@ -1212,7 +1212,7 @@ paths:
                         - 练习正确率较上周下降
                     computedAt: '2026-08-16T19:46:00+08:00'
                   - assessmentId: null
-                    subject: english
+                    subject: YY
                     stateLabel: insufficient_data
                     displayText: 数据积累中，再记录几次就能给出判断
                     dataSufficient: false
@@ -1257,7 +1257,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AssessmentHistory'
               example:
-                subject: math
+                subject: SX
                 items:
                   - date: '2026-08-14'
                     windowScore: 0.61
@@ -1327,7 +1327,7 @@ paths:
               $ref: '#/components/schemas/RecommendationCreate'
             example:
               scene: post_session
-              subject: math
+              subject: SX
               recordId: r_88012
       responses:
         '202':
@@ -1339,7 +1339,7 @@ paths:
               example:
                 recommendationId: rec_20301
                 scene: post_session
-                subject: math
+                subject: SX
                 generation:
                   status: pending
                 createdAt: '2026-08-16T19:46:02+08:00'
@@ -1392,7 +1392,7 @@ paths:
                 items:
                   - recommendationId: rec_20301
                     scene: post_session
-                    subject: math
+                    subject: SX
                     generation:
                       status: ready
                       source: llm
@@ -1439,7 +1439,7 @@ paths:
                   value:
                     recommendationId: rec_20301
                     scene: post_session
-                    subject: math
+                    subject: SX
                     generation:
                       status: ready
                       source: llm
@@ -1460,7 +1460,7 @@ paths:
                   value:
                     recommendationId: rec_20301
                     scene: post_session
-                    subject: math
+                    subject: SX
                     generation:
                       status: pending
                     items: null
@@ -1590,7 +1590,7 @@ paths:
                       encouragement: 状态有起伏很正常，你这周把 7 次记录都填完了，这个坚持挺难得。
                     dataPoints:
                       recordCount: 9
-                      subjects: [math, english]
+                      subjects: [SX, YY]
                       planCompletionRatio: 0.61
                       referencedAssessmentIds: [a_7742, a_7710]
                     feedback: null
@@ -1639,7 +1639,7 @@ paths:
                       encouragement: 状态有起伏很正常，你这周把 7 次记录都填完了，这个坚持挺难得。
                     dataPoints:
                       recordCount: 9
-                      subjects: [math, english]
+                      subjects: [SX, YY]
                       planCompletionRatio: 0.61
                       referencedAssessmentIds: [a_7742, a_7710]
                     feedback: null
@@ -1732,7 +1732,7 @@ paths:
         - name: subjectCode
           in: path
           required: true
-          description: 学科代码（如 math）
+          description: 学科代码（如 SX）
           schema:
             type: string
       responses:
@@ -2609,8 +2609,8 @@ components:
     # ---------- 枚举字典（PRD 0.4） ----------
     Subject:
       type: string
-      description: 学科枚举
-      enum: [chinese, math, english, physics, chemistry, biology, history, geography, politics, other]
+      description: 学科代码（拼音首字母大写，与知识点库标准对齐；other 保留兜底）。YW 语文 / SX 数学 / YY 英语 / WL 物理 / HX 化学 / SW 生物 / ZZ 思想政治 / LS 历史 / DL 地理
+      enum: [YW, SX, YY, WL, HX, SW, ZZ, LS, DL, other]
     Stage:
       type: string
       description: 学段：junior=初中，senior=高中
@@ -3797,7 +3797,7 @@ components:
       properties:
         subjectCode:
           type: string
-          description: 学科代码（math/physics/english）
+          description: 学科代码（SX/WL/YY）
         name:
           type: string
           description: 学科显示名
@@ -3830,7 +3830,7 @@ components:
           type: string
         code:
           type: string
-          description: 知识点唯一代码，如 math.func.monotonicity
+          description: 知识点唯一代码，如 SX.func.monotonicity
         name:
           type: string
         definition:

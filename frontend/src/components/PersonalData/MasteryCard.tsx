@@ -11,13 +11,13 @@ import styles from './MasteryCard.module.css';
 
 /** 展示用学科占位（后端未接通时的占位数据，顶部如实标注） */
 const SUBJECT_NAMES: Record<string, string> = {
-  math: '数学',
-  physics: '物理',
-  english: '英语',
+  SX: '数学',
+  WL: '物理',
+  YY: '英语',
 };
 
 const PLACEHOLDER: SubjectMasteryResult = {
-  subjectCode: 'math',
+  subjectCode: 'SX',
   mastery: null,
   dataSufficient: false,
   sampleSize: 0,
@@ -32,7 +32,7 @@ function masteryToneClass(v: number | null | undefined): string {
 }
 
 export default function MasteryCard() {
-  const subject = 'math'; // v2.1 数学单科；v2.2 扩为三学科 tab
+  const subject = 'SX'; // v2.1 数学单科；v2.2 扩为三学科 tab
   const { data, source, error, loading } = usePanelData<SubjectMasteryResult>(
     (signal) => {
       void signal;

@@ -45,7 +45,7 @@ function ErrorEntryInner({ onSaved }: ErrorEntryPanelProps) {
   const [messageApi, contextHolder] = message.useMessage()
   const [open, setOpen] = useState(false)
   const [recent, setRecent] = useState<RecentEntry[]>([])
-  const [subject, setSubject] = useState<Subject>('math')
+  const [subject, setSubject] = useState<Subject>('SX')
   const [form] = Form.useForm<FormValues>()
 
   const handleSave = async () => {
@@ -64,7 +64,7 @@ function ErrorEntryInner({ onSaved }: ErrorEntryPanelProps) {
         [{ id: item.id, preview: item.questionText.slice(0, 20), createdAt: item.createdAt }, ...r].slice(0, 5),
       )
       form.resetFields()
-      setSubject('math')
+      setSubject('SX')
       setOpen(false)
       messageApi.success('错题已保存')
       onSaved(item, values.subject)
@@ -92,7 +92,7 @@ function ErrorEntryInner({ onSaved }: ErrorEntryPanelProps) {
           form={form}
           layout="vertical"
           className="entry-form"
-          initialValues={{ subject: 'math', reason: 'concept', knowledgeNames: [] }}
+          initialValues={{ subject: 'SX', reason: 'concept', knowledgeNames: [] }}
         >
           <Form.Item label="学科" name="subject" rules={[{ required: true, message: '请选择学科' }]}>
             <Select

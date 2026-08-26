@@ -22,7 +22,7 @@ def _ensure_subject():
     db = SessionLocal()
     try:
         if db.get(KnowledgeSubject, "ks_math") is None:
-            db.add(KnowledgeSubject(id="ks_math", code="math", name="数学", grade_band="senior", version="1.0"))
+            db.add(KnowledgeSubject(id="ks_math", code="SX", name="数学", grade_band="senior", version="1.0"))
             db.commit()
     finally:
         db.close()
@@ -33,7 +33,7 @@ def test_detail_returns_content_fields():
     db = SessionLocal()
     try:
         db.add(KnowledgePoint(
-            id="kp_full", subject_code="math", code="math.func.mono",
+            id="kp_full", subject_code="SX", code="math.func.mono",
             name="函数单调性", definition="函数值随自变量增减的性质",
             difficulty=3, exam_weight=0.1,
             explanation="用'你'字称呼的讲解……判断函数在区间上是增还是减。",
@@ -66,7 +66,7 @@ def test_detail_legacy_point_returns_nulls():
     db = SessionLocal()
     try:
         db.add(KnowledgePoint(
-            id="kp_legacy", subject_code="math", code="math.legacy",
+            id="kp_legacy", subject_code="SX", code="math.legacy",
             name="旧知识点", definition="无内容字段的旧行",
         ))
         db.commit()
@@ -87,7 +87,7 @@ def test_detail_dirty_json_falls_back_to_empty():
     db = SessionLocal()
     try:
         db.add(KnowledgePoint(
-            id="kp_dirty", subject_code="math", code="math.dirty",
+            id="kp_dirty", subject_code="SX", code="math.dirty",
             name="脏数据", definition="x",
             typical_errors="not-a-json",
             keywords="[broken",

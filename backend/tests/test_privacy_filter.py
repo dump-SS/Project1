@@ -123,7 +123,7 @@ def _post_record_with_note(subject: str, note: str, hour: str = "08"):
 def test_note_not_sent_when_send_text_to_ai_off():
     """sendTextToAI=False（默认）：note 不进 prompt，建议仍能生成（走 template 兜底）。"""
     _set_send_text_to_ai(False)
-    rec_id = _post_record_with_note("math", "今天函数题做得很顺，手机 13812345678", hour="08")
+    rec_id = _post_record_with_note("SX", "今天函数题做得很顺，手机 13812345678", hour="08")
 
     detail = client.get(f"/api/v1/recommendations/{rec_id}")
     assert detail.status_code == 200
@@ -139,7 +139,7 @@ def test_note_sent_sanitized_when_send_text_to_ai_on():
     MockProvider 不会真用 note 内容，但流程要跑通。
     """
     _set_send_text_to_ai(True)
-    rec_id = _post_record_with_note("math", "今天函数题做得很顺，手机 13812345678", hour="09")
+    rec_id = _post_record_with_note("SX", "今天函数题做得很顺，手机 13812345678", hour="09")
 
     detail = client.get(f"/api/v1/recommendations/{rec_id}")
     assert detail.status_code == 200
@@ -157,7 +157,7 @@ def test_crisis_signal_overrides_send_text_to_ai():
     """
     _set_send_text_to_ai(False)  # 即使开关关，危机信号仍要检测
     rec_id = _post_record_with_note(
-        "math", "最近压力太大了，有时候不想活", hour="10"
+        "SX", "最近压力太大了，有时候不想活", hour="10"
     )
 
     detail = client.get(f"/api/v1/recommendations/{rec_id}")

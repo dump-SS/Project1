@@ -41,7 +41,7 @@ class RecordInput(BaseModel):
         populate_by_name=True,
         json_schema_extra={
             "example": {
-                "subject": "math",
+                "subject": "SX",
                 "startedAt": "2026-08-16T19:00:00+08:00",
                 "durationMinutes": 45,
                 "planTaskId": "t_30011",
@@ -74,7 +74,7 @@ class LearningRecord(BaseModel):
         json_schema_extra={
             "example": {
                 "recordId": "r_88012",
-                "subject": "math",
+                "subject": "SX",
                 "startedAt": "2026-08-16T19:00:00+08:00",
                 "durationMinutes": 45,
                 "planTaskId": "t_30011",
@@ -106,7 +106,7 @@ class AssessmentSnapshot(BaseModel):
         json_schema_extra={
             "example": {
                 "assessmentId": "a_7742",
-                "subject": "math",
+                "subject": "SX",
                 "windowScore": 0.48,
                 "trend": "down",
                 "stateLabel": "fatigue_warning",
@@ -163,7 +163,7 @@ class LearningRecordDeleted(BaseModel):
                 "recordId": "r_88012",
                 "recalculatedAssessment": {
                     "assessmentId": "a_7751",
-                    "subject": "math",
+                    "subject": "SX",
                     "windowScore": 0.53,
                     "trend": "flat",
                     "stateLabel": "insufficient_data",

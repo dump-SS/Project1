@@ -32,7 +32,7 @@ class User(BaseModel):
                 "userId": "u_10237",
                 "stage": "senior",
                 "grade": "高二",
-                "subjects": ["math", "english", "physics"],
+                "subjects": ["SX", "YY", "WL"],
                 "guardianAuthorization": {
                     "status": "active",
                     "expiresAt": "2026-09-10T00:00:00+08:00",
@@ -60,7 +60,7 @@ class UserProfilePut(BaseModel):
             "example": {
                 "stage": "senior",
                 "grade": "高二",
-                "subjects": ["math", "english", "physics"],
+                "subjects": ["SX", "YY", "WL"],
             }
         }
     )

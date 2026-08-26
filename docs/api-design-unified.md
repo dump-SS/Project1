@@ -72,7 +72,7 @@
 
 | 枚举 | 取值 |
 |---|---|
-| `subject` | `chinese` `math` `english` `physics` `chemistry` `biology` `history` `geography` `politics` `other` |
+| `subject` | `YW` `SX` `YY` `WL` `HX` `SW` `LS` `DL` `ZZ` `other` |
 | `stage` | `junior`（初中）`senior`（高中） |
 | `goalType` | `short_term` `long_term` |
 | `taskStatus` / `completion` | `pending` `completed` `partial` `abandoned`（completion 无 `pending`） |
@@ -126,7 +126,7 @@
   "userId": "u_10237",
   "stage": "senior",
   "grade": "高二",
-  "subjects": ["math", "english", "physics"],
+  "subjects": ["SX", "YY", "WL"],
   "guardianAuthorization": { "status": "active", "expiresAt": "2026-09-10T00:00:00+08:00" },
   "onboardingCompleted": true
 }
@@ -220,7 +220,7 @@ POST 请求参数：
 {
   "goalId": "g_5501",
   "type": "short_term",
-  "subject": "math",
+  "subject": "SX",
   "title": "两周后期中考试数学 120+",
   "description": "函数和数列这两章不太熟，想重点补",
   "targetDate": "2026-08-30",
@@ -251,7 +251,7 @@ POST 请求参数：
     {
       "goalId": "g_5501",
       "type": "short_term",
-      "subject": "math",
+      "subject": "SX",
       "title": "两周后期中考试数学 120+",
       "targetDate": "2026-08-30",
       "status": "active",
@@ -316,7 +316,7 @@ POST 请求参数：
   "tasks": [
     {
       "taskId": "t_30011",
-      "subject": "math",
+      "subject": "SX",
       "topic": "函数图像与性质 · 巩固已学",
       "estimatedMinutes": 40,
       "priority": 1,
@@ -325,7 +325,7 @@ POST 请求参数：
     },
     {
       "taskId": "t_30012",
-      "subject": "english",
+      "subject": "YY",
       "topic": "单词短时高频复习",
       "estimatedMinutes": 20,
       "priority": 2,
@@ -367,7 +367,7 @@ POST 请求参数：
 ```json
 {
   "taskId": "t_30011",
-  "subject": "math",
+  "subject": "SX",
   "topic": "函数图像与性质 · 巩固已学",
   "estimatedMinutes": 30,
   "priority": 1,
@@ -413,7 +413,7 @@ POST 请求参数：
 
 ```json
 {
-  "subject": "math",
+  "subject": "SX",
   "startedAt": "2026-08-16T19:00:00+08:00",
   "durationMinutes": 45,
   "planTaskId": "t_30011",
@@ -428,7 +428,7 @@ POST 请求参数：
 ```json
 {
   "recordId": "r_88012",
-  "subject": "math",
+  "subject": "SX",
   "startedAt": "2026-08-16T19:00:00+08:00",
   "durationMinutes": 45,
   "planTaskId": "t_30011",
@@ -436,7 +436,7 @@ POST 请求参数：
   "selfReport": { "focus": 2, "fatigue": 4, "emotion": "negative", "difficultyFeel": "hard" },
   "assessment": {
     "assessmentId": "a_7742",
-    "subject": "math",
+    "subject": "SX",
     "windowScore": 0.48,
     "trend": "down",
     "stateLabel": "fatigue_warning",
@@ -479,7 +479,7 @@ POST 请求参数：
   "recordId": "r_88012",
   "recalculatedAssessment": {
     "assessmentId": null,
-    "subject": "math",
+    "subject": "SX",
     "stateLabel": "insufficient_data",
     "dataSufficient": false,
     "recordCount": 2
@@ -514,7 +514,7 @@ POST 请求参数：
   "items": [
     {
       "assessmentId": "a_7742",
-      "subject": "math",
+      "subject": "SX",
       "windowScore": 0.48,
       "trend": "down",
       "stateLabel": "fatigue_warning",
@@ -530,7 +530,7 @@ POST 请求参数：
     },
     {
       "assessmentId": null,
-      "subject": "english",
+      "subject": "YY",
       "stateLabel": "insufficient_data",
       "displayText": "数据积累中，再记录几次就能给出判断",
       "dataSufficient": false,
@@ -559,7 +559,7 @@ POST 请求参数：
 
 ```json
 {
-  "subject": "math",
+  "subject": "SX",
   "items": [
     { "date": "2026-08-14", "windowScore": 0.61, "stateLabel": "efficient_stable", "trend": "flat" },
     { "date": "2026-08-15", "windowScore": 0.55, "stateLabel": "fluctuating_up", "trend": "down" },
@@ -608,7 +608,7 @@ POST 请求参数：
 {
   "recommendationId": "rec_20301",
   "scene": "post_session",
-  "subject": "math",
+  "subject": "SX",
   "generation": { "status": "pending" },
   "createdAt": "2026-08-16T19:46:02+08:00"
 }
@@ -627,7 +627,7 @@ POST 请求参数：
 {
   "recommendationId": "rec_20301",
   "scene": "post_session",
-  "subject": "math",
+  "subject": "SX",
   "generation": { "status": "ready", "source": "llm", "completedAt": "2026-08-16T19:46:09+08:00" },
   "items": [
     {
@@ -748,7 +748,7 @@ POST 请求参数：
   },
   "dataPoints": {
     "recordCount": 9,
-    "subjects": ["math", "english"],
+    "subjects": ["SX", "YY"],
     "planCompletionRatio": 0.61,
     "referencedAssessmentIds": ["a_7742", "a_7710"]
   },

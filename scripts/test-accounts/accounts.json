@@ -11,7 +11,7 @@
         "onboarded": true,
         "stage": "senior",
         "grade": "高二",
-        "subjects": ["math", "chinese", "english"]
+        "subjects": ["SX", "YW", "YY"]
       }
     },
     {
@@ -22,7 +22,7 @@
         "onboarded": true,
         "stage": "senior",
         "grade": "高二",
-        "subjects": ["math", "english"]
+        "subjects": ["SX", "YY"]
       }
     },
     {
@@ -33,7 +33,7 @@
         "onboarded": true,
         "stage": "junior",
         "grade": "初三",
-        "subjects": ["math"]
+        "subjects": ["SX"]
       }
     }
   ]

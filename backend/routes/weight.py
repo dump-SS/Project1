@@ -241,7 +241,7 @@ def get_state_breakdown(
             .where(LearningRecordORM.user_id == _user.user_id)
             .distinct()
         ).scalars().all()
-        subject = sorted(set(result))[0] if result else "math"
+        subject = sorted(set(result))[0] if result else "SX"
 
     rows = _fetch_window_records(db, _user.user_id, limit=7)
     engine_inputs = [orm_record_to_engine_input(r) for r in rows]

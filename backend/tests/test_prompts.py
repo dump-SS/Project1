@@ -28,7 +28,7 @@ def test_system_user_split():
 def test_render_with_full_inputs():
     rows_summary = "- 08-12 09:00 focus=4 fatigue=2 emotion=positive completion=completed"
     system, user = _build_recommendation_prompt(
-        subject="math",
+        subject="SX",
         state_label="fatigue_warning",
         window_score=0.42,
         trend="down",
@@ -58,7 +58,7 @@ def test_render_with_full_inputs():
 def test_render_with_insufficient_data():
     """数据不足时：windowScore/trend 应渲染为 null 字符串（不是数字）。"""
     system, user = _build_recommendation_prompt(
-        subject="english",
+        subject="YY",
         state_label="insufficient_data",
         window_score=None, trend=None, record_count=2,
         plan_completion_ratio=None,

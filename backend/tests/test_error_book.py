@@ -18,7 +18,7 @@ def _seed_kp():
     db = SessionLocal()
     try:
         db.add(KnowledgePoint(
-            id="kp_1", subject_code="math", code="math.func", name="函数",
+            id="kp_1", subject_code="SX", code="math.func", name="函数",
             definition="函数是集合间的对应关系", difficulty=2, exam_weight=0.1,
         ))
         db.commit()
@@ -32,7 +32,7 @@ def _create(body):
 
 
 def test_create_and_get_error():
-    r = _create({"subject": "math", "rawText": "求 f(x)=e^(x²) 的极值", "errorType": "concept"})
+    r = _create({"subject": "SX", "rawText": "求 f(x)=e^(x²) 的极值", "errorType": "concept"})
     assert r.status_code == 201
     err_id = r.json()["errorId"]
     assert err_id.startswith("err_")
@@ -41,26 +41,26 @@ def test_create_and_get_error():
     assert g.status_code == 200
     body = g.json()
     assert body["rawText"] == "求 f(x)=e^(x²) 的极值"
-    assert body["subject"] == "math"
+    assert body["subject"] == "SX"
     assert body["status"] == "open"
 
 
 def test_create_rejects_sensitive_payload():
-    r = _create({"subject": "math", "rawText": "联系电话 13812345678，这道题怎么做"})
+    r = _create({"subject": "SX", "rawText": "联系电话 13812345678，这道题怎么做"})
     assert r.status_code == 400
     body = r.json()
     assert body["error"]["code"] == "VALIDATION_FAILED"
 
 
 def test_create_rejects_too_long_text():
-    r = _create({"subject": "math", "rawText": "长" * 4001})
+    r = _create({"subject": "SX", "rawText": "长" * 4001})
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "KB_TEXT_TOO_LONG"
 
 
 def test_list_filters_soft_deleted_out():
-    _create({"subject": "math", "rawText": "题1"})
-    e2 = _create({"subject": "math", "rawText": "题2"}).json()["errorId"]
+    _create({"subject": "SX", "rawText": "题1"})
+    e2 = _create({"subject": "SX", "rawText": "题2"}).json()["errorId"]
     client.delete(f"/api/v1/error-book/{e2}", headers=HDR)
 
     r = client.get("/api/v1/error-book", headers=HDR)
@@ -69,7 +69,7 @@ def test_list_filters_soft_deleted_out():
 
 
 def test_patch_status_and_points():
-    err_id = _create({"subject": "math", "rawText": "求极值"}).json()["errorId"]
+    err_id = _create({"subject": "SX", "rawText": "求极值"}).json()["errorId"]
     r = client.patch(
         f"/api/v1/error-book/{err_id}",
         json={"status": "resolved", "pointIds": ["kp_1"]},
@@ -82,7 +82,7 @@ def test_patch_status_and_points():
 
 
 def test_delete_soft_and_get_404():
-    err_id = _create({"subject": "math", "rawText": "题"}).json()["errorId"]
+    err_id = _create({"subject": "SX", "rawText": "题"}).json()["errorId"]
     d = client.delete(f"/api/v1/error-book/{err_id}", headers=HDR)
     assert d.status_code == 200 and d.json()["deleted"] is True
 
@@ -91,7 +91,7 @@ def test_delete_soft_and_get_404():
 
 
 def test_review_logs_and_intervals():
-    err_id = _create({"subject": "math", "rawText": "题"}).json()["errorId"]
+    err_id = _create({"subject": "SX", "rawText": "题"}).json()["errorId"]
     r = client.post(
         f"/api/v1/error-book/{err_id}/review",
         json={"recallCorrect": True},

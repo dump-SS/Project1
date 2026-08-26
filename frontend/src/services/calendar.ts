@@ -131,14 +131,14 @@ export function placeholderCalendar(month: string): CalendarPanel {
     fatigue: number;
     subjects: Array<[Subject, StateLabel]>;
   }> = [
-    { offset: 1, minutes: 95, focus: 4.0, fatigue: 2.0, subjects: [['math', 'efficient_stable'], ['english', 'fluctuating_up']] },
-    { offset: 2, minutes: 130, focus: 3.5, fatigue: 3.0, subjects: [['math', 'efficient_stable']] },
-    { offset: 4, minutes: 60, focus: 4.5, fatigue: 2.0, subjects: [['physics', 'fluctuating_up']] },
-    { offset: 7, minutes: 145, focus: 3.0, fatigue: 4.0, subjects: [['math', 'fatigue_warning'], ['chinese', 'insufficient_data']] },
-    { offset: 8, minutes: 80, focus: 4.2, fatigue: 2.5, subjects: [['english', 'efficient_stable']] },
-    { offset: 11, minutes: 110, focus: 3.8, fatigue: 3.0, subjects: [['math', 'fluctuating_up'], ['physics', 'insufficient_data']] },
-    { offset: 14, minutes: 55, focus: 2.8, fatigue: 4.5, subjects: [['chemistry', 'emotion_blocked']] },
-    { offset: 15, minutes: 165, focus: 4.6, fatigue: 2.0, subjects: [['math', 'fatigue_warning'], ['english', 'efficient_stable']] },
+    { offset: 1, minutes: 95, focus: 4.0, fatigue: 2.0, subjects: [['SX', 'efficient_stable'], ['YY', 'fluctuating_up']] },
+    { offset: 2, minutes: 130, focus: 3.5, fatigue: 3.0, subjects: [['SX', 'efficient_stable']] },
+    { offset: 4, minutes: 60, focus: 4.5, fatigue: 2.0, subjects: [['WL', 'fluctuating_up']] },
+    { offset: 7, minutes: 145, focus: 3.0, fatigue: 4.0, subjects: [['SX', 'fatigue_warning'], ['YW', 'insufficient_data']] },
+    { offset: 8, minutes: 80, focus: 4.2, fatigue: 2.5, subjects: [['YY', 'efficient_stable']] },
+    { offset: 11, minutes: 110, focus: 3.8, fatigue: 3.0, subjects: [['SX', 'fluctuating_up'], ['WL', 'insufficient_data']] },
+    { offset: 14, minutes: 55, focus: 2.8, fatigue: 4.5, subjects: [['HX', 'emotion_blocked']] },
+    { offset: 15, minutes: 165, focus: 4.6, fatigue: 2.0, subjects: [['SX', 'fatigue_warning'], ['YY', 'efficient_stable']] },
   ];
 
   for (const item of preset) {

@@ -38,7 +38,7 @@ def _seed_user_and_plan(user_id: str, plan_date, task_specs: list[dict]) -> str:
         u = db.get(User, user_id)
         if u is None:
             db.add(User(id=user_id, stage="senior", grade="高二",
-                        subjects=["math"], onboarding_completed=True))
+                        subjects=["SX"], onboarding_completed=True))
             db.commit()
         plan_id = f"p_{user_id}_{_uid()}"
         db.add(Plan(id=plan_id, user_id=user_id, plan_date=plan_date, available_minutes=60))
@@ -48,7 +48,7 @@ def _seed_user_and_plan(user_id: str, plan_date, task_specs: list[dict]) -> str:
                 id=f"t_{plan_id}_{i}",
                 plan_id=plan_id,
                 user_id=user_id,
-                subject=spec.get("subject", "math"),
+                subject=spec.get("subject", "SX"),
                 topic=spec.get("topic", f"任务 {i}"),
                 estimated_minutes=spec.get("estimated_minutes", 30),
                 priority=i + 1,
@@ -83,7 +83,7 @@ def test_today_completed_returns_only_completed():
         # 字段完整性
         for r in rows:
             assert "taskId" in r
-            assert r["subject"] == "math"
+            assert r["subject"] == "SX"
             assert r["estimatedMinutes"] == 30
             assert r["priority"] >= 1
     finally:

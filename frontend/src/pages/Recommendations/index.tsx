@@ -11,8 +11,8 @@ import { subjectLabels } from '../../styles/theme'
 import type { Rating, Recommendation, Subject } from '../../types/api'
 
 const SUBJECTS: Subject[] = [
-  'chinese', 'math', 'english', 'physics', 'chemistry',
-  'biology', 'history', 'geography', 'politics', 'other',
+  'YW', 'SX', 'YY', 'WL', 'HX',
+  'SW', 'LS', 'DL', 'ZZ', 'other',
 ]
 
 const RATING_OPTIONS: { value: Rating; label: string }[] = [
@@ -44,7 +44,7 @@ export default function RecommendationsPage() {
   const [listError, setListError] = useState<string | null>(null)
 
   // 手动请求表单
-  const [subject, setSubject] = useState<Subject>('math')
+  const [subject, setSubject] = useState<Subject>('SX')
   const [recordId, setRecordId] = useState('')
   const [requesting, setRequesting] = useState(false)
   const [polling, setPolling] = useState(false)

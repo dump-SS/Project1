@@ -237,7 +237,7 @@ export function placeholderFocus(range: FocusRange): FocusPanel {
     sampleCount: preset.sampleCount,
     comment: pickComment(preset.average),
     stateNote: {
-      subject: 'math',
+      subject: 'SX',
       subjectLabel: '数学',
       stateLabel: 'fatigue_warning',
       text: '最近几次数学状态有点走低，疲劳感比较明显',

@@ -107,7 +107,7 @@ export function placeholderCheckIn(): CheckInPanel {
       checked: item.checked,
       totalMinutes: item.minutes,
       recordCount: item.checked ? 2 : 0,
-      subjects: item.checked ? ['math', 'english'] : [],
+      subjects: item.checked ? ['SX', 'YY'] : [],
       summary: item.summary,
     };
   });

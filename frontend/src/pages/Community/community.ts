@@ -7,7 +7,7 @@
  *    之后用户每次提交都会 push 进池子，模拟"越来越多人参与"）
  */
 
-export type CommunitySubject = 'math' | 'physics' | 'english' | 'other'
+export type CommunitySubject = 'SX' | 'WL' | 'YY' | 'other'
 
 export interface CommunityRecord {
   /** 本周学习时长（小时，0-40） */
@@ -46,7 +46,7 @@ export const METRICS: MetricMeta[] = [
   { key: 'completion', label: '本周完成率', shortLabel: '完成率', unit: '%', min: 0, max: 100, bins: 10 },
 ]
 
-export const COMMUNITY_SUBJECTS: CommunitySubject[] = ['math', 'physics', 'english', 'other']
+export const COMMUNITY_SUBJECTS: CommunitySubject[] = ['SX', 'WL', 'YY', 'other']
 
 /**
  * 预置群体数据（20 条）。
@@ -54,21 +54,21 @@ export const COMMUNITY_SUBJECTS: CommunitySubject[] = ['math', 'physics', 'engli
  * 让百分位和直方图看起来接近真实群体。
  */
 const PRESET_POOL: CommunityRecord[] = [
-  { hours: 22, focus: 4, fatigue: 2, completion: 85, subject: 'math' },
-  { hours: 15, focus: 3, fatigue: 3, completion: 70, subject: 'math' },
-  { hours: 28, focus: 5, fatigue: 3, completion: 92, subject: 'math' },
-  { hours: 10, focus: 2, fatigue: 4, completion: 45, subject: 'math' },
-  { hours: 18, focus: 4, fatigue: 2, completion: 78, subject: 'math' },
-  { hours: 25, focus: 4, fatigue: 3, completion: 88, subject: 'physics' },
-  { hours: 12, focus: 3, fatigue: 4, completion: 55, subject: 'physics' },
-  { hours: 30, focus: 5, fatigue: 4, completion: 95, subject: 'physics' },
-  { hours: 8, focus: 2, fatigue: 2, completion: 40, subject: 'physics' },
-  { hours: 20, focus: 3, fatigue: 3, completion: 72, subject: 'physics' },
-  { hours: 16, focus: 4, fatigue: 2, completion: 80, subject: 'english' },
-  { hours: 24, focus: 3, fatigue: 3, completion: 75, subject: 'english' },
-  { hours: 6, focus: 2, fatigue: 1, completion: 30, subject: 'english' },
-  { hours: 32, focus: 5, fatigue: 4, completion: 96, subject: 'english' },
-  { hours: 14, focus: 3, fatigue: 5, completion: 60, subject: 'english' },
+  { hours: 22, focus: 4, fatigue: 2, completion: 85, subject: 'SX' },
+  { hours: 15, focus: 3, fatigue: 3, completion: 70, subject: 'SX' },
+  { hours: 28, focus: 5, fatigue: 3, completion: 92, subject: 'SX' },
+  { hours: 10, focus: 2, fatigue: 4, completion: 45, subject: 'SX' },
+  { hours: 18, focus: 4, fatigue: 2, completion: 78, subject: 'SX' },
+  { hours: 25, focus: 4, fatigue: 3, completion: 88, subject: 'WL' },
+  { hours: 12, focus: 3, fatigue: 4, completion: 55, subject: 'WL' },
+  { hours: 30, focus: 5, fatigue: 4, completion: 95, subject: 'WL' },
+  { hours: 8, focus: 2, fatigue: 2, completion: 40, subject: 'WL' },
+  { hours: 20, focus: 3, fatigue: 3, completion: 72, subject: 'WL' },
+  { hours: 16, focus: 4, fatigue: 2, completion: 80, subject: 'YY' },
+  { hours: 24, focus: 3, fatigue: 3, completion: 75, subject: 'YY' },
+  { hours: 6, focus: 2, fatigue: 1, completion: 30, subject: 'YY' },
+  { hours: 32, focus: 5, fatigue: 4, completion: 96, subject: 'YY' },
+  { hours: 14, focus: 3, fatigue: 5, completion: 60, subject: 'YY' },
   { hours: 26, focus: 4, fatigue: 3, completion: 82, subject: 'other' },
   { hours: 11, focus: 2, fatigue: 3, completion: 50, subject: 'other' },
   { hours: 19, focus: 3, fatigue: 2, completion: 68, subject: 'other' },

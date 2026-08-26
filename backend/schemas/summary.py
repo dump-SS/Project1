@@ -61,7 +61,7 @@ class Summary(BaseModel):
                 },
                 "dataPoints": {
                     "recordCount": 9,
-                    "subjects": ["math", "english"],
+                    "subjects": ["SX", "YY"],
                     "planCompletionRatio": 0.61,
                     "referencedAssessmentIds": ["a_7742", "a_7710"],
                 },

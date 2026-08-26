@@ -39,7 +39,7 @@ class Recommendation(BaseModel):
             "example": {
                 "recommendationId": "rec_20301",
                 "scene": "post_session",
-                "subject": "math",
+                "subject": "SX",
                 "generation": {
                     "status": "ready",
                     "source": "llm",
@@ -80,7 +80,7 @@ class RecommendationPending(BaseModel):
             "example": {
                 "recommendationId": "rec_20301",
                 "scene": "post_session",
-                "subject": "math",
+                "subject": "SX",
                 "generation": {"status": "pending"},
                 "createdAt": "2026-08-16T19:46:02+08:00",
             }
@@ -99,7 +99,7 @@ class RecommendationCreate(BaseModel):
 
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra={"example": {"scene": "post_session", "subject": "math", "recordId": "r_88012"}},
+        json_schema_extra={"example": {"scene": "post_session", "subject": "SX", "recordId": "r_88012"}},
     )
 
     scene: RecScene

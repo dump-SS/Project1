@@ -44,7 +44,7 @@ import './index.css';
 
 /* ============ 类型与常量 ============ */
 
-type Subject = 'math' | 'physics' | 'english';
+type Subject = 'SX' | 'WL' | 'YY';
 type ErrorReason = 'concept' | 'calculation' | 'reading' | 'method' | 'other';
 
 interface ErrorItem {
@@ -59,15 +59,15 @@ interface ErrorItem {
 }
 
 const SUBJECT_TABS: { key: Subject; label: string }[] = [
-  { key: 'math', label: '数学' },
-  { key: 'physics', label: '物理' },
-  { key: 'english', label: '英语' },
+  { key: 'SX', label: '数学' },
+  { key: 'WL', label: '物理' },
+  { key: 'YY', label: '英语' },
 ];
 
 const SUBJECT_KNOWLEDGE: Record<Subject, string[]> = {
-  math: ['函数单调性', '复合函数判定', '数列求和', '等差数列'],
-  physics: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
-  english: ['时态辨析', '从句引导词', '词义辨析', '阅读主旨'],
+  SX: ['函数单调性', '复合函数判定', '数列求和', '等差数列'],
+  WL: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
+  YY: ['时态辨析', '从句引导词', '词义辨析', '阅读主旨'],
 };
 
 const REASON_OPTIONS: { value: ErrorReason; label: string }[] = [
@@ -178,7 +178,7 @@ interface ErrorBookProps {
 }
 
 function ErrorBookInner({ messageApi }: ErrorBookProps) {
-  const [subject, setSubject] = useState<Subject>('math');
+  const [subject, setSubject] = useState<Subject>('SX');
   const [formOpen, setFormOpen] = useState(false);
   const [list, setList] = useState<ErrorItem[]>([]);
   const [form] = Form.useForm<{

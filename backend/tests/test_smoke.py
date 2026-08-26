@@ -69,8 +69,8 @@ def test_health_endpoint() -> None:
 
 def test_enum_values_match_openapi() -> None:
     assert {s.value for s in Subject} == {
-        "chinese", "math", "english", "physics", "chemistry", "biology",
-        "history", "geography", "politics", "other",
+        "YW", "SX", "YY", "WL", "HX", "SW",
+        "LS", "DL", "ZZ", "other",
     }
     assert {s.value for s in StateLabel} == {
         "efficient_stable", "fatigue_warning", "emotion_blocked",
@@ -96,7 +96,7 @@ def test_mock_data_validates() -> None:
     """mock_data.py 里硬编码的 6 个 List 必须能通过对应 schema 校验。"""
     assert GOAL_LIST_MOCK.items[0].goal_id == "g_5501"
     assert PLAN_LIST_MOCK.items[0].plan_id == "p_9001"
-    assert LEARNING_RECORD_LIST_MOCK.items[0].subject == Subject.math
+    assert LEARNING_RECORD_LIST_MOCK.items[0].subject == Subject.sx
     assert STATE_RESULT_LIST_MOCK.items[0].state_label == StateLabel.fatigue_warning
     assert RECOMMENDATION_LIST_MOCK.items[0].scene == RecScene.post_session
     assert SUMMARY_LIST_MOCK.items[0].summary_id == "sum_4402"
@@ -144,7 +144,7 @@ def test_guardian_request_requires_email() -> None:
 
 def test_record_input_rejects_bad_values() -> None:
     base = {
-        "subject": "math",
+        "subject": "SX",
         "startedAt": "2026-08-17T10:00:00+08:00",
         "durationMinutes": 30,
         "behavior": {"completion": "completed"},
@@ -155,7 +155,7 @@ def test_record_input_rejects_bad_values() -> None:
     }
     # 正常
     r = RecordInput.model_validate(base)
-    assert r.subject == Subject.math
+    assert r.subject == Subject.sx
     # focus=0 越界
     bad = {**base, "selfReport": {**base["selfReport"], "focus": 0}}
     with pytest.raises(ValueError):
@@ -191,7 +191,7 @@ def test_list_goals_uses_camelcase_pagination() -> None:
 def test_create_learning_record_validation() -> None:
     """POST /learning-records 走完整 Pydantic 校验，response camelCase。"""
     payload = {
-        "subject": "math",
+        "subject": "SX",
         "startedAt": "2026-08-17T10:00:00+08:00",
         "durationMinutes": 30,
         "behavior": {
@@ -206,7 +206,7 @@ def test_create_learning_record_validation() -> None:
     r = client.post("/api/v1/learning-records", json=payload)
     assert r.status_code == 201
     body = r.json()
-    assert body["subject"] == "math"
+    assert body["subject"] == "SX"
     assert "assessment" in body
     assert "recommendation" in body
     # 驼峰
@@ -275,7 +275,7 @@ def test_list_endpoints_have_pagination(path: str) -> None:
 
 def test_assessments_returns_history_not_list() -> None:
     """GET /assessments 返回单学科历史（subject + items），不是分页列表。"""
-    r = client.get("/api/v1/assessments?subject=math")
+    r = client.get("/api/v1/assessments?subject=SX")
     assert r.status_code == 200
     body = r.json()
     assert "subject" in body

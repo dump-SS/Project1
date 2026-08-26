@@ -15,7 +15,7 @@ export interface ChatMessage {
   createdAt: number
 }
 
-export type Subject = 'math' | 'physics' | 'english'
+export type Subject = 'SX' | 'WL' | 'YY'
 
 export type ErrorReason = 'concept' | 'calculation' | 'reading' | 'method' | 'other'
 
@@ -29,9 +29,9 @@ export interface ErrorItem {
 }
 
 export const SUBJECT_LABEL: Record<Subject, string> = {
-  math: '数学',
-  physics: '物理',
-  english: '英语',
+  SX: '数学',
+  WL: '物理',
+  YY: '英语',
 }
 
 export const REASON_LABEL: Record<ErrorReason, string> = {
@@ -52,9 +52,9 @@ export const REASON_OPTIONS: { value: ErrorReason; label: string }[] = [
 
 /** 各学科可选知识点（与错题本页 SUBJECT_KNOWLEDGE 一致） */
 export const SUBJECT_KNOWLEDGE: Record<Subject, string[]> = {
-  math: ['函数单调性', '复合函数判定', '数列求和', '等差数列'],
-  physics: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
-  english: ['时态辨析', '从句引导词', '词义辨析', '阅读主旨'],
+  SX: ['函数单调性', '复合函数判定', '数列求和', '等差数列'],
+  WL: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
+  YY: ['时态辨析', '从句引导词', '词义辨析', '阅读主旨'],
 }
 
 /* ============ localStorage ============ */
@@ -82,7 +82,7 @@ export function writeErrors(s: Subject, list: ErrorItem[]) {
 
 /** 读取全部学科的错题，按时间倒序合并 */
 export function readAllErrors(): (ErrorItem & { subject: Subject })[] {
-  const subjects: Subject[] = ['math', 'physics', 'english']
+  const subjects: Subject[] = ['SX', 'WL', 'YY']
   return subjects
     .flatMap((s) => readErrors(s).map((e) => ({ ...e, subject: s })))
     .sort((a, b) => b.createdAt - a.createdAt)

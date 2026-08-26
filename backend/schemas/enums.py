@@ -10,16 +10,21 @@ from enum import Enum
 
 
 class Subject(str, Enum):
-    chinese = "chinese"
-    math = "math"
-    english = "english"
-    physics = "physics"
-    chemistry = "chemistry"
-    biology = "biology"
-    history = "history"
-    geography = "geography"
-    politics = "politics"
-    other = "other"
+    """学科代码（拼音首字母大写，2026-08-26 与知识点库标准对齐；other 保留兜底）。
+
+    取值固定，禁止自造：YW 语文 / SX 数学 / YY 英语 / WL 物理 / HX 化学 /
+    SW 生物 / ZZ 思想政治 / LS 历史 / DL 地理。
+    """
+    yw = "YW"      # 语文
+    sx = "SX"      # 数学
+    yy = "YY"      # 英语
+    wl = "WL"      # 物理
+    hx = "HX"      # 化学
+    sw = "SW"      # 生物
+    zz = "ZZ"      # 思想政治
+    ls = "LS"      # 历史
+    dl = "DL"      # 地理
+    other = "other"  # 兜底（冷启动计划/建议降级）
 
 
 class Stage(str, Enum):

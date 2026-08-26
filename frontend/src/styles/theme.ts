@@ -70,29 +70,29 @@ export const typography = {
  * key 与 openapi.yaml components.schemas.Subject 的枚举完全一致。
  */
 export const subjectColors: Record<Subject, string> = {
-  chinese: '#6FA8D6',
-  math: '#4A7CB0',
-  english: '#8FD3B6',
-  physics: '#A9D4EC',
-  chemistry: '#9FC4D8',
-  biology: '#A8E0C8',
-  history: '#8CA3B5',
-  geography: '#C5E4F3',
-  politics: '#B8D4C7',
+  YW: '#6FA8D6',
+  SX: '#4A7CB0',
+  YY: '#8FD3B6',
+  WL: '#A9D4EC',
+  HX: '#9FC4D8',
+  SW: '#A8E0C8',
+  LS: '#8CA3B5',
+  DL: '#C5E4F3',
+  ZZ: '#B8D4C7',
   other: '#D6E4EC',
 };
 
 /** 学科中文名 · key 同上，与接口枚举一一对应 */
 export const subjectLabels: Record<Subject, string> = {
-  chinese: '语文',
-  math: '数学',
-  english: '英语',
-  physics: '物理',
-  chemistry: '化学',
-  biology: '生物',
-  history: '历史',
-  geography: '地理',
-  politics: '政治',
+  YW: '语文',
+  SX: '数学',
+  YY: '英语',
+  WL: '物理',
+  HX: '化学',
+  SW: '生物',
+  LS: '历史',
+  DL: '地理',
+  ZZ: '政治',
   other: '其他',
 };
 

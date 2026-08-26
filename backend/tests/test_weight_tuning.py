@@ -25,7 +25,7 @@ def _uid() -> str:
     return uuid.uuid4().hex[:10]
 
 
-def _add_records(user_id: str, count: int, subject: str = "math") -> None:
+def _add_records(user_id: str, count: int, subject: str = "SX") -> None:
     db = SessionLocal()
     try:
         for i in range(count):

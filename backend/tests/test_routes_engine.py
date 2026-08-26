@@ -36,7 +36,7 @@ def test_cold_start_returns_insufficient_data():
     且不输出 windowScore/trend（PRD 5.2「数据不足时不下结论」）。"""
     # 使用全套测试中未被其他用例写入的学科，避免模块级 TestClient 共享 SQLite
     # 时被其它测试污染，失去"冷启动"前提。
-    r = _post("chinese", 5, 1, "2026-08-01T08:00:00+08:00")
+    r = _post("YW", 5, 1, "2026-08-01T08:00:00+08:00")
     assert r.status_code == 201
     assessment = r.json()["assessment"]
     assert assessment["stateLabel"] == "insufficient_data"
@@ -49,7 +49,7 @@ def test_cold_start_returns_insufficient_data():
 def test_score_is_engine_computed_not_mock():
     """提交足够记录后，windowScore 必须是引擎算出的真实值（不是 mock 的 0.48）。"""
     for i, hour in enumerate(["08", "09", "10"]):
-        r = _post("chemistry", 5, 1, f"2026-08-02T{hour}:00:00+08:00")
+        r = _post("HX", 5, 1, f"2026-08-02T{hour}:00:00+08:00")
     assessment = r.json()["assessment"]
     assert assessment["dataSufficient"] is True
     assert assessment["assessmentId"] is not None
@@ -63,7 +63,7 @@ def test_trend_reflects_declining_sequence():
     seq = [(5, 1, "08"), (5, 1, "09"), (4, 2, "10"), (3, 3, "11"), (2, 4, "12")]
     last = None
     for focus, fatigue, hour in seq:
-        last = _post("physics", focus, fatigue, f"2026-08-03T{hour}:00:00+08:00")
+        last = _post("WL", focus, fatigue, f"2026-08-03T{hour}:00:00+08:00")
     assessment = last.json()["assessment"]
     assert assessment["trend"] == "down", f"趋势应为 down: {assessment}"
 
@@ -81,12 +81,12 @@ def test_window_ordering_is_deterministic():
     """
     same_ts = "2026-08-04T10:00:00+08:00"
     for focus, fatigue in [(5, 1), (4, 2), (3, 3), (2, 4)]:
-        _post("history", focus, fatigue, same_ts)
+        _post("LS", focus, fatigue, same_ts)
 
     trends = set()
     scores = set()
     for _ in range(5):
-        body = client.get("/api/v1/assessments/current?subject=history").json()
+        body = client.get("/api/v1/assessments/current?subject=LS").json()
         item = body["items"][0]
         trends.add(item.get("trend"))
         scores.add(item.get("windowScore"))
@@ -98,9 +98,9 @@ def test_window_ordering_is_deterministic():
 def test_current_assessment_has_explainability():
     """GET /assessments/current 必须带 displayText 与 basedOn（PRD 8.3 可解释性）。"""
     for hour in ["08", "09", "10"]:
-        _post("geography", 4, 2, f"2026-08-05T{hour}:00:00+08:00")
+        _post("DL", 4, 2, f"2026-08-05T{hour}:00:00+08:00")
 
-    body = client.get("/api/v1/assessments/current?subject=geography").json()
+    body = client.get("/api/v1/assessments/current?subject=DL").json()
     item = body["items"][0]
     assert item["displayText"], "缺少面向用户的自然语言说明"
     assert item["basedOn"]["recordIds"], "缺少参与计算的记录 ID"
@@ -113,10 +113,10 @@ def test_current_assessment_has_explainability():
 def test_history_accumulates_snapshots():
     """GET /assessments 返回历史快照序列（每次重算落库一条）。"""
     for hour in ["08", "09", "10", "11"]:
-        _post("politics", 4, 2, f"2026-08-06T{hour}:00:00+08:00")
+        _post("ZZ", 4, 2, f"2026-08-06T{hour}:00:00+08:00")
 
-    body = client.get("/api/v1/assessments?subject=politics").json()
-    assert body["subject"] == "politics"
+    body = client.get("/api/v1/assessments?subject=ZZ").json()
+    assert body["subject"] == "ZZ"
     assert len(body["items"]) >= 1
     point = body["items"][0]
     assert 0 <= point["windowScore"] <= 1

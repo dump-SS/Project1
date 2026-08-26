@@ -66,7 +66,7 @@ export default function CommunityUploadPage() {
   const [focus, setFocus] = useState(3)
   const [fatigue, setFatigue] = useState(3)
   const [completion, setCompletion] = useState(70)
-  const [subject, setSubject] = useState<CommunitySubject>('math')
+  const [subject, setSubject] = useState<CommunitySubject>('SX')
   const [submitted, setSubmitted] = useState(false)
 
   // 首次进入时确保群体池存在（20 条预置假数据）

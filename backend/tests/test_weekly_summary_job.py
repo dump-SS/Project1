@@ -43,7 +43,7 @@ def _mk_record(db, user_id, subject, n, use_error=True):
 def _seed():
     db = SessionLocal()
     try:
-        db.add(KnowledgeSubjectORM(id="ks_math", code="math", name="数学", version="1.0", enabled=True))
+        db.add(KnowledgeSubjectORM(id="ks_math", code="SX", name="数学", version="1.0", enabled=True))
         db.commit()
     finally:
         db.close()
@@ -56,16 +56,16 @@ def test_eligible_requires_three_records():
     db = SessionLocal()
     try:
         # u_ok：2 学习记录 + 1 错题 = 3
-        _mk_record(db, "u_ok", "math", 2, use_error=False)
-        _mk_record(db, "u_ok", "math", 1, use_error=True)
+        _mk_record(db, "u_ok", "SX", 2, use_error=False)
+        _mk_record(db, "u_ok", "SX", 1, use_error=True)
         # u_few：仅 2 条
-        _mk_record(db, "u_few", "math", 2, use_error=False)
+        _mk_record(db, "u_few", "SX", 2, use_error=False)
         db.commit()
 
         targets = _eligible_users_subjects(db)
         pairs = set(targets)
-        assert ("u_ok", "math") in pairs
-        assert ("u_few", "math") not in pairs
+        assert ("u_ok", "SX") in pairs
+        assert ("u_few", "SX") not in pairs
     finally:
         db.close()
 
@@ -75,7 +75,7 @@ def test_run_scan_skips_already_generated():
 
     db = SessionLocal()
     try:
-        _mk_record(db, "u_gen", "math", 3, use_error=True)
+        _mk_record(db, "u_gen", "SX", 3, use_error=True)
         # 预置一条本周 knowledge 复盘 → 应被跳过
         db.add(SummaryORM(
             id="sum_prev", user_id="u_gen", dimension="knowledge",
@@ -99,7 +99,7 @@ def test_run_scan_generates_when_eligible_and_not_yet():
 
     db = SessionLocal()
     try:
-        _mk_record(db, "u_new", "math", 3, use_error=True)
+        _mk_record(db, "u_new", "SX", 3, use_error=True)
         db.commit()
 
         stats = run_weekly_scan()

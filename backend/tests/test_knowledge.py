@@ -22,10 +22,10 @@ client = TestClient(app)
 def test_knowledge_summary_request_validates() -> None:
     """结构化入参通过 schema 校验（无原文字段）。"""
     req = KnowledgeSummaryCreate.model_validate({
-        "subject": "math",
+        "subject": "SX",
         "period": "本周",
     })
-    assert req.subject == "math"
+    assert req.subject == "SX"
 
 
 def test_error_parse_request_validates() -> None:
@@ -37,7 +37,7 @@ def test_error_parse_request_validates() -> None:
 def test_knowledge_summary_returns_fallback_on_mock() -> None:
     """MockProvider 返回 None → 走本地降级文案，非空（v2.2 落库后 202）。"""
     r = client.post("/api/v1/knowledge-summary", json={
-        "subject": "math",
+        "subject": "SX",
         "period": "本周",
     })
     assert r.status_code == 202
@@ -57,7 +57,7 @@ def test_error_parse_returns_fallback_on_mock() -> None:
 
 def test_knowledge_summary_missing_field_returns_400() -> None:
     """缺 period → 400 + 统一错误格式。"""
-    r = client.post("/api/v1/knowledge-summary", json={"subject": "math"})
+    r = client.post("/api/v1/knowledge-summary", json={"subject": "SX"})
     assert r.status_code == 400
     body = r.json()
     assert "error" in body

@@ -32,31 +32,31 @@ BASE_URL = "http://localhost:8000/api/v1"
 # 14 条学习记录的模板（活跃用户场景：3 天连击 + 趋势）
 ACTIVE_RECORDS = [
     # day 1
-    {"subject": "math", "hour": 8, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.9, "completion": "completed"},
-    {"subject": "math", "hour": 10, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.85, "completion": "completed"},
-    {"subject": "english", "hour": 14, "focus": 4, "fatigue": 2, "emotion": "neutral", "accuracy": 0.8, "completion": "completed"},
-    {"subject": "math", "hour": 19, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.75, "completion": "completed"},
-    {"subject": "math", "hour": 20, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.7, "completion": "completed"},
+    {"subject": "SX", "hour": 8, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.9, "completion": "completed"},
+    {"subject": "SX", "hour": 10, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.85, "completion": "completed"},
+    {"subject": "YY", "hour": 14, "focus": 4, "fatigue": 2, "emotion": "neutral", "accuracy": 0.8, "completion": "completed"},
+    {"subject": "SX", "hour": 19, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.75, "completion": "completed"},
+    {"subject": "SX", "hour": 20, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.7, "completion": "completed"},
     # day 2
-    {"subject": "math", "hour": 8, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.92, "completion": "completed"},
-    {"subject": "english", "hour": 10, "focus": 4, "fatigue": 2, "emotion": "positive", "accuracy": 0.85, "completion": "completed"},
-    {"subject": "math", "hour": 16, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.88, "completion": "completed"},
-    {"subject": "math", "hour": 20, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.78, "completion": "completed"},
+    {"subject": "SX", "hour": 8, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.92, "completion": "completed"},
+    {"subject": "YY", "hour": 10, "focus": 4, "fatigue": 2, "emotion": "positive", "accuracy": 0.85, "completion": "completed"},
+    {"subject": "SX", "hour": 16, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.88, "completion": "completed"},
+    {"subject": "SX", "hour": 20, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.78, "completion": "completed"},
     # day 3
-    {"subject": "math", "hour": 8, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.93, "completion": "completed"},
-    {"subject": "english", "hour": 11, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.88, "completion": "completed"},
-    {"subject": "math", "hour": 15, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.9, "completion": "completed"},
-    {"subject": "math", "hour": 19, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.95, "completion": "completed"},
-    {"subject": "english", "hour": 21, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.8, "completion": "completed"},
+    {"subject": "SX", "hour": 8, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.93, "completion": "completed"},
+    {"subject": "YY", "hour": 11, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.88, "completion": "completed"},
+    {"subject": "SX", "hour": 15, "focus": 5, "fatigue": 2, "emotion": "positive", "accuracy": 0.9, "completion": "completed"},
+    {"subject": "SX", "hour": 19, "focus": 5, "fatigue": 1, "emotion": "positive", "accuracy": 0.95, "completion": "completed"},
+    {"subject": "YY", "hour": 21, "focus": 4, "fatigue": 3, "emotion": "neutral", "accuracy": 0.8, "completion": "completed"},
 ]
 
 # 5 条疲劳记录（连续疲劳自评=5，触发 fatigue_warning）
 FATIGUE_RECORDS = [
-    {"subject": "math", "hour": 9, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.5, "completion": "partial"},
-    {"subject": "math", "hour": 11, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.45, "completion": "partial"},
-    {"subject": "math", "hour": 15, "focus": 1, "fatigue": 5, "emotion": "negative", "accuracy": 0.4, "completion": "abandoned"},
-    {"subject": "math", "hour": 17, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.5, "completion": "partial"},
-    {"subject": "math", "hour": 20, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.45, "completion": "partial"},
+    {"subject": "SX", "hour": 9, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.5, "completion": "partial"},
+    {"subject": "SX", "hour": 11, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.45, "completion": "partial"},
+    {"subject": "SX", "hour": 15, "focus": 1, "fatigue": 5, "emotion": "negative", "accuracy": 0.4, "completion": "abandoned"},
+    {"subject": "SX", "hour": 17, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.5, "completion": "partial"},
+    {"subject": "SX", "hour": 20, "focus": 2, "fatigue": 5, "emotion": "negative", "accuracy": 0.45, "completion": "partial"},
 ]
 
 

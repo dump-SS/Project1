@@ -16,7 +16,7 @@ HDR = {"X-User-ID": "u_limit_test"}
 
 
 def _invoke():
-    return client.post("/api/v1/knowledge-summary", json={"subject": "math", "period": "本周"}, headers=HDR)
+    return client.post("/api/v1/knowledge-summary", json={"subject": "SX", "period": "本周"}, headers=HDR)
 
 
 def test_rate_limit_persists_across_sessions():

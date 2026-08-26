@@ -7,16 +7,17 @@
 
 /* ---------- 枚举字典（openapi.yaml 0.4 节） ---------- */
 
+/** 学科代码：拼音首字母大写（2026-08-26 与知识点库标准对齐），other 保留兜底 */
 export type Subject =
-  | 'chinese'
-  | 'math'
-  | 'english'
-  | 'physics'
-  | 'chemistry'
-  | 'biology'
-  | 'history'
-  | 'geography'
-  | 'politics'
+  | 'YW' // 语文
+  | 'SX' // 数学
+  | 'YY' // 英语
+  | 'WL' // 物理
+  | 'HX' // 化学
+  | 'SW' // 生物
+  | 'ZZ' // 思想政治
+  | 'LS' // 历史
+  | 'DL' // 地理
   | 'other';
 
 export type Stage = 'junior' | 'senior';

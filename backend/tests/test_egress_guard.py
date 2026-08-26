@@ -21,12 +21,12 @@ from egress_guard import (
 
 class TestStatePlan:
     def test_state_plan_passes(self):
-        payload = {"subject": "math", "focusAvg": 3.5, "stateLabel": "efficient_stable"}
+        payload = {"subject": "SX", "focusAvg": 3.5, "stateLabel": "efficient_stable"}
         assert Guard.check(payload, STATE_PLAN) == payload
 
     def test_undeclared_data_class_rejected(self):
         with pytest.raises(EgressViolation):
-            Guard.check({"subject": "math"}, "some_unknown_class")
+            Guard.check({"subject": "SX"}, "some_unknown_class")
 
     def test_state_plan_with_raw_field_rejected(self):
         # 板块一结构化特征里夹带原文字段也必须被拦
@@ -37,7 +37,7 @@ class TestStatePlan:
 class TestKnowledgeAggregated:
     def test_whitelist_passes(self):
         payload = {
-            "subject": "math",
+            "subject": "SX",
             "pointName": "函数单调性",
             "masteryValue": 0.62,
             "errorCandidates": ["概念不清", "计算失误"],

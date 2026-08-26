@@ -168,7 +168,7 @@ export default function SummaryReviewPage() {
   /* ----- 知识复盘（S0-T4）：知识 tab 主动触发，三异常态有明确文案 ----- */
   const [knowledgeGenerating, setKnowledgeGenerating] = useState(false)
   const [knowledgeSummary, setKnowledgeSummary] = useState<string | null>(null)
-  const [knowledgeSubject, setKnowledgeSubject] = useState<'math' | 'physics' | 'english'>('math')
+  const [knowledgeSubject, setKnowledgeSubject] = useState<'SX' | 'WL' | 'YY'>('SX')
 
   const handleGenerateKnowledge = async () => {
     setError(null)
@@ -258,13 +258,13 @@ export default function SummaryReviewPage() {
           <div className={styles.knowledgeRow}>
             <select
               value={knowledgeSubject}
-              onChange={(e) => setKnowledgeSubject(e.target.value as 'math' | 'physics' | 'english')}
+              onChange={(e) => setKnowledgeSubject(e.target.value as 'SX' | 'WL' | 'YY')}
               className={styles.subjectSelect}
               aria-label="选择学科"
             >
-              <option value="math">数学</option>
-              <option value="physics">物理</option>
-              <option value="english">英语</option>
+              <option value="SX">数学</option>
+              <option value="WL">物理</option>
+              <option value="YY">英语</option>
             </select>
             <button
               type="button"

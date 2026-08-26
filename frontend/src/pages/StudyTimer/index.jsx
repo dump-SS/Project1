@@ -306,7 +306,7 @@ export default function StudyTimerPage() {
       const hit = Object.entries(subjectLabels).find(([, label]) => t.startsWith(`${label} ·`))
       if (hit) return hit[0]
     }
-    return 'math'
+    return 'SX'
   })()
   const [subject, setSubject] = useState(initialSubject)
 

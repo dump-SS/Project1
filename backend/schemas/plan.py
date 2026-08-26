@@ -21,7 +21,7 @@ class PlanTask(BaseModel):
         json_schema_extra={
             "example": {
                 "taskId": "t_30011",
-                "subject": "math",
+                "subject": "SX",
                 "topic": "函数图像与性质 · 巩固已学",
                 "estimatedMinutes": 40,
                 "priority": 1,
@@ -114,7 +114,7 @@ class Plan(BaseModel):
                 "tasks": [
                     {
                         "taskId": "t_30011",
-                        "subject": "math",
+                        "subject": "SX",
                         "topic": "函数图像与性质 · 巩固已学",
                         "estimatedMinutes": 40,
                         "priority": 1,

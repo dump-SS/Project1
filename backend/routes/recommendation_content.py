@@ -107,13 +107,13 @@ def _build_prompt(features: dict) -> tuple[str, str]:
     硬约束：
     - 输出 1 句话 ≤60 字
     - 用第二人称「你」
-    - JSON 格式：{"subject": "math", "topic": "推荐的具体学习主题", "reason": "简短理由"}
+    - JSON 格式：{"subject": "SX", "topic": "推荐的具体学习主题", "reason": "简短理由"}
     """
     system = (
         "你是 EpochX 学习助手，给学生推荐下一个学习内容。\n"
         "硬约束：\n"
         "1) 输出 JSON：{\"subject\":\"<学科枚举>\",\"topic\":\"<具体主题>\",\"reason\":\"<理由,≤50字>\"}\n"
-        "2) subject 必须是以下之一：chinese, math, english, physics, chemistry, biology, history, geography, politics, other\n"
+        "2) subject 必须是以下之一：SX（数学）, YW（语文）, YY（英语）, WL（物理）, HX（化学）, SW（生物）, ZZ（思想政治）, LS（历史）, DL（地理）, other\n"
         "3) topic 必须是该学科下一个具体可学习的小主题（如「函数图像」「完形填空」），不要泛泛而谈\n"
         "4) reason 用第二人称「你」，聚焦客观事实，不给绝对化建议\n"
         "5) 只输出 JSON，不要 markdown 围栏，不要解释文字"

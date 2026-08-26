@@ -28,8 +28,8 @@ const STAGES: { value: Stage; label: string; grades: { value: string; label: str
 ]
 
 const SUBJECTS: Subject[] = [
-  'chinese', 'math', 'english', 'physics', 'chemistry',
-  'biology', 'history', 'geography', 'politics', 'other',
+  'YW', 'SX', 'YY', 'WL', 'HX',
+  'SW', 'LS', 'DL', 'ZZ', 'other',
 ]
 
 export default function ProfileSetupPage() {

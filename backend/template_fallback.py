@@ -18,9 +18,9 @@ __all__ = [
 RecommendationItem = dict  # { "title": str, "content": str }
 
 SUBJECT_CN = {
-    "chinese": "语文", "math": "数学", "english": "英语",
-    "physics": "物理", "chemistry": "化学", "biology": "生物",
-    "history": "历史", "geography": "地理", "politics": "政治", "other": "学习",
+    "YW": "语文", "SX": "数学", "YY": "英语",
+    "WL": "物理", "HX": "化学", "SW": "生物",
+    "LS": "历史", "DL": "地理", "ZZ": "政治", "other": "学习",
 }
 
 

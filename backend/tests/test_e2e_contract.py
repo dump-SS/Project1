@@ -32,7 +32,7 @@ def test_a1_create_goal_returns_201_with_progress():
     """
     r = client.post("/api/v1/goals", json={
         "type": "short_term",
-        "subject": "math",
+        "subject": "SX",
         "title": "两周后期中考试数学 120+",
         "targetDate": "2026-08-30",
     })
@@ -52,7 +52,7 @@ def test_a2_create_plan_returns_tasks():
     """
     # 先建一个 active 目标，保证计划能生成任务
     client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "math", "title": "A2 数学目标",
+        "type": "short_term", "subject": "SX", "title": "A2 数学目标",
     })
     r = client.post("/api/v1/plans", json={
         "planDate": "2026-08-18",
@@ -75,7 +75,7 @@ def test_a3_submit_learning_record_triggers_assessment_and_recommendation():
     断言同步返回 assessment + recommendationId，不依赖 DB 数据形态。
     """
     r = client.post("/api/v1/learning-records", json={
-        "subject": "math",
+        "subject": "SX",
         "startedAt": "2026-08-18T19:00:00+08:00",
         "durationMinutes": 45,
         "behavior": {"completion": "partial", "accuracy": 0.62, "interruptions": 3, "blurCount": 5},
@@ -86,7 +86,7 @@ def test_a3_submit_learning_record_triggers_assessment_and_recommendation():
     assert "recordId" in body
     assert "assessment" in body
     assessment = body["assessment"]
-    assert assessment["subject"] == "math"
+    assert assessment["subject"] == "SX"
     assert "stateLabel" in assessment
     assert "dataSufficient" in assessment
     assert "recordCount" in assessment
@@ -121,7 +121,7 @@ def test_a5_poll_recommendation_gets_ready():
     """
     # 先提交记录拿 recommendationId
     r = client.post("/api/v1/learning-records", json={
-        "subject": "english",
+        "subject": "YY",
         "startedAt": "2026-08-18T20:00:00+08:00",
         "durationMinutes": 30,
         "behavior": {"completion": "completed"},
@@ -176,13 +176,13 @@ def test_b2_goal_create_persists_and_appears_in_list():
     """
     created = client.post("/api/v1/goals", json={
         "type": "long_term",
-        "subject": "english",
+        "subject": "YY",
         "title": "高考英语稳定在 135 分区间",
     })
     assert created.status_code == 201
     body = created.json()
     created_id = body["goalId"]
-    assert body["subject"] == "english"
+    assert body["subject"] == "YY"
     assert body["title"] == "高考英语稳定在 135 分区间"
 
     list_resp = client.get("/api/v1/goals?status=all")
@@ -261,7 +261,7 @@ def test_b7_patch_plan_task_marks_completed_and_user_adjusted():
     """
     # 先建目标 + 计划拿真实 taskId
     goal = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "physics", "title": "B7 物理目标",
+        "type": "short_term", "subject": "WL", "title": "B7 物理目标",
     })
     goal_id = goal.json()["goalId"]
     plan = client.post("/api/v1/plans", json={
@@ -289,7 +289,7 @@ def test_b7_patch_plan_task_marks_completed_and_user_adjusted():
 def test_b8_patch_plan_task_soft_delete():
     """B8: PATCH removed=true 软删除任务，GET 计划详情不再列出该任务。"""
     goal = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "chemistry", "title": "B8 化学目标",
+        "type": "short_term", "subject": "HX", "title": "B8 化学目标",
     })
     plan = client.post("/api/v1/plans", json={
         "planDate": "2026-08-23", "availableMinutes": 90, "goalIds": [goal.json()["goalId"]],
@@ -313,7 +313,7 @@ def test_b8_patch_plan_task_soft_delete():
 def test_b9_goal_archive_via_patch_status():
     """B9: PATCH /goals/{id} status=archived 归档，list 默认 active 查不到（契约 2.3 归档代替删除）。"""
     created = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "biology", "title": "B9 生物目标",
+        "type": "short_term", "subject": "SW", "title": "B9 生物目标",
     })
     goal_id = created.json()["goalId"]
 
@@ -338,7 +338,7 @@ def test_b10_goal_patch_404_on_missing_id():
 def test_b11_goal_patch_rejects_invalid_status():
     """B11: PATCH /goals/{id} status=completed → 400（契约仅允许 active/archived）。"""
     created = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "history", "title": "B11 历史目标",
+        "type": "short_term", "subject": "LS", "title": "B11 历史目标",
     })
     goal_id = created.json()["goalId"]
     r = client.patch(f"/api/v1/goals/{goal_id}", json={"status": "completed"})
@@ -353,7 +353,7 @@ def test_b12_goal_progress_aggregates_from_plan_tasks():
     建目标 → 建计划（生成任务）→ 完成一个任务 → 查目标列表，progress 应反映完成情况。
     """
     goal = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "geography", "title": "B12 地理目标",
+        "type": "short_term", "subject": "DL", "title": "B12 地理目标",
     })
     goal_id = goal.json()["goalId"]
 
@@ -387,7 +387,7 @@ def test_b13_goal_user_isolation():
     """
     # 用户 A 创建
     a_created = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "politics", "title": "B13 A 的目标",
+        "type": "short_term", "subject": "ZZ", "title": "B13 A 的目标",
     }, headers={"X-User-ID": "user_a"})
     assert a_created.status_code == 201
     a_goal_id = a_created.json()["goalId"]
@@ -448,8 +448,8 @@ def test_b16_plan_cold_start_has_fallback_task():
     task = body["tasks"][0]
     # P0-3：subject 是合法 Subject 枚举
     assert task["subject"] in (
-        "chinese", "math", "english", "physics", "chemistry",
-        "biology", "history", "geography", "politics", "other",
+        "YW", "SX", "YY", "WL", "HX",
+        "SW", "LS", "DL", "ZZ", "other",
     ), f"task.subject 非法: {task['subject']}"
     # P0-2：topic 是可读中文（非空、非裸 enum）
     assert task["topic"], "task.topic 不应为空"
@@ -497,7 +497,7 @@ def test_d1_full_contract_loop_end_to_end():
     """
     # ① 创建目标
     goal = client.post("/api/v1/goals", json={
-        "type": "short_term", "subject": "math",
+        "type": "short_term", "subject": "SX",
         "title": "契约闭环测试目标", "targetDate": "2026-08-30",
     })
     assert goal.status_code == 201
@@ -513,7 +513,7 @@ def test_d1_full_contract_loop_end_to_end():
 
     # ③ 提交学习记录（触发状态计算 + 建议句柄），关联真实 planTaskId
     record = client.post("/api/v1/learning-records", json={
-        "subject": "math", "startedAt": "2026-08-18T20:00:00+08:00",
+        "subject": "SX", "startedAt": "2026-08-18T20:00:00+08:00",
         "durationMinutes": 40,
         "planTaskId": plan_task_id,
         "behavior": {"completion": "completed", "accuracy": 0.8, "interruptions": 1},
@@ -524,10 +524,10 @@ def test_d1_full_contract_loop_end_to_end():
     rec_id = record.json()["recommendation"]["recommendationId"]
 
     # ④ 查当前状态（应该有了第一条记录的评估）
-    state = client.get("/api/v1/assessments/current?subject=math")
+    state = client.get("/api/v1/assessments/current?subject=SX")
     assert state.status_code == 200
     state_item = state.json()["items"][0]
-    assert state_item["subject"] == "math"
+    assert state_item["subject"] == "SX"
 
     # ⑤ 轮询建议
     rec = client.get(f"/api/v1/recommendations/{rec_id}")
@@ -552,7 +552,7 @@ def test_e1_assessment_feedback_persists_and_overwrites():
     # 提交足够记录让 data_sufficient=true（窗口默认 7 条）
     for i in range(7):
         client.post("/api/v1/learning-records", json={
-            "subject": "math",
+            "subject": "SX",
             "startedAt": f"2026-08-1{i+1}T19:00:00+08:00",
             "durationMinutes": 45,
             "behavior": {"completion": "completed", "accuracy": 0.8, "interruptions": 1},
@@ -560,7 +560,7 @@ def test_e1_assessment_feedback_persists_and_overwrites():
         })
 
     # 拿到 data_sufficient 的 assessmentId（GET /assessments/current 返回最新快照 id）
-    state = client.get("/api/v1/assessments/current?subject=math").json()
+    state = client.get("/api/v1/assessments/current?subject=SX").json()
     assessment_id = state["items"][0].get("assessmentId")
     assert assessment_id, "7 条记录后应有 data_sufficient 的 assessmentId"
 
@@ -606,13 +606,13 @@ def test_e3_assessment_feedback_user_isolation():
     # 用户 A 提交记录生成评估
     for i in range(7):
         client.post("/api/v1/learning-records", json={
-            "subject": "physics",
+            "subject": "WL",
             "startedAt": f"2026-08-1{i+1}T19:00:00+08:00",
             "durationMinutes": 30,
             "behavior": {"completion": "completed"},
             "selfReport": {"focus": 4, "fatigue": 2, "emotion": "positive", "difficultyFeel": "moderate"},
         }, headers={"X-User-ID": "user_e3_a"})
-    state = client.get("/api/v1/assessments/current?subject=physics", headers={"X-User-ID": "user_e3_a"}).json()
+    state = client.get("/api/v1/assessments/current?subject=WL", headers={"X-User-ID": "user_e3_a"}).json()
     assessment_id = state["items"][0].get("assessmentId")
     assert assessment_id, "用户 A 应有评估"
 

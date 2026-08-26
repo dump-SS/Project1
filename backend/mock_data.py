@@ -20,7 +20,7 @@ USER_MOCK = User.model_validate(
         "userId": "u_10237",
         "stage": "senior",
         "grade": "高二",
-        "subjects": ["math", "english", "physics"],
+        "subjects": ["SX", "YY", "WL"],
         "guardianAuthorization": {
             "status": "active",
             "expiresAt": "2026-09-10T00:00:00+08:00",
@@ -45,7 +45,7 @@ GOAL_LIST_MOCK = GoalList.model_validate(
             {
                 "goalId": "g_5501",
                 "type": "short_term",
-                "subject": "math",
+                "subject": "SX",
                 "title": "两周后期中考试数学 120+",
                 "targetDate": "2026-08-30",
                 "status": "active",
@@ -73,7 +73,7 @@ PLAN_LIST_MOCK = PlanList.model_validate(
                 "tasks": [
                     {
                         "taskId": "t_30011",
-                        "subject": "math",
+                        "subject": "SX",
                         "topic": "函数图像与性质 · 巩固已学",
                         "estimatedMinutes": 40,
                         "priority": 1,
@@ -94,7 +94,7 @@ LEARNING_RECORD_LIST_MOCK = LearningRecordList.model_validate(
         "items": [
             {
                 "recordId": "r_88012",
-                "subject": "math",
+                "subject": "SX",
                 "startedAt": "2026-08-16T19:00:00+08:00",
                 "durationMinutes": 45,
                 "planTaskId": "t_30011",
@@ -113,7 +113,7 @@ STATE_RESULT_LIST_MOCK = StateResultList.model_validate(
         "items": [
             {
                 "assessmentId": "a_7742",
-                "subject": "math",
+                "subject": "SX",
                 "windowScore": 0.48,
                 "trend": "down",
                 "stateLabel": "fatigue_warning",
@@ -129,7 +129,7 @@ STATE_RESULT_LIST_MOCK = StateResultList.model_validate(
             },
             {
                 "assessmentId": None,
-                "subject": "english",
+                "subject": "YY",
                 "stateLabel": "insufficient_data",
                 "displayText": "数据积累中，再记录几次就能给出判断",
                 "dataSufficient": False,
@@ -142,7 +142,7 @@ STATE_RESULT_LIST_MOCK = StateResultList.model_validate(
 
 ASSESSMENT_HISTORY_MOCK = AssessmentHistory.model_validate(
     {
-        "subject": "math",
+        "subject": "SX",
         "items": [
             {"date": "2026-08-14", "windowScore": 0.61, "stateLabel": "efficient_stable", "trend": "flat"},
             {"date": "2026-08-15", "windowScore": 0.55, "stateLabel": "fluctuating_up", "trend": "down"},
@@ -158,7 +158,7 @@ RECOMMENDATION_LIST_MOCK = RecommendationList.model_validate(
             {
                 "recommendationId": "rec_20301",
                 "scene": "post_session",
-                "subject": "math",
+                "subject": "SX",
                 "generation": {
                     "status": "ready",
                     "source": "llm",
@@ -209,7 +209,7 @@ SUMMARY_LIST_MOCK = SummaryList.model_validate(
                 },
                 "dataPoints": {
                     "recordCount": 9,
-                    "subjects": ["math", "english"],
+                    "subjects": ["SX", "YY"],
                     "planCompletionRatio": 0.61,
                     "referencedAssessmentIds": ["a_7742", "a_7710"],
                 },

@@ -59,10 +59,10 @@ export async function fetchSubjectDistribution(signal?: AbortSignal): Promise<Su
  */
 export function placeholderSubjectDistribution(): SubjectPanel {
   return buildSlices({
-    math: 620,
-    english: 410,
-    physics: 265,
-    chinese: 180,
-    chemistry: 120,
+    SX: 620,
+    YY: 410,
+    WL: 265,
+    YW: 180,
+    HX: 120,
   });
 }

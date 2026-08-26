@@ -95,7 +95,7 @@ export default function Knowledge() {
   // v2.1 转正：真实 API 数据优先，失败回退硬编码树（保留 UI，不白屏）
   useEffect(() => {
     let cancelled = false;
-    fetchKnowledgePoints('math')
+    fetchKnowledgePoints('SX')
       .then((items) => {
         if (!cancelled) setPoints(items);
       })
@@ -111,7 +111,7 @@ export default function Knowledge() {
   const [masteryMap, setMasteryMap] = useState<Record<string, number>>({});
   useEffect(() => {
     let cancelled = false;
-    fetchSubjectMastery('math')
+    fetchSubjectMastery('SX')
       .then((res) => {
         if (cancelled) return;
         const m: Record<string, number> = {};
@@ -136,11 +136,11 @@ export default function Knowledge() {
       return [
         {
           title: '数学',
-          key: 'math',
+          key: 'SX',
           selectable: false,
           children: roots.map((root) => ({
             title: root.name,
-            key: `math-${root.pointId}`,
+            key: `SX-${root.pointId}`,
             selectable: false,
             children: childrenOf(root.pointId).map((cp) => {
               const mastery = masteryMap[cp.pointId] ?? 0;
@@ -160,7 +160,7 @@ export default function Knowledge() {
                     </span>
                   </span>
                 ),
-                key: `math-${cp.pointId}`,
+                key: `SX-${cp.pointId}`,
                 isLeaf: true,
                 selectable: true,
               };
@@ -183,7 +183,7 @@ export default function Knowledge() {
                           <span className="kb-tree-label">{root.name}</span>
                         </span>
                       ),
-                      key: `math-${root.pointId}-leaf`,
+                      key: `SX-${root.pointId}-leaf`,
                       isLeaf: true,
                       selectable: true,
                     };
@@ -204,11 +204,11 @@ export default function Knowledge() {
     return [
       {
         title: '数学',
-        key: 'math',
+        key: 'SX',
         selectable: false,
         children: Object.entries(KNOWLEDGE_TREE).map(([category, nodes]) => ({
           title: category,
-          key: `math-${category}`,
+          key: `SX-${category}`,
           selectable: false,
           children: nodes.map((n) => {
             const dataNode: DataNode = {
@@ -224,7 +224,7 @@ export default function Knowledge() {
                   </span>
                 </span>
               ),
-              key: `math-${category}-${n.label}`,
+              key: `SX-${category}-${n.label}`,
               isLeaf: true,
               selectable: true,
             };
@@ -255,8 +255,8 @@ export default function Knowledge() {
           <aside className="kb-tree glass">
             <div className="kb-tree-header">数学 · 知识点</div>
             <Tree
-              defaultExpandedKeys={['math', 'math-函数', 'math-几何', 'math-数列']}
-              defaultSelectedKeys={['math-函数-单调性']}
+              defaultExpandedKeys={['SX', 'SX-函数', 'SX-几何', 'SX-数列']}
+              defaultSelectedKeys={['SX-函数-单调性']}
               onSelect={onSelect}
               treeData={treeData}
               blockNode
@@ -314,7 +314,7 @@ export default function Knowledge() {
           width={720}
         >
           <KnowledgeGraphView
-            subjectCode="math"
+            subjectCode="SX"
             onSelect={(p) => {
               setSelected({
                 label: p.name,
