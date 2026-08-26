@@ -234,6 +234,15 @@ def get_point(
         )
     ).scalars().all()
     data = _point_to_item(p)
+    # 内容字段（知识点库建表后填充；typical_errors/keywords 为 JSON 数组文本，
+    # 由 KnowledgePointDetail 的 field_validator 反序列化）
+    data["explanation"] = p.explanation
+    data["frequency"] = p.frequency
+    data["typicalErrors"] = p.typical_errors
+    data["example"] = p.example
+    data["keywords"] = p.keywords
+    data["modulePath"] = p.module_path
+    data["sourceVersion"] = p.source_version
     data["relations"] = [_rel_to_item(r) for r in rels]
     return KnowledgePointDetail.model_validate(data)
 

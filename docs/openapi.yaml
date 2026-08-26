@@ -3899,6 +3899,41 @@ components:
           type: number
         errorTip:
           type: string
+          description: 易错点提示
+        explanation:
+          type: string
+          nullable: true
+          description: 讲解（80-200 字）
+        frequency:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 考频 1-5
+        typicalErrors:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 典型错误（至少 3 条具体犯错动作）
+        example:
+          type: string
+          nullable: true
+          description: 例题，以「[仿题]」开头，含题目+解析
+        keywords:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 关键词 3-8 个
+        modulePath:
+          type: string
+          nullable: true
+          description: 模块路径
+        sourceVersion:
+          type: string
+          nullable: true
+          description: 教材版本全称（如"人教A版2019"）
         relations:
           type: array
           items:

@@ -32,6 +32,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
 
+# 知识点 JSON 内容列编解码（typical_errors / keywords 存 JSON 数组文本）
+def db_json_to_list(raw: str | None) -> list[str]:
+    """把 ORM 列里的 JSON 数组文本反序列化为 list；None/非法回退空列表。"""
+    if not raw:
+        return []
+    try:
+        import json
+        val = json.loads(raw)
+        return val if isinstance(val, list) else []
+    except Exception:  # noqa: BLE001 — 脏数据降级空列表
+        return []
+
+
+def db_list_to_json(values: list[str]) -> str:
+    """list → JSON 数组文本（存 String 列）。"""
+    import json
+    return json.dumps(values, ensure_ascii=False)
+
+
 class KnowledgeSubject(Base):
     """学科（kb_subjects）。enabled=true 才可查。"""
 
@@ -60,6 +79,14 @@ class KnowledgePoint(Base):
     difficulty: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 1-5
     exam_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.1)  # 0-1
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # 知识点库内容字段（2026-08-25 建表；typical_errors/keywords 存 JSON 数组文本）
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)  # 讲解（80-200 字）
+    frequency: Mapped[int | None] = mapped_column(Integer, nullable=True, default=3)  # 频次 1-5
+    typical_errors: Mapped[str | None] = mapped_column(String, nullable=True)  # JSON array
+    example: Mapped[str | None] = mapped_column(Text, nullable=True)  # 例题（[仿题]开头）
+    keywords: Mapped[str | None] = mapped_column(String, nullable=True)  # JSON array
+    module_path: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 模块路径
+    source_version: Mapped[str | None] = mapped_column(String(32), nullable=True)  # 教材全称（人教A版2019）
 
 
 class KnowledgePointRelation(Base):

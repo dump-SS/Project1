@@ -65,6 +65,11 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("weight_adjust_logs")}
         if "before_m1" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # 知识点库建表：kb_points.explanation 内容列，老库需重建
+    if insp.has_table("kb_points"):
+        cols = {c["name"] for c in insp.get_columns("kb_points")}
+        if "explanation" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

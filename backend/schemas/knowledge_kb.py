@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class KnowledgeSubject(BaseModel):
@@ -48,7 +48,33 @@ class KnowledgePointRelation(BaseModel):
 
 
 class KnowledgePointDetail(KnowledgePoint):
+    """知识点详情：基础字段 + 内容字段（讲解/频次/典型错误/例题/关键词/模块/教材）。
+
+    typical_errors / keywords 在 ORM 层是 JSON 数组文本，经 validators 反序列化为 list。
+    """
     relations: List[KnowledgePointRelation] = []
+
+    explanation: str | None = None
+    frequency: int | None = None
+    typical_errors: List[str] | None = Field(default=None, alias="typicalErrors")
+    example: str | None = None
+    keywords: List[str] | None = Field(default=None, alias="keywords")
+    module_path: str | None = Field(default=None, alias="modulePath")
+    source_version: str | None = Field(default=None, alias="sourceVersion")
+
+    @field_validator("typical_errors", "keywords", mode="before")
+    @classmethod
+    def _parse_json_list(cls, v):
+        # ORM 列是 JSON 数组文本；已是 list 则原样返回
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)
+            except Exception:  # noqa: BLE001 — 脏数据回退空列表
+                return []
+        return []
 
 
 class KnowledgeGraph(BaseModel):
