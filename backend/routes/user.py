@@ -166,7 +166,7 @@ def submit_guardian_authorization(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    """提交监护人邮箱，落库 GuardianAuthorization（pending + token）。
+    """提交监护人联系方式（邮箱/手机二选一），落库 GuardianAuthorization（pending + token）。
 
     返回 202：确认请求已受理，等待监护人点击链接确认。
     MVP 阶段不真发邮件，token 直接返回（生产环境应发邮件含 confirm 链接）。
@@ -177,12 +177,14 @@ def submit_guardian_authorization(
         row = GuardianAuthorizationORM(
             user_id=user.user_id,
             guardian_email=body.guardian_email,
+            guardian_phone=body.guardian_phone,
             status="pending",
             confirm_token=token,
         )
         db.add(row)
     else:
         row.guardian_email = body.guardian_email
+        row.guardian_phone = body.guardian_phone
         row.status = "pending"
         row.confirm_token = token
         row.expires_at = None  # 重新提交时清空之前的过期时间

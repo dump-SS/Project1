@@ -22,6 +22,9 @@ reasonix.toml
 # WorkBuddy 本地记忆与配置(不上库)
 .workbuddy/
 
+# ZCode 会话本地数据(不上库)
+.zcode/
+
 # 本地工作区数据 / 内网穿透配置
 .microengine-deploy/
 

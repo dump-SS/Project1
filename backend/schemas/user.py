@@ -124,13 +124,22 @@ class SettingsUpdate(BaseModel):
 
 
 class GuardianAuthorizationRequest(BaseModel):
-    """监护人邮箱（项目目前只有邮箱注册/验证，手机号字段待用）。"""
+    """监护人邮箱/手机号二选一必填（openapi.yaml GuardianAuthorizationRequest）。"""
 
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={"example": {"guardianEmail": "guardian@example.com"}},
     )
 
-    guardian_email: str = Field(
-        ..., alias="guardianEmail", max_length=254, description="监护人邮箱"
+    guardian_email: str | None = Field(
+        None, alias="guardianEmail", max_length=254, description="监护人邮箱"
     )
+    guardian_phone: str | None = Field(
+        None, alias="guardianPhone", max_length=32, description="监护人手机号"
+    )
+
+    @model_validator(mode="after")
+    def _guardian_contact_required(self) -> "GuardianAuthorizationRequest":
+        if not self.guardian_email and not self.guardian_phone:
+            raise ValueError("监护人邮箱或手机号至少填一项")
+        return self
