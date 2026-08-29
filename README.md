@@ -1,16 +1,20 @@
 # 学习状态智能助手
 
-板块一 MVP。仓库内是**一个** Vite 前端工程加一个本地服务，多人共用。
+板块一（状态与规划中枢）MVP 已交付；板块二（垂直学科落地）v2.1–v2.3 主体已落地；板块三（群体匿名参照）处于架构预留完成、正式立项前的状态。仓库内是**一个** Vite 前端工程加一个 FastAPI 后端，多人共用。
 
-- 需求：`PRD-学习状态智能助手-v1.3.md`
+- 需求：`PRD-学习状态智能助手-v1.3.md`（实际版本 v1.4，含板块二详细设计）
 - 接口契约：`docs/openapi.yaml`（唯一生效版本，字段名以此为准）
+- 板块二/三文档：`docs/` 下的开发计划、backlog、ADR、as-built 对照与隐私评审纪要，索引见 `docs/module2-3-as-built-vs-plan.md` 附录「文档谱系」
+- 板块三开发计划：`docs/module3-development-plan.md`
 
 ## 仓库结构（新加页面前请先读这一节）
 
 ```
 frontend/          唯一的前端工程，所有页面都放这里，不要在别处再建一个
-mock-server/       本地 Node 服务，:4000，目前提供邮箱认证接口
-docs/              接口契约
+backend/           FastAPI 后端，:8000，业务接口的唯一实现（含 /auth/*），详见 backend/README.md
+mock-server/       早期 Node 演示服务，:4000（邮箱认证），已被 backend 取代，仅留作参考
+docs/              接口契约 + 板块二/三设计文档、计划、评审纪要
+scripts/           数据种子脚本（如 seed_kb_math.py 知识点库）
 ```
 
 **约定：新页面放 `frontend/src/pages/<PageName>/`，然后在 `frontend/src/App.jsx` 里注册路由。**
@@ -21,47 +25,55 @@ docs/              接口契约
 
 现有路由：
 
-| 路径 | 页面 | 语言 | 登录态 |
-|---|---|---|---|
-| `/login` `/register` `/forgot-password` | 登录 / 注册 / 找回密码 | JavaScript | 无需登录 |
-| `/personal-data` | 个人数据总览（6 个模块） | TypeScript | 需要登录 |
-| `/study-guide` | 导学计划（登录后默认落地页） | JavaScript | 需要登录 |
-| `/study-plan` | 学习计划编辑 | JavaScript | 需要登录 |
-| `/study-timer` | 专注计时（番茄钟） | JavaScript | 需要登录 |
+| 路径 | 页面 | 登录态 |
+|---|---|---|
+| `/login` `/register` `/forgot-password` | 登录 / 注册 / 找回密码 | 无需登录 |
+| `/study-guide` | 导学计划（登录后默认落地页；`/study-plan` 已重定向到这里） | 需要登录 |
+| `/study-timer` | 专注计时（番茄钟） | 需要登录 |
+| `/personal-data` | 个人数据总览 | 需要登录 |
+| `/summary-review` | 复盘（状态复盘 + 知识复盘分 tab） | 需要登录 |
+| `/recommendations` | 建议（状态建议 / 内容建议分组） | 需要登录 |
+| `/goals` | 目标 | 需要登录 |
+| `/knowledge` `/error-book` | 板块二：学科知识库（含图谱）/ 错题本 | 需要登录 |
+| `/chat` | AI 辅导对话 | 需要登录 |
+| `/settings` `/profile-setup` `/guardian-auth` | 设置 / 资料建档 / 监护人授权 | 需要登录 |
+| `/community/upload` `/community/compare` | 板块三：匿名群体对比（**演示数据**，localStorage 模拟，正式实现见 `docs/module3-development-plan.md`） | 需要登录 |
 
 ## 登录态与页面导航
 
-四个业务页面共用一层整合逻辑，改动集中在三个文件，新加页面时了解一下即可，不需要每次都重新实现：
+业务页面共用一层整合逻辑，改动集中在三个文件，新加页面时了解一下即可，不需要每次都重新实现：
 
 - `src/context/AuthContext.jsx`：应用挂载时调用一次 `GET /auth/me` 校验 session（HttpOnly cookie，浏览器自动带），暴露 `useAuth()` 给需要登录态的组件用。
 - `src/components/RequireAuth/index.jsx`：路由守卫。未登录访问业务页面会被弹回 `/login`，并记下原本想访问的路径；登录成功后 `LoginPage.jsx` 会把用户带回原目标，没有原目标则去 `/study-guide`。
-- `src/components/AppShell/index.jsx`：四个业务页面共用的顶部导航条（个人数据 / 导学计划 / 编辑计划 / 专注计时 + 当前用户邮箱 + 退出登录），只包这四条路由，登录/注册/找回密码页不受影响、保持各自原有设计。
+- `src/components/AppShell/index.jsx`：业务页面共用的导航壳——6 项主导航（导学 / 计时 / 数据 / 复盘 / 建议 / 目标）+「我的」下拉（设置 / 资料建档 / 监护人授权），移动端为底部 Tab + 抽屉；登录/注册/找回密码页不受影响、保持各自原有设计。
 
-**这次整合只做到「能登录、能互相跳转」，没有统一各页面内部的配色/字体/背景**——个人数据页用 `theme.ts` 这套令牌，其余三类页面（登录/番茄钟/导学计划）都各自定义了一套配色（主色分别是 `#7EC8E3`、`#4AD1FF`、`#009fff`），差异明显，是已知情况，不是这次要处理的范围。
+### StudyGuide 与 StudyPlanEditor
 
-### StudyGuide 与 StudyPlanEditor 的关系
-
-两个页面内容目前高度相似（时间设置 + 任务设置 + 进入按钮），**不是重复实现**：设计意图是按历史数据量切换——数据不足时走引导式的 `StudyGuide`（对应 PRD 5.1「若无历史数据走规则模板」），数据积累到一定程度后走可编辑的 `StudyPlanEditor`（对应「若有历史数据，结合状态动态调整」）。
-
-但 `mock-server` 目前没有 `/learning-records` / `/goals` 接口，做不了真实的数据量判断，所以现在**两个入口都摆在导航条里，不做自动切换**，等业务后端补上这两个接口后再把判断逻辑接上。「进入」按钮（`EnterButton.jsx`）两边都指向 `/study-timer`——按这份计划开始执行学习任务。
+原设计是按历史数据量在两页间切换（数据不足走引导式 `StudyGuide`，数据充足走可编辑的 `StudyPlanEditor`，对应 PRD 5.1 的两条路径）。当前 `/study-plan` 已重定向到 `/study-guide`，入口统一为导学计划一页。
 
 ## 本地启动
+
+后端（FastAPI，业务接口的唯一实现，含 `/auth/*`）：
+
+```bash
+cd backend
+python -m venv .venv && .venv\Scripts\Activate.ps1   # Windows；macOS/Linux 用 source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env                                  # 按需改 DATABASE_URL / LLM_* / EMBED_*
+uvicorn main:app --reload --port 8000                 # http://localhost:8000/docs 看 Swagger
+```
+
+前端：
 
 ```bash
 cd frontend
 npm install
-npm run dev            # http://localhost:5173
+npm run dev            # http://localhost:5173，/api 代理到 :8000
 ```
 
-需要认证接口时，另开一个终端：
+`frontend` 的 dev server 会把 `/api` 代理到 `:8000`，所以前端代码一律写相对路径 `/api/v1/...`，不要写死域名。本地演示可用 vite 的 dev-login middleware 一键登录演示账户（见 `frontend/vite.config.ts`）。
 
-```bash
-cd mock-server
-npm install
-npm start              # http://localhost:4000
-```
-
-`frontend` 的 dev server 会把 `/api` 代理到 `:4000`，所以前端代码一律写相对路径 `/api/v1/...`，不要写死域名。
+生产形态是**单端口**：`npm run build` 后由 backend 静态托管 `frontend/dist` 并带 SPA 回退路由，只起 uvicorn 一个进程即可。
 
 其他命令（都在 `frontend/` 下执行）：
 
@@ -71,6 +83,8 @@ npm run build          # tsc -b && vite build，产物在 frontend/dist/
 npm run preview        # 预览生产构建
 ```
 
+后端测试：`cd backend && pytest`。
+
 ### 改代理目标
 
 ```bash
@@ -78,8 +92,7 @@ cd frontend
 cp .env.example .env.local
 ```
 
-在 `.env.local` 里改 `VITE_API_PROXY_TARGET`。留空时默认 `http://localhost:4000`。
-业务后端（goals / learning-records / assessments）起来后改成它的地址即可，**不需要动任何 service 文件**。
+在 `.env.local` 里改 `VITE_API_PROXY_TARGET`。留空时默认 `http://localhost:8000`。
 
 注意 Vite 从 `frontend/` 读 env 文件，放仓库根目录不生效。
 
@@ -142,20 +155,9 @@ node generate-email-logo.mjs
 
 ## 接口对接现状
 
-`openapi.yaml` 里**没有任何统计类接口**，所有日/周/月汇总均由前端基于 `GET /learning-records` 聚合完成，
-聚合逻辑集中在 `frontend/src/utils/aggregate.ts`，后端若补统计接口可整体替换。
+FastAPI 后端已落地：板块一（认证 / 目标 / 计划 / 学习记录 / 状态评估 / 建议 / 复盘 / 调权）与板块二（知识库 / 错题本 / mastery / 知识复盘 / OCR 占位）全部按 `docs/openapi.yaml` 实现并接真实引擎，板块三 3 条接口为 501 预留（x-status: planned）。个人数据页的日/周/月汇总仍由前端基于 `GET /learning-records` 聚合（`frontend/src/utils/aggregate.ts`），后端若补统计接口可整体替换。
 
-业务后端目前**尚未开发**，`mock-server` 只提供 `/api/v1/auth/*`。所以个人数据页现在全部跑在占位数据上，
-每个卡片右上角会显示「占位数据」标记，悬停可看接口失败原因——不会白屏也不会静默假装成功。
-
-| 模块 | 实际使用的接口 | 状态 |
-|---|---|---|
-| ① 打卡 | `GET /learning-records?dateFrom&dateTo` | 待后端 |
-| ② 时长 | `GET /learning-records` + `GET /plans` | 待后端（目标时长借用 `Plan.availableMinutes`） |
-| ③ 学科分配 | `GET /learning-records` 按 `subject` 分组 | 待后端 |
-| ④ 专注度 | `GET /learning-records` 的 `selfReport.focus`<br>+ `GET /assessments/current` 的 `displayText` | 待后端（schema 即 1-5，无需换算） |
-| ⑤ 日历 | `GET /learning-records` 按月拉取<br>+ `GET /assessments?subject=` 取每日状态标签 | 待后端 |
-| ⑥ 目标 | `GET /goals?status=active` / `?status=archived` | 待后端（终态语义见下） |
+接口失败时各卡片走「占位数据 + 右上角标记」的降级路径（`hooks/usePanelData.ts`），悬停可看失败原因——不白屏也不静默假装成功。
 
 ### 关于状态标签：按学科展示，不做跨学科合并
 
@@ -166,39 +168,18 @@ node generate-email-logo.mjs
 「语文情绪和数学正确率强行合并导致语义混乱」。所以 UI 上是**按学科分别列出标签**，
 而不是合成一个「今天状态如何」的单一结论。这是产品的刻意设计，不是接口缺失。
 
-### 需要后端补的字段
+### Goal 终态字段（已落地）
 
-只剩 `Goal` 一个 schema 的 2 个可选字段，**纯增量、向后兼容**，不影响任何现有调用方：
-
-```yaml
-Goal:
-  properties:
-    outcome:                              # 新增，仅 archived 时有值
-      type: string
-      enum: [achieved, abandoned, expired]
-      nullable: true
-    completionNote:                       # 新增，目标完成总结
-      type: string
-      maxLength: 200
-      nullable: true
-```
+`Goal.outcome`（achieved / abandoned / expired）与 `Goal.completionNote` 前后端均已实现。前端按「字段存在则用、不存在则退回当前行为」读取（见 `frontend/src/services/goals.ts` 的 `toCard`）。
 
 **不要改 `status` 的 enum**——`active` / `archived` 被 `?status=` 过滤依赖，加平行字段才不会波及其他人。
-
-前端已按「字段存在则用、不存在则退回当前行为」的方式读取（见 `frontend/src/services/goals.ts` 的 `toCard`），
-所以**后端什么时候上线都行，前端不需要跟着改代码或重新发版**。在此之前 `archived` 统一显示为「已完成」，
-完成总结显示为「待生成」。
-
-另有一项低优先级、且有前端兜底方案的缺口：模块①的单日一句话总结。`/summaries` 的区间下限是 3 天，
-生成不了单日。可行的替代是复用 `POST /learning-records` 自动创建的 `post_session` 建议
-（`GET /recommendations?scene=post_session`，按 `generation.completedAt` 在前端归日），零契约改动。
-当前该位置显示为「待生成」。
 
 ## 待办
 
 - 构建产物单 chunk 超过 500 KB（主要是 antd）。黑客松阶段可忽略，需要优化时配 `build.rollupOptions.output.manualChunks`。
 - `index.html` 没有声明 favicon（提交记录里写了「添加favicon」，但对应的 `favicon.png` 没有被提交，`mock-server/generate-email-logo.mjs` 也因此一度指向一个不存在的文件——已改成指向 `logo-mark-on-light.png` 让 `npm start` 能跑起来，但 favicon 本身还是缺的，需要重新加）。
-- `StudyGuide` / `StudyPlanEditor` 的数据量驱动切换目前是摆设（两个入口都在导航条里，不会自动判断），等 `/learning-records` `/goals` 接口就绪后再接上，见上文说明。
+- 板块二剩余 backlog（OCR 决策、压测、降级矩阵、内容清单导入等）见 `docs/module2-backlog.md` 与 `docs/module2-next-iteration-tasks.md`。
+- 板块三正式立项与实施见 `docs/module3-development-plan.md`。
 
 ## 设计系统(v0.3 · 2026-08-19 重构)
 
