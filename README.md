@@ -2,7 +2,7 @@
 
 板块一（状态与规划中枢）MVP 已交付；板块二（垂直学科落地）v2.1–v2.3 主体已落地；板块三（群体匿名参照）处于架构预留完成、正式立项前的状态。仓库内是**一个** Vite 前端工程加一个 FastAPI 后端，多人共用。
 
-- 需求：`PRD-学习状态智能助手-v1.3.md`（实际版本 v1.4，含板块二详细设计）
+- 需求：`PRD-学习状态智能助手.md`（当前 v1.5，含板块二详细设计 + pilot 阶段口径声明）
 - 接口契约：`docs/openapi.yaml`（唯一生效版本，字段名以此为准）
 - 板块二/三文档：`docs/` 下的开发计划、backlog、ADR、as-built 对照与隐私评审纪要，索引见 `docs/module2-3-as-built-vs-plan.md` 附录「文档谱系」
 - 板块三开发计划：`docs/module3-development-plan.md`

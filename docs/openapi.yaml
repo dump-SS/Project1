@@ -5,7 +5,7 @@ info:
   description: |
     中学学情导学与状态评估 API。
 
-    来源：`docs/api-design-unified.md`（唯一生效版本），对应 `PRD-学习状态智能助手-v1.3.md`。
+    来源：`docs/api-design-unified.md`（唯一生效版本），对应 `PRD-学习状态智能助手.md`。
     本文件严格按该设计文档生成，未引入文档之外的字段。
 
     主流程：创建目标 ① → 生成计划 ② → 提交学习记录 ③ → 计算状态 ④ → 返回建议 ⑤（外加周期复盘与反馈回路）。
@@ -15,6 +15,8 @@ info:
     - 写接口可选携带 `Idempotency-Key` 头，24 小时内重复键直接返回首次结果。
     - 建议与复盘为异步生成：POST 返回 202 + `generation.status = pending`，前端轮询 GET 获取结果。
     - 监护人授权失效时所有写接口返回 403 `GUARDIAN_AUTHORIZATION_EXPIRED`，读接口不受影响。
+
+    阶段口径：pilot。本文档为前后端与 QA 的唯一契约来源。项目当前处于 pilot 阶段（小范围试用验证，非 beta/正式发布），由学生团队维持。契约中标注 `x-status: planned` 的接口（板块三 3 条）为架构预留，其启用不以外部法务或隐私评审通过为前提。
 
 servers:
   - url: /api/v1

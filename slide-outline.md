@@ -3,7 +3,7 @@
 ## Meta
 - Topic: 学习状态智能助手 —— 对外路演:占据"学习状态"空白市场的新一代 AI 教育产品
 - Scenario: 投资人/对外路演(强调差异化定位与市场机会,少讲技术细节)
-- Content Source: provided(PRD-学习状态智能助手-v1.3/1.4 文档)
+- Content Source: provided(PRD-学习状态智能助手.md 文档)
 - Style: 暗色高级感 —— 深灰黑底 + 霓虹蓝紫渐变点缀,大字号、大留白,突出 AI 科技感与未来感
 - Slide Count: 8
 - Generated At: 2026-08-19T12:05:00+08:00
