@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>板块三 M0 拍板细则</title>
+<style>
+:root{
+  --ink:#000000;
+  --paper:#ffffff;
+  --accent:#E30613;
+  --mute:#6b6b6b;
+  --hair:#d6d6d6;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.page{max-width:1180px;margin:0 auto;padding:0 32px 96px;}
+
+.rule-thick{height:8px;background:var(--ink);}
+
+.masthead{padding-top:24px;margin-bottom:56px;}
+.meta-row{
+  display:flex;flex-wrap:wrap;gap:0 28px;
+  font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+  padding-bottom:10px;border-bottom:1px solid var(--ink);margin-bottom:44px;
+}
+.meta-row .date{margin-left:auto;color:var(--accent);}
+h1{
+  font-size:clamp(46px,7.6vw,88px);
+  font-weight:700;line-height:0.9;letter-spacing:-0.035em;
+  margin-bottom:26px;
+}
+.standfirst{font-size:19px;line-height:1.45;max-width:36em;}
+.standfirst strong{font-weight:700;}
+
+.block{
+  display:grid;grid-template-columns:3fr 9fr;gap:32px;
+  padding:44px 0;border-top:6px solid var(--ink);
+}
+.label{position:sticky;top:24px;align-self:start;}
+.num{
+  display:block;font-size:46px;font-weight:700;color:var(--accent);
+  line-height:1;letter-spacing:-0.03em;margin-bottom:6px;
+}
+.label h2{font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;}
+.label .note{margin-top:10px;font-size:12px;color:var(--mute);line-height:1.5;}
+
+.content{min-width:0;}
+table{width:100%;border-collapse:collapse;}
+th{
+  text-align:left;font-size:10px;font-weight:700;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--mute);
+  padding:0 16px 8px 0;border-bottom:1px solid var(--ink);white-space:nowrap;
+}
+td{padding:14px 16px 14px 0;border-bottom:1px solid var(--hair);vertical-align:top;}
+tbody tr:last-child td{border-bottom:1px solid var(--ink);}
+td.idx{font-weight:700;font-size:12px;color:var(--mute);width:2.2em;padding-right:8px;}
+td.name{font-weight:700;width:15em;}
+.val{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;font-weight:700;font-size:14px;}
+td.desc{color:var(--ink);}
+td.src{font-size:11px;color:var(--mute);white-space:nowrap;width:4em;}
+.chg{display:block;margin-top:5px;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:0.03em;}
+.tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:1px 6px;border:1px solid var(--ink);}
+.tag.new{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+dl.terms{margin:0;}
+dl.terms dt{
+  font-weight:700;margin-top:22px;padding-top:12px;border-top:1px solid var(--hair);
+}
+dl.terms dt:first-child{margin-top:0;padding-top:0;border-top:none;}
+dl.terms dd{color:var(--mute);margin-top:5px;font-size:14px;}
+
+.callout{
+  border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);
+  padding:16px 0;margin:28px 0;font-size:14px;
+}
+.callout b{color:var(--accent);}
+
+footer{border-top:8px solid var(--ink);padding-top:16px;margin-top:56px;font-size:12px;color:var(--mute);}
+footer .row{display:flex;flex-wrap:wrap;gap:0 28px;margin-bottom:6px;}
+
+@media (max-width:860px){
+  .block{grid-template-columns:1fr;gap:18px;}
+  .label{position:static;}
+  .num{font-size:36px;}
+  td.name{width:auto;}
+  .page{padding:0 20px 64px;}
+  table{font-size:14px;}
+}
+@media print{
+  body{font-size:10pt;}
+  .label{position:static;}
+  .block{page-break-inside:avoid;border-top-width:3px;}
+  .page{padding:0;}
+}
+</style>
+</head>
+<body>
+
+<div class="rule-thick"></div>
+<div class="page">
+
+  <header class="masthead">
+    <div class="meta-row">
+      <span>EpochX</span>
+      <span>板块三 · 群体匿名参照</span>
+      <span>M0 拍板细则</span>
+      <span class="date">2026-08-29</span>
+    </div>
+    <h1>板块三<br>M0 拍板细则</h1>
+    <p class="standfirst">本文档仅列<strong>结论与附加说明</strong>，不含拍板过程与理由推演。共 <strong>12 项参数拍板</strong> + <strong>5 项会议决议</strong>，M0 已关闭，进入 M1 契约转正。</p>
+  </header>
+
+  <section class="block">
+    <div class="label">
+      <span class="num">01</span>
+      <h2>已拍板参数</h2>
+      <p class="note">v1.5 拍板，参数全部配置化，改配置不改代码。</p>
+    </div>
+    <div class="content">
+      <table>
+        <thead>
+          <tr><th></th><th>事项</th><th>拍板值</th><th>说明</th><th>出处</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="idx">01</td>
+            <td class="name">聚合维度</td>
+            <td class="val">8 格</td>
+            <td class="desc">4 指标 × 初 / 高中学段 × 仅当前周期。不设学科维度，不提供跨周历史查询。</td>
+            <td class="src">§4.1</td>
+          </tr>
+          <tr>
+            <td class="idx">02</td>
+            <td class="name">最小群体规模 k</td>
+            <td class="val">20</td>
+            <td class="desc">聚合格内当周确认参与人数不足 20 时，该格不展示任何数据。</td>
+            <td class="src">§4.2</td>
+          </tr>
+          <tr>
+            <td class="idx">03</td>
+            <td class="name">直方图桶下限 n</td>
+            <td class="val">3</td>
+            <td class="desc">任一桶人数少于 3 时与相邻桶合并后再下发，并入人数更多的邻桶，持平则并入更低一档。</td>
+            <td class="src">§4.3</td>
+          </tr>
+          <tr>
+            <td class="idx">04</td>
+            <td class="name">差分隐私</td>
+            <td class="val">关闭</td>
+            <td class="desc">第一版不引入随机噪声，噪声注入钩子已预留，需要时只改配置。</td>
+            <td class="src">§4.4</td>
+          </tr>
+          <tr>
+            <td class="idx">05</td>
+            <td class="name">匿名 ID 与 salt 轮换</td>
+            <td class="val">HMAC-SHA256<br>月轮换 / 留 2 版</td>
+            <td class="desc">salt 走环境变量、不落库；轮换时保留当前与上一版，用于撤回删除时定位特征行。</td>
+            <td class="src">§4.5</td>
+          </tr>
+          <tr>
+            <td class="idx">06</td>
+            <td class="name">撤回重算延迟</td>
+            <td class="val">≤ 24h</td>
+            <td class="desc">撤回只做标记，随日更聚合 job 批量重算，不实时触发。</td>
+            <td class="src">§4.5</td>
+          </tr>
+          <tr>
+            <td class="idx">07</td>
+            <td class="name">特征抽取时点</td>
+            <td class="val">周日 23:59</td>
+            <td class="desc">每周统一抽取；客户端不上传任何特征值，特征唯一来源为服务端抽取 job。</td>
+            <td class="src">§4.7</td>
+          </tr>
+          <tr>
+            <td class="idx">08</td>
+            <td class="name">查询限频</td>
+            <td class="val">5 次 / 分钟</td>
+            <td class="desc">每用户每分钟上限，超限返回 RATE_LIMITED。</td>
+            <td class="src">§4.8</td>
+          </tr>
+          <tr>
+            <td class="idx">09</td>
+            <td class="name">「数据积累中」门槛</td>
+            <td class="val">连续 4 周</td>
+            <td class="desc">某组合连续 4 周满 20 人才撤下空态标识。空态不展示「还差几人」。</td>
+            <td class="src">§4.9</td>
+          </tr>
+          <tr>
+            <td class="idx">10</td>
+            <td class="name">分位数精度</td>
+            <td class="val">真值下发</td>
+            <td class="desc">p25 / p50 / p75 按真值下发，不对齐桶边界。</td>
+            <td class="src">§6.2 N1</td>
+          </tr>
+          <tr>
+            <td class="idx">11</td>
+            <td class="name">每周自动参与</td>
+            <td class="val">启用</td>
+            <td class="desc">用户一次性显式开启后免去逐周确认，可随时关闭。
+              <span class="chg">已变更 — 原拍板为「第一版不启用」，2026-08-29 决议改为启用（见 02）</span>
+            </td>
+            <td class="src">§4.7</td>
+          </tr>
+          <tr>
+            <td class="idx">12</td>
+            <td class="name">多账号攻击</td>
+            <td class="val">接受为残余风险</td>
+            <td class="desc">第一版不加额外限频，出现攻击迹象再补监护人账号关联限频。</td>
+            <td class="src">§6.2 N6</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="label">
+      <span class="num">02</span>
+      <h2>会议决议</h2>
+      <p class="note">2026-08-29 团队一致商议。M0 四项决策 + 一项核认全部落地。</p>
+    </div>
+    <div class="content">
+      <table>
+        <thead>
+          <tr><th></th><th>事项</th><th>决议</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="idx">01</td>
+            <td class="name">授权文案 <span class="tag new">已交付</span></td>
+            <td class="val">要点齐全<br>文案 v1.0</td>
+            <td class="desc">7 条要点确认无遗漏，文案已交付 <code>docs/module3-consent-copy.md</code>，含授权页、设置页、撤回弹窗、空态、监护人说明五组。页面显著位置标注「学生团队开发，未经专业法律审核」。</td>
+          </tr>
+          <tr>
+            <td class="idx">02</td>
+            <td class="name">撤回语义</td>
+            <td class="val">选项 A</td>
+            <td class="desc">物理删除，不保留。审计留痕定为授权开关 / 撤回 / 监护人授权失效联动三类事件，不含任何特征值，留存 6 个月。</td>
+          </tr>
+          <tr>
+            <td class="idx">03</td>
+            <td class="name">隐私四项</td>
+            <td class="val">全部确认<br>默认值</td>
+            <td class="desc">k 值 20 / 分桶 5 档 + 桶下限 3 / 差分噪声不注入 / 撤回物理删除 + 延迟重算，四项全部通过。</td>
+          </tr>
+          <tr>
+            <td class="idx">04</td>
+            <td class="name">参与方式</td>
+            <td class="val">选项 2<br>自动参与</td>
+            <td class="desc">启用每周自动参与。学段合并由「需预批的开关」降级为自动兜底：任一学段连续 4 周撑不起 k 即直接合并，门槛减半，无需再开会。</td>
+          </tr>
+          <tr>
+            <td class="idx">05</td>
+            <td class="name">数据驻留</td>
+            <td class="val">不出境</td>
+            <td class="desc">板块三全部数据（特征行、聚合行、审计日志）存储于境内服务器，不出境、不向任何第三方传输。板块三无 LLM 调用，数据链路止于自有数据库。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <b>两项决议延后，不阻塞：</b>分桶量程与单位的前端核对（T6）、<code>poolSize</code> 三处一致性核对（T7），移至 M2 / M4 实现时自然核对。已知风险：若 <code>hours</code> 分桶上限低于初高中生真实的 10–30 小时 / 周，直方图会退化为单柱、参照功能失效。
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="label">
+      <span class="num">03</span>
+      <h2>参数速查</h2>
+      <p class="note">实现与验收直接对照本表。</p>
+    </div>
+    <div class="content">
+      <table>
+        <thead>
+          <tr><th>参数</th><th>值</th><th>说明</th><th>出处</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">k（最小群体规模）</td><td class="val">20</td><td class="desc">不足 20 人不展示该格数据</td><td class="src">§4.2</td></tr>
+          <tr><td class="name">聚合格数量</td><td class="val">8</td><td class="desc">4 指标 × 2 学段 × 仅当前周期</td><td class="src">§4.1</td></tr>
+          <tr><td class="name">n（桶计数下限）</td><td class="val">3</td><td class="desc">少于 3 人的桶与邻桶合并后下发</td><td class="src">§4.3</td></tr>
+          <tr><td class="name">hours 分桶</td><td class="val">5 档</td><td class="desc">[0,8) [8,16) [16,24) [24,32) [32,∞)，顶桶开放，标签写「32h+」</td><td class="src">§4.3</td></tr>
+          <tr><td class="name">completion 分桶</td><td class="val">5 档</td><td class="desc">[0,0.2) [0.2,0.4) [0.4,0.6) [0.6,0.8) [0.8,1]，0–1 比例，前端乘 100 展示</td><td class="src">§4.3</td></tr>
+          <tr><td class="name">focus / fatigue 分桶</td><td class="val">不分桶</td><td class="desc">1–5 整数，直方图 5 档自然呈现</td><td class="src">§4.3</td></tr>
+          <tr><td class="name">限频</td><td class="val">5 / 分钟 / 用户</td><td class="desc">聚合查询接口请求上限</td><td class="src">§4.8</td></tr>
+          <tr><td class="name">撤回重算延迟</td><td class="val">≤ 24h</td><td class="desc">随日更任务批量重算</td><td class="src">§4.5</td></tr>
+          <tr><td class="name">撤回删除时限</td><td class="val">7 日内</td><td class="desc">对用户的文案承诺</td><td class="src">§4.10</td></tr>
+          <tr><td class="name">审计留痕留存</td><td class="val">6 个月</td><td class="desc">三类事件，不含特征值</td><td class="src">§4.5</td></tr>
+          <tr><td class="name">salt 轮换</td><td class="val">每月 / 留 2 版</td><td class="desc">匿名 ID 密钥更换节奏与兼容窗口</td><td class="src">§4.5</td></tr>
+          <tr><td class="name">抽取时点</td><td class="val">周日 23:59</td><td class="desc">每周确认截止与特征入池时刻</td><td class="src">§4.7</td></tr>
+          <tr><td class="name">空态撤除门槛</td><td class="val">连续 4 周</td><td class="desc">连续 4 周满 k 才撤下「数据积累中」</td><td class="src">§4.9</td></tr>
+          <tr><td class="name">差分噪声</td><td class="val">关闭</td><td class="desc">钩子已预留，需要时只改配置</td><td class="src">§4.4</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="label">
+      <span class="num">04</span>
+      <h2>M1 契约差异</h2>
+      <p class="note">转正 openapi.yaml 时必须落实的形态变更。</p>
+    </div>
+    <div class="content">
+      <table>
+        <thead>
+          <tr><th>接口</th><th>目标形态</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">GET /community/aggregate</td>
+            <td class="desc">移除 <code>subject</code> 参数；新增 <code>stage</code>（必填，junior / senior）；<code>period</code> 语义固化为当前 ISO 周、不作为查询参数；<code>metric</code> 枚举固化为 hours / focus / fatigue / completion。</td>
+          </tr>
+          <tr>
+            <td class="name">同上 · 响应体</td>
+            <td class="desc">满足 k 时返回 <code>{ poolSize, percentiles, histogram }</code>；不满足时返回 <code>COMMUNITY_INSUFFICIENT_POOL</code>，响应体<strong>不含任何数值</strong>。</td>
+          </tr>
+          <tr>
+            <td class="name">POST /community/features</td>
+            <td class="desc">语义由「匿名特征值上传」改为「当周参与确认」，请求体不含任何特征值。<span class="chg">决议 04 后需进一步重定义 — 自动参与下不再有每周确认动作，建议改由服务端按授权状态自动纳入</span></td>
+          </tr>
+          <tr>
+            <td class="name">GET / PUT<br>/me/community-consent</td>
+            <td class="desc">形态不变（<code>{ enabled, updatedAt }</code>）。补监护人授权失效联动语义与错误码：监护人授权撤销时，本开关一并关闭。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <b>单位约定：</b><code>completion</code> 服务端存 0–1 比例、前端乘 100 展示为百分数（演示页现用 0–100，转正时重写）；<code>hours</code> 单位为小时；<code>focus</code> / <code>fatigue</code> 为 1–5 整数。
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="label">
+      <span class="num">05</span>
+      <h2>术语</h2>
+      <p class="note">附加说明，供实现与验收对照。</p>
+    </div>
+    <div class="content">
+      <dl class="terms">
+        <dt>聚合格</dt>
+        <dd>按「指标 × 学段」切出的小群体。例如「初中生 × 周学习时长」是一个格，系统只统计这个格里的分布，不针对任何人。</dd>
+        <dt>k 值（最小群体规模）</dt>
+        <dd>格内人数低于 k 就整体不展示。人越少，越容易从统计结果里猜出某个具体的人是谁。</dd>
+        <dt>分桶</dt>
+        <dd>把连续数值归入区间，只公布每个区间的人数。不公布「某人每周学 17.5 小时」，只公布「12–16 小时区间有 6 人」。</dd>
+        <dt>桶计数下限</dt>
+        <dd>某个区间只有 1–2 人时，知道内情的人能对号入座，所以要与相邻区间合并后再公布。</dd>
+        <dt>分位数</dt>
+        <dd>p50 即中位数：一半人低于这个值。页面上的「我的位置」是拿自己的值和 p25 / p50 / p75 对比画出来的。</dd>
+        <dt>差分隐私</dt>
+        <dd>在统计结果里加入受控的随机噪声，使「多一人或少一人」对结果的影响可忽略。第一版不引入，代码已预留开关。</dd>
+        <dt>侧信道</dt>
+        <dd>不从数据本身、而从「数据变化的时机」泄露信息。聚合结果突然消失，旁观者可推断「刚才有人退出了」——延迟重算就是为了让变化时机不可观察。</dd>
+        <dt>物化表</dt>
+        <dd>预先算好存起来的聚合结果。查询接口只读这张表、不做实时计算，从根上杜绝用特殊查询条件拼出个体信息。</dd>
+        <dt>匿名参与 ID / salt</dt>
+        <dd>用服务器密钥（salt）把用户 ID 变成不可逆的乱码 ID。聚合流程只见到乱码，见不到真实账号；密钥定期更换，旧乱码无法被追溯关联。</dd>
+        <dt>poolSize</dt>
+        <dd>聚合池总人数（一个数字，不含任何个体信息）。满 20 时随结果返回；不满时接口只报「人数不足」，不返回具体数字，防止被算出「还差几人」。</dd>
+      </dl>
+    </div>
+  </section>
+
+  <footer>
+    <div class="row">
+      <span>EpochX · 板块三 M0 拍板细则</span>
+      <span>2026-08-29</span>
+      <span>12 项拍板 + 5 项决议</span>
+      <span>M0 已关闭</span>
+    </div>
+    <div class="row">
+      <span>依据：docs/module3-m0-decision-proposal.md（v1.7）</span>
+      <span>文案：docs/module3-consent-copy.md（v1.0）</span>
+      <span>契约：docs/openapi.yaml（1.5.0）</span>
+    </div>
+    <div class="row">
+      <span>阶段口径：pilot — 本文档结论按 pilot 阶段执行，正式对外发布前须重新评估外部法律意见与外部隐私评审签字两项。</span>
+    </div>
+  </footer>
+
+</div>
+
+</body>
+</html>
