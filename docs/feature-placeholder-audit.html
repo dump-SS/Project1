@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>假功能体检报告 · 全仓空界面与占位实现盘点</title>
+<style>
+:root{
+  --ink:#000000;
+  --paper:#ffffff;
+  --accent:#E30613;
+  --mute:#6b6b6b;
+  --hair:#d6d6d6;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.page{max-width:1180px;margin:0 auto;padding:0 32px 96px;}
+
+.rule-thick{height:8px;background:var(--ink);}
+
+.masthead{padding-top:24px;margin-bottom:48px;}
+.meta-row{
+  display:flex;flex-wrap:wrap;gap:0 28px;
+  font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+  padding-bottom:10px;border-bottom:1px solid var(--ink);margin-bottom:44px;
+}
+.meta-row .date{margin-left:auto;color:var(--accent);}
+h1{
+  font-size:clamp(46px,7.6vw,88px);
+  font-weight:700;line-height:0.9;letter-spacing:-0.035em;
+  margin-bottom:26px;
+}
+.standfirst{font-size:19px;line-height:1.45;max-width:38em;}
+.standfirst strong{font-weight:700;}
+
+.stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:6px solid var(--ink);border-bottom:1px solid var(--ink);
+  margin-bottom:8px;
+}
+.stat{padding:22px 20px 18px 0;border-right:1px solid var(--hair);}
+.stat:last-child{border-right:none;}
+.stat .n{font-size:56px;font-weight:700;line-height:1;letter-spacing:-0.03em;}
+.stat .n.red{color:var(--accent);}
+.stat .t{margin-top:8px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;}
+.stat .d{margin-top:4px;font-size:12px;color:var(--mute);line-height:1.5;}
+
+.legend{
+  display:flex;flex-wrap:wrap;gap:10px 26px;
+  padding:16px 0 0;font-size:12px;color:var(--mute);
+}
+.legend b{font-weight:700;}
+.legend .la{color:var(--accent);font-weight:700;}
+
+.block{
+  display:grid;grid-template-columns:3fr 9fr;gap:32px;
+  padding:44px 0;border-top:6px solid var(--ink);
+}
+.block.first{margin-top:40px;}
+.label{position:sticky;top:24px;align-self:start;}
+.num{
+  display:block;font-size:46px;font-weight:700;color:var(--accent);
+  line-height:1;letter-spacing:-0.03em;margin-bottom:6px;
+}
+.label h2{font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;}
+.label .note{margin-top:10px;font-size:12px;color:var(--mute);line-height:1.5;}
+
+.content{min-width:0;}
+
+.item{border-bottom:1px solid var(--hair);padding:22px 0;}
+.item:last-of-type{border-bottom:1px solid var(--ink);}
+.item-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+.item-head .code{font-size:12px;font-weight:700;color:var(--mute);width:2.4em;}
+.item-head h3{font-size:19px;font-weight:700;letter-spacing:-0.01em;}
+.tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:1px 6px;border:1px solid var(--ink);}
+.tag.a{background:var(--accent);border-color:var(--accent);color:#fff;}
+.tag.warn{border-color:var(--accent);color:var(--accent);}
+
+.qa{display:grid;grid-template-columns:7.5em 1fr;gap:6px 18px;font-size:14px;}
+.qa dt{font-weight:700;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--mute);padding-top:2px;}
+.qa dd{margin:0 0 4px;}
+.qa dd.fix b{color:var(--accent);}
+.qa .mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;font-size:12.5px;font-weight:700;}
+
+table{width:100%;border-collapse:collapse;}
+th{
+  text-align:left;font-size:10px;font-weight:700;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--mute);
+  padding:0 16px 8px 0;border-bottom:1px solid var(--ink);white-space:nowrap;
+}
+td{padding:13px 16px 13px 0;border-bottom:1px solid var(--hair);vertical-align:top;font-size:14px;}
+tbody tr:last-child td{border-bottom:1px solid var(--ink);}
+td.idx{font-weight:700;font-size:12px;color:var(--mute);width:2.4em;padding-right:8px;}
+td.name{font-weight:700;white-space:nowrap;}
+td .sub{display:block;font-weight:400;color:var(--mute);font-size:12px;margin-top:3px;white-space:normal;}
+td .mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;font-size:12.5px;font-weight:700;}
+
+.callout{
+  border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);
+  padding:16px 0;margin:26px 0;font-size:14px;
+}
+.callout b{color:var(--accent);}
+
+ul.check{list-style:none;margin-top:6px;}
+ul.check li{
+  display:grid;grid-template-columns:22px 1fr;gap:12px;
+  padding:11px 0;border-bottom:1px solid var(--hair);font-size:14px;
+}
+ul.check li:last-child{border-bottom:1px solid var(--ink);}
+ul.check .box{
+  width:14px;height:14px;border:2px solid var(--ink);margin-top:3px;
+}
+ul.check li b{font-weight:700;}
+ul.check li .why{display:block;color:var(--mute);font-size:12.5px;margin-top:2px;}
+
+ol.prio{list-style:none;counter-reset:p;margin-top:6px;}
+ol.prio li{
+  counter-increment:p;
+  display:grid;grid-template-columns:44px 1fr;gap:14px;
+  padding:13px 0;border-bottom:1px solid var(--hair);font-size:14px;
+}
+ol.prio li:last-child{border-bottom:1px solid var(--ink);}
+ol.prio li::before{
+  content:counter(p,decimal-leading-zero);
+  font-size:24px;font-weight:700;color:var(--accent);line-height:1.1;letter-spacing:-0.02em;
+}
+
+footer{border-top:8px solid var(--ink);padding-top:16px;margin-top:56px;font-size:12px;color:var(--mute);}
+footer .row{display:flex;flex-wrap:wrap;gap:0 28px;margin-bottom:6px;}
+
+@media (max-width:860px){
+  .block{grid-template-columns:1fr;gap:18px;}
+  .label{position:static;}
+  .num{font-size:36px;}
+  .stats{grid-template-columns:repeat(2,1fr);}
+  .stat:nth-child(2){border-right:none;}
+  .stat{border-bottom:1px solid var(--hair);}
+  .page{padding:0 20px 64px;}
+  .qa{grid-template-columns:1fr;gap:2px;}
+  .qa dd{margin-bottom:8px;}
+}
+@media print{
+  body{font-size:10pt;}
+  .label{position:static;}
+  .block{page-break-inside:avoid;border-top-width:3px;}
+  .item{page-break-inside:avoid;}
+  .page{padding:0;}
+}
+</style>
+</head>
+<body>
+
+<div class="rule-thick"></div>
+<div class="page">
+
+  <header class="masthead">
+    <div class="meta-row">
+      <span>EpochX</span>
+      <span>学习状态智能助手</span>
+      <span>全仓体检 · 空界面与假功能盘点</span>
+      <span class="date">2026-08-29</span>
+    </div>
+    <h1>假功能<br>体检报告</h1>
+    <p class="standfirst">对前端、后端与接口契约做了一次全仓扫描，回答一个问题：<strong>除了板块三，还有哪些界面是空的、哪些功能是假的？</strong>共盘点 <strong>20 项</strong>——4 项是<strong>真·假功能</strong>，6 项是<strong>真代码但默认关着</strong>，7 项是<strong>故意留的兜底</strong>（正常设计），另有 3 项附带发现。结论：主体功能都是真的，但<strong>演示前必须按清单配好开关</strong>，否则看到的全是模板和占位。</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="n red">4</div>
+      <div class="t">A · 假功能</div>
+      <div class="d">完全未实现或闭环走不通，最该处理</div>
+    </div>
+    <div class="stat">
+      <div class="n">6</div>
+      <div class="t">B · 默认关闭</div>
+      <div class="d">代码是真的，默认配置下空转，配好即生效</div>
+    </div>
+    <div class="stat">
+      <div class="n">7</div>
+      <div class="t">C · 故意兜底</div>
+      <div class="d">断网/数据不足时的降级设计，属正常</div>
+    </div>
+    <div class="stat">
+      <div class="n">3</div>
+      <div class="t">附带发现</div>
+      <div class="d">文档腐化、SPA 吞 404、旧服务退役</div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><b class="la">A</b> ＝ 完全未实现 / 假功能</span>
+    <span><b>B</b> ＝ 有真实实现但默认关闭或需配置</span>
+    <span><b>C</b> ＝ 故意的降级兜底（正常设计）</span>
+    <span>范围：frontend / backend / openapi 契约；板块三另行立项，不在本文</span>
+  </div>
+
+  <!-- ==================== A 级 ==================== -->
+  <section class="block first">
+    <div class="label">
+      <span class="num">A</span>
+      <h2>真·假功能</h2>
+      <p class="note">用户看得到、点得动，但背后是空的或走不通的。按要紧程度排序，A3 涉及合规底线，最优先。</p>
+    </div>
+    <div class="content">
+
+      <div class="item">
+        <div class="item-head">
+          <span class="code">A3</span>
+          <h3>监护人授权：确认闭环走不通，靠前端假装成功</h3>
+          <span class="tag warn">合规底线</span>
+        </div>
+        <dl class="qa">
+          <dt>你看到</dt><dd>提交监护人邮箱后，点「模拟确认」按钮，状态变成「已授权」。</dd>
+          <dt>实际是</dt><dd>后端生成了确认 token 存进数据库，但 <b>既不发送邮件、也不把 token 返回给前端</b>（代码注释说「token 直接返回」，实际返回的是空响应——注释与行为不符）。真实的确认接口存在且能用，只是没有任何人能拿到 token。前端的「模拟确认」只是在浏览器本地改了个状态，刷新就失效。</dd>
+          <dt>为什么要紧</dt><dd>监护人授权是 PRD 8.1 的<b>合规底线</b>：授权失效时所有写接口 403，板块三的参与授权也跟着联动关闭。这条链路断了，等于合规机制只能演示、不能真用。</dd>
+          <dt>怎么办</dt><dd class="fix"><b>开发期让 202 响应把 token 带回前端</b>（与注释承诺一致，改动约几行），演示链路即通；正式上线前接 SMTP 真发邮件（见 B6）。</dd>
+        </dl>
+      </div>
+
+      <div class="item">
+        <div class="item-head">
+          <span class="code">A2</span>
+          <h3>Chat 页录错题：只存在你自己浏览器里</h3>
+          <span class="tag a">数据分裂</span>
+        </div>
+        <dl class="qa">
+          <dt>你看到</dt><dd>在 AI 辅导对话页（/chat）侧边栏录入了一道错题，保存成功。</dd>
+          <dt>实际是</dt><dd>这条错题只写进了浏览器的 localStorage，<b>从未调用后端错题本接口</b>。打开错题本页（/error-book）时，因为页面优先读后端数据，你在 Chat 录的这条<b>根本不出现</b>——两个页面各有一本互不相干的错题本。</dd>
+          <dt>怎么办</dt><dd class="fix"><b>Chat 录入改走错题本真接口</b>（<span class="mono">POST /error-book</span> 已就绪，前端 service 现成），低成本消除数据分裂。</dd>
+        </dl>
+      </div>
+
+      <div class="item">
+        <div class="item-head">
+          <span class="code">A1</span>
+          <h3>Chat 页 AI 回复：四条写好的话术在扮演 AI</h3>
+          <span class="tag a">演示壳</span>
+        </div>
+        <dl class="qa">
+          <dt>你看到</dt><dd>在对话页提问，1.5 秒后「AI」给出一段像样的回答。</dd>
+          <dt>实际是</dt><dd>前端按关键词匹配 <b>4 条写死的回复</b>（复合函数 / 错题解析 / 计划 / 数列求和），匹配不上就给一句默认话术，全程不接触任何后端和模型。回复里带「演示模式」标注，是明示的演示壳。</dd>
+          <dt>怎么办</dt><dd class="fix">接入后端对话能力前，该页只能定位为演示壳；短期保留「演示模式」标注即可，但 A2 必须先修（标注防误解，数据分裂防错误）。</dd>
+        </dl>
+      </div>
+
+      <div class="item">
+        <div class="item-head">
+          <span class="code">A4</span>
+          <h3>知识复盘「查看历史」接口：契约里有，后端没有</h3>
+          <span class="tag a">契约超前</span>
+        </div>
+        <dl class="qa">
+          <dt>你看到</dt><dd>接口文档（openapi）里定义了知识复盘的列表和详情查询接口。</dd>
+          <dt>实际是</dt><dd>后端只实现了「生成」，没实现「查询」。更隐蔽的坑：后端对未匹配的 <span class="mono">/api/*</span> GET 请求会返回前端首页 HTML（200 状态码），调用方拿到的不是 404 而是一个网页——排障时极易误判成「接口有响应」。</dd>
+          <dt>怎么办</dt><dd class="fix">从 summaries 表按 <span class="mono">dimension='knowledge'</span> 过滤即可实现，成本低；同时建议 SPA 回退路由只对非 <span class="mono">/api</span> 路径生效。</dd>
+        </dl>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ==================== B 级 ==================== -->
+  <section class="block">
+    <div class="label">
+      <span class="num">B</span>
+      <h2>真代码，默认关着</h2>
+      <p class="note">这一档不需要改任何代码——实现是真的，只是默认配置下不生效。演示或验收前按下表逐项配好即可。</p>
+    </div>
+    <div class="content">
+      <div class="callout">一句话记住：<b>默认部署下，所有「AI 生成」的内容其实都是规则模板</b>——建议、复盘、导学推荐、AI 调权，无一例外。</div>
+      <table>
+        <thead>
+          <tr><th>#</th><th>功能</th><th>默认状态（为什么不生效）</th><th>怎么开启</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="idx">B1</td>
+            <td class="name">错题知识点向量匹配<span class="sub">录入错题时自动推荐相关知识点</span></td>
+            <td><span class="mono">kb_embed_mode="off"</span>，永远走关键词模糊匹配降级；向量索引目录为空</td>
+            <td>填 embedding API 的 key/地址/模型，切 <span class="mono">api</span>。智谱 embedding-3 已联调验证：4/4 查询 Top-1 命中</td>
+          </tr>
+          <tr>
+            <td class="idx">B2</td>
+            <td class="name">知识图谱内容<span class="sub">/knowledge 图谱视图</span></td>
+            <td>代码是真实实现，但数据库没跑过种子脚本时，图谱是空的</td>
+            <td>执行 <span class="mono">scripts/seed_kb_math.py</span> 等种子脚本</td>
+          </tr>
+          <tr>
+            <td class="idx">B3</td>
+            <td class="name">LLM 生成<span class="sub">建议 / 周复盘 / 导学推荐</span></td>
+            <td><span class="mono">llm_provider="mock"</span>：MockProvider 永远返回空，全部走规则模板兜底（这是故意的多层兜底架构，不是 bug）</td>
+            <td>填 LLM 的 key/地址/模型，切换 provider。B4、B5 随此项一并生效</td>
+          </tr>
+          <tr>
+            <td class="idx">B4</td>
+            <td class="name">AI 动态调权<span class="sub">状态分权重随数据自动校准</span></td>
+            <td>触发链路是真的（提交学习记录后自动触发 + 手动端点），但因 B3 空转，调权永不执行，只留一行日志。另：PRD 说「每周批量」，实际是事件驱动，无独立定时调度</td>
+            <td>随 B3 生效；要不要补独立周调度是产品决策</td>
+          </tr>
+          <tr>
+            <td class="idx">B5</td>
+            <td class="name">周复盘定时任务<span class="sub">每周自动生成学科复盘</span></td>
+            <td>定时器是真的（每天 03:00 跑），但默认产出是模板复盘</td>
+            <td>随 B3 生效</td>
+          </tr>
+          <tr>
+            <td class="idx">B6</td>
+            <td class="name">验证码邮件<span class="sub">注册 / 找回密码</span></td>
+            <td><span class="mono">smtp_provider="real"</span> 但账号密码为空，发送必然失败</td>
+            <td>配 SMTP 账号；团队测试可继续走 mock 验证码</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ==================== C 级 ==================== -->
+  <section class="block">
+    <div class="label">
+      <span class="num">C</span>
+      <h2>故意留的兜底</h2>
+      <p class="note">断网、接口失败、数据不足时的降级设计，属正常工程实践。列出备查，只有 C7 有明确的上线前期限。</p>
+    </div>
+    <div class="content">
+      <table>
+        <thead>
+          <tr><th>#</th><th>项</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="idx">C1</td><td class="name">OCR 拍照录入占位</td><td>接口返回「功能未开放，请手动录入」，是 ADR 记录的故意降级。小瑕疵：注释说返回 501 与实际不符，且前端没人调用它（死端点）</td></tr>
+          <tr><td class="idx">C2</td><td class="name">错题本断网兜底</td><td>后端不可达时退回 localStorage，注释明写「不静默」。与 A2 联动时会产生「Chat 录的错题只在本地」的假象</td></tr>
+          <tr><td class="idx">C3</td><td class="name">知识库硬编码树兜底</td><td>接口失败时显示写死的演示知识树、不白屏。<b>但没有「演示数据」标注</b>，不如个人数据页的占位徽章规范</td></tr>
+          <tr><td class="idx">C4</td><td class="name">导学推荐冷启动阈值</td><td>近 7 天不足 3 条记录时不给推荐，PRD 冷启动设计</td></tr>
+          <tr><td class="idx">C5</td><td class="name">个人数据页占位体系</td><td>实时 → 缓存 → 占位数据三级降级，占位卡带徽章明示，是「不要静默 mock」的规范做法</td></tr>
+          <tr><td class="idx">C6</td><td class="name">各 service 缓存兜底</td><td>网络不可达时展示上次成功的数据</td></tr>
+          <tr><td class="idx">C7</td><td class="name">匿名访问回落到演示用户</td><td>不登录也能访问业务接口，数据全挂在固定用户 <span class="mono">u_10237</span> 下。MVP 演示期故意如此，<b>上线前必须移除</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ==================== 检查清单 ==================== -->
+  <section class="block">
+    <div class="label">
+      <span class="num">✓</span>
+      <h2>演示 / 验收前检查清单</h2>
+      <p class="note">按顺序过一遍，全部打勾后，演示看到的就是真实能力而非模板与占位。</p>
+    </div>
+    <div class="content">
+      <ul class="check">
+        <li><span class="box"></span><span><b>A3 · 监护人 token 有送达通道</b><span class="why">先做最小改动：202 响应带回 token，演示链路即通；上线前再接 SMTP</span></span></li>
+        <li><span class="box"></span><span><b>A2 · Chat 错题录入走真接口</b><span class="why">消除 Chat 页与错题本页的数据分裂</span></span></li>
+        <li><span class="box"></span><span><b>B3 · LLM 切真实供应商</b><span class="why">建议、复盘、导学推荐才会出现非模板内容；B4/B5 随之生效</span></span></li>
+        <li><span class="box"></span><span><b>B1 · embedding 切 api 模式</b><span class="why">错题录入的知识点推荐走向量 Top-5，而非关键词碰运气</span></span></li>
+        <li><span class="box"></span><span><b>B2 · 知识库种子脚本已跑</b><span class="why">图谱视图有节点有边</span></span></li>
+        <li><span class="box"></span><span><b>B6 · 邮件通道可用</b><span class="why">SMTP 配好，或确认演示全程走 mock 验证码</span></span></li>
+        <li><span class="box"></span><span><b>C7 · 确认匿名 mock 用户的去留</b><span class="why">演示环境可保留；任何对外发布前必须移除</span></span></li>
+      </ul>
+
+      <div class="callout" style="margin-top:34px;"><b>修复优先级</b>（如需动代码，按此顺序投入最小、收益最大）</div>
+      <ol class="prio">
+        <li><span><b>A3 监护人确认闭环</b> — 合规底线，改动最小（响应带 token）。</span></li>
+        <li><span><b>A2 Chat 错题录入走真接口</b> — 接口现成，消除数据分裂。</span></li>
+        <li><span><b>A4 两条 GET 实现或契约降级</b> — 顺带把 SPA 回退收窄到非 /api 路径。</span></li>
+        <li><span><b>B 级全部</b> — 不改代码，按上方清单配置即可。</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ==================== 附带发现 ==================== -->
+  <section class="block">
+    <div class="label">
+      <span class="num">※</span>
+      <h2>附带发现</h2>
+      <p class="note">不影响功能真假，但值得记录。</p>
+    </div>
+    <div class="content">
+      <table>
+        <tbody>
+          <tr><td class="idx">1</td><td class="name">文档腐化</td><td>backend/README 仍写「goal/plan/user 读 mock 数据」「阶段 2 接 mock」——实际早已全部落库，mock_data.py 只剩一个测试引用</td></tr>
+          <tr><td class="idx">2</td><td class="name">SPA 回退吞 404</td><td>未匹配的 /api/* GET 返回前端首页 HTML 而非 404（见 A4），排障时容易误判</td></tr>
+          <tr><td class="idx">3</td><td class="name">mock-server 已退役</td><td>认证已由 FastAPI 后端接管，旧 Node 服务无任何活代码引用，仅留作历史参考</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="row">
+      <span>EpochX · 学习状态智能助手</span>
+      <span>全仓体检 · 空界面与假功能盘点</span>
+      <span>2026-08-29</span>
+    </div>
+    <div class="row">
+      <span>详版（含文件:行号定位）：docs/feature-placeholder-audit.md</span>
+      <span>板块三现状与计划：docs/module3-development-plan.md</span>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
