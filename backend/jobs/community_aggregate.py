@@ -108,7 +108,7 @@ def aggregate_all(db) -> dict:
 
 
 def start_community_scheduler():
-    """每日低峰（03:10）跑一次：特征抽取 + 聚合重算。返回 asyncio task。"""
+    """周日 23:59 统一抽取 + 聚合重算（§4.7 已拍板时点）。返回 asyncio task。"""
     import asyncio
 
     from jobs.community_extraction import run_community_extraction
@@ -117,10 +117,13 @@ def start_community_scheduler():
         while True:
             try:
                 now = datetime.now()
-                # 每日 03:10（低峰）执行
-                next_run = now.replace(hour=3, minute=10, second=0, microsecond=0)
+                # 下一个周日 23:59（ISO 周末为周日 23:59）
+                days_ahead = (6 - now.weekday()) % 7  # weekday(): 周一=0 … 周日=6
+                next_run = (now + __import__("datetime").timedelta(days=days_ahead)).replace(
+                    hour=23, minute=59, second=0, microsecond=0
+                )
                 if next_run <= now:
-                    next_run += __import__("datetime").timedelta(days=1)
+                    next_run += __import__("datetime").timedelta(days=7)
                 await asyncio.sleep((next_run - now).total_seconds())
                 run_community_extraction()
                 run_community_aggregation()
@@ -128,5 +131,5 @@ def start_community_scheduler():
                 logger.exception("[COMMUNITY] 定时任务异常")
 
     import logging as _logging
-    _logging.getLogger(__name__).info("[COMMUNITY] 调度器已启动（每日 03:10）")
+    _logging.getLogger(__name__).info("[COMMUNITY] 调度器已启动（每周日 23:59）")
     return asyncio.create_task(_loop())

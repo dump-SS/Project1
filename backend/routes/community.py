@@ -96,38 +96,66 @@ def put_community_consent(
 
 
 def _delete_user_features(db: Session, user_id: str) -> None:
-    """物理删除用户全部特征行（若 community_features 表已存在；M2 建表前为 no-op）。"""
-    try:
-        from sqlalchemy import text as _sa_text
-        db.execute(_sa_text("DELETE FROM community_features WHERE user_id = :uid"), {"uid": user_id})
-        db.commit()
-    except Exception:  # noqa: BLE001 — 表未建时不阻断撤回主流程
-        db.rollback()
+    """物理删除用户全部特征行（§4.5 选项 A「撤回即删除」）。
+
+    按 anon_participant_id = HMAC(user_id, salt) 定位，循环全部 salt_version
+    （salt 轮换兼容，§4.5）：某版本盐算出的 ID 对应特征行一并删除。
+    """
+    from anon_id import compute_anon_id, SALT_VERSIONS
+    from models.community import CommunityFeature
+
+    for ver in SALT_VERSIONS:
+        anon = compute_anon_id(user_id, salt_version=ver)
+        db.execute(
+            CommunityFeature.__table__.delete().where(
+                CommunityFeature.anon_participant_id == anon
+            )
+        )
+    db.commit()
 
 
 # ---------- GET /community/aggregate（M3） ----------
 
-_AGG_RATE_LIMIT: dict[str, tuple[int, float]] = {}  # user_id -> (count, window_start_ts)
 
+def _check_agg_rate(db: Session, user_id: str) -> None:
+    """聚合查询限频：每用户每分钟 5 次（§4.8），持久化到 rate_limit_counters。
 
-def _check_agg_rate(user_id: str) -> None:
-    """聚合查询限频：每用户每分钟 5 次（§4.8），进程内近似（复用 rate_limit 表后续持久化）。"""
-    import time
+    bucket_key 含分钟（community_agg:HH:MM），bucket_date 存当天，重启/多进程不丢。
+    """
+    from datetime import datetime as _dt
 
     from config import settings
+    from models.rate_limit import RateLimitCounter
 
-    now = time.time()
-    entry = _AGG_RATE_LIMIT.get(user_id)
-    if entry is None or (now - entry[1]) > 60:
-        _AGG_RATE_LIMIT[user_id] = (1, now)
-        return
-    count, _ = entry
-    if count >= settings.community_agg_rate_per_minute:
+    now = _dt.utcnow()
+    today = now.date()
+    minute_key = f"community_agg:{now.hour:02d}:{now.minute:02d}"
+
+    row = (
+        db.query(RateLimitCounter)
+        .filter(
+            RateLimitCounter.user_id == user_id,
+            RateLimitCounter.bucket_key == minute_key,
+            RateLimitCounter.bucket_date >= _dt.combine(today, _dt.min.time()),
+        )
+        .first()
+    )
+    if row is None:
+        row = RateLimitCounter(
+            id=f"rl_{__import__('uuid').uuid4().hex[:12]}",
+            user_id=user_id,
+            bucket_key=minute_key,
+            bucket_date=now,
+            count=0,
+        )
+        db.add(row)
+    if row.count >= settings.community_agg_rate_per_minute:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"code": "RATE_LIMITED", "message": "查询过于频繁，请稍后再试"},
         )
-    _AGG_RATE_LIMIT[user_id] = (count + 1, entry[1])
+    row.count += 1
+    db.commit()
 
 
 @aggregate_router.get(
@@ -166,7 +194,7 @@ def get_community_aggregate(
             detail={"code": "COMMUNITY_CONSENT_REQUIRED", "message": "开启匿名聚合授权后才能查看群体参照"},
         )
 
-    _check_agg_rate(_user.user_id)
+    _check_agg_rate(db, _user.user_id)
 
     period = _current_iso_week()
     row = db.execute(
