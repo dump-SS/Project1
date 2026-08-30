@@ -50,6 +50,9 @@ class Settings(Base):
     ai_weight_tuning_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     send_text_to_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     knowledge_ai_egress_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 板块三：匿名聚合授权（默认关闭 + 每周自动参与选项，§4.7 决议）
+    community_consent_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    community_auto_participate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False

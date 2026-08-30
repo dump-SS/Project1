@@ -1,215 +1,178 @@
 /**
  * 模块三 · 页面 2：横向对比页（/community/compare）
  * ------------------------------------------------------------
- * 读取 localStorage 中的 community_my_data 与 community_pool，渲染：
- *  1. 个人数据卡片（进度条 + 数字）
- *  2. 百分位对比（横向条形图 + 用户位置圆点）
- *  3. 分布直方图（用户值用竖线标出）
- *  4. 同学科对比（同学科子集内重算百分位，更精准）
- * 未提交过数据时显示空状态并引导去上传页。
+ * M4 转正（决策 v1.7 §5.4）：只消费服务端聚合，不在前端计算他人个体特征。
+ * - 未授权 → 授权引导空态（COMMUNITY_CONSENT_REQUIRED）
+ * - 样本不足 → 「群体数据积累中」空态（COMMUNITY_INSUFFICIENT_POOL，不展示缺口人数）
+ * - 服务不可用/聚合未生成 → 降级提示，不白屏
+ * 展示内容：分位数（p25/p50/p75）+ 直方图（已做 count<3 桶合并）+「我的位置」标记（本端数值）。
  */
-
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import styles from './index.module.css'
-import { subjectLabels } from '../../styles/theme'
+import { ApiError } from '../../services/http'
 import {
-  METRICS,
-  ensurePool,
-  histogram,
-  loadMyData,
-  percentile,
-  type CommunityRecord,
-  type MetricMeta,
-} from './community'
+  fetchCommunityAggregate,
+  fetchCommunityConsent,
+  type CommunityAggregate,
+  type CommunityMetric,
+  type CommunityStage,
+} from '../../services/communityApi'
+import { loadMyData, METRICS } from './community'
 
-/** 指标在自身量程内的归一化位置（0-100），用于进度条与竖线定位 */
-function ratioOf(meta: MetricMeta, value: number): number {
-  const clamped = Math.min(Math.max(value, meta.min), meta.max)
-  return ((clamped - meta.min) / (meta.max - meta.min)) * 100
-}
+const STAGE_OPTIONS: { value: CommunityStage; label: string }[] = [
+  { value: 'junior', label: '初中' },
+  { value: 'senior', label: '高中' },
+]
 
-function formatValue(meta: MetricMeta, value: number): string {
-  return meta.unit === '%' ? `${value}%` : `${value}`
-}
+const METRIC_OPTIONS: { value: CommunityMetric; label: string }[] = [
+  { value: 'hours', label: '学习时长' },
+  { value: 'focus', label: '专注度' },
+  { value: 'fatigue', label: '疲劳度' },
+  { value: 'completion', label: '完成率' },
+]
 
-/** 2. 百分位条形图：轨道 = 0-100%，填充 = 超过的人群比例，圆点 = 你的位置 */
-function PercentileBar({ percent }: { percent: number }) {
-  return (
-    <div className={styles.pTrack} role="img" aria-label={`超过群体中 ${percent}% 的人`}>
-      <div className={styles.pFill} style={{ width: `${percent}%` }} />
-      <span className={styles.pDot} style={{ left: `${percent}%` }} />
-    </div>
-  )
-}
-
-/** 3. 分布直方图：横轴数值区间，纵轴人数；用户值用竖线标出 */
-function Histogram({ meta, pool, myValue }: { meta: MetricMeta; pool: CommunityRecord[]; myValue: number }) {
-  const counts = useMemo(
-    () => histogram(pool, meta.key, meta.min, meta.max, meta.bins),
-    [pool, meta],
-  )
-  const maxCount = Math.max(...counts, 1)
-  const mePos = ratioOf(meta, myValue)
-
-  return (
-    <div className={styles.histBlock}>
-      <div className={styles.histTitle}>
-        <span>{meta.shortLabel}</span>
-        <span className="numeric">{formatValue(meta, myValue)}{meta.unit === '%' ? '' : ` ${meta.unit}`}</span>
-      </div>
-      <div className={styles.hist}>
-        {counts.map((c, i) => (
-          <div
-            key={i}
-            className={styles.histBarWrap}
-            title={`${Math.round(meta.min + ((meta.max - meta.min) / meta.bins) * i)} - ${Math.round(meta.min + ((meta.max - meta.min) / meta.bins) * (i + 1))}：${c} 人`}
-          >
-            <div className={styles.histBar} style={{ height: `${(c / maxCount) * 100}%` }} />
-          </div>
-        ))}
-        <span className={styles.histMe} style={{ left: `${mePos}%` }}>
-          <i>你</i>
-        </span>
-      </div>
-      <div className={styles.histAxis}>
-        <span>{meta.min}</span>
-        <span>{meta.max}{meta.unit === '%' ? '%' : ''}</span>
-      </div>
-    </div>
-  )
+function formatValue(metric: CommunityMetric, value: number): string {
+  if (metric === 'completion') return `${Math.round(value * 100)}%`
+  if (metric === 'hours') return `${value} 小时`
+  return `${value}`
 }
 
 export default function CommunityComparePage() {
-  // 懒初始化：渲染前确保池子存在，再一次性读入（纯本地数据，无需 effect）
-  const [pool, my] = useMemo(() => {
-    const p = ensurePool()
-    return [p, loadMyData()] as const
+  const my = useMemo(() => loadMyData(), [])
+
+  const [consent, setConsent] = useState<boolean | null>(null)
+  const [stage, setStage] = useState<CommunityStage>('senior')
+  const [metric, setMetric] = useState<CommunityMetric>('hours')
+  const [data, setData] = useState<CommunityAggregate | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<{ code?: string; message?: string } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchCommunityConsent()
+      .then((d) => { if (!cancelled) setConsent(d.enabled) })
+      .catch(() => { if (!cancelled) setConsent(null) })
+    return () => { cancelled = true }
   }, [])
 
-  if (!my) {
+  useEffect(() => {
+    if (consent !== true) { setData(null); return }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    fetchCommunityAggregate(stage, metric)
+      .then((d) => { if (!cancelled) { setData(d); setErr(null) } })
+      .catch((e) => {
+        if (cancelled) return
+        const code = e instanceof ApiError ? e.code : undefined
+        setData(null)
+        if (code === 'COMMUNITY_INSUFFICIENT_POOL') {
+          setErr({ code, message: '群体数据积累中，暂不展示对比' })
+        } else if (code === 'COMMUNITY_CONSENT_REQUIRED') {
+          setErr({ code, message: '开启匿名聚合授权后才能查看' })
+        } else {
+          setErr({ message: e instanceof Error ? e.message : '服务不可用，请稍后再试' })
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [consent, stage, metric])
+
+  // 未授权
+  if (consent === false) {
     return (
       <div className={styles.page}>
         <div className={styles.container}>
-          <header className={styles.pageHeader}>
-            <h1 className={styles.pageTitle}>群体对比</h1>
-          </header>
+          <header className={styles.pageHeader}><h1 className={styles.pageTitle}>群体对比</h1></header>
           <section className={`${styles.card} ${styles.emptyCard}`}>
-            <p className={styles.emptyText}>还没有你的数据。先匿名提交本周学习状态，再来看看自己在群体中的位置。</p>
-            <Link to="/community/upload" className={styles.linkBtn}>
-              去匿名提交 →
-            </Link>
+            <p className={styles.emptyText}>尚未开启匿名聚合授权。开启后（需监护人授权）你的本周特征将参与同龄群体匿名对比，可随时撤回。</p>
+            <Link to="/settings" className={styles.linkBtn}>去设置开启授权 →</Link>
           </section>
         </div>
       </div>
     )
   }
 
-  const subjectPool = pool.filter((r) => r.subject === my.subject)
-  const subjectName = subjectLabels[my.subject] ?? my.subject
-
   return (
     <div className={styles.page}>
       <div className={styles.container}>
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>群体对比</h1>
-          <p className={styles.pageSubtitle}>
-            与 {pool.length} 份匿名数据的横向对比 · 你的学科：{subjectName}
-          </p>
+          <p className={styles.pageSubtitle}>与同龄群体的聚合参照 · 只发聚合，不发个体</p>
         </header>
 
-        {/* 1. 个人数据卡片 */}
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>我的数据</h2>
-          <div className={styles.myGrid}>
-            {METRICS.map((meta) => (
-              <div key={meta.key} className={styles.myItem}>
-                <div className={styles.myItemHead}>
-                  <span>{meta.shortLabel}</span>
-                  <span className={`${styles.myValue} numeric`}>
-                    {formatValue(meta, my[meta.key])}
-                    {meta.unit !== '%' && <small> {meta.unit}</small>}
-                  </span>
-                </div>
-                <div className={styles.myTrack}>
-                  <div className={styles.myFill} style={{ width: `${ratioOf(meta, my[meta.key])}%` }} />
-                </div>
-              </div>
-            ))}
-            <div className={styles.myItem}>
-              <div className={styles.myItemHead}>
-                <span>学科</span>
-                <span className={styles.subjectChip}>{subjectName}</span>
-              </div>
-              <p className={styles.mySubjectNote}>同学科对比见下方</p>
-            </div>
-          </div>
-        </section>
-
-        {/* 2. 百分位对比 */}
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>百分位对比</h2>
-          <div className={styles.pList}>
-            {METRICS.map((meta) => {
-              const pct = percentile(pool, meta.key, my[meta.key])
-              return (
-                <div key={meta.key} className={styles.pItem}>
-                  <p className={styles.pText}>
-                    你的{meta.shortLabel}超过了群体中 <strong className="numeric">{pct}%</strong> 的人
-                  </p>
-                  <PercentileBar percent={pct} />
-                  <div className={styles.pScale}>
-                    <span>0%</span>
-                    <span>50%</span>
-                    <span>100%</span>
+        {/* 我的本周数据（本端草稿，不与池混合） */}
+        {my && (
+          <section className={styles.card}>
+            <h2 className={styles.cardTitle}>我的本周数据</h2>
+            <div className={styles.myGrid}>
+              {METRICS.map((m) => (
+                <div key={m.key} className={styles.myItem}>
+                  <div className={styles.myItemHead}>
+                    <span>{m.shortLabel}</span>
+                    <span className={`${styles.myValue} numeric`}>
+                      {m.key === 'completion' ? `${my[m.key]}%` : my[m.key]}
+                      {m.unit !== '%' && <small> {m.unit}</small>}
+                    </span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* 3. 分布直方图 */}
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>群体分布</h2>
-          <div className={styles.histGrid}>
-            {METRICS.map((meta) => (
-              <Histogram key={meta.key} meta={meta} pool={pool} myValue={my[meta.key]} />
-            ))}
-          </div>
-        </section>
-
-        {/* 4. 同学科对比 */}
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>同学科对比</h2>
-          {subjectPool.length > 1 ? (
-            <div className={styles.subjectList}>
-              {METRICS.map((meta) => {
-                const pct = percentile(subjectPool, meta.key, my[meta.key])
-                return (
-                  <p key={meta.key} className={styles.subjectLine}>
-                    在同选 <strong>{subjectName}</strong> 的{' '}
-                    <strong className="numeric">{subjectPool.length}</strong> 人中， 你的{meta.shortLabel}超过{' '}
-                    <strong className="numeric">{pct}%</strong> 的人
-                  </p>
-                )
-              })}
-              <p className={styles.subjectNote}>同学科样本更接近你的学习场景，比全量对比更有参考价值。</p>
+              ))}
             </div>
-          ) : (
-            <p className={styles.subjectNote}>
-              目前同选{subjectName}的匿名数据太少（{subjectPool.length} 条），暂不做同学科对比，可参考上方全量结果。
-            </p>
-          )}
+          </section>
+        )}
+
+        {/* 查询参数 */}
+        <section className={styles.card}>
+          <div className={styles.fieldRow}>
+            <div className={styles.fieldLabel}><span>学段</span></div>
+            <div className={styles.fieldControl}>
+              <select className={styles.select} value={stage} onChange={(e) => setStage(e.target.value as CommunityStage)}>
+                {STAGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className={styles.fieldLabel}><span>指标</span></div>
+            <div className={styles.fieldControl}>
+              <select className={styles.select} value={metric} onChange={(e) => setMetric(e.target.value as CommunityMetric)}>
+                {METRIC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
         </section>
+
+        {/* 结果 / 三异常态 */}
+        {loading && <p className={styles.pageSubtitle}>加载中…</p>}
+        {err && (
+          <section className={`${styles.card} ${styles.emptyCard}`}>
+            <p className={styles.emptyText}>{err.message ?? '服务不可用，请稍后再试'}</p>
+            {err.code === 'COMMUNITY_CONSENT_REQUIRED' && (
+              <Link to="/settings" className={styles.linkBtn}>去设置开启授权 →</Link>
+            )}
+          </section>
+        )}
+
+        {!loading && !err && data && (
+          <section className={styles.card}>
+            <h2 className={styles.cardTitle}>群体分布 · {data.poolSize} 人</h2>
+            <div className={styles.pList}>
+              <p className={styles.pText}>中位数（p50）：<strong className="numeric">{formatValue(data.metric, data.percentiles.p50)}</strong></p>
+              <p className={styles.pText}>p25 / p75：{formatValue(data.metric, data.percentiles.p25)} ~ {formatValue(data.metric, data.percentiles.p75)}</p>
+            </div>
+            <div className={styles.histGrid}>
+              {data.histogram.map((b, i) => (
+                <div key={i} className={styles.histBarWrap} title={`${b.lo}${b.hi === null ? '+' : ` - ${b.hi}`}：${b.count} 人`}>
+                  <div className={styles.histBar} style={{ height: `${Math.max(8, (b.count / (data.poolSize || 1)) * 200)}px` }} />
+                  <span className={styles.histAxisLabel}>{b.lo}{b.hi === null ? '+' : ''}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className={styles.actions}>
-          <Link to="/community/upload" className={styles.linkBtnGhost}>
-            重新提交本周数据 →
-          </Link>
+          <Link to="/community/upload" className={styles.linkBtnGhost}>返回录入 →</Link>
         </div>
-
-        <p className={styles.pageFooter}>comparison is for reference, not for anxiety.</p>
+        <p className={styles.pageFooter}>群体数据积累中 · 演示期间仅展示真实聚合，不混排演示数据。</p>
       </div>
     </div>
   )
