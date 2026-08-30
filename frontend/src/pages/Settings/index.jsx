@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ConfigProvider, Switch } from 'antd'
 import { getSettings, updateSettings } from '@/services/settings'
 import { isNetworkError, apiGet, apiPost } from '@/services/http'
+import { fetchCommunityConsent, putCommunityConsent } from '@/services/communityApi'
 import { antdThemeToken } from '@/styles/theme'
 import styles from './index.module.css'
 
@@ -115,6 +116,8 @@ export default function SettingsPage() {
             {error ? <p className={styles.error}>{error}</p> : null}
           </section>
 
+          <CommunityConsentPanel />
+
           <WeightPanel />
         </div>
       </main>
@@ -122,6 +125,63 @@ export default function SettingsPage() {
   )
 }
 
+
+// ===== 匿名群体参照授权面板（板块三 M4，决策 v1.7 §4.10） =====
+
+function CommunityConsentPanel() {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCommunityConsent()
+      .then((d) => { if (!cancelled) setEnabled(d.enabled); })
+      .catch(() => { if (!cancelled) setErr('授权状态读取失败，请稍后再试'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggle = async (checked) => {
+    setSaving(true);
+    setErr('');
+    try {
+      const d = await putCommunityConsent(checked, checked ? true : undefined);
+      setEnabled(d.enabled);
+    } catch (e) {
+      setErr(isNetworkError(e) ? '服务暂不可用，请稍后再试' : (e?.message ?? '保存失败'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className={styles.card}>
+      <div className={styles.item}>
+        <div className={styles.itemBody}>
+          <h2 className={styles.itemTitle}>匿名群体参照</h2>
+          <p className={styles.itemDesc}>
+            开启后，你本周的「分桶后的统计特征」（学习时长 / 专注度 / 疲劳度 / 计划完成度）会参与同龄群体的匿名对比；
+            不上传任何原始学习内容、错题或自评文本。默认关闭，可随时撤回，撤回后历史特征删除并退出聚合。
+            参与需经监护人授权。群体样本不足时不会展示对比，避免误导。
+            <br />
+            <em>本产品由学生团队开发，上述文案未经专业法律审核。</em>
+          </p>
+        </div>
+        <div className={styles.switchWrap}>
+          <Switch
+            checked={enabled}
+            loading={saving || loading}
+            disabled={loading}
+            onChange={toggle}
+          />
+        </div>
+      </div>
+      {err ? <p className={styles.error}>{err}</p> : null}
+    </section>
+  );
+}
 
 // ===== AI 调权面板（PRD 5.2 / 6.5） =====
 

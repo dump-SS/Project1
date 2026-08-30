@@ -10,11 +10,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styles from './index.module.css'
 import { subjectLabels } from '../../styles/theme'
+import { fetchCommunityConsent } from '../../services/communityApi'
 import {
   COMMUNITY_SUBJECTS,
-  ensurePool,
   saveMyData,
-  type CommunityRecord,
   type CommunitySubject,
 } from './community'
 
@@ -69,15 +68,18 @@ export default function CommunityUploadPage() {
   const [subject, setSubject] = useState<CommunitySubject>('SX')
   const [submitted, setSubmitted] = useState(false)
 
-  // 首次进入时确保群体池存在（20 条预置假数据）
+  // M4 转正：不再写入本地模拟池；授权状态与真实聚合走 /settings 开关 + /community/aggregate
+  const [consentEnabled, setConsentEnabled] = useState<boolean | null>(null)
   useEffect(() => {
-    ensurePool()
+    fetchCommunityConsent()
+      .then((d) => setConsentEnabled(d.enabled))
+      .catch(() => setConsentEnabled(null))
   }, [])
 
   const handleSubmit = () => {
     if (submitted) return
-    const record: CommunityRecord = { hours, focus, fatigue, completion, subject }
-    saveMyData(record)
+    // 服务端抽取为唯一真源：本页数值仅作草稿展示，不承担上传职责
+    saveMyData({ hours, focus, fatigue, completion, subject })
     setSubmitted(true)
     // 稍作停留让用户看到「已提交 ✓」反馈，再自动跳转对比页
     window.setTimeout(() => navigate('/community/compare'), 800)
@@ -155,7 +157,11 @@ export default function CommunityUploadPage() {
           </div>
 
           <p className={styles.privacyNote}>
-            本页为纯前端演示：数据仅保存在你自己的浏览器中，不会上传到服务器，也无法关联到你的身份。
+             {consentEnabled === false
+              ? '尚未开启匿名聚合授权：你可以在「设置 → 匿名群体参照」开启后参与真实群体对比（需监护人授权）。'
+              : consentEnabled === true
+              ? '已开启匿名聚合授权：本周的特征将参与同龄群体匿名对比，可随时在设置中撤回。'
+              : '本页数值仅作草稿展示；真实群体对比由服务端按你的授权状态自动纳入。'}
           </p>
 
           <button
@@ -164,7 +170,7 @@ export default function CommunityUploadPage() {
             disabled={submitted}
             onClick={handleSubmit}
           >
-            {submitted ? '已提交 ✓' : '匿名提交'}
+            {submitted ? '已提交 ✓' : '保存我的本周数据'}
           </button>
         </section>
 

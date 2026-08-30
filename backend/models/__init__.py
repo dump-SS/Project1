@@ -25,6 +25,7 @@ from database import Base, engine
 from auth.models import AuthCode, AuthSession, AuthUser
 
 from .assessment import AssessmentSnapshot
+from .community import CommunityAggregate, CommunityAuditLog, CommunityFeature
 from .goal import Goal
 from .knowledge import (
     EmbeddingRef,
@@ -75,4 +76,7 @@ __all__ = [
     "EmbeddingRef",
     "AICallLog",
     "RateLimitCounter",
+    "CommunityFeature",
+    "CommunityAggregate",
+    "CommunityAuditLog",
 ]

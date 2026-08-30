@@ -59,6 +59,19 @@ class Settings(BaseSettings):
     rate_limit_recommendation_per_day: int = 5
     rate_limit_summary_per_day: int = 1
 
+    # --- 板块三：群体匿名参照（参数配置化，决策方案 v1.7 §4.2/§4.3/§4.5，不写代码常量）---
+    # 最小群体规模 k：聚合写入与查询双重校验
+    community_min_pool: int = 20
+    # 直方图桶计数下限 n：count < n 的桶并入相邻桶（防单桶小样本反推）
+    community_bucket_min: int = 3
+    # 匿名参与 ID 的 HMAC 盐（环境变量，不落库；轮换时保留最近 community_salt_keep 个版本）
+    community_salt: str = ""
+    community_salt_keep: int = 2
+    # 聚合查询限频：每用户每分钟次数（§4.8）
+    community_agg_rate_per_minute: int = 5
+    # 「数据积累中」水印撤除门槛：连续达标周期数（§4.9，配置化）
+    community_demo_min_periods: int = 4
+
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",

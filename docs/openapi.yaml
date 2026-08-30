@@ -16,7 +16,7 @@ info:
     - 建议与复盘为异步生成：POST 返回 202 + `generation.status = pending`，前端轮询 GET 获取结果。
     - 监护人授权失效时所有写接口返回 403 `GUARDIAN_AUTHORIZATION_EXPIRED`，读接口不受影响。
 
-    阶段口径：pilot。本文档为前后端与 QA 的唯一契约来源。项目当前处于 pilot 阶段（小范围试用验证，非 beta/正式发布），由学生团队维持。契约中标注 `x-status: planned` 的接口（板块三 3 条）为架构预留，其启用不以外部法务或隐私评审通过为前提。
+    阶段口径：pilot。本文档为前后端与 QA 的唯一契约来源。项目当前处于 pilot 阶段（小范围试用验证，非 beta/正式发布），由学生团队维持。板块三契约已于 M1 转正（口径见 docs/module3-m0-decision-proposal.md v1.7 §4.11）。
 
 servers:
   - url: /api/v1
@@ -58,6 +58,10 @@ tags:
     description: 板块二：mastery 五因子规则计算（公式固定、权重入库），样本不足时不下数值结论。
   - name: 知识复盘
     description: 板块二：学科级周期知识复盘（异步生成 + RAG + EgressGuard + 审核层），复用 summaries 表。
+  - name: 群体参照
+    description: |
+      板块三（pilot）：匿名群体参照。只上传匿名分桶特征（服务端抽取为唯一真源）、只下发聚合结果
+      （k≥20 才下发，不含个体值）。授权默认关闭、显式开启、可随时撤回（撤回即物理删除）。
 
 paths:
   # ==================== 鉴权会话（外部账号体系，登录前公开） ====================
@@ -2344,73 +2348,114 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  # ==================== 板块三：群体匿名参照（仅预留，x-status: planned） ====================
-  /community/features:
-    post:
-      x-status: planned
-      tags: [知识复盘]
-      operationId: uploadCommunityFeatures
-      summary: 匿名特征值上传（规划中，不实施）
-      description: 板块三预留。显式授权后上传匿名化特征值；原文与身份字段禁止上传（PRD 10.2/10.3）。
-      responses:
-        '501':
-          description: 尚未实现
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: NOT_IMPLEMENTED
-                  message: 板块三尚未上线
+  # ==================== 板块三：群体匿名参照（M1 契约转正 · 口径 module3-m0-decision-proposal.md v1.7 §4.11） ====================
+  # POST /community/features 已按 M0 决议废弃（§4.7 每周自动参与 + §3 A2 服务端抽取为唯一真源）：
+  # 用户一次性授权后，由服务端抽取 job 按授权状态自动纳入当周数据，客户端不再上传特征值。
 
   /community/aggregate:
     get:
-      x-status: planned
-      tags: [知识复盘]
+      tags: [群体参照]
       operationId: getCommunityAggregate
-      summary: 群体聚合统计（规划中，不实施）
-      description: 只下发服务端聚合后的分位数/直方图桶，含最小群体规模校验。
+      summary: 当前周期群体聚合统计（只发聚合，不发个体）
+      description: |
+        只下发服务端物化的分位数/直方图桶；k≥20 时返回 poolSize + 聚合结果，不足 k 返回
+        COMMUNITY_INSUFFICIENT_POOL 且响应体不含任何数值。period 固化为当前 ISO 周，不作为查询参数；
+        第一批聚合维度 = metric × stage（§4.1，不含 subject）。未授权返回 COMMUNITY_CONSENT_REQUIRED。
+        限频：每用户每分钟 5 次，超限 RATE_LIMITED（§4.8）。
       parameters:
-        - name: subject
+        - name: stage
           in: query
-          required: false
+          required: true
+          description: 学段（junior=初中 / senior=高中）
           schema:
-            $ref: '#/components/schemas/Subject'
+            $ref: '#/components/schemas/CommunityStage'
         - name: metric
           in: query
           required: true
+          description: 聚合指标
           schema:
-            type: string
+            $ref: '#/components/schemas/CommunityMetric'
       responses:
-        '501':
-          description: 尚未实现
+        '200':
+          description: 当前周期聚合结果（仅 k≥20 时）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunityAggregate'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: 未开启匿名聚合授权
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
                 error:
-                  code: NOT_IMPLEMENTED
-                  message: 板块三尚未上线
+                  code: COMMUNITY_CONSENT_REQUIRED
+                  message: 开启匿名聚合授权后才能查看群体参照
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: 聚合池样本不足（k<20），响应体不含任何数值
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: COMMUNITY_INSUFFICIENT_POOL
+                  message: 群体数据积累中，暂不展示对比
 
   /me/community-consent:
     get:
-      x-status: planned
       tags: [用户与设置]
       operationId: getCommunityConsent
-      summary: 匿名聚合授权状态（规划中，不实施）
+      summary: 读取匿名聚合授权状态
       responses:
-        '501':
-          description: 尚未实现
+        '200':
+          description: 授权状态
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: NOT_IMPLEMENTED
-                  message: 板块三尚未上线
+                $ref: '#/components/schemas/CommunityConsent'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [用户与设置]
+      operationId: putCommunityConsent
+      summary: 开启 / 撤回匿名聚合授权（显式授权动作，PRD 10.3）
+      description: |
+        enabled=true 为显式开启（一次性授权后由服务端抽取 job 按授权状态自动纳入当周数据，
+        即「每周自动参与」，§4.7 决议）；enabled=false 为撤回：按匿名参与 ID 物理删除全部
+        历史特征行，延迟批量重算（≤24h）后退出聚合池（§4.5）。监护人授权失效时写接口 403。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityConsentUpdate'
+      responses:
+        '200':
+          description: 更新后的授权状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunityConsent'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   securitySchemes:
@@ -4343,3 +4388,88 @@ components:
         topic: { type: string, nullable: true }
         reason: { type: string }
         fromLLM: { type: boolean }
+
+    # ---------- 板块三：群体匿名参照（M1 契约转正） ----------
+    CommunityStage:
+      type: string
+      description: 学段（初中 / 高中）
+      enum: [junior, senior]
+    CommunityMetric:
+      type: string
+      description: 聚合指标（hours 小时/周、focus/fatigue 1-5 整数、completion 0-1 比例）
+      enum: [hours, focus, fatigue, completion]
+    CommunityConsent:
+      type: object
+      description: 匿名聚合授权状态
+      required: [enabled, autoParticipate, updatedAt]
+      properties:
+        enabled:
+          type: boolean
+          description: 是否已授权参与匿名群体聚合（默认 false）
+        autoParticipate:
+          type: boolean
+          description: 「每周自动参与」选项（§4.7 决议）：一次性开启后免逐周确认
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近变更时间
+    CommunityConsentUpdate:
+      type: object
+      description: 授权状态更新请求体
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: true=显式开启（自动参与）；false=撤回（物理删除历史特征并退出聚合池）
+        autoParticipate:
+          type: boolean
+          description: 是否自动参与每周聚合（enabled=true 时生效，默认 true）
+    CommunityHistogramBucket:
+      type: object
+      description: 直方图桶（count≥3 时才单独下发，小计数桶已并入相邻桶）
+      required: [lo, hi, count]
+      properties:
+        lo:
+          type: number
+          description: 桶下界
+        hi:
+          type: number
+          nullable: true
+          description: 桶上界；顶桶为 open 区间时 null（前端用「32h+」式开放标签）
+        count:
+          type: integer
+          description: 桶内人数（≥3）
+    CommunityPercentiles:
+      type: object
+      description: 群体分位数（真值下发，不对齐桶边界）
+      required: [p25, p50, p75]
+      properties:
+        p25: { type: number }
+        p50: { type: number }
+        p75: { type: number }
+    CommunityAggregate:
+      type: object
+      description: 群体聚合结果（仅 k≥20 时返回 poolSize）
+      required: [stage, metric, period, poolSize, percentiles, histogram, computedAt]
+      properties:
+        stage:
+          $ref: '#/components/schemas/CommunityStage'
+        metric:
+          $ref: '#/components/schemas/CommunityMetric'
+        period:
+          type: string
+          description: 当前 ISO 周（如 2026-W35）
+        poolSize:
+          type: integer
+          description: 本聚合池人数（≥20）
+        percentiles:
+          $ref: '#/components/schemas/CommunityPercentiles'
+        histogram:
+          type: array
+          description: 直方图桶（已做 count<3 合并）
+          items:
+            $ref: '#/components/schemas/CommunityHistogramBucket'
+        computedAt:
+          type: string
+          format: date-time
+          description: 聚合计算时间

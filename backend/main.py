@@ -33,16 +33,26 @@ async def lifespan(app: FastAPI):
 
     # 板块二自动周复盘定时任务（v2.2-4）：单机 asyncio 定时器，失败不阻断启动
     scheduler_task = None
+    community_task = None
     try:
         from jobs.weekly_knowledge_summary import start_weekly_summary_scheduler
         scheduler_task = start_weekly_summary_scheduler()
     except Exception:  # noqa: BLE001 — 定时器可选能力，不影响核心启动
         pass
 
+    # 板块三聚合/特征抽取定时任务（M2/M3）：失败不阻断启动
+    try:
+        from jobs.community_aggregate import start_community_scheduler
+        community_task = start_community_scheduler()
+    except Exception:  # noqa: BLE001
+        pass
+
     yield
 
     if scheduler_task is not None:
         scheduler_task.cancel()
+    if community_task is not None:
+        community_task.cancel()
     engine.dispose()
 
 
@@ -133,7 +143,7 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, daily_summary, error_book, goal, knowledge, knowledge_kb, learning_record, mastery, ocr, plan, recommendation, recommendation_content, summary, user, weight
+from routes import assessment, auth, community, daily_summary, error_book, goal, knowledge, knowledge_kb, learning_record, mastery, ocr, plan, recommendation, recommendation_content, summary, user, weight
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -152,6 +162,8 @@ api_v1.include_router(knowledge_kb.router)
 api_v1.include_router(error_book.router)
 api_v1.include_router(mastery.router)
 api_v1.include_router(ocr.router)
+api_v1.include_router(community.router)
+api_v1.include_router(community.aggregate_router)
 
 app.include_router(health.router)
 app.include_router(api_v1)
