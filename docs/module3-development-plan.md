@@ -29,7 +29,11 @@
 > | §5.2 双通道：客户端上报 + 服务端 job 校正 | **服务端抽取为唯一真源**，客户端只做授权/草稿展示 | 决策方案 §3 A2 |
 > | §5.2 每周手动确认参与 | **「每周自动参与」**：一次勾选后由抽取 job 按授权状态自动纳入 | 决策方案 §4.7 决议 |
 >
-> **执行骨架看本计划书（M0→M5 顺序），实现口径看决策方案 v1.7（§4 逐项 + §4.11 契约差异表）。** 开工第一步是 **M1 契约转正**：openapi.yaml 中 3 条接口目前仍是 `x-status: planned` 占位，按 §4.11 差异表落实（去掉 subject、补必填 stage、POST 语义改为服务端自动纳入、补监护人授权失效联动）。
+> **执行骨架看本计划书（M0→M5 顺序），实现口径看决策方案 v1.7（§4 逐项 + §4.11 契约差异表）。**
+>
+> **进度（2026-08-30 更新）：M1–M5 已全部实现并合入 main**（commit `d0d3f54`，PR #38）——契约转正（openapi 板块三已非 planned）、授权链路、特征抽取 job、聚合物化 job、前端转正、验收测试全部落地。**板块三已从「计划」转为「实现待收尾核对」状态。**
+>
+> **实现核对结论（2026-08-30）**：契约与前端与决策方案 v1.7 完全对齐（POST features 废弃、aggregate 去 subject 加必填 stage、poolSize 仅 k≥20 返回、前端只读聚合）。但发现 **1 个严重 bug 必须修**：撤回物理删除失效——`backend/routes/community.py _delete_user_features` 按 `WHERE user_id = :uid` 删，而 `community_features` 表没有 user_id 列（只有 anon_participant_id），SQL 报错被静默吞掉，撤回后特征行仍留库并继续参与聚合，违反 §4.5 选项 A 与「撤回即删除」设计底线；`test_community_consent.py` 只测了开关状态、未测特征行真被删，故全绿掩盖了此 bug。另有 3 处口径偏差（salt 轮换兼容为单版本空壳、抽取时点每日 03:10 而非周日 23:59、限频为进程内 dict 而非持久化表）与 2 处轻微漂移（completion 按计划创建时间过滤、extraction 一处死代码），详见 §10 实现核对。
 >
 > **已延后、不阻塞 pilot 的项**（团队须知，别误当已处理、也别让其卡进度）：CI 断言**自动化**（手工方案已定，编码属 M2/M5）、正式法律意见、外部隐私评审签字、差分隐私；决策方案 §7 验收 **#6（分桶量程核对）与 #7（poolSize 三处一致）延后到 M2/M4 实现时核对**——尤其 M2 造数时须回头验 hours 分桶上限是否覆盖真实分布（初高中生普遍 10–30 小时/周），别带错误量程上线。
 
@@ -178,3 +182,27 @@
 - 执行层状态追踪：板块三任务落地后在 `module2-backlog.md` 增「板块三」分区或新建 `module3-backlog.md`（建议后者，板块二 backlog 归档后）；
 - 契约变更先改 `docs/openapi.yaml`（M1），x-status 从 planned 移除并补全 schema；
 - 评审结论回填：`module3-privacy-review.md` 追加**团队内部自查**章节并留书面记录（预评审 4 条放行条件逐条核销）。
+
+---
+
+## 10. 板块三实现核对（2026-08-30 · PR #38 / commit d0d3f54）
+
+M1–M5 已实现并合入 main。逐项核对决策方案 v1.7 口径：
+
+| 口径 | 结论 |
+|---|---|
+| 契约转正（§4.11） | ✅ POST features 废弃、aggregate 去 subject 加必填 stage、metric 枚举固化、503 无体、poolSize 仅 k≥20 返回、consent GET/PUT + 监护人 403 |
+| 前端转正（§4.9） | ✅ Compare.tsx 只读服务端聚合、空态不展示缺口人数、不混排演示数据 |
+| 聚合重算语义（§4.2） | ✅ job 正确实现「不足 k 删除存量聚合行」；桶合并 n=3（§4.3）落地 |
+| k 双重校验（§4.2） | ✅ 聚合 job 写入前校验 + 查询接口 503 校验 |
+
+发现的问题（按优先级）：
+
+1. **【P0 严重】撤回物理删除失效**：`backend/routes/community.py:98-105` 的 `_delete_user_features` 执行 `DELETE FROM community_features WHERE user_id = :uid`，但该表没有 `user_id` 列（只有 `anon_participant_id`）。SQL 报错被 `except Exception` 静默吞掉 → 撤回后特征行仍留库、仍参与聚合，违反 §4.5 选项 A 与「撤回即删除」设计底线。`test_community_consent.py` 只断言开关状态、未断言特征行被删，全绿掩盖了此 bug。**修复**：改按 `anon_participant_id = compute_anon_id(user_id)`（循环全部 salt_version）删除，并补一条「撤回后特征行数为 0」的测试。
+2. **【P1】salt 轮换兼容为空壳**：`backend/anon_id.py:22-28` 的 `_salt_for(version)` 忽略 version、恒返回当前单一盐，`salt_version` 字段形同虚设。§4.5 要求的「保留最近 N 版盐、删除时按 salt_version 选盐」未真正实现（代码注释已诚实标注「当前仅单版本」）。配合问题 1，撤回删除的兜底链全线缺失。
+3. **【P1】抽取时点与决策不符**：§4.7 拍板「周日 23:59 统一抽取」；实现为每日 03:10（`community_aggregate.py:110-132`）。频率与时点均变，周内数据被每日反复刷新，「当周确认截止周日 23:59」的文案语义随之失效。
+4. **【P1】限频为进程内 dict**：`community.py:110` 的 `_AGG_RATE_LIMIT` 进程内近似，§4.8 要求复用 rate_limit 持久化表。重启清零、多进程不共享（与模块二 B5 同性质，注释已标 TODO）。
+5. **【P2】completion 口径漂移**：`community_extraction.py:137-147` 用 `PlanORM.created_at` 落在本周过滤计划，而非「本周内被完成的任务」；两周前建的计划、本周完成的任务不会被计入，与 §4.6「该周期内挂靠计划任务的完成比例」语义不完全一致。
+6. **【P2】死代码**：`community_extraction.py:63-67` 的 `user_rows` 查询了但从未使用。
+
+**无风险项（已核对）**：`self_report_focus/fatigue` 为 `nullable=False`，抽取时 `float(...)` 不会崩。
