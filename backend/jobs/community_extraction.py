@@ -60,12 +60,7 @@ def extract_community_features(db=None) -> dict:
             select(SettingsORM.user_id)
             .where(SettingsORM.community_consent_enabled.is_(True))
         ).scalars().all()
-        user_rows = db.execute(
-            # 与 users 表 join 拿 stage；未建档(stage 空)排除
-            select(SettingsORM.user_id, SettingsORM)
-            .where(SettingsORM.community_consent_enabled.is_(True))
-        ).all()
-        # 简化：逐用户读 User stage
+        # stage 从 User 表读取（未建档/缺 stage 用户跳过）
         from models.user import User as UserORM
 
         for (uid,) in users:
@@ -135,14 +130,17 @@ def _upsert_feature(db, anon: str, period: str, stage: str, metric: str, value: 
 
 
 def _plan_completion_ratio(db, uid: str, start: datetime, end: datetime) -> float | None:
-    """挂靠计划任务的完成比例；周期内无任务返回 None（不落行，§4.6）。"""
+    """挂靠计划任务的完成比例；周期内无任务返回 None（不落行，§4.6）。
+
+    口径：plan.plan_date 落在本周的任务（而非计划创建时间落本周）。
+    """
     from models.plan import Plan as PlanORM
 
     plans = db.execute(
         select(PlanORM.id).where(
             PlanORM.user_id == uid,
-            PlanORM.created_at >= start,
-            PlanORM.created_at <= end,
+            PlanORM.plan_date >= start.date(),
+            PlanORM.plan_date <= end.date(),
         )
     ).scalars().all()
     if not plans:

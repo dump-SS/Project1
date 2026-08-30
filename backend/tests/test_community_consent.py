@@ -51,3 +51,43 @@ def test_enabled_requires_field():
     r = client.put("/api/v1/me/community-consent", json={}, headers=HDR)
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_revoke_physically_deletes_features():
+    """P0 回归：撤回后该用户特征行物理删除（按 anon_participant_id）。"""
+    from anon_id import compute_anon_id
+    from models.community import CommunityFeature
+
+    # 预置特征行（模拟授权用户已抽取的特征）
+    anon = compute_anon_id("u_comm_test")
+    db = SessionLocal()
+    try:
+        s = db.get(SettingsORM, "u_comm_test")
+        if s is None:
+            s = SettingsORM(user_id="u_comm_test")
+            db.add(s)
+        s.community_consent_enabled = True
+        db.add(CommunityFeature(
+            id="cf_revoke_test",
+            anon_participant_id=anon,
+            salt_version=0,
+            period="2026-W99",
+            stage="senior",
+            metric="hours",
+            value=12.0,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    # 撤回
+    r = client.put("/api/v1/me/community-consent", json={"enabled": False}, headers=HDR)
+    assert r.status_code == 200
+
+    # 特征行应被物理删除
+    db = SessionLocal()
+    try:
+        n = db.query(CommunityFeature).filter(CommunityFeature.anon_participant_id == anon).count()
+        assert n == 0
+    finally:
+        db.close()
