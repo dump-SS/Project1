@@ -192,5 +192,5 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
       彻底解决需要一个单调递增序列列。
 - [ ] JWT 解析替换 `routes/deps.py` 里的 `current_user` 占位
 - [ ] 真实速率限制（PRD 6.4）
-- [ ] Alembic 迁移（当前 `Base.metadata.create_all` 够 MVP 阶段）
+- [x] Alembic 迁移定位（2026-08-31 决议）：**`Base.metadata.create_all` 是 schema 唯一真相源**（`database.py`/`main.py`/`conftest.py` 均走它）；`alembic/versions/` 仅作历史留痕，**不要运行 `alembic upgrade head`**（基线用 create_all 读当前 metadata，与增量迁移冲突）。详见 `alembic/env.py` 顶部说明。
 - [ ] 集成测试（用 `httpx.AsyncClient` 真发 HTTP）
