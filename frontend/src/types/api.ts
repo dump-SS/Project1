@@ -445,6 +445,11 @@ export interface GuardianAuthorizationRequest {
   guardianPhone?: string;
 }
 
+/** 监护人授权提交响应：确认 token（MVP 演示期返回，生产应改为 SMTP 发邮件） */
+export interface GuardianAuthorizationSubmission {
+  confirmToken: string;
+}
+
 /* ---------- 个性化建议（openapi.yaml 6.x） ---------- */
 
 /** 手动请求建议后的受理响应 */
