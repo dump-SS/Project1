@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './index.module.css'
 import type { GuardianAuthorizationStatus } from '../../types/api'
 import { getMe } from '../../services/user'
-import { revokeGuardianAuthorization, submitGuardianAuthorization } from '../../services/guardian'
+import {
+  buildGuardianConfirmUrl,
+  confirmGuardianAuthorization,
+  revokeGuardianAuthorization,
+  submitGuardianAuthorization,
+} from '../../services/guardian'
 import { isNetworkError } from '../../services/http'
 
 /**
@@ -18,7 +23,8 @@ import { isNetworkError } from '../../services/http'
  *
  * 注意：后端把「未提交」与「待确认」都返回 pending，页面只有在本会话提交成功后才
  * 展示"等待确认"；刷新后回到提交表单（重复提交幂等，后端会重置 token）。
- * 「演示：…」按钮仅供产品走查 —— MVP 阶段后端不真发邮件，确认链接 token 页面拿不到。
+ * MVP 阶段后端不真发邮件，但会把确认 token 返给前端拼出确认链接；「监护人点链接确认」
+ * 按钮会真实调用后端确认接口完成闭环。生产上线后改为 SMTP 发邮件并移除该按钮。
  */
 
 /** 统一提取错误文案：网络不可达 / 后端业务错误 / 兜底 */
@@ -64,6 +70,7 @@ export default function GuardianAuthPage() {
   const [loading, setLoading] = useState(true) // 首屏从 GET /me 读取真实状态
   const [logs, setLogs] = useState<LogEntry[]>([])
   const submittedThisSession = useRef(false) // 本会话是否提交过（区分「待确认」与「未提交」）
+  const [confirmToken, setConfirmToken] = useState<string | null>(null) // 提交后返回的确认 token（演示期拼链接用）
 
   // 授权到期时间：active 时展示，来自后端 GET /me 的 expiresAt
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
@@ -139,9 +146,10 @@ export default function GuardianAuthPage() {
     setTip(null)
     setSubmitting(true)
     try {
-      await submitGuardianAuthorization(
+      const res = await submitGuardianAuthorization(
         channel === 'email' ? { guardianEmail: e } : { guardianPhone: p },
       )
+      setConfirmToken(res.confirmToken)
       submittedThisSession.current = true
       setStatus('pending')
       setTip({ type: 'success', msg: '确认请求已发送，请等待监护人确认。' })
@@ -154,23 +162,54 @@ export default function GuardianAuthPage() {
     }
   }
 
-  const handleSimulateConfirm = () => {
-    // 演示用：真实环境由监护人点击邮件/短信中的确认链接完成
-    // （GET /guardian-authorization/confirm?token=…，无需登录）。MVP 阶段后端不真发邮件，
-    // token 页面拿不到，这里仅在本地模拟确认结果，刷新后以后端实际状态为准。
-    setStatus('active')
-    setExpiresAt(new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString())
-    setTip({ type: 'success', msg: '演示模式：已模拟监护人确认。真实确认需监护人点击收到的确认链接。' })
-    appendLog('CONFIRM', '演示：模拟监护人点击确认链接')
+  const handleSimulateConfirm = async () => {
+    // MVP 演示期后端不真发邮件，确认 token 由前端持有；此处直接调真实确认接口完成闭环，
+    // 等同监护人点开确认链接。生产上线后此按钮应移除，由 SMTP 邮件里的链接驱动。
+    if (!confirmToken) {
+      setTip({ type: 'error', msg: '当前会话无确认 token，请先提交监护人联系方式。' })
+      return
+    }
+    setSubmitting(true)
+    try {
+      const result = await confirmGuardianAuthorization(confirmToken)
+      if (!result?.ok) {
+        setTip({ type: 'error', msg: '确认失败：token 无效或已被使用。' })
+        appendLog('CONFIRM_FAIL', 'token 无效或已被使用')
+        return
+      }
+      // 真实确认成功后，重新拉取后端状态（active + expiresAt），而非本地模拟
+      const me = await getMe()
+      setStatus(me.guardianAuthorization.status)
+      setExpiresAt(me.guardianAuthorization.expiresAt ?? null)
+      setConfirmToken(null) // token 一次性，确认后清空
+      setTip({ type: 'success', msg: '监护人已确认，授权生效。' })
+      appendLog('CONFIRM', '监护人点击确认链接，授权生效')
+    } catch (err) {
+      setTip({ type: 'error', msg: `确认失败：${errMsg(err)}` })
+      appendLog('CONFIRM_FAIL', errMsg(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCopyLink = async () => {
+    if (!confirmToken) return
+    try {
+      await navigator.clipboard.writeText(buildGuardianConfirmUrl(confirmToken))
+      setTip({ type: 'success', msg: '确认链接已复制到剪贴板。' })
+    } catch {
+      setTip({ type: 'error', msg: '复制失败，请手动复制确认链接。' })
+    }
   }
 
   const handleResend = async () => {
     setSubmitting(true)
     try {
       // 重发 = 重新提交：后端会重置 status=pending 并生成新 token
-      await submitGuardianAuthorization(
+      const res = await submitGuardianAuthorization(
         channel === 'email' ? { guardianEmail: email.trim() } : { guardianPhone: phone.trim() },
       )
+      setConfirmToken(res.confirmToken)
       submittedThisSession.current = true
       setTip({ type: 'success', msg: '确认请求已重新发送。' })
       appendLog('RESEND')
@@ -333,6 +372,24 @@ export default function GuardianAuthPage() {
                   <span className={styles.codeKey}>链接有效期</span>
                   <span className={styles.codeVal}>{channel === 'email' ? '24 小时' : '10 分钟'}</span>
                 </li>
+                {confirmToken && (
+                  <li>
+                    <span className={styles.codeKey}>确认链接</span>
+                    <span className={styles.linkVal}>
+                      <a
+                        className={styles.confirmLink}
+                        href={buildGuardianConfirmUrl(confirmToken)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {buildGuardianConfirmUrl(confirmToken)}
+                      </a>
+                      <button type="button" className={styles.linkBtn} onClick={handleCopyLink}>
+                        复制
+                      </button>
+                    </span>
+                  </li>
+                )}
               </ul>
             </div>
 
@@ -348,8 +405,13 @@ export default function GuardianAuthPage() {
               <button type="button" className={styles.linkBtn} onClick={handleCancel}>
                 取消请求
               </button>
-              <button type="button" className={styles.linkBtn} onClick={handleSimulateConfirm}>
-                演示：监护人点链接确认
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                disabled={submitting || !confirmToken}
+                onClick={handleSimulateConfirm}
+              >
+                {submitting ? '确认中…' : '监护人点链接确认'}
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-﻿.page {
+.page {
   position: relative;
   min-height: 100vh;
   background: var(--bg-sky); background-attachment: fixed;
@@ -393,6 +393,29 @@
 .codeVal {
   color: var(--color-text-body);
   font-weight: var(--weight-medium);
+}
+
+.linkVal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--color-text-body);
+  font-weight: var(--weight-medium);
+  min-width: 0;
+}
+
+.confirmLink {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--color-primary-dark);
+  word-break: break-all;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.confirmLink:hover {
+  color: var(--color-primary);
 }
 
 .logCard {

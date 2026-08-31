@@ -189,7 +189,9 @@ def submit_guardian_authorization(
         row.confirm_token = token
         row.expires_at = None  # 重新提交时清空之前的过期时间
     db.commit()
-    return Response(status_code=status.HTTP_202_ACCEPTED)
+    # MVP 演示期：不真发邮件，把 token 直接返回前端拼接确认链接；
+    # 生产上线前必须改为 SMTP 真发邮件（见 B6），并移除这里的 token 返回。
+    return {"confirmToken": token}
 
 
 @router.delete(
