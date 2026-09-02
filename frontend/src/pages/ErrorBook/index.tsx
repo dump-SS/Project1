@@ -44,7 +44,7 @@ import './index.css';
 
 /* ============ 类型与常量 ============ */
 
-type Subject = 'SX' | 'WL' | 'YY';
+type Subject = 'YW' | 'SX' | 'YY' | 'LS' | 'DL' | 'ZZ' | 'WL' | 'HX' | 'SW';
 type ErrorReason = 'concept' | 'calculation' | 'reading' | 'method' | 'other';
 
 interface ErrorItem {
@@ -59,15 +59,27 @@ interface ErrorItem {
 }
 
 const SUBJECT_TABS: { key: Subject; label: string }[] = [
+  { key: 'YW', label: '语文' },
   { key: 'SX', label: '数学' },
-  { key: 'WL', label: '物理' },
   { key: 'YY', label: '英语' },
+  { key: 'LS', label: '历史' },
+  { key: 'DL', label: '地理' },
+  { key: 'ZZ', label: '政治' },
+  { key: 'WL', label: '物理' },
+  { key: 'HX', label: '化学' },
+  { key: 'SW', label: '生物' },
 ];
 
 const SUBJECT_KNOWLEDGE: Record<Subject, string[]> = {
+  YW: ['文言文实词', '现代文阅读', '古诗鉴赏', '作文立意'],
   SX: ['函数单调性', '复合函数判定', '数列求和', '等差数列'],
-  WL: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
   YY: ['时态辨析', '从句引导词', '词义辨析', '阅读主旨'],
+  LS: ['中国古代政治制度', '中国近代史', '世界近现代史', '史料分析'],
+  DL: ['大气环流', '洋流分布', '地形地貌', '区位因素'],
+  ZZ: ['经济生活', '政治生活', '唯物辩证法', '价值规律'],
+  WL: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
+  HX: ['化学方程式配平', '物质的量', '氧化还原反应', '离子反应'],
+  SW: ['细胞结构与功能', '光合作用', '遗传规律', '生态系统'],
 };
 
 const REASON_OPTIONS: { value: ErrorReason; label: string }[] = [

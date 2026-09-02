@@ -10,12 +10,14 @@
 import { useEffect, useState } from 'react'
 import { KNOWLEDGE_BASE, masteryTone } from '@/utils/matchKnowledge'
 import { QUICK_QUESTIONS } from '@/pages/Chat/mockData'
+import { fetchErrorBook, type ErrorRecord } from '@/services/errorBook'
 import {
   readAllErrors,
   relativeTime,
   REASON_LABEL,
   SUBJECT_LABEL,
   type ErrorItem,
+  type ErrorReason,
   type Subject,
 } from './types'
 
@@ -40,6 +42,19 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'quick', label: '快捷提问' },
 ]
 
+const VALID_SUBJECTS: Subject[] = ['YW', 'SX', 'YY', 'LS', 'DL', 'ZZ', 'WL', 'HX', 'SW']
+const VALID_REASONS: ErrorReason[] = ['concept', 'calculation', 'reading', 'method', 'other']
+
+/** 后端 ErrorRecord → ReferencePanel 显示字段（内联映射，避免与错题本页重复抽象） */
+const toItem = (r: ErrorRecord): ErrorItem & { subject: Subject } => ({
+  id: r.errorId,
+  questionText: r.rawText,
+  reason: VALID_REASONS.includes(r.errorType as ErrorReason) ? (r.errorType as ErrorReason) : 'other',
+  knowledgeNames: (r.points ?? []).map((p) => p.name ?? p.pointId),
+  createdAt: new Date(r.createdAt).getTime(),
+  subject: VALID_SUBJECTS.includes(r.subject as Subject) ? (r.subject as Subject) : 'SX',
+})
+
 export default function ReferencePanel({
   onFillInput,
   onSendQuick,
@@ -50,9 +65,22 @@ export default function ReferencePanel({
   const [tab, setTab] = useState<TabKey>('errors')
   const [errors, setErrors] = useState<(ErrorItem & { subject: Subject })[]>([])
 
-  // 初次挂载 + 录入新错题后重读 localStorage
+  // 初次挂载 + 录入新错题后重读；优先走真接口，后端未就绪回退 localStorage
   useEffect(() => {
-    setErrors(readAllErrors())
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetchErrorBook({ page: 1, pageSize: 50 })
+        const mapped = (res.items ?? []).map(toItem)
+        if (!cancelled) setErrors(mapped)
+      } catch {
+        if (!cancelled) setErrors(readAllErrors())
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [refreshKey])
 
   const pickFill = (text: string) => {

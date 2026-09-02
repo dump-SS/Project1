@@ -15,7 +15,7 @@ export interface ChatMessage {
   createdAt: number
 }
 
-export type Subject = 'SX' | 'WL' | 'YY'
+export type Subject = 'YW' | 'SX' | 'YY' | 'LS' | 'DL' | 'ZZ' | 'WL' | 'HX' | 'SW'
 
 export type ErrorReason = 'concept' | 'calculation' | 'reading' | 'method' | 'other'
 
@@ -29,9 +29,15 @@ export interface ErrorItem {
 }
 
 export const SUBJECT_LABEL: Record<Subject, string> = {
+  YW: '语文',
   SX: '数学',
-  WL: '物理',
   YY: '英语',
+  LS: '历史',
+  DL: '地理',
+  ZZ: '政治',
+  WL: '物理',
+  HX: '化学',
+  SW: '生物',
 }
 
 export const REASON_LABEL: Record<ErrorReason, string> = {
@@ -52,9 +58,15 @@ export const REASON_OPTIONS: { value: ErrorReason; label: string }[] = [
 
 /** 各学科可选知识点（与错题本页 SUBJECT_KNOWLEDGE 一致） */
 export const SUBJECT_KNOWLEDGE: Record<Subject, string[]> = {
+  YW: ['文言文实词', '现代文阅读', '古诗鉴赏', '作文立意'],
   SX: ['函数单调性', '复合函数判定', '数列求和', '等差数列'],
-  WL: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
   YY: ['时态辨析', '从句引导词', '词义辨析', '阅读主旨'],
+  LS: ['中国古代政治制度', '中国近代史', '世界近现代史', '史料分析'],
+  DL: ['大气环流', '洋流分布', '地形地貌', '区位因素'],
+  ZZ: ['经济生活', '政治生活', '唯物辩证法', '价值规律'],
+  WL: ['受力分析', '运动学公式', '能量守恒', '电路欧姆定律'],
+  HX: ['化学方程式配平', '物质的量', '氧化还原反应', '离子反应'],
+  SW: ['细胞结构与功能', '光合作用', '遗传规律', '生态系统'],
 }
 
 /* ============ localStorage ============ */
@@ -82,7 +94,7 @@ export function writeErrors(s: Subject, list: ErrorItem[]) {
 
 /** 读取全部学科的错题，按时间倒序合并 */
 export function readAllErrors(): (ErrorItem & { subject: Subject })[] {
-  const subjects: Subject[] = ['SX', 'WL', 'YY']
+  const subjects: Subject[] = ['YW', 'SX', 'YY', 'LS', 'DL', 'ZZ', 'WL', 'HX', 'SW']
   return subjects
     .flatMap((s) => readErrors(s).map((e) => ({ ...e, subject: s })))
     .sort((a, b) => b.createdAt - a.createdAt)

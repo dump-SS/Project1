@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { App as AntdApp, Button, Form, Input, Select, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
+import { createErrorRecord } from '@/services/errorBook'
 import {
   genId,
   readErrors,
@@ -58,8 +59,12 @@ function ErrorEntryInner({ onSaved }: ErrorEntryPanelProps) {
         knowledgeNames: values.knowledgeNames ?? [],
         createdAt: Date.now(),
       }
-      // 与错题本页共享同一 key，前插保持倒序
-      writeErrors(values.subject, [item, ...readErrors(values.subject)])
+      // 走真接口入库（消除与错题本页数据分裂）；后端未就绪时回退 localStorage
+      try {
+        await createErrorRecord({ subject: values.subject, rawText: item.questionText, errorType: item.reason })
+      } catch {
+        writeErrors(values.subject, [item, ...readErrors(values.subject)])
+      }
       setRecent((r) =>
         [{ id: item.id, preview: item.questionText.slice(0, 20), createdAt: item.createdAt }, ...r].slice(0, 5),
       )
