@@ -70,6 +70,12 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("kb_points")}
         if "explanation" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # 板块三：settings.community_consent_enabled 列（settings 数据共享，老库缺列会拖垮
+    # 所有读 settings 的测试——mastery/调权/privacy/community 全家），需重建
+    if insp.has_table("settings"):
+        cols = {c["name"] for c in insp.get_columns("settings")}
+        if "community_consent_enabled" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

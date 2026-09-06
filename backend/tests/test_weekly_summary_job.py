@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -76,10 +76,12 @@ def test_run_scan_skips_already_generated():
     db = SessionLocal()
     try:
         _mk_record(db, "u_gen", "SX", 3, use_error=True)
-        # 预置一条本周 knowledge 复盘 → 应被跳过
+        # 预置一条本周 knowledge 复盘 → 应被跳过。
+        # 注意用 date.today()（与生产 _persist_knowledge_summary 落库口径一致），
+        # 不能用 utcnow().date()——UTC+8 凌晨时段 UTC 日期比本地早一天会去重失效
         db.add(SummaryORM(
             id="sum_prev", user_id="u_gen", dimension="knowledge",
-            period_start=datetime.utcnow().date(), period_end=datetime.utcnow().date(),
+            period_start=date.today(), period_end=date.today(),
             generation_status="ready", content_overview="上周内容",
         ))
         db.commit()

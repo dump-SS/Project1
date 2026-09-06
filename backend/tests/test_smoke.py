@@ -129,15 +129,18 @@ def test_settings_update_requires_at_least_one_field() -> None:
 
 
 def test_guardian_request_requires_email() -> None:
-    """项目目前只有邮箱注册/验证，guardianPhone 字段已移除。"""
-    # 空 body：报错（guardianEmail 必填）
-    with pytest.raises(ValueError, match="guardianEmail"):
+    """guardianEmail / guardianPhone 至少填一项（板块三支持手机号二选一）。"""
+    # 空 body：报错（自定义 validator 消息）
+    with pytest.raises(ValueError, match="至少填一项"):
         GuardianAuthorizationRequest.model_validate({})
     # 正常传邮箱：OK
     ok = GuardianAuthorizationRequest.model_validate(
         {"guardianEmail": "g@e.com"}
     )
     assert ok.guardian_email == "g@e.com"
+    # 只传手机号也 OK（板块三扩展）
+    ok2 = GuardianAuthorizationRequest.model_validate({"guardianPhone": "13800000000"})
+    assert ok2.guardian_phone == "13800000000"
 
 
 # ---------- 7. RecordInput 字段范围 ----------
