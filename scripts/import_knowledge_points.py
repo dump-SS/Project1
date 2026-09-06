@@ -174,6 +174,7 @@ def main() -> None:
     print(f"导入 {len(files)} 个文件（embedding 模式：{mode}）")
     db = SessionLocal()
     total_new = total_upd = total_rel = total_vec = 0
+    batch = 0
     try:
         for fp in files:
             data = json.loads(fp.read_text(encoding="utf-8"))
@@ -187,10 +188,17 @@ def main() -> None:
                 else:
                     total_upd += 1
                 total_rel += _import_relations(db, pt)
-                # 向量化（name+definition 作为检索文本）
-                text = f"{pt['name']}。{pt.get('definition', '')}"
-                if _vectorize(pid, text, mode):
-                    total_vec += 1
+                # 向量化仅新点（name+definition 作为检索文本）。
+                # 已存在点跳过——vector_store.add 不幂等，重复 add 会追加重复向量。
+                # 若知识点内容更新需重算向量，用 rebuild_index 后重新导入。
+                if is_new:
+                    text = f"{pt['name']}。{pt.get('definition', '')}"
+                    if _vectorize(pid, text, mode):
+                        total_vec += 1
+                # 分批 commit（每 50 点），中途失败不丢已导入部分
+                batch += 1
+                if batch % 50 == 0:
+                    db.commit()
         db.commit()
     except Exception:
         db.rollback()
