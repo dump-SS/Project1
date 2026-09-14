@@ -34,6 +34,49 @@ export function isNetworkError(err: unknown): boolean {
   return status === undefined || status === 0;
 }
 
+/**
+ * 业务接口会话失效（401 UNAUTHENTICATED）时广播，由 AuthContext 接管跳转登录页。
+ *
+ * 用事件而不是直接 window.location.href：RequireAuth 已经实现了「弹回 /login 并
+ * 记下原目标路径、登录后跳回」的完整链路，把登录态置回 anonymous 即可复用，
+ * 不必在 service 层再写一套跳转。
+ */
+export const AUTH_EXPIRED_EVENT = 'epochx:auth-expired';
+
+/**
+ * 统一把非 2xx 响应转成 ApiError（各方法共用，避免同一段解析逻辑复制 5 份）。
+ *
+ * 只有「业务接口的会话失效」才广播 AUTH_EXPIRED_EVENT：
+ * - /auth/login-password 密码错误是 401 PASSWORD_INCORRECT
+ * - /auth/me 未登录是 401 UNAUTHORIZED（AuthContext 自己按未登录处理）
+ * 这两者若一并拦截，会出现「登录失败 → 被弹回登录页」的死循环。
+ */
+async function throwIfNotOk(response: Response): Promise<void> {
+  if (response.ok) return;
+
+  let code = 'INTERNAL_ERROR';
+  let message = `请求失败（HTTP ${response.status}）`;
+  let field: string | undefined;
+  try {
+    const body = (await response.json()) as ApiErrorBody;
+    if (body?.error) {
+      code = body.error.code ?? code;
+      message = body.error.message ?? message;
+      field = body.error.field;
+    }
+  } catch {
+    // 后端未上线时返回非 JSON（如 HTML 404 页），解析失败属预期，沿用默认文案
+  }
+
+  if (response.status === 401 && code === 'UNAUTHENTICATED') {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+  }
+
+  throw new ApiError(response.status, code, message, field);
+}
+
 type QueryValue = string | number | boolean | undefined | null;
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
@@ -64,22 +107,7 @@ export async function apiPost<T>(
     signal,
   });
 
-  if (!response.ok) {
-    let code = 'INTERNAL_ERROR';
-    let message = `请求失败（HTTP ${response.status}）`;
-    let field: string | undefined;
-    try {
-      const errBody = (await response.json()) as ApiErrorBody;
-      if (errBody?.error) {
-        code = errBody.error.code ?? code;
-        message = errBody.error.message ?? message;
-        field = errBody.error.field;
-      }
-    } catch {
-      // 后端未上线时返回非 JSON，解析失败属预期
-    }
-    throw new ApiError(response.status, code, message, field);
-  }
+  await throwIfNotOk(response);
 
   // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
   const text = await response.text().catch(() => '');
@@ -107,22 +135,7 @@ export async function apiPatch<T>(
     signal,
   });
 
-  if (!response.ok) {
-    let code = 'INTERNAL_ERROR';
-    let message = `请求失败（HTTP ${response.status}）`;
-    let field: string | undefined;
-    try {
-      const errBody = (await response.json()) as ApiErrorBody;
-      if (errBody?.error) {
-        code = errBody.error.code ?? code;
-        message = errBody.error.message ?? message;
-        field = errBody.error.field;
-      }
-    } catch {
-      // 后端未上线时返回非 JSON，解析失败属预期
-    }
-    throw new ApiError(response.status, code, message, field);
-  }
+  await throwIfNotOk(response);
 
   // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
   const text = await response.text().catch(() => '');
@@ -145,22 +158,7 @@ export async function apiPut<T>(
     signal,
   });
 
-  if (!response.ok) {
-    let code = 'INTERNAL_ERROR';
-    let message = `请求失败（HTTP ${response.status}）`;
-    let field: string | undefined;
-    try {
-      const errBody = (await response.json()) as ApiErrorBody;
-      if (errBody?.error) {
-        code = errBody.error.code ?? code;
-        message = errBody.error.message ?? message;
-        field = errBody.error.field;
-      }
-    } catch {
-      // 后端未上线时返回非 JSON，解析失败属预期
-    }
-    throw new ApiError(response.status, code, message, field);
-  }
+  await throwIfNotOk(response);
 
   // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
   const text = await response.text().catch(() => '');
@@ -180,22 +178,7 @@ export async function apiGet<T>(
     signal,
   });
 
-  if (!response.ok) {
-    let code = 'INTERNAL_ERROR';
-    let message = `请求失败（HTTP ${response.status}）`;
-    let field: string | undefined;
-    try {
-      const body = (await response.json()) as ApiErrorBody;
-      if (body?.error) {
-        code = body.error.code ?? code;
-        message = body.error.message ?? message;
-        field = body.error.field;
-      }
-    } catch {
-      // 后端还没上线时通常返回 HTML 404 页，解析失败属预期，沿用默认文案
-    }
-    throw new ApiError(response.status, code, message, field);
-  }
+  await throwIfNotOk(response);
 
   // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
   const text = await response.text().catch(() => '');
@@ -219,22 +202,7 @@ export async function apiDelete<T = undefined>(
     signal,
   });
 
-  if (!response.ok) {
-    let code = 'INTERNAL_ERROR';
-    let message = `请求失败（HTTP ${response.status}）`;
-    let field: string | undefined;
-    try {
-      const errBody = (await response.json()) as ApiErrorBody;
-      if (errBody?.error) {
-        code = errBody.error.code ?? code;
-        message = errBody.error.message ?? message;
-        field = errBody.error.field;
-      }
-    } catch {
-      // 后端未上线时返回非 JSON，解析失败属预期
-    }
-    throw new ApiError(response.status, code, message, field);
-  }
+  await throwIfNotOk(response);
 
   // 无响应体（204 DELETE / 202 受理类）时容错返回；有 body 则解析
   const text = await response.text().catch(() => '');
