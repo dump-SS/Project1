@@ -58,13 +58,25 @@ def test_mock_provider_three_scenarios(caplog):
     assert types_seen == {"register", "login", "reset"}
 
 
-def test_real_provider_does_not_call_mock(caplog):
-    """SMTP_PROVIDER=real 时，不会写 mock logger（路径分流正确）。"""
+def test_real_provider_does_not_call_mock(caplog, monkeypatch):
+    """SMTP_PROVIDER=real 时，不会写 mock logger（路径分流正确）。
+
+    必须显式清空 SMTP_USER/SMTP_PASS：_send_real 只有在这两项为空时才走
+    「未配置」分支直接返回。若开发机 .env 配了真实邮箱凭据（本项目 .env 就配了
+    163），用例会真的去连 SMTP——凭据有效则发真邮件、失效则抛
+    SMTPAuthenticationError，两种情况都让用例结果取决于机器环境而随机失败。
+    """
     settings.smtp_provider = "real"
-    # 真实路径需要 SMTP_USER/SMTP_PASS，conftest 走 mock 时这两个是空 → 走「未配置」分支 return
-    # 关键是：不应触发 mock 输出
+    monkeypatch.setattr(settings, "smtp_user", "")
+    monkeypatch.setattr(settings, "smtp_pass", "")
+
     caplog.set_level(logging.WARNING, logger="auth.email")
     send_code_email("register", "test_real@epochx.dev", "999999")
+
     mock_records = [r for r in caplog.records
                     if r.name == "auth.email" and "MOCK-EMAIL" in r.getMessage()]
     assert not mock_records, "real 模式不应写 MOCK-EMAIL 日志"
+    # 走「未配置」分支时应留下告警，而不是静默当作发送成功
+    assert any("未配置 SMTP_USER/SMTP_PASS" in r.getMessage() for r in caplog.records), (
+        "凭据为空时应有「未配置」告警"
+    )
