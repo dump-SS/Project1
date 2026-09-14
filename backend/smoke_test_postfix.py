@@ -7,6 +7,8 @@ MVP 修复回归 smoke test（2026-08-18 旧 Agent 卡死后由新 Agent 重写�
   4. /summary-review 已有 1 条复盘可展示  → 已有 GET /summaries 列表接口
 
 注：服务基地址与 X-User-ID 由命令行参数传入，便于在沙箱里跑。
+    本脚本靠 X-User-ID 自报身份，目标服务端必须开启非安全身份回落链
+    （backend/.env 里 ALLOW_INSECURE_USER_HEADER=true），否则会返回 401。
 """
 from __future__ import annotations
 

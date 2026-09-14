@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 天，与 mock-server 会话有效期一致
 
+    # 危险开关：启用「非安全身份回落链」——X-User-ID 头 / Bearer u_ 前缀 token /
+    # 无会话时兜底共享账号 u_10237（见 routes/deps.py:current_user 的第 2–4 层）。
+    # 默认 false：生产环境身份唯一来源是 sid cookie，无有效会话一律 401。
+    # 打开它等于允许请求方自报身份冒充任意用户（垂直越权），只允许在测试/联调环境置 true。
+    allow_insecure_user_header: bool = False
+
     # --- AI 接入（占位，下个 PR 接入真实 LLM）---
     llm_provider: str = "mock"
     llm_api_key: str = ""
