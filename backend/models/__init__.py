@@ -18,10 +18,9 @@ SQLAlchemy ORM 模型集合。
 """
 from __future__ import annotations
 
-from database import Base, engine
+from database import Base
 
-# auth 迁移：先把 AuthUser/AuthCode/AuthSession 注册进 Base.metadata，
-# 才能在下面的 create_all 时一并建表
+# auth 迁移：先把 AuthUser/AuthCode/AuthSession 注册进 Base.metadata
 from auth.models import AuthCode, AuthSession, AuthUser
 
 from .assessment import AssessmentSnapshot
@@ -46,9 +45,18 @@ from .user import GuardianAuthorization, Settings, User
 from .weight import UserWeightConfig, WeightAdjustLog
 from .ai_call_log import AICallLog
 
-# 所有 ORM 类注册完成后，立即建表（幂等）。
-# SQLite 开发/测试环境需要；生产迁移方案引入后可移除。
-Base.metadata.create_all(bind=engine)
+# ⚠️ 这里刻意**不建表**。
+#
+# 历史上此处是 `Base.metadata.create_all(bind=engine)`，造成「import models 即建表」
+# 的隐式副作用，两个后果：
+#   1. alembic autogenerate 永远看不到差异——它 import models 时表已被建好，
+#      于是对着空库也只会生成空迁移，迁移链无法自举；
+#   2. 任何 import 模型的代码（包括 alembic 自身）都会隐式建表，出问题极难排查。
+#
+# 建表改由需要它的入口显式调用：
+#   - 应用启动：main.py
+#   - 测试：tests/conftest.py
+#   - 独立脚本：scripts/seed_kb_math.py、scripts/import_knowledge_points.py 等
 
 __all__ = [
     "User",

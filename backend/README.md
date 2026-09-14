@@ -192,5 +192,8 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
       彻底解决需要一个单调递增序列列。
 - [ ] JWT 解析替换 `routes/deps.py` 里的 `current_user` 占位
 - [ ] 真实速率限制（PRD 6.4）
-- [x] Alembic 迁移定位（2026-08-31 决议）：**`Base.metadata.create_all` 是 schema 唯一真相源**（`database.py`/`main.py`/`conftest.py` 均走它）；`alembic/versions/` 仅作历史留痕，**不要运行 `alembic upgrade head`**（基线用 create_all 读当前 metadata，与增量迁移冲突）。详见 `alembic/env.py` 顶部说明。
+- [x] Alembic 迁移定位（2026-09-15 **squash 后反转**）：**Alembic 是 schema 唯一真相源**，空库建表走 `alembic upgrade head`，upgrade / downgrade 可反复执行。基线 `1a6f0c6bb285` 是 autogenerate 产出的显式 DDL（29 张表），不再引用 `Base.metadata`。
+      - 历史：2026-08-31 的旧决议是"`create_all` 为唯一真相源、勿运行 `upgrade head`"，原因是原基线 `ee1d7e6e893c` 用 `Base.metadata.create_all` 建出**全部**表，导致后续增量迁移全部冲突——整条链无法从空库跑通。那 14 个 revision 已归档到 `alembic/versions_archive/`（不参与扫描）。
+      - 同时移除了 `models/__init__.py` 里「import 即建表」的副作用（它会让 autogenerate 永远看不到差异）。`create_all` 现仅保留在 `main.py`（应用启动）与 `tests/conftest.py`（测试重建）。
+      - 新增模型/列：改 ORM 模型 → `alembic revision --autogenerate -m "..."` → **人工 review 产物**（server_default / 索引命名未必还原到位）→ 提交。详见 `alembic/env.py` 顶部说明。
 - [ ] 集成测试（用 `httpx.AsyncClient` 真发 HTTP）
