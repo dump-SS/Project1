@@ -45,3 +45,11 @@ reasonix.toml
 
 # 内部分派文档(不上库，仅供团队内部发活用)
 docs/refactor-dispatch-cards.md
+
+# Agent 规则文件(本机环境专用，内容含本机 git 坑，对他人无用)
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.windsurfrules
+.cursor/
+.github/copilot-instructions.md
