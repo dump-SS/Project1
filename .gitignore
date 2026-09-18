@@ -42,3 +42,6 @@ reasonix.toml
 *.log
 *.txt
 .neon
+
+# 内部分派文档(不上库，仅供团队内部发活用)
+docs/refactor-dispatch-cards.md
