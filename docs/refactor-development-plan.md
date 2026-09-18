@@ -66,12 +66,17 @@ X1 前端壳与响应式、X2 QA 安全观测：全程横切，共享入口文�
 5. Neon Postgres 方言复验（squash 基线只在 SQLite 验过）。
 
 进入条件：无（立即启动）。
-验收门：
-- [ ] 空库 `alembic upgrade head` 通过（SQLite + Neon 各一次）
-- [ ] 改邮箱后历史数据全保留；`users.id` 全流程不变；`cd backend && pytest` 全绿
-- [ ] `GET /knowledge/subjects` 返回 9 学科
-- [ ] 契约中不存在 /ocr；openapi.yaml 增量冻结（冻结后改动走变更流程）
-- [ ] 匿名兜底在游客态设计中有明确结论（游客数据不落库不串号，见 A 板块）
+验收门（**2026-09-19 全部达成**，实测记录见下）：
+- [x] 空库 `alembic upgrade head` 通过（SQLite + Neon 各一次）—— 迁移 `5015e9b1bdeb`（单 head），两库均跑通；`downgrade` 可回退；`alembic check` 报无差异
+- [x] 改邮箱后历史数据全保留；`users.id` 全流程不变；`cd backend && pytest` 全绿 —— 287 passed / 1 skipped；新增 `tests/test_stable_user_id.py`（3 例）覆盖改邮箱后主键不变、业务数据保留、会话不失效
+- [x] `GET /knowledge/subjects` 返回 9 学科 —— 实测 200 + 9 条（含各科 pointCount）；`scripts/seed_kb_subjects.py` 幂等补齐，本地库与 Neon 均已导入
+- [x] 契约中不存在 /ocr；openapi.yaml 增量冻结（冻结后改动走变更流程）—— 契约升至 **v1.6.0**（51 paths / 145 schemas），`routes/ocr.py` 与 `main.py` 挂载已删，目标态 §3.5 文案同步
+- [x] 匿名兜底在游客态设计中有明确结论（游客数据不落库不串号，见 A 板块）—— 结论写入契约 `info.description`：生产无会话一律 401，游客试用**不走后端接口**，A 板块不得新增「游客可写」接口
+
+> **M0 附带修复（复验时发现，均属"Neon 方言差异"风险项）**：
+> ① `auth_sessions.expires_at` / `auth_codes.expires_at` 存毫秒时间戳却是 `Integer`，SQLite 动态宽度掩盖了问题，**Postgres 上会溢出** → 改 `BigInteger`；
+> ② `pyproject.toml` **没有任何 Postgres 驱动**，DATABASE_URL 指向 Neon 会直接报 `No module named 'psycopg2'` → 补 `psycopg2-binary`；
+> ③ `auth_sessions` 由存 email 改存 user_id 时**必须重建表**（NOT NULL 新列无默认值 + SQLite DROP COLUMN 受限），代价是升级后需重新登录一次。
 
 ### M1 · 地基：身份与 Chat 内核（A + B 核心 + G-usage_ledger + X1 壳初版）
 

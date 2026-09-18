@@ -24,8 +24,14 @@ from database import Base
 from auth.models import AuthCode, AuthSession, AuthUser
 
 from .assessment import AssessmentSnapshot
+from .chat import ChatRawMessage, ChatSession, TopicSummary, UserProfile
+from .collection import Collection, CollectionItem
 from .community import CommunityAggregate, CommunityAuditLog, CommunityFeature
+from .exam import Exam
+from .explanation import Explanation
 from .goal import Goal
+from .governance import ErrorReport, Medal, UsageLedger, ViolationLog
+from .invite import InviteCode
 from .knowledge import (
     EmbeddingRef,
     ErrorPoint,
@@ -88,4 +94,18 @@ __all__ = [
     "CommunityFeature",
     "CommunityAggregate",
     "CommunityAuditLog",
+    # 重构 M0 新增实体（DDL 见 alembic/versions 的 M0 迁移）
+    "Exam",
+    "Collection",
+    "CollectionItem",
+    "UsageLedger",
+    "InviteCode",
+    "ViolationLog",
+    "ErrorReport",
+    "Medal",
+    "UserProfile",
+    "TopicSummary",
+    "Explanation",
+    "ChatSession",
+    "ChatRawMessage",
 ]

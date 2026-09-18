@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Cookie, Depends, Response, status
@@ -29,12 +30,46 @@ from auth.email import send_code_email
 from auth.models import AuthUser
 from auth.password import hash_password, is_strong_password, verify_password
 from auth.rate_limit import allow, clear_fails, is_locked, record_fail
-from auth.session import COOKIE_NAME, create_session, destroy_all_sessions_for_email, destroy_session, get_session
+from auth.session import COOKIE_NAME, create_session, destroy_all_sessions_for_user, destroy_session, get_session
 from database import get_db
+from models.user import User as UserORM
 
 router = APIRouter(prefix="/auth", tags=["鉴权会话"])
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def generate_user_id() -> str:
+    """生成稳定用户 ID（D59）：`u_` 前缀 + 16 位 hex 短码。
+
+    保持 `u_` 前缀是为了兼容既有测试与调试通道（8 个测试文件用 `X-User-ID: u_xxx`）。
+    16 hex = 64 bit 随机空间，pilot 量级下碰撞概率可忽略。
+    """
+    return "u_" + uuid.uuid4().hex[:16]
+
+
+def _ensure_stable_user_id(db: Session, auth_user: AuthUser) -> str:
+    """取认证行关联的稳定 user_id；缺失时补齐。
+
+    正常注册流程已在注册时就写好 user_id，这里是兜底路径（历史行 / 测试直接造的
+    AuthUser）：生成 ID → 建业务 users 行（带 email）→ 回写 auth_users.user_id。
+    """
+    if auth_user.user_id:
+        return auth_user.user_id
+
+    user_id = generate_user_id()
+    if db.get(UserORM, user_id) is None:
+        db.add(UserORM(
+            id=user_id,
+            email=auth_user.email,
+            stage="senior",  # 建档前的占位值，与 deps 的桩保持一致
+            grade="",
+            subjects=["other"],
+            onboarding_completed=False,
+        ))
+    auth_user.user_id = user_id
+    db.commit()
+    return user_id
 
 
 # ---------- 请求体 schemas ----------
@@ -144,8 +179,27 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     consume_code(db, "register", body.email)
     clear_fails(body.email)
 
+    # 稳定 ID 改造（D59）改序：先生成稳定 user_id → 建业务 users 行 → 建认证行。
+    # 业务 users 行的 id 从此与邮箱解耦：改邮箱只动 email 列，历史数据全部保留。
+    # 占位字段与 deps._build_user_response 的未建档桩一致，onboarding_completed=false
+    # 让前端继续引导去建档页（PUT /me 会覆盖这些占位值）。
+    existing_profile = db.execute(
+        select(UserORM).where(UserORM.email == body.email)
+    ).scalars().first()
+    user_id = existing_profile.id if existing_profile else generate_user_id()
+
+    if existing_profile is None:
+        db.add(UserORM(
+            id=user_id,
+            email=body.email,
+            stage="senior",
+            grade="",
+            subjects=["other"],
+            onboarding_completed=False,
+        ))
     db.add(AuthUser(
         email=body.email,
+        user_id=user_id,
         password_hash=hash_password(body.password),
     ))
     db.commit()
@@ -158,7 +212,8 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 def login_email_code(body: LoginCodeRequest, response: Response, db: Session = Depends(get_db)):
     if not EMAIL_RE.match(body.email):
         raise _validation_error("邮箱格式不正确", "email")
-    if not db.get(AuthUser, body.email):
+    auth_user = db.get(AuthUser, body.email)
+    if not auth_user:
         raise _error(404, "EMAIL_NOT_REGISTERED", "该邮箱尚未注册，请先注册", "email")
 
     if is_locked(body.email):
@@ -171,7 +226,8 @@ def login_email_code(body: LoginCodeRequest, response: Response, db: Session = D
     consume_code(db, "login", body.email)
     clear_fails(body.email)
 
-    _, cookie = create_session(db, body.email)
+    # 会话存稳定 user_id（D59），不存邮箱
+    _, cookie = create_session(db, _ensure_stable_user_id(db, auth_user))
     response.headers["Set-Cookie"] = cookie
     return {"ok": True}
 
@@ -195,7 +251,7 @@ def login_password(body: LoginPasswordRequest, response: Response, db: Session =
         raise _error(401, "PASSWORD_INCORRECT", "密码错误", "password")
     clear_fails(body.email)
 
-    _, cookie = create_session(db, body.email)
+    _, cookie = create_session(db, _ensure_stable_user_id(db, user))
     response.headers["Set-Cookie"] = cookie
     return {"ok": True}
 
@@ -204,10 +260,23 @@ def login_password(body: LoginPasswordRequest, response: Response, db: Session =
 
 @router.get("/me", summary="获取当前登录用户")
 def auth_me(sid: str | None = Cookie(default=None, alias=COOKIE_NAME), db: Session = Depends(get_db)):
-    email = get_session(db, sid)
-    if not email:
+    """返回当前会话对应的邮箱与稳定 userId。
+
+    session 存的是 user_id（D59），邮箱从 auth_users 反查——它是登录凭证、可改，
+    所以不作为身份下发依据，只作展示与前端兼容（AppShell 显示 email）。
+    """
+    user_id = get_session(db, sid)
+    if not user_id:
         raise _error(401, "UNAUTHORIZED", "未登录或登录已过期")
-    return {"ok": True, "user": {"email": email}}
+
+    auth_user = db.execute(
+        select(AuthUser).where(AuthUser.user_id == user_id)
+    ).scalars().first()
+    if auth_user is None:
+        # 会话指向的认证账号已不存在（注销/换绑遗留）——按未登录处理，不暴露半截状态
+        raise _error(401, "UNAUTHORIZED", "登录状态已失效，请重新登录")
+
+    return {"ok": True, "user": {"email": auth_user.email, "userId": user_id}}
 
 
 @router.post("/logout", summary="退出登录")
@@ -264,8 +333,8 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
 
     user.password_hash = hash_password(body.newPassword)
     db.commit()
-    # 密码已改，使该用户所有已有会话失效
-    destroy_all_sessions_for_email(db, body.email)
+    # 密码已改，使该用户所有已有会话失效（按稳定 user_id 清——改过邮箱也清得干净）
+    destroy_all_sessions_for_user(db, _ensure_stable_user_id(db, user))
     return {"ok": True}
 
 

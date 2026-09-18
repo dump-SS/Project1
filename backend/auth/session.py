@@ -41,10 +41,12 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def create_session(db: Session, email: str) -> tuple[str, str]:
+def create_session(db: Session, user_id: str) -> tuple[str, str]:
     """创建会话。返回 (raw_sid, cookie_string)。
 
     raw_sid 用于 Set-Cookie，DB 只存 SHA256(sid)。
+
+    参数是**稳定 user_id**（不是 email，D59）——会话不随改邮箱失效。
     """
     raw_sid = secrets.token_hex(32)  # 32 字节 = 64 hex 字符
     token_hash = _sha256(raw_sid)
@@ -52,7 +54,7 @@ def create_session(db: Session, email: str) -> tuple[str, str]:
 
     db.add(AuthSession(
         token_hash=token_hash,
-        email=email,
+        user_id=user_id,
         expires_at=expires_at,
     ))
     db.commit()
@@ -63,7 +65,7 @@ def create_session(db: Session, email: str) -> tuple[str, str]:
 
 
 def get_session(db: Session, sid: str | None) -> str | None:
-    """查会话。返回 email 或 None。
+    """查会话。返回**稳定 user_id** 或 None。
 
     过期会话自动删除。
     """
@@ -79,7 +81,7 @@ def get_session(db: Session, sid: str | None) -> str | None:
         db.delete(row)
         db.commit()
         return None
-    return row.email
+    return row.user_id
 
 
 def destroy_session(db: Session, sid: str | None) -> str:
@@ -95,10 +97,13 @@ def destroy_session(db: Session, sid: str | None) -> str:
     return f"{COOKIE_NAME}=; {_cookie_attrs()}; Max-Age=0"
 
 
-def destroy_all_sessions_for_email(db: Session, email: str) -> None:
-    """销毁某邮箱的所有会话（改密码时调用）。"""
+def destroy_all_sessions_for_user(db: Session, user_id: str) -> None:
+    """销毁某用户的所有会话（改密码 / 注销时调用）。
+
+    按 user_id 而不是 email 清——同一用户改过邮箱后，旧会话仍在 user_id 维度上被清干净。
+    """
     rows = db.execute(
-        select(AuthSession).where(AuthSession.email == email)
+        select(AuthSession).where(AuthSession.user_id == user_id)
     ).scalars().all()
     for r in rows:
         db.delete(r)

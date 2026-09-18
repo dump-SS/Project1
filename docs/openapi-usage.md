@@ -1,6 +1,6 @@
 # openapi.yaml 使用说明
 
-> **当前口径（2026-09-18 实测）**：`docs/openapi.yaml` **v1.5.0 · 51 paths · 66 operations · 111 schemas**，是前后端与 QA 的**唯一契约真相源**（不是任何文档的"机器可读版本"）。
+> **当前口径（2026-09-19 实测）**：`docs/openapi.yaml` **v1.6.0 · 51 paths · 145 schemas**，是前后端与 QA 的**唯一契约真相源**（不是任何文档的"机器可读版本"）。
 > 其早期母体 `api-design-unified.md` 已归档至 `docs/archive/`，不再维护；下文各「校验状态」章节是**各时点的历史校验记录**（数字为当时值，如 39 operation/71 schema），仅留痕，不代表当前文件。
 > 变更规则：任何字段/实体/接口先改本文件（X0 评审），再写实现——见 `docs/refactor-module-contracts.md` §0。
 
@@ -53,3 +53,16 @@ v1.1 批量插入 500 时存在缩进 bug：成功响应（200/201/202/204）的
 - 新增 7 个 auth schema（OkResponse / EmailOnlyRequest / RegisterRequest / LoginByCodeRequest / LoginByPasswordRequest / ResetPasswordRequest / AuthMeResponse）+ `EmailNotRegistered` 响应；schema 总数 64→71。
 - schema 约束补齐：`windowScore` 三处加 0-1 范围、`LearningRecord.note` 回读字段、`Goal`/`GoalSummary` 增加可选 `outcome`+`completionNote`。
 - 验证：YAML 解析通过；39 个 operation；所有 `$ref` 无断链（含新 auth schema 与 EmailNotRegistered）；8 个公开 auth 接口均 `security: []`。
+
+## 2026-09-19 重构 M0 契约冻结（v1.6.0）
+
+本次为重构第一阶段的**契约增量**：未改动任何既有字段名（增量式、向后兼容）。
+
+- **稳定用户 ID 语义落地（D59）**：`User.userId` 描述明确为「稳定内部主键（`u_` 前缀），与登录凭证解耦，**不是邮箱**」；`AuthMeResponse.user` 增补可选 `userId`（`email` 仍 required，前端展示继续用它）。
+- **新增 13 个实体 schema**：Exam / Collection / CollectionItem / UsageLedgerEntry / InviteCode / ViolationLog / ErrorReport / Medal / UserProfileEntry / TopicSummary / Explanation / ChatSession / ChatRawMessage；另加 5 个枚举：ErrorCause / ErrorIntent / ViolationAction / UserProfileGroup / ExplanationMode。
+  ⚠️ 这些 schema **尚未挂到任何 path**——接口由各板块按里程碑补齐，字段名以本节为准（不得另起）。
+- **题本升格（D48）**：`ErrorRecord` / `ErrorRecordCreate` / `ErrorRecordUpdate` 扩展 `errorCause` / `intent` / `sourceExamId`；`errorType` 保留为自由文本（历史兼容）。
+- **目标（D6 / D49）**：`Goal` / `GoalSummary` / `GoalCreate` / `GoalUpdate` 增补 `parentGoalId`、`examId`、`targetScore`；**`status` 的 enum 未动**（`active`/`archived` 被 `?status=` 过滤依赖）。
+- **游客态口径**写入 `info.description`：生产无有效会话一律 401（不再兜底共享账号），游客试用**不走后端接口**（不落库、不串号），A 板块落地时不得新增「游客可写」接口。
+- **验证**：`yaml.safe_load` 解析通过；schema 总数 111 → **145**；paths 保持 **51**（本次不新增接口）；所有 `$ref` 可解析；对迁移后的空库跑 `alembic check` 报告 "No new upgrade operations detected"（迁移产物与 ORM 元数据完全一致）。
+- 配套 DDL 见 `backend/alembic/versions/5015e9b1bdeb_m0_contracts_freeze_stable_user_id_new_.py`（单 head，`down_revision = 1a6f0c6bb285`）；空库 `upgrade head` 已在 SQLite 与 Neon Postgres 各验证一次，`downgrade` 亦验证可回退。

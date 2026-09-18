@@ -1,6 +1,6 @@
 # EpochX API 后端
 
-FastAPI + Pydantic v2 + SQLAlchemy 2.0 + SQLite，严格按 [`docs/openapi.yaml`](../docs/openapi.yaml) 实施。
+FastAPI + Pydantic v2 + SQLAlchemy 2.0 + SQLite（本地开发）/ Postgres（Neon，目标环境），严格按 [`docs/openapi.yaml`](../docs/openapi.yaml) 实施。
 
 ## 当前阶段
 
@@ -49,7 +49,7 @@ cp .env.example .env
 uvicorn main:app --reload --port 8000
 ```
 
-打开 <http://localhost:8000/docs> 看 Swagger UI，所有 29 个接口都能 `Try it out`。
+打开 <http://localhost:8000/docs> 看 Swagger UI，所有接口都能 `Try it out`。
 
 ## 项目结构
 
@@ -60,7 +60,7 @@ backend/
 ├── database.py              SQLAlchemy 2.0 + SessionLocal + get_db
 ├── middleware.py            请求 ID + 访问日志
 ├── mock_data.py             阶段 2 的硬编码假数据（直接复用 openapi.yaml example）
-├── models/                  SQLAlchemy ORM 模型（9 张表）
+├── models/                  SQLAlchemy ORM 模型（42 张表）
 │   ├── user.py              User / Settings / GuardianAuthorization
 │   ├── goal.py              Goal
 │   ├── plan.py              Plan / PlanTask
@@ -196,4 +196,11 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
       - 历史：2026-08-31 的旧决议是"`create_all` 为唯一真相源、勿运行 `upgrade head`"，原因是原基线 `ee1d7e6e893c` 用 `Base.metadata.create_all` 建出**全部**表，导致后续增量迁移全部冲突——整条链无法从空库跑通。那 14 个 revision 已归档到 `alembic/versions_archive/`（不参与扫描）。
       - 同时移除了 `models/__init__.py` 里「import 即建表」的副作用（它会让 autogenerate 永远看不到差异）。`create_all` 现仅保留在 `main.py`（应用启动）与 `tests/conftest.py`（测试重建）。
       - 新增模型/列：改 ORM 模型 → `alembic revision --autogenerate -m "..."` → **人工 review 产物**（server_default / 索引命名未必还原到位）→ 提交。详见 `alembic/env.py` 顶部说明。
+- [x] **M0 迁移（2026-09-19，重构契约冻结）**：`5015e9b1bdeb`，`down_revision = 1a6f0c6bb285`，**单 head**。
+      - 内容：稳定用户 ID 改造（users 加 email/handle、auth_users 加 user_id、**auth_sessions 由存 email 改存 user_id**）；13 张新表（exams / collections / collection_items / usage_ledger / invite_codes / violation_logs / error_reports / medals / user_profiles / topic_summaries / explanations / chat_sessions / chat_raw_messages）；goals 加 parent_goal_id + exam_id + target_score；kb_errors 加 error_cause + intent + source_exam_id。表数 29 → **42**。
+      - ⚠️ `auth_sessions` 是**重建表**（不是 add/drop column）：在已有数据上加 NOT NULL 列没有可用默认值，且 SQLite 的 DROP COLUMN 支持有限。会话是 7 天 TTL 的临时数据，pilot 删档期直接重建——**升级后所有人需重新登录一次**。
+      - ⚠️ **Postgres 方言修复**：`auth_sessions.expires_at` / `auth_codes.expires_at` 存的是毫秒时间戳（约 1.7e12），原为 `Integer` 会超出 int32 上限。SQLite 的 INTEGER 是动态宽度所以本地一直没暴露，**Neon 上会直接溢出报错**——本次一并改为 `BigInteger`。
+      - ⚠️ **依赖补缺**：`pyproject.toml` 此前**没有任何 Postgres 驱动**，DATABASE_URL 指向 Neon 时会直接报 `No module named 'psycopg2'`。已补 `psycopg2-binary`。
+      - 验证：空库 `upgrade head` 在 **SQLite 与 Neon Postgres 各跑通一次**；`downgrade` 可回退；对迁移后的空库跑 `alembic check` 报 "No new upgrade operations detected"（迁移产物与 ORM 元数据一致）。
+      - 学科数据：`kb_subjects` 此前 **0 行**（导致 `GET /knowledge/subjects` 必返空），已由 `scripts/seed_kb_subjects.py` 补 9 行（幂等），本地库与 Neon 均已导入。
 - [ ] 集成测试（用 `httpx.AsyncClient` 真发 HTTP）

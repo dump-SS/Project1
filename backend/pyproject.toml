@@ -13,6 +13,9 @@ dependencies = [
     "python-dotenv==1.0.1",
     "alembic==1.14.0",
     "faiss-cpu==1.9.0",
+    # Postgres 驱动（Neon）：此前依赖里缺失，DATABASE_URL 指向 Neon 时
+    # SQLAlchemy 会直接报 No module named 'psycopg2'——M0 方言复验时发现并补上。
+    "psycopg2-binary==2.9.13",
 ]
 
 [project.optional-dependencies]

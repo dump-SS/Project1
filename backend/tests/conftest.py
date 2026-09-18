@@ -97,6 +97,13 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("settings")}
         if "community_consent_enabled" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # 重构 M0（D59）稳定 ID 改造：auth_sessions 由 email 改存 user_id，
+    # auth_users 加 user_id、users 加 email/handle。老测试库缺列会直接报错，
+    # 用 auth_sessions.user_id 作探针重建（create_all 不会 ALTER 已存在的表）。
+    if insp.has_table("auth_sessions"):
+        cols = {c["name"] for c in insp.get_columns("auth_sessions")}
+        if "user_id" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

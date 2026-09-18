@@ -65,7 +65,8 @@ def test_create_session_cookie_uses_configured_attrs(monkeypatch):
 
     db = SessionLocal()
     try:
-        _sid, cookie = create_session(db, "cookie-attrs@example.com")
+        # 参数是稳定 user_id（D59 后会话存 user_id 不存 email）；本用例只验 cookie 属性
+        _sid, cookie = create_session(db, "u_cookie_attrs_test")
     finally:
         db.close()
 
@@ -81,7 +82,7 @@ def test_destroy_session_clears_with_same_attrs(monkeypatch):
 
     db = SessionLocal()
     try:
-        sid, _ = create_session(db, "cookie-clear@example.com")
+        sid, _ = create_session(db, "u_cookie_clear_test")
         cleared = session.destroy_session(db, sid)
     finally:
         db.close()
