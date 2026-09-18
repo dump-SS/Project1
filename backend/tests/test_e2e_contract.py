@@ -7,7 +7,7 @@
 分层：
   A. 契约闭环（已实现）：目标→计划→记录→状态→建议，五步全部走真实后端+引擎
   B. 计划/目标 CRUD 真实现（已接 DB）：create 落库、list 一致、409/regenerate、PATCH、归档、属主隔离、404
-  C. 用户/鉴权链路：/me 是桩、auth/me 在 mock-server、会话未对接
+  C. 用户/鉴权链路：/me 读 ORM 真实资料；鉴权守卫已启用（无有效会话 → 401）
 
 运行前提：uvicorn backend:8000 + mock-server:4000 都在跑（默认配置）。
 用 REAL_LLM=1 可额外触发真实 LLM（否则 MockProvider 走模板兜底）。
@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from config import settings
 from main import app
 
 client = TestClient(app)
@@ -456,13 +457,14 @@ def test_b16_plan_cold_start_has_fallback_task():
     assert task["topic"] != task["subject"], "task.topic 不应等于裸 subject 枚举"
 
 
-# ---------- C. 鉴权链路（当前是桩） ----------
+# ---------- C. 鉴权链路 ----------
 
 def test_c1_me_returns_real_orm_data():
     """C1: GET /me 返回 ORM 真实资料（已接 DB，不再返 mock 常量）。
 
     未建档用户：onboardingCompleted=false，guardian 状态 pending。
-    userId 仍是 u_10237（无登录态回落，auth 在 mock-server）。
+    userId 是 u_10237——测试套件默认开启 ALLOW_INSECURE_USER_HEADER，走了匿名兜底；
+    生产口径下无 cookie 应 401，见 tests/test_auth_strict_mode.py。
     """
     r = client.get("/api/v1/me")
     assert r.status_code == 200
@@ -473,18 +475,19 @@ def test_c1_me_returns_real_orm_data():
     assert body["guardianAuthorization"]["status"] == "pending"
 
 
-def test_c2_unauthenticated_business_call_returns_401():
-    """C2: 未登录访问业务接口 → 401（若有守卫）。
+def test_c2_unauthenticated_business_call_returns_401(monkeypatch):
+    """C2: 未登录访问业务接口 → 401。
 
-    当前 current_user 是桩，永远返回 mock，所以不会真 401——
-    此测试预期**当前**返回 200，记录"守卫未启用"的事实。
-    等接 JWT 后应改成断言 401。
+    鉴权守卫已启用：current_user 只认 sid cookie，无有效会话直接 401，
+    不再回落到共享账号 u_10237（历史垂直越权入口 X-User-ID / Bearer u_ 亦已关闭）。
+
+    测试套件默认打开 ALLOW_INSECURE_USER_HEADER（大量既有用例靠 X-User-ID 指定
+    身份），所以这里显式关掉开关来验证生产口径。
     """
+    monkeypatch.setattr(settings, "allow_insecure_user_header", False)
     r = client.get("/api/v1/goals")
-    # 当前：桩用户直接放行 → 200
-    assert r.status_code == 200, (
-        "current_user 桩直接放行（预期 200）；接 JWT 后未登录应 401，需改断言"
-    )
+    assert r.status_code == 401, "未登录访问业务接口必须 401"
+    assert r.json()["error"]["code"] == "UNAUTHENTICATED"
 
 
 # ---------- D. 端到端完整闭环（五步连跑） ----------

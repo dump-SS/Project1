@@ -18,12 +18,33 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
 if not os.environ.get("REAL_LLM"):
     os.environ["LLM_PROVIDER"] = "mock"
     os.environ["LLM_API_KEY"] = ""
+
+# 数据库隔离：测试必须跑在独立 SQLite 文件上，绝不能碰开发库 backend/data.db。
+#
+# 历史坑（2026-09-15 事故）：原 conftest 未覆盖 DATABASE_URL，测试直连开发库
+# data.db，而 _reset_db 每个用例前 DELETE 所有业务表——跑一次 pytest 就把开发库
+# 清空。更隐蔽的是 vector_store._index_root() 由 database_url 推导索引目录，
+# 于是 tests/test_vector_store.py 的 rebuild_index() 还会 unlink 掉
+# kb_vectors/ 下真实的 FAISS 索引（曾删掉 27.7MB 知识点向量库）。
+#
+# 放在 .pytest_data/ 子目录而非 backend/ 根目录是关键：索引目录取自
+# database_url 的父目录，若与 data.db 同目录则 kb_vectors/ 仍会被共用。
+_TEST_DATA_DIR = Path(__file__).resolve().parents[1] / ".pytest_data"
+_TEST_DATA_DIR.mkdir(exist_ok=True)
+os.environ["DATABASE_URL"] = f"sqlite:///{(_TEST_DATA_DIR / 'test.db').as_posix()}"
+
+# 鉴权：测试环境启用「非安全身份回落链」（X-User-ID 头 / Bearer u_ / 匿名兜底
+# u_10237），与生产默认值（false）相反。绝大多数用例依赖 X-User-ID 指定身份。
+# 要验证生产口径（无会话 → 401），在用例内用 monkeypatch 把该开关改回 false，
+# 参见 tests/test_auth_strict_mode.py。
+os.environ["ALLOW_INSECURE_USER_HEADER"] = "true"
 
 
 @pytest.fixture(autouse=True)

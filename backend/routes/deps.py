@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import hashlib
 
-from fastapi import Cookie, Header
+from fastapi import Cookie, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from auth.session import get_session
+from config import settings
 from database import SessionLocal
 from models.user import GuardianAuthorization as GuardianAuthorizationORM
 from models.user import User as UserORM
@@ -71,27 +72,44 @@ def current_user(
 ) -> User:
     """当前用户依赖。
 
-    优先级：sid cookie（真实会话）> X-User-ID 头 > Bearer u_ > mock 用户。
-    sid 现在查 backend 自己的 auth_sessions 表（不再查 mock-server data.db）。
+    身份的唯一可信来源是 sid cookie（查 backend 自己的 auth_sessions 表）。
+
+    第 2–4 层回落链（X-User-ID 头 / Bearer u_ 前缀 token / 匿名兜底 u_10237）
+    只在 settings.allow_insecure_user_header=true 时启用——它们允许请求方自报身份，
+    打开即等于任意用户可被冒充。该开关仅允许测试/联调环境使用，生产保持默认 false。
+
+    生产（开关关闭）下无有效会话直接 401，不再兜底共享账号。
     """
     db = SessionLocal()
     try:
-        # 1. sid cookie（真实登录用户，查 auth_sessions 表）
+        # 1. sid cookie（真实登录用户，查 auth_sessions 表；生产环境唯一路径）
         user_id = get_session(db, sid)
 
-        # 2. X-User-ID 头（测试/联调显式指定）
-        if user_id is None and x_user_id:
-            user_id = x_user_id
+        # 2-4. 非安全回落链：仅测试/联调环境（ALLOW_INSECURE_USER_HEADER=true）启用
+        if user_id is None and settings.allow_insecure_user_header:
+            # 2. X-User-ID 头（测试/联调显式指定）
+            if x_user_id:
+                user_id = x_user_id
 
-        # 3. Bearer token 里以 u_ 开头的显式 userId（兼容旧测试）
-        if user_id is None and authorization:
-            scheme, _, token = authorization.partition(" ")
-            if scheme.lower() == "bearer" and token.startswith("u_"):
-                user_id = token
+            # 3. Bearer token 里以 u_ 开头的显式 userId（兼容旧测试）
+            if user_id is None and authorization:
+                scheme, _, token = authorization.partition(" ")
+                if scheme.lower() == "bearer" and token.startswith("u_"):
+                    user_id = token
 
-        # 4. 无登录态 → 回落到 mock 用户（MVP 阶段允许匿名访问业务接口）
+            # 4. 无登录态 → 回落到 mock 用户（仅测试环境；生产已禁用）
+            if user_id is None:
+                user_id = "u_10237"
+
+        # 生产：无有效会话 → 401，不返回任何用户数据
         if user_id is None:
-            user_id = "u_10237"
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "UNAUTHENTICATED",
+                    "message": "登录状态已失效，请重新登录",
+                },
+            )
 
         # 从 ORM 读真实资料（新用户返 onboarding_completed=false 桩）
         return _build_user_response(db, user_id)

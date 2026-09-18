@@ -31,6 +31,27 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 天，与 mock-server 会话有效期一致
 
+    # 危险开关：启用「非安全身份回落链」——X-User-ID 头 / Bearer u_ 前缀 token /
+    # 无会话时兜底共享账号 u_10237（见 routes/deps.py:current_user 的第 2–4 层）。
+    # 默认 false：生产环境身份唯一来源是 sid cookie，无有效会话一律 401。
+    # 打开它等于允许请求方自报身份冒充任意用户（垂直越权），只允许在测试/联调环境置 true。
+    allow_insecure_user_header: bool = False
+
+    # --- 部署形态：CORS 与 Cookie 策略（部署评估 §2-5 / §2-6）---
+    # 首选同域部署（前端 域/app + 后端 域/api）：同源，不需要 CORS 中间件，
+    # cookie 用 SameSite=Lax 即可。只有分域部署才需要配置下面三项。
+    #
+    # 允许的跨域来源，逗号分隔（如 "https://example.com,https://app.example.com"）。
+    # 留空 = 不挂 CORS 中间件（同域部署的默认形态）。
+    # ⚠️ 不能写 "*"：浏览器规范禁止 allow_origins=["*"] 与 allow_credentials=True 并用。
+    cors_allow_origins: str = ""
+    # sid cookie 的 SameSite 策略：lax（同域，默认）/ strict / none（分域必需）。
+    # 置 none 时自动补 Secure——浏览器对 SameSite=None 强制要求 Secure，否则直接丢弃 cookie。
+    cookie_samesite: str = "lax"
+    # 给 sid cookie 加 Secure（只在 HTTPS 上回传）。生产 HTTPS 应置 true；
+    # 本地 http 开发必须保持 false，否则浏览器不回传 cookie、登录态直接失效。
+    cookie_secure: bool = False
+
     # --- AI 接入（占位，下个 PR 接入真实 LLM）---
     llm_provider: str = "mock"
     llm_api_key: str = ""

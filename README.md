@@ -1,11 +1,24 @@
 # 学习状态智能助手
 
-板块一（状态与规划中枢）MVP 已交付；板块二（垂直学科落地）v2.1–v2.3 主体已落地；板块三（群体匿名参照）处于架构预留完成、正式立项前的状态。仓库内是**一个** Vite 前端工程加一个 FastAPI 后端，多人共用。
+板块一（状态与规划中枢）MVP 已交付；板块二（垂直学科落地）v2.1–v2.3 主体已落地；板块三（群体匿名参照）pilot M1–M5 已落地（契约转正 / 授权 / 特征抽取 / 聚合），前端社区页待重构接线。仓库内是**一个** Vite 前端工程加一个 FastAPI 后端，多人共用。
 
-- 需求：`PRD-学习状态智能助手.md`（当前 v1.5，含板块二详细设计 + pilot 阶段口径声明）
+**📍 文档地图见 `docs/README.md`**——权威文档、活跃参考、已归档三栏索引，新人先读它。
+
+- 需求：`PRD-学习状态智能助手.md`（板块一/二需求基线 + 合规红线 §12；产品新形态以目标态文档为准）
 - 接口契约：`docs/openapi.yaml`（唯一生效版本，字段名以此为准）
-- 板块二/三文档：`docs/` 下的开发计划、backlog、ADR、as-built 对照与隐私评审纪要，索引见 `docs/module2-3-as-built-vs-plan.md` 附录「文档谱系」
-- 板块三开发计划：`docs/module3-development-plan.md`
+- **产品新形态目标架构**：`docs/product-redesign-target.md`（v0.29 · 59 条决策 D1–D59）——从「页面 + 导航」转向「Chat 为核 + 个人中心为仓」，一页纸速览见 `docs/product-redesign-target.html`
+- **重构实施方案（四件套，2026-09-18）**：
+  - `docs/refactor-development-plan.md` —— 主计划（里程碑 M0–M6 / 依赖 / 验收门）
+  - `docs/refactor-module-contracts.md` —— 板块契约（10 板块所有权 / 共享协议 / 文件独占表）
+  - `docs/refactor-migration-checklist.md` —— 迁移清单（现有页面/接口/表逐项处置）
+  - `docs/refactor-decision-mapping.md` —— D1–D59 全量映射（零孤儿）
+- **重构前现状盘点**：`docs/refactor-2026-09-feature-ia-logic.md` + **勘误** `docs/refactor-baseline-recheck-2026-09-18.md`（两份对照读）
+- **落地执行细节**：`docs/refactor-implementation-notes.md`（目标态怎么落地：计量表、限流、封禁、邀请码、报错入口等）
+- **待拍清单**：`docs/pending-decisions.md`（决策痕迹；支付相关已推迟到 pilot 后）
+- **部署栈评估**：`docs/deployment-stack-evaluation.md`（P0/P1 多数已完成，剩余项见文首状态说明）
+- 板块二/三历史文档：已归档至 `docs/archive/`（含开发计划、backlog、ADR、as-built 对照、隐私评审纪要）
+
+> ⚠️ 目标态文档（product-redesign-target）与实施方案（refactor 四件套）描述的是**要去的地方**，不代表当前代码已实现。当前代码仍是「页面 + 侧边导航」的旧形态，别把目标态当现状读。
 
 ## 仓库结构（新加页面前请先读这一节）
 
@@ -37,7 +50,7 @@ scripts/           数据种子脚本（如 seed_kb_math.py 知识点库）
 | `/knowledge` `/error-book` | 板块二：学科知识库（含图谱）/ 错题本 | 需要登录 |
 | `/chat` | AI 辅导对话 | 需要登录 |
 | `/settings` `/profile-setup` `/guardian-auth` | 设置 / 资料建档 / 监护人授权 | 需要登录 |
-| `/community/upload` `/community/compare` | 板块三：匿名群体对比（**演示数据**，localStorage 模拟，正式实现见 `docs/module3-development-plan.md`） | 需要登录 |
+| `/community/upload` `/community/compare` | 板块三：匿名群体对比（**演示数据**，localStorage 模拟；后端已真实实现，接线见 `docs/refactor-development-plan.md` M4） | 需要登录 |
 
 ## 登录态与页面导航
 
@@ -155,7 +168,7 @@ node generate-email-logo.mjs
 
 ## 接口对接现状
 
-FastAPI 后端已落地：板块一（认证 / 目标 / 计划 / 学习记录 / 状态评估 / 建议 / 复盘 / 调权）与板块二（知识库 / 错题本 / mastery / 知识复盘 / OCR 占位）全部按 `docs/openapi.yaml` 实现并接真实引擎，板块三 3 条接口为 501 预留（x-status: planned）。个人数据页的日/周/月汇总仍由前端基于 `GET /learning-records` 聚合（`frontend/src/utils/aggregate.ts`），后端若补统计接口可整体替换。
+FastAPI 后端已落地：板块一（认证 / 目标 / 计划 / 学习记录 / 状态评估 / 建议 / 复盘 / 调权）与板块二（知识库 / 错题本 / mastery / 知识复盘）全部按 `docs/openapi.yaml` 实现并接真实引擎；板块三 2 条对外接口（`/community/aggregate` + `/me/community-consent`）已真实实现，前端社区页仍为 localStorage 演示、待重构接线；OCR 占位将随重构 M0 删除（OCR 路线已彻底放弃，统一多模态）。知识点库已导入 3391 条知识点 + 3127 条关系并完成向量化（`kb_subjects` 表待补数，见重构 M0）。个人数据页的日/周/月汇总仍由前端基于 `GET /learning-records` 聚合（`frontend/src/utils/aggregate.ts`），后端若补统计接口可整体替换。
 
 接口失败时各卡片走「占位数据 + 右上角标记」的降级路径（`hooks/usePanelData.ts`），悬停可看失败原因——不白屏也不静默假装成功。
 
@@ -176,12 +189,17 @@ FastAPI 后端已落地：板块一（认证 / 目标 / 计划 / 学习记录 / 
 
 ## 待办
 
+- ✅ **`current_user` 越权已修复（2026-09-15）**：`backend/routes/deps.py` 现在只认 sid cookie，无有效会话一律 `401 UNAUTHENTICATED`；`X-User-ID` / `Bearer u_` / 匿名兜底三层回落链改由 `ALLOW_INSECURE_USER_HEADER`（默认 false）控制，仅测试环境开启。回归用例见 `backend/tests/test_auth_strict_mode.py`。
+  - 附带修复：`backend/tests/conftest.py` 原先直连开发库 `data.db` 并每用例清空所有表，且 `test_vector_store.py` 会删掉真实的 `kb_vectors/` 索引——跑一次 pytest 就清空开发数据。现已隔离到 `backend/.pytest_data/`。
+- 上线部署 P0–P3 清单见 `docs/deployment-stack-evaluation.md`——其中 P0 越权、P1 Alembic 空库自举、P1 CORS、P1 Cookie、P2 auth 限流**已完成**（2026-09-15），剩余：P0 后端平台选型、P2 密钥迁 Secrets、P3 R2。
+- **重构落地实施**：见 `docs/refactor-development-plan.md` 四件套（2026-09-18），多人/多 agent 并行按板块卡执行。
 - 构建产物单 chunk 超过 500 KB（主要是 antd）。黑客松阶段可忽略，需要优化时配 `build.rollupOptions.output.manualChunks`。
 - `index.html` 没有声明 favicon（提交记录里写了「添加favicon」，但对应的 `favicon.png` 没有被提交，`mock-server/generate-email-logo.mjs` 也因此一度指向一个不存在的文件——已改成指向 `logo-mark-on-light.png` 让 `npm start` 能跑起来，但 favicon 本身还是缺的，需要重新加）。
-- 板块二剩余 backlog（OCR 决策、压测、降级矩阵、内容清单导入等）见 `docs/module2-backlog.md` 与 `docs/module2-next-iteration-tasks.md`。
-- 板块三正式立项与实施见 `docs/module3-development-plan.md`。
+- 板块二/三历史 backlog 与计划已归档 `docs/archive/`；未完事项（压测、降级矩阵等）由重构方案的 X2（QA/安全/观测）接管。
 
 ## 设计系统(v0.3 · 2026-08-19 重构)
+
+> ⚠️ **2026-09-18 警示**：UI 视觉风格尚未最终拍板（pending-decisions #51）——本节描述的是**当前代码里存在的样式**，重构时**不得默认沿用液态玻璃**。目标架构文档本就不含 UI 视觉细节，视觉将单开设计文档。
 
 **视觉基调**:蓝天 + 白云 + 海浪,拟物/写实的液态玻璃(Liquid Glass)质感,参考 iOS 壁纸 + Linear 暗色 + Vercel 渐变。
 

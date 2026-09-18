@@ -71,14 +71,21 @@ app = FastAPI(
     response_model_by_alias=True,
 )
 
-# CORS：MVP 阶段允许所有来源
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS：默认按同域部署（前端 域/app + 后端 域/api），此时同源、不需要 CORS 中间件。
+# 只有分域部署才通过 CORS_ALLOW_ORIGINS 显式给出白名单。
+#
+# 原来写的是 allow_origins=["*"] + allow_credentials=True —— 浏览器规范禁止该组合，
+# 带凭据的跨域请求会被直接拒绝。之所以一直没暴露，是因为 Vite dev server 把 /api
+# 代理成了同源请求，CORS 从未被真正触发；一旦前后端分域名部署，第一个请求就会挂。
+_cors_origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # 请求 ID / 访问日志（放在 CORS 之后，让客户端先拿到 CORS 头）
 app.add_middleware(RequestIDMiddleware)

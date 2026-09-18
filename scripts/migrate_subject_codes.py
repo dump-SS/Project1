@@ -24,8 +24,11 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 
 import models  # noqa: F401  触发 ORM 注册
-from database import SessionLocal
+from database import Base, SessionLocal, engine
 from models.knowledge import KnowledgeSubject
+
+# 建表（幂等）。models 已不再有「import 即建表」的副作用，脚本需自己保证表存在。
+Base.metadata.create_all(bind=engine)
 
 # (新码, 中文名, 教材版本)
 SUBJECTS = [

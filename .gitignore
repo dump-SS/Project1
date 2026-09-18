@@ -14,6 +14,12 @@ venv/
 backend/data.db
 backend/data.db-journal
 
+# 测试专用 SQLite 库与索引目录（tests/conftest.py 自动创建，与开发库隔离）
+backend/.pytest_data/
+
+# FAISS 向量索引（27MB+ 生成物，由 scripts/import_knowledge_points.py 重建，不入库）
+backend/kb_vectors/
+
 mock-server/data.db
 
 .reasonix/
@@ -21,6 +27,7 @@ reasonix.toml
 
 # WorkBuddy 本地记忆与配置(不上库)
 .workbuddy/
+.workbuddy-ai/
 
 # ZCode 会话本地数据(不上库)
 .zcode/
@@ -34,3 +41,4 @@ reasonix.toml
 # 调试与临时文件
 *.log
 *.txt
+.neon

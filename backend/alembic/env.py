@@ -5,15 +5,22 @@
   （已由 config 的 _normalize_sqlite_path 锚定到 backend 目录，消除 cwd 依赖）。
 - target_metadata = backend 所有 ORM 模型的 Base.metadata，autogenerate 依赖它。
 
-⚠️ 迁移定位（2026-08-31 团队决议）：
-- **运行时 schema 的唯一真相源是 `Base.metadata.create_all`**（见 `database.py:8`、
-  `main.py:32`、`tests/conftest.py:75`），app 启动与测试重建都走它。
-- `versions/` 下的迁移文件**仅作历史留痕 / 契约记录**，不作为建库手段。
-- **不要运行 `alembic upgrade head`**：基线 `ee1d7e6e893c` 的 upgrade 是
-  `Base.metadata.create_all`，它读的是当前 metadata（已包含后续 kb_*/community_* 等全部表），
-  与后面的增量迁移冲突（会报「table already exists」）。从空库跑整条链并不成立。
-- 需要变更 schema 时：改 ORM 模型后，靠 create_all（开发机）/ 迁移留痕（留档）即可，
-  不依赖 alembic 执行。
+迁移定位（2026-09-15 squash 后）：
+- **Alembic 是 schema 的唯一真相源**：空库建表走 `alembic upgrade head`，
+  upgrade / downgrade 均可反复执行。
+- 基线 `1a6f0c6bb285` 是 autogenerate 产出的**显式 DDL**（29 张表），不再引用
+  `Base.metadata`，因此不会随模型变化而改变语义。
+- 历史遗留：squash 之前的 14 个 revision 已归档到 `alembic/versions_archive/`。
+  其中原基线 `ee1d7e6e893c` 的 upgrade 是 `Base.metadata.create_all`，读的是当前
+  metadata（含全部模型），于是建出 30 张表——后续增量迁移的 14 处 create_table 与
+  14 处 add_column 全部冲突（table already exists / duplicate column），
+  整条链从第二个 revision 起无法从空库跑通。**这是本次 squash 的直接原因。**
+  归档目录不参与 alembic 扫描，仅作历史留痕。
+- `create_all` 仍保留两处：`main.py`（应用启动）与 `tests/conftest.py`（测试重建）。
+  `models/__init__.py` 里「import 即建表」的副作用已移除——它会让 autogenerate
+  永远看不到差异（对着空库也只生成空迁移），是迁移无法自举的另一半原因。
+- 新增模型/列时：改 ORM 模型 → `alembic revision --autogenerate -m "..."` →
+  **人工 review 产物**（autogenerate 对 server_default、索引命名未必还原到位）→ 提交。
 """
 from logging.config import fileConfig
 

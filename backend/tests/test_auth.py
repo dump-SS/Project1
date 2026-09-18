@@ -54,10 +54,12 @@ def _no_rate_limit(monkeypatch):
     """
     monkeypatch.setattr(auth_route, "allow", lambda *a, **k: True)
 
-    # 清掉上一用例残留的失败计数，避免锁定状态污染
-    rate_limit._login_fails.clear()
+    # 清掉上一用例残留的失败计数，避免锁定状态污染。
+    # 限流已从进程内 dict 改为持久化（auth_rate_limits 表），
+    # 原来的 _login_fails.clear() 换成 reset_state("lock")。
+    rate_limit.reset_state("lock")
     yield
-    rate_limit._login_fails.clear()
+    rate_limit.reset_state("lock")
 
 
 # ---------- 辅助 ----------
@@ -355,7 +357,7 @@ def test_send_code_rate_limit(_mock_email, monkeypatch):
     autouse 的 _no_rate_limit 默认放行了 allow，这里手动还原真实实现。
     """
     monkeypatch.setattr(auth_route, "allow", rate_limit.allow)
-    rate_limit._rate_buckets.clear()
+    rate_limit.reset_state("window")
 
     email = "rate@example.com"
     r1 = client.post("/api/v1/auth/send-register-code", json={"email": email})

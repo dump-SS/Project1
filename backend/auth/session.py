@@ -2,7 +2,7 @@
 
 对应 mock-server/server.js 的 createSession / getSession / destroySession。
 sid 是 32 字节随机 token，存 SHA256(sid) 到 DB，7 天有效。
-Cookie 名 sid，HttpOnly，SameSite=Lax。
+Cookie 名 sid，HttpOnly；SameSite / Secure 按部署形态配置（见 _cookie_attrs）。
 """
 from __future__ import annotations
 
@@ -13,10 +13,28 @@ import time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from config import settings
+
 from .models import AuthSession
 
 SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000  # 7 天
 COOKIE_NAME = "sid"
+
+
+def _cookie_attrs() -> str:
+    """按部署形态拼 Set-Cookie 属性（部署评估 §2-6）。
+
+    - 同域部署（首选，域/app + 域/api）：HttpOnly + SameSite=Lax 即可
+    - HTTPS 生产：置 COOKIE_SECURE=true，避免 cookie 走明文
+    - 分域部署：COOKIE_SAMESITE=none —— 浏览器对 SameSite=None 强制要求 Secure，
+      这里自动补上；漏了 Secure 的话浏览器会直接丢弃 cookie，表现为「登录成功但
+      下次请求又是未登录」，很难查。
+    """
+    same_site = (settings.cookie_samesite or "lax").strip().lower()
+    attrs = f"HttpOnly; Path=/; SameSite={same_site.capitalize()}"
+    if settings.cookie_secure or same_site == "none":
+        attrs += "; Secure"
+    return attrs
 
 
 def _sha256(text: str) -> str:
@@ -40,7 +58,7 @@ def create_session(db: Session, email: str) -> tuple[str, str]:
     db.commit()
 
     max_age = SESSION_TTL_MS // 1000
-    cookie = f"{COOKIE_NAME}={raw_sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age={max_age}"
+    cookie = f"{COOKIE_NAME}={raw_sid}; {_cookie_attrs()}; Max-Age={max_age}"
     return raw_sid, cookie
 
 
@@ -74,7 +92,7 @@ def destroy_session(db: Session, sid: str | None) -> str:
         if row:
             db.delete(row)
             db.commit()
-    return f"{COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"
+    return f"{COOKIE_NAME}=; {_cookie_attrs()}; Max-Age=0"
 
 
 def destroy_all_sessions_for_email(db: Session, email: str) -> None:

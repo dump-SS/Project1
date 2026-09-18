@@ -6,6 +6,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getCurrentUser, logout as logoutRequest } from '../services/authApi.js'
+import { AUTH_EXPIRED_EVENT } from '../services/http'
 
 const AuthContext = createContext(null)
 
@@ -32,6 +33,21 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // 会话在页面停留期间过期时，业务接口会返回 401 UNAUTHENTICATED，
+  // http.ts 的 throwIfNotOk 随即广播该事件。这里把登录态置回 anonymous，
+  // RequireAuth 会立刻弹回 /login 并记下当前路径，登录后自动跳回原页面。
+  //
+  // 注意：/auth/me 的 401 UNAUTHORIZED 与登录密码错误的 PASSWORD_INCORRECT
+  // 不会触发该事件（见 http.ts 的 throwIfNotOk），否则登录失败会被反复弹回。
+  useEffect(() => {
+    const onAuthExpired = () => {
+      setUser(null)
+      setStatus('anonymous')
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired)
+  }, [])
 
   const logout = useCallback(async () => {
     try {

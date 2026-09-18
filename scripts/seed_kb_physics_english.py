@@ -15,9 +15,12 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 
-from database import SessionLocal, engine
+from database import Base, SessionLocal, engine
 import models  # noqa: F401
 from models.knowledge import KnowledgePoint, KnowledgeSubject
+
+# 建表（幂等）。models 已不再有「import 即建表」的副作用，脚本需自己保证表存在。
+Base.metadata.create_all(bind=engine)
 
 SUBJECTS = {
     "WL": {"id": "ks_WL", "name": "物理", "grade_band": "senior", "version": "1.0"},

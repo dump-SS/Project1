@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>产品新形态目标架构 · v0.29 · 汇报页</title>
+<style>
+  :root{
+    /* Discord 系画布与色板 */
+    --canvas:#0a0d3a;
+    --surface:#1e2353;
+    --surface-2:#262c63;
+    --onyx:#23272a;
+    --black:#000000;
+    --blurple:#5865f2;
+    --blurple-soft:rgba(88,101,242,.18);
+    --green:#35ed7e;
+    --magenta:#ec48bd;
+    --magenta-soft:rgba(236,72,189,.16);
+    --cyan:#00b0f4;
+    --ink:#ffffff;
+    --ink-dark:#000000;
+    --body:#d5d9f0;
+    --mute:#9aa0c7;
+    --hairline:rgba(255,255,255,.12);
+    --hairline-strong:rgba(255,255,255,.26);
+
+    --sans:'Inter','Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,-apple-system,sans-serif;
+    --mono:'Geist Mono','JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+    --maxw:1200px;
+    --pad:40px;
+    --gap:16px;
+    --r-xs:6px;
+    --r-sm:12px;
+    --r-md:16px;
+    --r-lg:24px;
+    --r-xl:40px;
+    --r-pill:999px;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;scroll-padding-top:86px;}
+  body{
+    margin:0;background:var(--canvas);color:var(--body);
+    font-family:var(--sans);font-size:16px;line-height:1.8;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  ::selection{background:var(--magenta);color:var(--ink);}
+  code,.mono{font-family:var(--mono);font-size:.9em;}
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad);}
+
+  /* ---------- 文字 ---------- */
+  .eyebrow{font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);margin:0 0 10px;}
+  h1{font-size:clamp(36px,5.6vw,72px);line-height:1.06;letter-spacing:-.025em;color:var(--ink);font-weight:800;margin:0;}
+  h2{font-size:clamp(26px,3.4vw,42px);line-height:1.2;letter-spacing:-.02em;color:var(--ink);font-weight:800;margin:0;}
+  h3{font-size:21px;line-height:1.4;color:var(--ink);font-weight:700;margin:0;}
+  h4{font-size:16px;line-height:1.5;color:var(--ink);font-weight:700;margin:0;}
+  p{margin:0;}
+  .lead{font-size:17px;line-height:1.85;max-width:960px;}
+  .note{font-size:13.5px;line-height:1.85;color:var(--mute);margin:0;}
+  .hl{background:var(--blurple-soft);color:var(--ink);padding:0 .28em;border-radius:6px;font-weight:600;}
+  .hl-m{background:var(--magenta-soft);color:var(--ink);padding:0 .28em;border-radius:6px;font-weight:600;}
+
+  /* ---------- 徽章 ---------- */
+  .badge{display:inline-flex;align-items:center;gap:6px;background:var(--magenta);color:var(--ink);font-size:13px;font-weight:700;letter-spacing:.04em;border-radius:var(--r-pill);padding:5px 15px;}
+  .badge.ghost{background:rgba(255,255,255,.06);border:1px solid var(--hairline);}
+  .badge.blurple{background:var(--blurple);}
+  .tag{display:inline-flex;align-items:center;background:var(--surface-2);border:1px solid var(--hairline);color:var(--ink);font-size:12.5px;font-weight:600;border-radius:var(--r-xs);padding:3px 10px;white-space:nowrap;}
+  .tag.m{background:var(--magenta-soft);border-color:rgba(236,72,189,.45);}
+  .tag.b{background:var(--blurple-soft);border-color:rgba(88,101,242,.5);}
+  .tag.g{background:rgba(53,237,126,.14);border-color:rgba(53,237,126,.4);}
+  .tag.c{background:rgba(0,176,244,.14);border-color:rgba(0,176,244,.4);}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:600;border-radius:var(--r-sm);padding:14px 26px;min-height:48px;transition:transform .15s ease,filter .2s ease;}
+  .btn:hover{transform:translateY(-2px);filter:brightness(1.08);}
+  .btn-primary{background:var(--blurple);color:var(--ink);}
+  .btn-ghost{background:rgba(255,255,255,.06);color:var(--ink);border:1px solid var(--hairline);}
+  .btn-green{background:var(--green);color:var(--ink-dark);}
+
+  /* ---------- 导航 ---------- */
+  .nav{position:sticky;top:0;z-index:30;background:rgba(10,13,58,.9);backdrop-filter:blur(16px);border-bottom:1px solid var(--hairline);}
+  .nav-in{max-width:var(--maxw);margin:0 auto;padding:13px var(--pad);display:flex;align-items:center;justify-content:space-between;gap:18px;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .mark{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,var(--blurple),var(--magenta));display:grid;place-items:center;font-weight:800;font-size:14px;color:var(--ink);}
+  .brand b{font-size:16px;font-weight:800;letter-spacing:-.01em;}
+  .nav-links{display:flex;gap:20px;flex-wrap:wrap;}
+  .nav-links a{font-size:13.5px;font-weight:600;transition:color .2s;}
+  .nav-links a:hover{color:var(--ink);}
+
+  /* ---------- 区块 ---------- */
+  section{padding:52px 0;}
+  .sec-head{display:flex;gap:20px;align-items:flex-start;}
+  .sec-num{flex:0 0 auto;min-width:58px;height:58px;padding:0 10px;border-radius:var(--r-md);background:var(--blurple);color:var(--ink);display:grid;place-items:center;font-size:20px;font-weight:800;box-shadow:0 3px 68px rgba(88,101,242,.32);}
+  .sec-num.m{background:var(--magenta);box-shadow:0 3px 68px rgba(236,72,189,.28);}
+  .sec-num.mono{font-family:var(--mono);}
+  .sec-head-txt{display:flex;flex-direction:column;gap:10px;}
+  .sec-head-txt .eyebrow{margin:0;}
+
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-md);padding:28px;display:flex;flex-direction:column;gap:20px;}
+  .card.tight{padding:22px;gap:14px;}
+  .card.grad{background:linear-gradient(135deg,rgba(236,72,189,.92),rgba(88,101,242,.88));border:none;}
+  .card.black{background:var(--black);}
+  .card.rose{border-color:rgba(251,113,133,.4);background:linear-gradient(180deg,rgba(251,113,133,.07),var(--surface));}
+  .card.accent{border-color:var(--hairline-strong);}
+
+  ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+  ul.list li{position:relative;padding-left:18px;font-size:14.5px;line-height:1.85;}
+  ul.list li::before{content:'';position:absolute;left:2px;top:.72em;width:6px;height:6px;border-radius:999px;background:var(--magenta);}
+  ul.list.b li::before{background:var(--blurple);}
+  .plain{font-size:14.5px;line-height:1.9;white-space:pre-line;}
+
+  .row{display:grid;gap:var(--gap);align-items:stretch;}
+  .row.c2{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .row.c3{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .row.c5{grid-template-columns:repeat(5,minmax(0,1fr));}
+  .row .cell{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:22px;display:flex;flex-direction:column;gap:12px;}
+  .row .cell.accent{border-color:var(--hairline-strong);}
+  .row .cell p{font-size:13.5px;line-height:1.85;}
+  .row .cell h4{font-size:15.5px;}
+  .stack{display:flex;flex-direction:column;gap:16px;}
+  .jump{display:flex;flex-wrap:wrap;gap:8px;}
+  .jump a{font-size:13px;font-weight:600;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:7px 15px;transition:.2s;}
+  .jump a:hover{background:var(--blurple);border-color:var(--blurple);}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th,td{padding:9px 12px;border:1px solid var(--hairline);text-align:left;vertical-align:top;}
+  th{background:var(--surface-2);color:var(--mute);font-weight:700;font-size:12px;letter-spacing:.04em;}
+  td{color:var(--body);}
+  td b,td strong{color:var(--ink);}
+
+  .tree{font-family:var(--mono);background:var(--black);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:20px 22px;font-size:12.5px;line-height:1.75;color:var(--body);overflow-x:auto;white-space:pre;}
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position:relative;overflow:hidden;padding:84px 0 60px;
+    background:
+      radial-gradient(58% 52% at 10% 6%,rgba(88,101,242,.62),transparent 68%),
+      radial-gradient(46% 44% at 90% 12%,rgba(236,72,189,.42),transparent 70%),
+      radial-gradient(70% 56% at 50% 108%,rgba(88,101,242,.32),transparent 72%),
+      var(--canvas);
+  }
+  .hero .sub{font-size:clamp(17px,2vw,22px);line-height:1.7;font-weight:500;max-width:900px;margin-top:24px;}
+  .hero .lead{margin-top:16px;max-width:820px;}
+  .hero .cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px;}
+  .hero .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px;}
+
+  /* ---------- TL;DR 黑色带 ---------- */
+  .band{background:var(--black);border:1px solid var(--hairline);border-radius:var(--r-xl);padding:42px;}
+  .tldr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:24px;}
+  .tldr .item{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:20px;display:flex;gap:14px;align-items:flex-start;}
+  .tldr .n{flex:0 0 auto;width:30px;height:30px;border-radius:10px;background:var(--magenta);display:grid;place-items:center;font-weight:800;font-size:14px;}
+  .tldr .item p{font-size:14.5px;line-height:1.75;}
+  .tldr .item b{color:var(--ink);}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:24px;}
+  .metric{background:var(--blurple);border-radius:var(--r-md);padding:24px;display:flex;flex-direction:column;gap:6px;box-shadow:0 3px 68px rgba(88,101,242,.28);}
+  .metric.alt{background:var(--surface);border:1px solid var(--hairline);box-shadow:none;}
+  .metric.warn{background:linear-gradient(135deg,var(--magenta),#b0398f);}
+  .metric .n{font-size:42px;line-height:1.05;font-weight:800;letter-spacing:-.02em;}
+  .metric .l{font-size:14px;font-weight:600;}
+  .metric .k{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.72);}
+
+  .progress{display:flex;flex-direction:column;gap:10px;margin-top:24px;}
+  .progress .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+  .progress .top .l{font-size:13.5px;font-weight:600;color:var(--ink);}
+  .progress .top .v{font-size:13px;font-weight:700;color:var(--green);}
+  .track{height:8px;border-radius:var(--r-pill);background:var(--surface);overflow:hidden;}
+  .track i{display:block;height:100%;width:98%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--green),#9df7c0);}
+
+  .pagejump{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px;padding-top:22px;border-top:1px solid var(--hairline);}
+  .pagejump .lbl{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--mute);align-self:center;margin-right:6px;}
+  .pagejump a{font-size:13px;font-weight:600;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:6px 14px;}
+  .pagejump a:hover{background:var(--blurple);border-color:var(--blurple);}
+
+  /* ---------- 决策看板 ---------- */
+  .board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;}
+  .tile{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:17px;display:flex;flex-direction:column;gap:8px;min-height:94px;}
+  .tile .code{font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.1em;color:var(--mute);}
+  .tile .desc{font-size:12.5px;line-height:1.6;}
+  .tile.pending{border:1.5px solid var(--magenta);background:linear-gradient(160deg,rgba(236,72,189,.16),var(--surface));}
+  .tile.pending .code{color:var(--magenta);}
+
+  /* ---------- Q&A ---------- */
+  .qa-group{margin-top:32px;}
+  .qa-group-title{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .qa-group-title h3{font-size:20px;}
+  .qa{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-md);margin-bottom:12px;overflow:hidden;transition:border-color .2s,background .2s;}
+  .qa[open]{border-color:var(--hairline-strong);background:var(--surface-2);}
+  .qa summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:14px;padding:19px 22px;font-size:15.5px;font-weight:700;line-height:1.55;}
+  .qa summary::-webkit-details-marker{display:none;}
+  .qa summary:hover{background:rgba(255,255,255,.03);}
+  .qmark{flex:0 0 auto;width:28px;height:28px;border-radius:9px;background:var(--blurple);display:grid;place-items:center;font-size:13px;font-weight:800;}
+  .qmark.m{background:var(--magenta);}
+  .chev{margin-left:auto;flex:0 0 auto;font-size:18px;color:var(--mute);transition:transform .25s ease;}
+  .qa[open] .chev{transform:rotate(45deg);color:var(--magenta);}
+  .qa-body{padding:0 22px 22px 64px;display:flex;flex-direction:column;gap:14px;}
+  .qa-body p{font-size:14px;line-height:1.9;}
+  .sol{display:flex;gap:12px;align-items:flex-start;background:var(--blurple-soft);border-left:3px solid var(--blurple);border-radius:0 var(--r-xs) var(--r-xs) 0;padding:14px 16px;}
+  .sol.m{background:var(--magenta-soft);border-left-color:var(--magenta);}
+  .sol .sl{flex:0 0 auto;font-size:11.5px;font-weight:800;letter-spacing:.08em;background:var(--blurple);border-radius:6px;padding:3px 9px;margin-top:2px;}
+  .sol.m .sl{background:var(--magenta);}
+  .sol p{font-size:13.5px;line-height:1.85;}
+  .qa-ref{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--mute);}
+
+  /* ---------- 页脚 ---------- */
+  footer{border-top:1px solid var(--hairline);padding:48px 0 34px;overflow:hidden;}
+  .foot{display:flex;justify-content:space-between;gap:32px;flex-wrap:wrap;}
+  .foot .left,.foot .right{display:flex;flex-direction:column;gap:8px;}
+  .foot .right{text-align:right;}
+  .foot .b{font-size:16px;font-weight:800;}
+  .foot .m{font-size:13.5px;color:var(--mute);}
+  .foot .right .m:first-child{color:var(--body);}
+  .wordmark{font-size:clamp(60px,13vw,180px);font-weight:800;letter-spacing:-.04em;line-height:.9;color:transparent;-webkit-text-stroke:1px rgba(255,255,255,.12);margin-top:40px;user-select:none;}
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width:1100px){.board{grid-template-columns:repeat(4,minmax(0,1fr));}}
+  @media (max-width:900px){
+    :root{--pad:22px;}
+    .row.c2,.row.c3,.row.c5,.panels,.tldr{grid-template-columns:1fr;}
+    .metrics{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .board{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .nav-links{display:none;}
+    .sec-head{flex-direction:column;gap:16px;}
+    .band{padding:26px;border-radius:var(--r-lg);}
+    .card{padding:22px;}
+    .row .cell{padding:18px;}
+    .qa-body{padding-left:22px;}
+    section{padding:40px 0;}
+    .hero{padding:58px 0 42px;}
+  }
+  @media (max-width:520px){
+    .board,.metrics{grid-template-columns:1fr;}
+    .hero .cta .btn{width:100%;}
+  }
+  @media print{
+    :root{--pad:0px;}
+    body{background:var(--canvas) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .nav{position:static;}
+    .hero{background:var(--canvas) !important;}
+    section,.qa,.tile,.row .cell,.card,.metric{page-break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-in">
+    <div class="brand"><span class="mark">E</span><b>EpochX</b></div>
+    <div class="nav-links">
+      <a href="#tldr">一分钟看懂</a>
+      <a href="#s0">核心转变</a>
+      <a href="#s12">入口与架构</a>
+      <a href="#s3">核心交互</a>
+      <a href="#s4">功能从属</a>
+      <a href="#s5">决策看板</a>
+      <a href="#s7">商业化</a>
+      <a href="#qa">Q&amp;A</a>
+      <a href="#s6">开放问题</a>
+    </div>
+    <span class="badge ghost">v0.29</span>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">主干已收敛 · 0–8 章 · 59 条决策（58 已拍板 / 1 待定）</span>
+    <h1 style="margin-top:20px;">产品新形态<br>目标架构</h1>
+    <p class="sub">从「页面 + 导航」转向 <span class="hl">对话为核（首页 Chat）</span> + <span class="hl-m">个人中心为仓</span> 的双柱结构。</p>
+    <p class="lead">正式文档 <code>docs/product-redesign-target.md</code> 的汇报版：信息架构、交互逻辑、功能从属、商业化、数据埋点与 59 条关键决策，另附 Q&amp;A。不含 UI 视觉细节；落地顺序与迁移方案待收敛后另议。</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#s5">先看决策进度</a>
+      <a class="btn btn-ghost" href="#qa">直接看 Q&amp;A</a>
+      <a class="btn btn-green" href="#s7">商业化怎么算</a>
+    </div>
+    <div class="meta">
+      <span class="tag">版本 v0.29</span>
+      <span class="tag">更新 2026-09</span>
+      <span class="tag b">主干 9 章 · 59 条决策</span>
+      <span class="tag m">新增：学科工具 / 拍照题目排序 / pil... </span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TL;DR ============ -->
+<section id="tldr" style="padding-top:20px;">
+  <div class="wrap">
+    <div class="band">
+      <p class="eyebrow">TL;DR · 一分钟看懂</p>
+      <h3>五句话讲完这次重构</h3>
+
+      <div class="tldr">
+        <div class="item"><span class="n">1</span><p><b>一切从对话发起。</b>首页就是 Chat，闲聊 / 建任务 / 搜题 / 讲知识点 / 复盘都从这里开始，不再逐页点导航。</p></div>
+        <div class="item"><span class="n">2</span><p><b>个人中心 = 关于我的一切。</b>数据、画像、档案、复盘记录、目标树详情、社区参照、收藏、设置全收进一个仓。</p></div>
+        <div class="item"><span class="n">3</span><p><b>不做对话历史。</b>你看不到往日对话原文，但模型记得关于你的一切——而且这份记忆<b>可看、可改、可删</b>。</p></div>
+        <div class="item"><span class="n">4</span><p><b>学习记录是活实体。</b>不是「提交即封存」，事后随时补正确率、补错题、改归因。</p></div>
+        <div class="item"><span class="n">5</span><p><b>规则免费、AI 计费。</b>让用户免费看「状态如何」，为「AI 告诉我怎么办」付费；群体只做参照、不做社交。</p></div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><span class="n">59</span><span class="l">决策记录</span><span class="k">Decisions</span></div>
+        <div class="metric"><span class="n">58</span><span class="l">已拍板</span><span class="k">Settled</span></div>
+        <div class="metric warn"><span class="n">1</span><span class="l">方向确定 · 细节未定</span><span class="k">Open detail</span></div>
+        <div class="metric alt"><span class="n">7</span><span class="l">开放问题 / 二期项</span><span class="k">Open questions</span></div>
+      </div>
+
+      <div class="progress">
+        <div class="top"><span class="l">主干收敛度</span><span class="v">58 / 59 · 98%</span></div>
+        <div class="track"><i></i></div>
+      </div>
+
+      <div class="pagejump">
+        <span class="lbl">本页导航</span>
+        <a href="#s0">§0 核心转变</a>
+        <a href="#s12">§1–2 入口与架构</a>
+        <a href="#s3">§3 核心交互</a>
+        <a href="#s4">§4 功能从属</a>
+        <a href="#s5">§5 决策看板</a>
+        <a href="#s6">§6 开放问题</a>
+        <a href="#s7">§7 商业化</a>
+        <a href="#s8">§8 数据埋点</a>
+        <a href="#qa">Q&amp;A</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §0 核心转变 ============ -->
+<section id="s0">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§0</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Core shift</p>
+        <h2>一句话核心转变</h2>
+        <p class="lead">交互核心从「逐页点导航」变为「对话驱动 + 上下文栈」。</p>
+      </div>
+    </div>
+
+    <div class="row c2" style="margin-top:34px;">
+      <div class="card tight">
+        <span class="tag b">Chat = 行动与对话的起点</span>
+        <p style="font-size:14.5px;line-height:1.9;">一切动作（闲聊 / 建任务 / 搜题 / 讲知识点 / 复盘）从对话发起。是<b style="color:var(--ink);">主焦点、视觉中心</b>。</p>
+      </div>
+      <div class="card tight">
+        <span class="tag m">个人中心 = 关于我的一切</span>
+        <p style="font-size:14.5px;line-height:1.9;">数据、画像、档案、复盘记录、目标树详情、社区参照、收藏、设置。是<b style="color:var(--ink);">「档案与资产的归宿」</b>。</p>
+      </div>
+    </div>
+
+    <div class="card tight" style="margin-top:16px;">
+      <p style="font-size:14.5px;line-height:1.9;margin:0;"><b style="color:var(--ink);">分工铁律：</b>个人中心管「<b style="color:var(--ink);">学习行为</b>」，知识页管「<b style="color:var(--ink);">知识掌握</b>」；规则引擎管「<b style="color:var(--ink);">事实</b>」（免费），AI 管「<b style="color:var(--ink);">表达</b>」（计费）。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §1–2 入口与信息架构 ============ -->
+<section id="s12">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§1–2</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Entry &amp; Information architecture</p>
+        <h2>入口与信息架构</h2>
+        <p class="lead">双柱 + 少数独立页；导航视觉弱化。入口先解决「谁进来、第一天看到什么」。</p>
+      </div>
+    </div>
+
+    <div class="row c3" style="margin-top:34px;">
+      <div class="card tight">
+        <span class="tag">§1.1 免登录 / 游客双轨</span>
+        <ul class="list">
+          <li>不强制登录，游客可试用<b style="color:var(--ink);">非 AI</b> 功能</li>
+          <li>游客态 AI 标灰虚化 + 小字引导，不能用 Chat</li>
+          <li>登录/注册入口常驻身份区（点「游客 ?」展开）</li>
+          <li>试用数据<b style="color:var(--ink);">不接管</b>，登录即清空，不额外弹确认</li>
+        </ul>
+      </div>
+      <div class="card tight">
+        <span class="tag">§1.2 首次体验</span>
+        <ul class="list">
+          <li>登录 → 动画 A 进首页</li>
+          <li>注册页有「暂不登录，先试试看」→ 动画 B 进游客态</li>
+          <li>合法新用户首登走「激活式引导」：建档 + 个性化</li>
+        </ul>
+      </div>
+      <div class="card tight">
+        <span class="tag b">§1.3 第一天体验</span>
+        <ul class="list">
+          <li>新手任务<b style="color:var(--ink);">软引导</b>，首日顶替 Go on 组</li>
+          <li>问候语「<b style="color:var(--ink);">预设骨架 + 动态填充</b>」混合</li>
+          <li>渐进揭示：按需为主 + 演示卡为辅</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="sec-head" style="margin-top:40px;">
+      <div class="sec-num mono">§2</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Information architecture</p>
+        <h2 style="font-size:26px;">信息架构全景</h2>
+      </div>
+    </div>
+
+    <div class="tree" style="margin-top:20px;">【入口】       登录 / 注册 / 游客(试用，非 AI 功能；登录入口常驻「游客 ?」)
+【首页 = Chat】 主焦点 · 问候语 / 推荐卡 / 对话流(单线程·无历史) / 侧面板(视觉弱)
+【独立页】      计划(guide) · 计时(全屏) · 个人中心 · 知识页(题本/考试)
+                └─ 目标(goals) [已取消] 并入个人中心
+【个人中心】    数据 / 画像 / 档案 / 复盘记录 / 目标树详情 / 社区参照 / 收藏 / 设置
+                └─ 设置 ─┬─ 账号与资料(建档 / 登出)
+                         └─ 授权与隐私(监护人授权 · AI 三开关 · 群体参照)
+【侧面板】      搜题结果 / 任务卡 / 复盘 / 目标树简略</div>
+  </div>
+</section>
+
+<!-- ============ §3 核心交互 ============ -->
+<section id="s3">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§3</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Core interaction</p>
+        <h2>核心交互逻辑</h2>
+        <p class="lead">意图判定、上下文栈、专注计时、活实体记录、不做对话历史——这五件事定义了新产品的交互骨架。</p>
+      </div>
+    </div>
+
+    <div class="jump" style="margin-top:26px;">
+      <a href="#s31">3.1 意图判定</a>
+      <a href="#s32">3.2 推荐卡</a>
+      <a href="#s33">3.3 任务卡 &amp; 上下文栈</a>
+      <a href="#s34">3.4 计时 &amp; 记录</a>
+      <a href="#s35">3.5 搜题三态</a>
+      <a href="#s36">3.6 不做对话历史</a>
+      <a href="#s37">3.7 讲解分层</a>
+      <a href="#s38">3.8 划选与随手问</a>
+    </div>
+
+    <div class="stack" style="margin-top:22px;gap:18px;">
+
+      <div class="card" id="s31">
+        <span class="tag b">3.1 意图判定三分类</span>
+        <table>
+          <tr><th>意图</th><th>触发</th></tr>
+          <tr><td><b>闲聊</b></td><td>基于画像回应，适时提取信号写入画像</td></tr>
+          <tr><td><b>创建任务</b></td><td>自然语言 → 任务卡；识别「预习/复习」请求</td></tr>
+          <tr><td><b>知识求助</b></td><td><code>/搜题</code> 解题 · <code>/讲知识点</code> 讲透 · <code>/查</code> 查概念</td></tr>
+        </table>
+        <p class="note">判定入口：斜杠命令 + 按钮 + 模型裸判，三者并存。注意：三分类是<b style="color:var(--ink);">识别口径不是输出限制</b>——主意图定基调，允许一次产出多产物（D53）。</p>
+      </div>
+
+      <div class="card" id="s32">
+        <span class="tag b">3.2 首页推荐卡（三组 + 首日）</span>
+        <div class="row c3">
+          <div class="cell"><h4>Go on（继续）</h4><p>未完成计划 / 未回填正确率 / 待续复盘。存在未完成事项即硬性出现；划掉后 3 天不推。</p></div>
+          <div class="cell"><h4>推荐</h4><p>状态 / 内容 / 目标规划三类合并，卡内 type 标注区分。需 AI + 足够数据，不足则整组空缺；7 天不重复。</p></div>
+          <div class="cell"><h4>洞察</h4><p>群体洞察（L4），带「N 名匿名同龄人」标注。需聚合样本，克制出现；每周 ≤ 1 条。</p></div>
+        </div>
+        <p class="note">卡片 = 展示层（display）+ 意图层（payload），点击注入结构化上下文而非拼字符串——精确、可追溯、可降级（无 AI 时规则模板兜底）。生成规则：触发 + 排序 + 去重指纹 + 冷却，<b style="color:var(--ink);">宁缺毋滥</b>。</p>
+      </div>
+
+      <div class="card" id="s33">
+        <span class="tag b">3.3 任务卡 &amp; 上下文栈</span>
+        <div class="row c2">
+          <div class="cell">
+            <h4>任务卡</h4>
+            <ul class="list">
+              <li>卡内可操作：勾选 / 改时 / 删</li>
+              <li>双载体：对话流 + 侧面板</li>
+              <li>切页顺承：未建完的任务信息带到创建页，给「是否保留」</li>
+              <li>归属沿用计划（guide）与目标（goals）；目标为长期 → 短期父子树</li>
+            </ul>
+          </div>
+          <div class="cell accent">
+            <h4>上下文栈</h4>
+            <ul class="list">
+              <li>单会话 + 上下文栈，<b style="color:var(--ink);">非多线程并行会话</b></li>
+              <li>深度 3 · LIFO · 会话级；与「持久化中间态」拆层</li>
+              <li>超限沉降：任务草稿 → Go on，搜题讲解 → 归档，闲聊 → 丢弃</li>
+              <li>锚定确认卡：切回时基于栈顶接续，也是通用回溯交互</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="s34">
+        <span class="tag b">3.4 计时 &amp; 学习记录</span>
+        <div class="row c2">
+          <div class="cell">
+            <h4>计时（专注态）</h4>
+            <ul class="list">
+              <li>全屏沉浸、不出现导航；可呼侧栏 Chat，但锁定为「知识求助」类</li>
+              <li>双模式：倒计时（有目标时长）/ 正计时（不限时），服务端时间戳按 mode 分支恢复</li>
+              <li>到点 <b style="color:var(--ink);">软提醒</b>，不强制结束；继续则平滑转正计时语义</li>
+              <li><b style="color:var(--ink);">僵尸治理</b>：超时失效 + 恢复裁决卡（不自动记账）+ 有效时长 ≠ 墙上时长</li>
+              <li>只留「结束」一个出口，不做挂起</li>
+            </ul>
+          </div>
+          <div class="cell">
+            <h4>学习记录（活实体）</h4>
+            <ul class="list">
+              <li>记录可事后回写，不是「提交即封存」</li>
+              <li>收尾三层：结束瞬间（0 步可走）/ 轻收尾卡（约 10 秒）/ 延后引导</li>
+              <li>自评双轨：量化 → 引擎，叙事 → 画像，两者都留存</li>
+              <li>数值来源 B 方案：完成度 / 情绪直填，专注疲劳难度口语转译</li>
+              <li>正确率 / 错题三态可填（结束即填 / 延后补 / 永不填），数据层 nullable</li>
+              <li>软字段缺失只「变粗」，不「变假」；核心也缺 → insufficient_data</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rose" id="s35">
+        <span class="tag m">3.5 搜题三态（知识求助 · 解题）</span>
+        <div class="row c3">
+          <div class="cell"><h4>直给</h4><p>完整解答一次给出，适合有储备、想快看的人。</p></div>
+          <div class="cell"><h4>解析式</h4><p>逐项说明，卡片式；简单题退化为思路说明。</p></div>
+          <div class="cell"><h4>引导式</h4><p>多轮交互教学循环，可中途打断发思路，模型判断后续接 / 纠正。</p></div>
+        </div>
+        <p class="note">三态记忆 + 可切换；无论哪种模式，<b style="color:var(--ink);">末尾统一输出知识点卡片</b>。五阶段链路：输入识别 → 解题生成 → 解析呈现 → 知识关联（embedding）→ 沉淀回流。正确性降险：分步结构化 + 「AI 解题可能有误」明示，不过度依赖检索增强。</p>
+      </div>
+
+      <div class="card rose" id="s36">
+        <span class="tag m">3.6 不做对话历史</span>
+        <span class="tag">差异化 · 正文 §3.8 / D45</span>
+        <p style="font-size:14.5px;line-height:1.9;"><b style="color:var(--ink);">你看不到往日的对话，但模型记得关于你的一切</b>——而且这份记忆<b style="color:var(--ink);">可看、可改、可删</b>。无历史列表、无「新建对话」，全产品只有一条持续演进的对话。</p>
+        <table>
+          <tr><th></th><th>通用 AI</th><th>EpochX</th></tr>
+          <tr><td><b>记忆形态</b></td><td>线性对话流水</td><td>结构化沉淀（画像 / mastery / 记录 / 归档）</td></tr>
+          <tr><td><b>能否回看</b></td><td>能，翻原文</td><td>不能翻对话原文</td></tr>
+          <tr><td><b>能否修改</b></td><td>不能</td><td><b>能</b></td></tr>
+        </table>
+        <p class="note"><b style="color:var(--ink);">配套三口径：</b>① 会话 = 连续使用周期 + 不活跃老化（<b style="color:var(--ink);">不按零点重置</b>）② 翻篇靠意图切换 + 弱化的「清空当前上下文」，不设 New Chat ③ 对话原文短期留存（安全审计 + 危机追溯）、产品不可见、不入画像。<br><b style="color:var(--ink);">连带项：</b>画像升格为信任基础设施（无历史的前提是画像可见可改）；知识页归档扩为「搜题 + 讲解」。</p>
+      </div>
+
+      <div class="card" id="s37">
+        <span class="tag b">3.7 知识点讲解分层（/讲知识点）</span>
+        <table>
+          <tr><th>层</th><th>内容</th><th>规模化</th></tr>
+          <tr><td><b>L1</b></td><td>结构化文字讲解（分节 / 公式 / 例题 / 自测）</td><td><span class="tag g">可</span></td></tr>
+          <tr><td><b>L2</b></td><td>结构化 + 轻交互（折叠 / 选择自测 / 表格着色）</td><td><span class="tag g">可</span></td></tr>
+          <tr><td><b>L3</b></td><td>富交互仿真（Canvas / 滑块 / 动态判定）</td><td><span class="tag m">精品方向</span></td></tr>
+        </table>
+        <p class="note">L3 只做精选核心知识点，参数化模拟器模板，不逐点定制；双成本 = 技术 + 教学设计。另有呈现细则（D52）：回顾取原文 + 重讲现生成<b style="color:var(--ink);">并存</b>；多解法侧面板横向分页（上限 2–3，默认只生成主解）；语文 / 外语阅读题原文回溯；<b style="color:var(--ink);">输出限中学阶段解法</b>。</p>
+      </div>
+
+      <div class="card" id="s38">
+        <span class="tag b">3.8 划选与随手问浮窗</span>
+        <span class="tag">D51</span>
+        <div class="row c2">
+          <div class="cell">
+            <h4>主路径：引用到主对话</h4>
+            <p>划选内容作为引用带进主对话，完整走主意图判定与上下文栈。</p>
+          </div>
+          <div class="cell accent">
+            <h4>旁路：随手问浮窗（受限 Chat）</h4>
+            <p>单向继承上下文、仅基础问答、不递归、关闭即销毁、可拖动 / 挂起 / 添加到主对话（只带显式内容）。<b style="color:var(--ink);">浮窗不入上下文栈</b>，不影响主对话状态机。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ §4 功能从属 ============ -->
+<section id="s4">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§4</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Feature re-mapping</p>
+        <h2>功能从属关系</h2>
+        <p class="lead">原有功能重新归位 + 三大板块 + 设置授权 + 收藏题本考试。</p>
+      </div>
+    </div>
+
+    <div class="row c3" style="margin-top:34px;">
+      <div class="card tight">
+        <span class="tag">数据 / 复盘 / 建议 归位</span>
+        <table>
+          <tr><th>原</th><th>新归位</th></tr>
+          <tr><td>个人数据总览</td><td>→ <b>个人中心</b></td></tr>
+          <tr><td>复盘</td><td>→ 侧面板 + 个人中心「复盘记录」</td></tr>
+          <tr><td>建议</td><td>→ 首页「推荐」组（三类）</td></tr>
+        </table>
+      </div>
+      <div class="card tight">
+        <span class="tag">目标树（父子从属）</span>
+        <p style="font-size:13.5px;line-height:1.9;">长期目标下挂多个短期子目标，模型可拆解 / 规划。展示：侧面板 = 父子缩进列表；个人中心 = 树 + 时间线叠加（从属 + 节奏正交）。</p>
+      </div>
+      <div class="card tight">
+        <span class="tag m">用户画像</span>
+        <p style="font-size:13.5px;line-height:1.9;">成绩 + 兴趣 / 性格 / 经历 / 归因 + <b style="color:var(--ink);">情绪基调</b>。四分组（学习 / 状态 / 归因 / 兴趣与经历），按意图选组注入、不全量。模型隐式提取写入，用户可改可删、不可新建。生活域负面事件细节不进、情绪状态进。<b style="color:var(--ink);">已摘掉合规暂缓</b>（D50）。</p>
+      </div>
+      <div class="card tight">
+        <span class="tag c">知识页（七模块）</span>
+        <p style="font-size:13.5px;line-height:1.9;">掌握度总览(薄弱域显式) / 知识点检索 / 知识点详情 / 错题本 / 搜题归档 / 知识图谱 / 难度双层模型（官方 + 个人覆写免审核 + 众包）。</p>
+      </div>
+      <div class="card tight">
+        <span class="tag">社区（L1–L4）</span>
+        <p style="font-size:13.5px;line-height:1.9;"><b style="color:var(--ink);">横向坐标 + 群体智慧引擎</b>，不做社交。L1 你在哪 / L2 趋势 vs 同龄人 / L3 相似人群（按维度不按人）/ L4 融进建议。L3 特色：偏离预警 + 前瞻轨迹 + 难度共识。</p>
+      </div>
+      <div class="card tight rose">
+        <span class="tag m">情绪安全（L1/L2/L3）</span>
+        <p style="font-size:13.5px;line-height:1.9;">学习助手 ≠ 心理医生。日常负面 → 共情；强烈负面 → 倾听 + 提议求助；明确危机 → 接 CRISIS_RESPONSE 转介。属安全底线，不随合规暂缓跳过。</p>
+      </div>
+    </div>
+
+    <div class="card rose" style="margin-top:16px;">
+      <span class="tag m">设置 · 授权 · 通知 归位</span>
+      <span class="tag">v0.26 新增 · 正文 §4.7</span>
+      <table>
+        <tr><th>项</th><th>结论</th></tr>
+        <tr><td><b>监护人授权</b></td><td>设置 →「<b>授权与隐私</b>」子页；&lt;14 岁建档<b>强制门槛</b>；入口两处、页面一处。属设计底线，不随合规暂缓</td></tr>
+        <tr><td><b>设置页</b></td><td>只留「账号与资料」+「授权与隐私」；引擎权重调参(α/β/w1–w6) <b>移出用户产品</b></td></tr>
+        <tr><td><b>游客出口</b></td><td>登录 / 注册入口常驻身份区；试用数据<b>不接管</b>，登录即清空；不额外弹确认</td></tr>
+        <tr><td><b>通知</b></td><td>站内被动(推荐卡 + 角标) / 本地(计时软提醒) / 站外<b>仅事务性邮件</b>；不做学习提醒推送</td></tr>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <span class="tag c">收藏 · 题本 · 划选 · 考试</span>
+      <span class="tag">v0.28 新增 · 正文 §3.9 / §4.8 / §4.9</span>
+      <table>
+        <tr><th>项</th><th>结论</th></tr>
+        <tr><td><b>收藏</b></td><td>任意模型输出可收藏（含非课内知识、图片圈选）；<b>存快照不存引用</b>（否则原文到期变死链）；不进知识点库、不参与 mastery；内容不可编辑但支持高亮与「虚化」自测；反复收藏覆盖并轻提示；导出二期</td></tr>
+        <tr><td><b>归位</b></td><td>题本 + 知识点记录 → <b>知识页</b>（可评测）；chat 收藏 → <b>个人中心</b>（不可评测）。内置分组是筛选维度，自定义分组是标签，两者正交</td></tr>
+        <tr><td><b>题本</b></td><td>错题本升格：两正交维度（错因 + 意图），mastery 只消费「有错因」的。添加原则 <b>明示 → 直加、推断 → 确认</b>；返考淡化「组卷」措辞叫「复习 / 小测」</td></tr>
+        <tr><td><b>划选</b></td><td>两条路径：引用到主对话（主）+ <b>随手问浮窗</b>（受限 Chat：单向继承、仅基础问答、不递归、关闭即销毁、可挂起）</td></tr>
+        <tr><td><b>考试</b></td><td>Exam 为独立实体，Goal 引用（examId + targetScore）；错题可标来源考试；成绩回填是唯一能把自评与客观结果对上的数据</td></tr>
+        <tr><td><b>上传</b></td><td>Chat 可随意上传（照片入闲聊 / 作业单直接生成计划）；限页数与大小、仅会话内有效、<b>不落库</b>；生成的要点摘要可进收藏（走 privacy_filter）</td></tr>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <span class="tag c">学科工具 · 计算器 · 题目排序</span>
+      <span class="tag">v0.29 新增 · 正文 §4.10</span>
+      <table>
+        <tr><th>项</th><th>结论</th></tr>
+        <tr><td><b>入口</b></td><td>任意页面悬停<b>上边界</b> → 黑条滑出 → 单击下拉；菜单占满上部、左右抵边，把下方内容<b>挤下去</b></td></tr>
+        <tr><td><b>卡片</b></td><td>首卡 = 彩色<b>学科卡</b>（斜置学科图标）：hover 浮动放大 + <b>背景模糊</b> + 展开全部学科，单击即切换学科与工具集；后随深灰<b>工具卡</b>（略宽）</td></tr>
+        <tr><td><b>工具浮窗</b></td><td>单击学科卡 → 卡片<b>居中扩大</b>、顶栏收起、页面恢复，以类浮窗对话形态打开</td></tr>
+        <tr><td><b>科学计算器</b></td><td>pilot <b>唯一工具</b>，其余占位「开发中」。右上「添加到对话」→ 切对话页、变输入框引用块「科学计算器 ✕」；注入<b>本次全部计算输入输出</b>，<b>未按「=」的最后一条也要归拢</b></td></tr>
+        <tr><td><b>/题目排序</b></td><td>首次拍照后「+」<b>光效引导</b>（仅首次）。四选项：难易 / 掌握度 / 自定义提示词 / <b>价值遴选</b>（按知识点与解法交叉度排刷题价值）；适用一页多题</td></tr>
+        <tr><td><b>阶段口径</b></td><td><b>pilot 为删档测试</b>（可清库、schema 可激进、不做导出迁移）；<b>beta 起不删档</b>。<b>三层身份</b>：users.id 永不变（外键）/ email 可改（仅登录凭证）/ handle 可改（对外）——<b>在 pilot 期间就解耦</b></td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §5 决策看板 ============ -->
+<section id="s5">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§5</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Decision log</p>
+        <h2>关键决策记录</h2>
+        <p class="lead">D1–D59 完整清单。58 条已拍板；<span class="hl-m">品红描边 = 方向确定、细节未定</span>。</p>
+      </div>
+    </div>
+
+    <div class="board" style="margin-top:34px;">
+      <div class="tile"><span class="code">D01</span><span class="desc">不强制登录，游客可试用非 AI 功能</span></div>
+      <div class="tile"><span class="code">D02</span><span class="desc">单对话 + 上下文栈</span></div>
+      <div class="tile"><span class="code">D03</span><span class="desc">意图判定 = 斜杠命令 + 按钮 + 模型裸判</span></div>
+      <div class="tile"><span class="code">D04</span><span class="desc">任务卡卡内可交互 + 双载体</span></div>
+      <div class="tile"><span class="code">D05</span><span class="desc">计时全屏专注页，可呼侧栏 Chat（仅知识求助）</span></div>
+      <div class="tile"><span class="code">D06</span><span class="desc">目标长期 → 短期父子树；goals 独立页取消</span></div>
+      <div class="tile"><span class="code">D07</span><span class="desc">数据 → 个人中心；复盘 → 侧面板 + 个人中心；建议 → 推荐组</span></div>
+      <div class="tile"><span class="code">D08</span><span class="desc">知识页 = 总览 + 检索 + 详情 + 错题本 + 归档 + 图谱 + 难度双层</span></div>
+      <div class="tile"><span class="code">D09</span><span class="desc">社区升级「横向坐标 + 群体智慧」，不做社交</span></div>
+      <div class="tile"><span class="code">D10</span><span class="desc">画像可改不可新建；合规暂缓（后被 D50 摘掉）</span></div>
+      <div class="tile"><span class="code">D11</span><span class="desc">搜题方案落定（见 D24 / §3.5 三态）</span></div>
+      <div class="tile"><span class="code">D12</span><span class="desc">社区 L1–L4 全要，L4 严肃开发，L3 特色</span></div>
+      <div class="tile"><span class="code">D13</span><span class="desc">难度双层：官方基线 + 个人覆写 + 众包信号</span></div>
+      <div class="tile"><span class="code">D14</span><span class="desc">自评双轨：量化 → 引擎，叙事 → 画像</span></div>
+      <div class="tile"><span class="code">D15</span><span class="desc">完成度回归自述；正确率 / 归因可事后补</span></div>
+      <div class="tile"><span class="code">D16</span><span class="desc">学习记录是活实体，反馈可锚定回溯</span></div>
+      <div class="tile"><span class="code">D17</span><span class="desc">「锚定确认卡」作为通用交互能力</span></div>
+      <div class="tile"><span class="code">D18</span><span class="desc">L3 按维度不按人；多维独立不交叉</span></div>
+      <div class="tile"><span class="code">D19</span><span class="desc">群体定位用分位数；自己的数用精确值</span></div>
+      <div class="tile"><span class="code">D20</span><span class="desc">收尾三层；数值 B 方案；正确率三态 nullable</span></div>
+      <div class="tile"><span class="code">D21</span><span class="desc">推荐卡三组，type 区分三类建议，3–6 张横滚</span></div>
+      <div class="tile"><span class="code">D22</span><span class="desc">卡片 = 展示层 + 意图层，注入结构化 payload</span></div>
+      <div class="tile"><span class="code">D23</span><span class="desc">自定义常用语两形态；前缀可自定义；可分组</span></div>
+      <div class="tile"><span class="code">D24</span><span class="desc">搜题三态，末尾统一知识点卡片；复用 embedding</span></div>
+      <div class="tile"><span class="code">D25</span><span class="desc">意图第三类升级为「知识求助」三分支</span></div>
+      <div class="tile pending"><span class="code">D26</span><span class="desc">讲解分层 L1 / L2 / L3；L3 参数化模拟器方向</span></div>
+      <div class="tile"><span class="code">D27</span><span class="desc">知识页新增总览 / 检索 / 详情；学习路径归首页</span></div>
+      <div class="tile"><span class="code">D28</span><span class="desc">推荐卡规则：触发 + 排序 + 去重指纹 + 冷却</span></div>
+      <div class="tile"><span class="code">D29</span><span class="desc">目标树 = 树 + 时间线叠加；侧面板缩进列表</span></div>
+      <div class="tile"><span class="code">D30</span><span class="desc">计时双模式 + 服务端按 mode 恢复；退出即结束</span></div>
+      <div class="tile"><span class="code">D31</span><span class="desc">僵尸治理：超时失效 + 恢复裁决卡</span></div>
+      <div class="tile"><span class="code">D32</span><span class="desc">到点软提醒；继续平滑转正计时</span></div>
+      <div class="tile"><span class="code">D33</span><span class="desc">L3-B 偏离预警；前瞻轨迹一期粗粒度</span></div>
+      <div class="tile"><span class="code">D34</span><span class="desc">口语转译兜底；核心缺则 insufficient_data</span></div>
+      <div class="tile"><span class="code">D35</span><span class="desc">L4 标注三要素，来源说明默认收起</span></div>
+      <div class="tile"><span class="code">D36</span><span class="desc">上下文栈：深度 3、LIFO、会话级；按类型沉降</span></div>
+      <div class="tile"><span class="code">D37</span><span class="desc">情绪安全 L1/L2/L3；L3 接 CRISIS_RESPONSE</span></div>
+      <div class="tile"><span class="code">D38</span><span class="desc">付费双模式：订阅 5 档 + credits；嵌入式 AI 摘出计价</span></div>
+      <div class="tile"><span class="code">D39</span><span class="desc">埋点三块：Chat 交互 / AI 质量 / 画像 trace</span></div>
+      <div class="tile"><span class="code">D40</span><span class="desc">第一天体验：新手任务 + 问候语混合填充</span></div>
+      <div class="tile"><span class="code">D41</span><span class="desc">监护人授权 → 授权与隐私页；&lt;14 岁强制门槛</span></div>
+      <div class="tile"><span class="code">D42</span><span class="desc">设置瘦身：权重调参移出用户产品</span></div>
+      <div class="tile"><span class="code">D43</span><span class="desc">游客出口：入口常驻；试用数据不接管、登录即清空</span></div>
+      <div class="tile"><span class="code">D44</span><span class="desc">通知三层：站内被动 / 本地 / 站外仅事务性邮件</span></div>
+      <div class="tile"><span class="code">D45</span><span class="desc">不做对话历史：记忆 = 结构化沉淀，可看可改可删</span></div>
+      <div class="tile"><span class="code">D46</span><span class="desc">收藏体系：任意输出可收藏、存快照；支持虚化自测</span></div>
+      <div class="tile"><span class="code">D47</span><span class="desc">知识资产归位：题本 → 知识页，收藏 → 个人中心</span></div>
+      <div class="tile"><span class="code">D48</span><span class="desc">题本升格：错因 + 意图两正交维度</span></div>
+      <div class="tile"><span class="code">D49</span><span class="desc">考试独立实体，Goal 引用；成绩回填喂状态画像</span></div>
+      <div class="tile"><span class="code">D50</span><span class="desc">画像四分组按意图注入；摘掉合规暂缓</span></div>
+      <div class="tile"><span class="code">D51</span><span class="desc">划选两路径：引用主对话 + 随手问浮窗</span></div>
+      <div class="tile"><span class="code">D52</span><span class="desc">讲解回顾取原文 + 重讲并存；限中学解法</span></div>
+      <div class="tile"><span class="code">D53</span><span class="desc">三分类是识别口径不是输出限制，允许多产物</span></div>
+      <div class="tile"><span class="code">D54</span><span class="desc">端与形态：pilot 响应式；官网与应用同域</span></div>
+      <div class="tile"><span class="code">D55</span><span class="desc">上传文件：会话内有效、不落库；作业单生成计划</span></div>
+      <div class="tile"><span class="code">D56</span><span class="desc">学科工具：顶部悬停下拉；彩色学科卡 + 深灰工具卡</span></div>
+      <div class="tile"><span class="code">D57</span><span class="desc">科学计算器（pilot 唯一工具）；注入完整计算历史</span></div>
+      <div class="tile"><span class="code">D58</span><span class="desc">/题目排序：难易 / 掌握度 / 自定义 / 价值遴选</span></div>
+      <div class="tile"><span class="code">D59</span><span class="desc">pilot 删档 / beta 不删档；三层身份，user_id 与邮箱解耦</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §6 开放问题 ============ -->
+<section id="s6">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§6</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Open questions</p>
+        <h2>开放问题与二期项</h2>
+        <p class="lead">主干已收敛，剩余为明确待办。</p>
+      </div>
+    </div>
+
+    <div class="card tight" style="margin-top:32px;">
+      <table>
+        <tr><th>项</th><th>性质</th></tr>
+        <tr><td>知识点库重构（全科全学段 + 质量）</td><td><span class="tag m">二期 · 地基</span> 也是「题本按课时排序」的前置依赖</td></tr>
+        <tr><td>多模态拍照搜题 + 题面识别可编辑</td><td><span class="tag m">二期 · 技术</span></td></tr>
+        <tr><td>前瞻轨迹精细版（时间对齐）</td><td><span class="tag m">二期 · 深水区</span></td></tr>
+        <tr><td>L3 富交互仿真（参数化模拟器）</td><td><span class="tag m">精品方向</span></td></tr>
+        <tr><td>权重调参自然语言化（"更在意专注度" → 映射权重）</td><td><span class="tag m">二期 · 与 Chat 形态契合</span></td></tr>
+        <tr><td>收藏导出（格式 / 隐私 / 成本）</td><td><span class="tag c">二期</span></td></tr>
+        <tr><td>上传文件内的图片 / 图表圈选追问</td><td><span class="tag c">多模态坐标定位精度一般</span></td></tr>
+        <tr><td>个人知识笔记 / 标注</td><td><span class="tag c">范围易蔓延</span></td></tr>
+        <tr><td>入场 / 激活动画</td><td><span class="tag b">视觉 · 待定</span></td></tr>
+        <tr><td>未成年付费（监护人 / 支付资质）</td><td><span class="tag b">上线前补</span></td></tr>
+        <tr><td>危机响应 prompt 基线</td><td><span class="tag b">上线前补</span></td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §7 商业化 ============ -->
+<section id="s7">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§7</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Monetization</p>
+        <h2>商业化（订阅 + credits）</h2>
+        <p class="lead">规则免费、AI 计费。计价（内部）≠ 计费（对用户）。</p>
+      </div>
+    </div>
+
+    <div class="row c2" style="margin-top:34px;">
+      <div class="card tight">
+        <span class="tag">三类 AI、两套口径</span>
+        <table>
+          <tr><th>类型</th><th>计费</th></tr>
+          <tr><td><b>对话式</b>（闲聊 / 搜题 / 讲解）</td><td>credits / 订阅额度</td></tr>
+          <tr><td><b>嵌入式</b>（建议 / 复盘 / 转译 / 画像）</td><td><b>不进 credits</b>，订阅权益 + 规则模板降级</td></tr>
+          <tr><td><b>高级</b>（L3 仿真 / 多模态）</td><td>高级月卡 +，或 credits 单次</td></tr>
+        </table>
+      </div>
+      <div class="card tight">
+        <span class="tag c">订阅五档（不连续、统一定价）</span>
+        <table>
+          <tr><th>档位</th><th>名称</th><th>高级功能</th></tr>
+          <tr><td>周卡</td><td>Percibir</td><td>不含</td></tr>
+          <tr><td>基础月卡</td><td>Attentio</td><td>不含</td></tr>
+          <tr><td>高级月卡</td><td>Flux</td><td><b>含</b></td></tr>
+          <tr><td>季卡</td><td>Emerge</td><td><b>含</b></td></tr>
+          <tr><td>年卡</td><td>Maîtrise</td><td><b>含</b></td></tr>
+        </table>
+        <p class="note" style="margin-top:10px;">命名递进：感知(Percibir) → 专注(Attentio) → 流动(Flux) → 涌现(Emerge) → 精通(Maîtrise)。所有档位送 credits，首订送更多。</p>
+      </div>
+    </div>
+
+    <div class="card tight" style="margin-top:16px;">
+      <p style="font-size:14px;line-height:1.9;margin:0;"><b style="color:var(--ink);">credits</b>：全功能通用货币，按功能定档扣费（不讲 token）；来源 = 签到 / 订阅送 / 首订送更多——弱化「花钱感」（是「攒」而非「买」）。<b style="color:var(--ink);">扣费知情：</b>单次扣费动作前明示「将扣 X credits」，余额不足引导订阅 / 签到；订阅用户静默扣、走包月额度。<span class="mute">（未成年付费：合规暂缓，上线前单独立项）</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §8 数据与埋点 ============ -->
+<section id="s8">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">§8</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Data &amp; tracking</p>
+        <h2>数据与埋点</h2>
+        <p class="lead">从「数据消费者」倒推，不为埋而埋；未成年用户，埋点克制 + 目的明确 + 敏感脱敏。</p>
+      </div>
+    </div>
+
+    <div class="row c3" style="margin-top:34px;">
+      <div class="card tight">
+        <span class="tag b">1 · Chat 交互（新形态数据富矿）</span>
+        <ul class="list">
+          <li>消息事件（role / 意图判定 / 时间戳 / 结构化体，<b style="color:var(--ink);">不含原文流水</b>）</li>
+          <li>卡片事件（展示 / 点击 / 卡内操作 / dismiss）</li>
+          <li>意图纠正（模型判 X、实际 Y）</li>
+          <li>上下文栈事件（入栈 / 出栈 / 沉降）</li>
+          <li>引导式搜题交互（步数 / 打断点 / 续接）</li>
+        </ul>
+      </div>
+      <div class="card tight">
+        <span class="tag b">2 · AI 质量反馈</span>
+        <ul class="list">
+          <li>建议 / 讲解 / 解题的读完率、采纳率、反馈、纠错</li>
+          <li>推荐卡 → 对话 → 完成 的转化链</li>
+        </ul>
+      </div>
+      <div class="card tight">
+        <span class="tag b">3 · 画像 trace（可追溯）</span>
+        <ul class="list">
+          <li>提取事件（来源消息 / 条目 / 置信度）</li>
+          <li>修改 / 删除事件（用户改哪条）</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card tight" style="margin-top:16px;">
+      <p style="font-size:13.5px;line-height:1.9;margin:0;"><b style="color:var(--ink);">数据资产（三张王牌，质量 = 护城河）：</b>画像（长期、结构化、可追溯、可改可删）· 状态趋势（时间序列，喂趋势 / 偏离预警）· 社区聚合（匿名群体规律，喂 L2–L4）。<br><b style="color:var(--ink);">口径划分：</b>本节埋点存<b style="color:var(--ink);">结构化事件</b>；消息原文属「短期安全留存」（产品不可见、到期删除、不入画像），二者用途与留存期不同，不可混同。聊天文本入库前脱敏（沿用 privacy_filter）；商业埋点（credits 流水 / 订阅 / 签到）独立于行为埋点。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Q&A ============ -->
+<section id="qa">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num m">Q&amp;A</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Questions &amp; answers</p>
+        <h2>看完这份规划，你大概率会问</h2>
+        <p class="lead">分两组：<b style="color:var(--ink);">A 组</b>是读文档时的常见疑问；<b style="color:var(--ink);">B 组</b>是真实使用里最容易出问题的复杂场景，以及这份规划是怎么接住的。点开看答案。</p>
+      </div>
+    </div>
+
+    <!-- A 组 -->
+    <div class="qa-group">
+      <div class="qa-group-title">
+        <span class="badge blurple">A 组</span>
+        <h3>关于这份规划本身</h3>
+      </div>
+
+      <details class="qa" open>
+        <summary><span class="qmark">Q</span>主干收敛了，可以直接开工吗？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>可以按主干推进。<b style="color:var(--ink);">0–8 章 + 59 条决策已收敛（58 已拍板 / 1 待定）</b>，剩余是明确的二期项和上线前补项，不再是悬而未决的开放讨论。</p>
+          <div class="sol">
+            <span class="sl">边界</span>
+            <p>拍板的是「<b style="color:var(--ink);">做什么</b>」，不是「<b style="color:var(--ink);">先做哪个、怎么做</b>」。落地顺序与迁移方案待收敛后另议；执行细节（计量表、限流、封禁分级、邀请码等）在 <code>refactor-implementation-notes.md</code>，待拍清单在 <code>pending-decisions.md</code>。</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark">Q</span>还剩哪条没定？卡在哪？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>59 条里只悬着一条：<b style="color:var(--ink);">D26 讲解分层</b>。</p>
+          <div class="sol m">
+            <span class="sl">原因</span>
+            <p>L3 富交互仿真是一笔「双成本」——技术成本（仿真 / 可视化）+ 内容成本（教学设计）。「讲透」的灵魂是教学设计，LLM 能搭框架但难以稳定复现洞察。所以 L3 只做<b style="color:var(--ink);">参数化模拟器</b>（化学平衡、匀变速运动、函数图像这类「可仿真」的），不逐点定制；先跑 L1 + L2 验证意图。pilot 阶段先做 3–5 个精品样例预制入库（D52）。</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark">Q</span>和现在仓库里的代码差多远？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>本文档是<b style="color:var(--ink);">目标态</b>，不代表代码已实现。</p>
+          <div class="sol">
+            <span class="sl">对照</span>
+            <p>现状基线（功能清单 + 技术债）在 <code>refactor-2026-09-feature-ia-logic.md</code>。已知可复用的能力：embedding 检索管线（FAISS + embedding_service / vector_store / kb_vectors）、状态引擎的 insufficient_data 态、safety_filter + CRISIS_RESPONSE、privacy_filter。</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark">Q</span>合规和隐私这次到底什么状态？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>一个重要变化：<b style="color:var(--ink);">画像的「合规暂缓」已经摘掉了（D50）</b>——因为它是不做对话历史的前置条件。没有可看可改的画像，「无历史」就变成黑箱。</p>
+          <div class="sol m">
+            <span class="sl">仍是底线</span>
+            <p>情绪安全 L3 危机响应（接 safety_filter + CRISIS_RESPONSE）、监护人授权（&lt;14 岁建档强制门槛）属<b style="color:var(--ink);">设计 / 安全底线</b>，不随暂缓跳过。仍挂「上线前补」的：未成年付费、危机响应 prompt 基线、协议条款。所有社区聚合匿名 + 最小群体 k = 20。</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark">Q</span>别的 AI 都有历史记录，为什么我们反而不做？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>这是产品最核心的一个差异化赌注（D45）。逻辑是：通用 AI 的记忆形态是「线性对话流水」，回看靠翻原文、修改做不到；我们把它换成<b style="color:var(--ink);">结构化沉淀</b>——画像、mastery、学习记录、归档。</p>
+          <div class="sol">
+            <span class="sl">代价与补偿</span>
+            <p>用户失去「翻原文」的能力，换来三样东西：记忆<b style="color:var(--ink);">可看可改可删</b>（信任基础设施）、上下文永远干净（不被三个月前的闲聊污染）、以及对话原文只在短期内留存用于安全审计与危机追溯、产品不可见、不入画像。会话也不按零点重置，而是「连续使用周期 + 不活跃老化」；翻篇靠意图切换 + 弱化的「清空当前上下文」。</p>
+          </div>
+          <p class="qa-ref">对应决策：D45 不做对话历史 · D50 画像四分组 · D36 上下文栈 · §3.6</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark">Q</span>不同角色该重点看哪几节？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">导读</span>
+            <p><b style="color:var(--ink);">写代码</b>：§2 信息架构 + §3 核心交互 + §4 功能从属（结构与归属全在这），执行细节另见 implementation-notes。<br><b style="color:var(--ink);">做排期 / 汇报</b>：§5 决策看板 + §6 开放问题与二期项。<br><b style="color:var(--ink);">关心钱</b>：§7 商业化。<br><b style="color:var(--ink);">只想了解产品形态</b>：顶部「一分钟看懂」+ §0 核心转变 + §3.6 不做对话历史。</p>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- B 组 -->
+    <div class="qa-group">
+      <div class="qa-group-title">
+        <span class="badge">B 组</span>
+        <h3>复杂真实场景，规划里怎么接</h3>
+        <span class="tag m">21 个场景</span>
+      </div>
+
+      <p class="note">这些不是假想敌——每一条都是「用户真的会这么用」时必然会撞上的坑。</p>
+
+      <p style="font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--mute);margin-top:24px;">对话与记忆</p>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>聊到一半突然要搜题，搜完还想接着刚才的话题聊<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>单会话模型最典型的冲突：一个会话里同时存在两条「聊到一半」的线。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>上下文栈按 <b style="color:var(--ink);">LIFO（后进先出）</b>处理：搜题作为栈顶新分支压栈，搜完切回时<b style="color:var(--ink);">栈顶优先接续</b>刚才的闲聊，模型记得聊到哪了。深度上限 3，日常完全够用。</p>
+          </div>
+          <p class="qa-ref">D02 单对话 + 上下文栈 · D36 深度 3 / LIFO / 会话级</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>同时挂着好几件没聊完的事，又想开第四件<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>栈深度 = 3，第四件事进来必然挤掉一个旧的。关键是「挤掉」不等于「丢」。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>最旧者<b style="color:var(--ink);">按类型沉降</b>：任务草稿 → 转持久化中间态，进首页「Go on」组继续可见；搜题 / 讲解到一半 → 转知识页归档，可重新发起；纯闲聊中断 → 直接丢弃。各自带 TTL，任务草稿 7 天不碰就归档提示。</p>
+          </div>
+          <p class="qa-ref">D36 超限按类型沉降 · D21 Go on 组 · D47 知识页归档</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用了一个月，想翻回上周那次讲得特别好的讲解<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>不做对话历史（D45）之后，这是用户最直接的不便。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>三条补偿路径：① <b style="color:var(--ink);">收藏</b>——当时觉得好就该收藏，存的是<b style="color:var(--ink);">快照</b>，不会因为原文到期变死链（D46）；② <b style="color:var(--ink);">知识页归档</b>——搜题和讲解的记录都归档，可重新发起（D47）；③ <b style="color:var(--ink);">重讲现生成</b>——讲解支持「回顾取原文 + 重讲现生成」并存，重生成保证不了一致性，所以两条路都在（D52）。</p>
+          </div>
+          <p class="qa-ref">D45 不做历史 · D46 收藏存快照 · D47 归档 · D52 回顾与重讲并存</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>每天零点会话会不会清空？隔一周再来说的话它还认识我吗？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>「单会话」很容易被误解成「每天重开一条」。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>会话 = <b style="color:var(--ink);">连续使用周期 + 不活跃老化</b>，<b style="color:var(--ink);">不按零点重置</b>。隔一周回来，长期记忆靠结构化沉淀（画像 / mastery / 记录）兜底；跨登录周期的话题则通过<b style="color:var(--ink);">摘要注入问候语</b>衔接——这正是问候语「预设骨架 + 动态填充」的数据源。</p>
+          </div>
+          <p class="qa-ref">D45 会话口径 · D53 跨登录话题摘要注入 · D40 问候语混合填充</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>过了两天想起来，说「上次那份数学卷」想补个正确率<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>模糊指代 + 跨天回溯，模型很容易补错对象。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>四步锚定回溯：① 识别为「对历史记录的事后补充」→ ② 拉出近期计划 / 记录候选 → ③ 弹<b style="color:var(--ink);">锚定确认卡</b>「是周三 20:00 数学计划那条吗？［就这条 / 换一个］」→ ④ 确认后回写并联动（正确率补记 · 错误点 → 题本 · 归因 → 画像）。锚定确认卡是通用能力，补错题、报目标进度都复用。</p>
+          </div>
+          <p class="qa-ref">D16 学习记录是活实体 · D17 锚定确认卡 · D15 正确率可事后补</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>任务在对话里建到一半，用户直接跑去计划创建页了<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>对话里说的信息和表单页要填的字段是两套表达，直接跳走会丢上下文。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">切页顺承</b>：已抽取的任务信息（学科 / 主题 / 时间 / 目标）随跳转预填到创建页，并给「是否保留」选项——一键采纳或清空重来。</p>
+          </div>
+          <p class="qa-ref">D04 任务卡双载体 + 切页顺承</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>模型把一句闲聊听成了「建任务」，或者一次只肯干一件事<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>纯靠模型判断意图必然误判；另外三分类容易被误读成「一次只能输出一种东西」。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>两道保险：① 意图入口<b style="color:var(--ink);">三路并存</b>——斜杠命令、按钮、「+」菜单里的快捷动作与自定义常用语，判错时用户一键纠正；② <b style="color:var(--ink);">三分类是识别口径不是输出限制</b>——主意图定基调 + 允许多产物（比如闲聊里顺带建了任务卡）。学习困境场景的原则是「先当人，再当助手」，不主动推销功能。</p>
+          </div>
+          <p class="qa-ref">D03 三入口并存 · D53 识别口径 ≠ 输出限制 · D23 自定义常用语</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>划选了一段看不懂的定义，只想快速问一句，不想打断主对话<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>如果每次划选都塞进主对话，主对话的上下文栈很快就被污染。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>两条路径：主路径<b style="color:var(--ink);">引用到主对话</b>；旁路<b style="color:var(--ink);">随手问浮窗</b>——受限 Chat：单向继承上下文、仅基础问答、不递归、关闭即销毁、可拖动 / 挂起 / 添加到主对话且只带显式内容。<b style="color:var(--ink);">浮窗不入上下文栈</b>，不影响主对话状态机。</p>
+          </div>
+          <p class="qa-ref">D51 划选两路径</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>拍了一张作业单，想直接变成今晚的计划<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>文件上传既是高频需求，也是隐私与存储成本的来源。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>Chat 可随意上传：<b style="color:var(--ink);">照片入闲聊 / 作业单直接生成计划</b>。约束是限页数与大小、<b style="color:var(--ink);">仅会话内有效、不落库</b>；生成的要点摘要可以进收藏（走 privacy_filter）。图片 / 图表内的圈选追问记为开放问题（多模态坐标定位精度一般）。</p>
+          </div>
+          <p class="qa-ref">D55 上传文件 · §6 开放问题</p>
+        </div>
+      </details>
+
+      <p style="font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--mute);margin-top:26px;">计时与专注</p>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>正专注计时，卡在一道题上想查，又怕被打断<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>可呼出 Chat 侧栏，但侧栏被<b style="color:var(--ink);">锁定为「知识求助」类</b>——只能搜题 / 讲知识点 / 查，闲聊和建任务不可用。原则是「专注中只允许为眼前这道题服务」。这次求助是临时会话，但会自动归档。</p>
+          </div>
+          <p class="qa-ref">D05 全屏专注页 + 侧栏锁定知识求助</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>倒计时到点了，但用户还想继续学<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>到点走<b style="color:var(--ink);">软提醒</b>，不自动结束。可结束（时长封顶 target），或继续——继续则<b style="color:var(--ink);">平滑转入正计时语义</b>持续累积，最终时长 = target + 续学时长。续学部分若被放任不管，走正计时的僵尸治理兜底。</p>
+          </div>
+          <p class="qa-ref">D32 到点软提醒 · D30 计时双模式</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户直接杀掉 App / 忘了结束，三天后才回来<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>最脏的场景：留下一个「进行中」的计时，墙上时间已过 70 小时。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>三层治理：① 服务端一直持久化 started_at + 模式 + 目标时长，前端只是视图；② 超时失效——倒计时到点后时长<b style="color:var(--ink);">封顶 target</b>，正计时累计超上限（如 &gt; 6h）判异常截断；③ 回来弹<b style="color:var(--ink);">恢复裁决卡</b>「已计 X 分钟 · [保留按 X 记] [丢弃] [手动改时长]」，<b style="color:var(--ink);">绝不自动记账</b>。有效时长 ≠ 墙上时长。</p>
+          </div>
+          <p class="qa-ref">D31 僵尸计时治理 · D30 服务端按 mode 分支恢复</p>
+        </div>
+      </details>
+
+      <p style="font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--mute);margin-top:26px;">学习记录、画像与知识资产</p>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>收尾时用户只丢了一句「还行吧」<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">宁缺毋滥，静默降级</b>：语义模糊就留空，不硬猜；能提部分就只采部分；低置信度只采高置信字段；AI 不可用则静默 null。状态引擎这边——核心自评（完成度 + 情绪，直填）在 → 正常算分，软字段缺则跳过、按可用部分归一化；核心也缺 → 降级 insufficient_data。</p>
+          </div>
+          <p class="qa-ref">D34 口语转译兜底 · D20 数值来源 B 方案</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户就是懒得回填正确率和错题<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">三态都可接受</b>：结束即填 / 延后补（走锚定回溯）/ 永不填。数据层全部 nullable，状态引擎、mastery（MIN_SAMPLES 置信度规则）、画像归因提取都容忍缺失——不报错、不假造、不因缺失扭曲结果。正确率偏当场填，错题偏延后整理进题本。</p>
+          </div>
+          <p class="qa-ref">D15 正确率可事后补 · D20 三态 nullable · D48 题本添加原则</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>系统自动把一道题加进了题本，但用户觉得它没做错<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>题本从「错题本」升格后，什么都往里塞会很快失去可信度。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>添加规则是 <b style="color:var(--ink);">「明示 → 直加，推断 → 确认」</b>：用户明说的直接加，模型推断的必须过确认卡。题本是<b style="color:var(--ink);">错因 + 意图两个正交维度</b>，mastery 和归因只消费「有错因」的那部分，避免把「随便练的题」算进掌握度。返考也淡化「组卷」措辞，叫「复习 / 小测」。</p>
+          </div>
+          <p class="qa-ref">D48 题本升格 · D47 知识资产归位</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户觉得某个知识点「根本没那么难」，官方难度标错了<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">难度双层模型</b>：个人覆写在本账号内<b style="color:var(--ink);">免审核、即时生效</b>（只改个人视图）；大量个人调整匿名聚合成众包信号，反哺官方校准。个人覆写与官方基线的<b style="color:var(--ink);">落差本身就是画像信号</b>——落差大 → 已掌握 / 偏科，直接喂 mastery。</p>
+          </div>
+          <p class="qa-ref">D13 难度双层模型 · D27 知识页新增模块</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>画像里冒出一条用户从没主动写过的条目，他想知道它哪来的<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>隐式提取写入画像，用户会担心「它还记了我什么」——尤其在无对话历史的产品里，画像就是唯一记忆载体。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>三层保障：① 画像存的是<b style="color:var(--ink);">提取后的结构化条目</b>，不是原始流水，<b style="color:var(--ink);">可看 / 可改 / 可删</b>，但不能手动新建；② <b style="color:var(--ink);">画像 trace</b>——每个条目能追溯到「哪次对话提取、置信度多少、用户改过没」；③ 边界清晰——学习域信号 + 生活域<b style="color:var(--ink);">情绪基调</b>进画像，具体事件 / 细节（当事人、冲突细节）一律不进；非知识类「毛病」进画像，库外知识只进归因、<b style="color:var(--ink);">不进 mastery</b>。</p>
+          </div>
+          <p class="qa-ref">D50 画像体系 · D39 画像 trace · D10 可改不可新建 · D37 画像边界</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>模型讲了一段特别好的非课内知识，用户想存下来以后看<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <p>如果收藏只收「知识点」，这类内容就没地方去；如果存引用，原文到期就变死链。</p>
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">任意模型输出可收藏</b>（含非课内知识、图片圈选区域），而且<b style="color:var(--ink);">存快照不存引用</b>。收藏不进知识点库、不参与 mastery / 难度 / 图谱；内容不可编辑但支持高亮与「虚化」自测；反复收藏覆盖并轻提示。归位上：题本 + 知识点记录 → 知识页（可评测），chat 收藏 → 个人中心（不可评测）。</p>
+          </div>
+          <p class="qa-ref">D46 收藏体系 · D47 知识资产归位</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>月考考砸了，想把这次失误和长期目标挂上钩<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">Exam 是独立实体</b>，Goal 通过 examId + targetScore 引用它；错题可以标记来源考试；<b style="color:var(--ink);">考后成绩回填</b>是唯一能把「自评」与「客观结果」对上的数据，直接喂状态评估与画像。题本还能按教学课时排序（依赖知识点库课时字段，二期）。</p>
+          </div>
+          <p class="qa-ref">D49 考试独立实体 · D48 题本 · §6 课时字段前置依赖</p>
+        </div>
+      </details>
+
+      <p style="font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--mute);margin-top:26px;">商业化、信任与边界</p>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户担心用着用着就被悄悄扣 credits<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>两类处理：① 单次扣 credits 的动作（搜题 / 讲解 / 仿真）<b style="color:var(--ink);">扣费前明示</b>「将扣 X credits」，余额不足提示 + 引导订阅 / 签到；② 订阅用户<b style="color:var(--ink);">不逐次显示扣费</b>，走包月额度静默扣。更关键的是口径切分：<b style="color:var(--ink);">嵌入式 AI 根本不进 credits</b>——建议、复盘、口语转译、画像提取、推荐卡都是订阅权益，非订阅走规则模板降级。被计费的只有用户主动发起、有感的那部分。</p>
+          </div>
+          <p class="qa-ref">D38 付费双模式 · §7 扣费知情</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>不付费的用户，产品还剩什么可用？<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>总原则是<b style="color:var(--ink);">规则免费、AI 计费</b>：让用户免费看「状态如何」，为「AI 告诉我怎么办」付费。规则引擎产出的事实（状态、趋势、记录、掌握度）全免费；嵌入式 AI 非订阅时降级为规则模板，功能不断、表达变粗。credits 也能靠签到攒，弱化「花钱感」。</p>
+          </div>
+          <p class="qa-ref">D38 付费双模式 · §0 分工铁律</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>14 岁以下用户没做监护人授权就用上了群体参照<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">监护人授权是 &lt;14 岁建档的强制门槛</b>，归位在设置 →「授权与隐私」子页；入口两处、页面一处。<b style="color:var(--ink);">开启群体参照前会校验授权</b>。这一项属设计底线，不随合规暂缓跳过。</p>
+          </div>
+          <p class="qa-ref">D41 监护人授权 · D42 设置瘦身</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户担心产品天天推送「该学习了」，变成另一个焦虑源<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>通知只有三层：<b style="color:var(--ink);">站内被动</b>（推荐卡 + 角标）、<b style="color:var(--ink);">本地</b>（计时软提醒）、<b style="color:var(--ink);">站外仅事务性邮件</b>（验证码 / 找回密码 / 监护人授权）。<b style="color:var(--ink);">不做学习提醒推送</b>——这条是明确写死的，不是「暂缓」。</p>
+          </div>
+          <p class="qa-ref">D44 通知三层</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户担心「和相似的人」会暴露自己，或者被拿来排名<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p>四道闸：① 分组<b style="color:var(--ink);">按维度不按人</b>，多维独立不交叉，绝不把维度做笛卡尔积切组（否则组崩空、凑不满 k）；② 最小群体 <b style="color:var(--ink);">k = 20</b>，不够就不生成该洞察；③ 自己的数给<b style="color:var(--ink);">精确值</b>，群体只给<b style="color:var(--ink);">分位区间</b>（P25 / P50 / P75），洞察卡底部标三要素、来源说明默认收起；④ <b style="color:var(--ink);">L5 社交直接不做</b>，是未成年红线。偏离预警不弹红点，必须带语义解释、区分正向与负向。</p>
+          </div>
+          <p class="qa-ref">D18 按维度分组 · D19 分位数口径 · D35 L4 标注 · D12 L5 不做 · D33 偏离 ≠ 报警</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary><span class="qmark m">场</span>用户在闲聊里倾诉生活糟心事，情绪越说越重<span class="chev">+</span></summary>
+        <div class="qa-body">
+          <div class="sol">
+            <span class="sl">解法</span>
+            <p><b style="color:var(--ink);">三档定性 + 一条硬边界</b>：L1 日常负面 → 共情 + 轻引导；L2 强烈负面 → 认真倾听 + 温和关注 + 提议求助；L3 明确危机 → 危机响应转介（接 safety_filter + CRISIS_RESPONSE），并覆盖 L2 → L3 的<b style="color:var(--ink);">升级识别</b>，不等到明说才反应。硬边界：学习助手 ≠ 心理医生，姿态是「识别 → 倾听（不评判）→ 转介」。情绪基调可进画像，具体事件细节不进。危机响应 prompt 基线是上线前补项。</p>
+          </div>
+          <p class="qa-ref">D37 情绪安全分层 · §4.6 安全底线 · §6 上线前补项</p>
+        </div>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ 附 ============ -->
+<section id="appendix">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num mono">附</div>
+      <div class="sec-head-txt">
+        <p class="eyebrow">Appendix</p>
+        <h2>与仓库现状的关系</h2>
+      </div>
+    </div>
+    <div class="card tight" style="margin-top:28px;">
+      <p style="font-size:13.5px;line-height:1.95;margin:0;">
+        本文档是<b style="color:var(--ink);">目标态</b>，不代表当前代码已实现。<br>
+        · 现状基线（功能清单 + 技术债）：<code>refactor-2026-09-feature-ia-logic.md</code><br>
+        · 执行细节（计量表 / 限流 / 封禁分级 / 邀请码 / 推理档位）：<code>refactor-implementation-notes.md</code><br>
+        · 待拍清单（含已推迟项）：<code>pending-decisions.md</code><br>
+        · <b style="color:var(--ink);">已推迟到 pilot 结束再定：</b>支付渠道选型、订阅与充值页形态、部署栈中的支付段落。pilot 阶段只做<b style="color:var(--ink);">用量统计与只读用量视图</b>，不接入支付服务商。
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div class="left">
+        <span class="b">EpochX</span>
+        <span class="m">产品新形态目标架构 · 汇报版 · 同步自 v0.29</span>
+      </div>
+      <div class="right">
+        <span class="m">完整决策与论证以正文为准</span>
+        <span class="m">docs/product-redesign-target.md</span>
+      </div>
+    </div>
+    <div class="wordmark">EPOCHX</div>
+  </div>
+</footer>
+
+</body>
+</html>
