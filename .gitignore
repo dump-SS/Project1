@@ -27,6 +27,7 @@ reasonix.toml
 
 # WorkBuddy 本地记忆与配置(不上库)
 .workbuddy/
+.workbuddy-ai/
 
 # ZCode 会话本地数据(不上库)
 .zcode/
@@ -40,3 +41,4 @@ reasonix.toml
 # 调试与临时文件
 *.log
 *.txt
+.neon

@@ -1,6 +1,8 @@
 # openapi.yaml 使用说明
 
-`docs/openapi.yaml` 是 `docs/api-design-unified.md` 的机器可读版本，39 个 operation、71 个 schema，是前后端与 QA 的唯一契约来源。
+> **当前口径（2026-09-18 实测）**：`docs/openapi.yaml` **v1.5.0 · 51 paths · 66 operations · 111 schemas**，是前后端与 QA 的**唯一契约真相源**（不是任何文档的"机器可读版本"）。
+> 其早期母体 `api-design-unified.md` 已归档至 `docs/archive/`，不再维护；下文各「校验状态」章节是**各时点的历史校验记录**（数字为当时值，如 39 operation/71 schema），仅留痕，不代表当前文件。
+> 变更规则：任何字段/实体/接口先改本文件（X0 评审），再写实现——见 `docs/refactor-module-contracts.md` §0。
 
 ## 三方怎么用
 
