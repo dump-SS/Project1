@@ -4714,16 +4714,24 @@ components:
       type: object
       description: 划选高亮（内容不可编辑，高亮只改显示）
       properties:
-        start: { type: integer }
-        end: { type: integer }
+        start:
+          type: integer
+          description: 起始偏移（**按 Unicode 码点计**，不是字节；前端划选直接取 selection 的字符偏移）
+        end:
+          type: integer
+          description: 结束偏移（同上，左闭右开）
     CollectionBlurState:
       type: object
       description: >-
         「虚化」标记（#41 / §4.8.4）：把选中文本做模糊显示，用于隐藏信息或自测（填空题）。
         虚化不算编辑——只改显示不改内容，且状态必须持久化。
       properties:
-        start: { type: integer }
-        end: { type: integer }
+        start:
+          type: integer
+          description: 起始偏移（按 Unicode 码点计，口径同 CollectionHighlight）
+        end:
+          type: integer
+          description: 结束偏移（左闭右开）
     CollectionItem:
       type: object
       description: 收藏条目。内容不可编辑（保证留存真实性），只支持高亮与虚化标记。
@@ -4856,6 +4864,9 @@ components:
           type: string
           nullable: true
           description: 该条消息的意图判定结果（便于定位问题）
+        description:
+          type: string
+          description: 用户描述的问题（回读用，与 ErrorReportCreate.description 对应）
         context:
           type: object
           nullable: true
@@ -4962,7 +4973,7 @@ components:
     Explanation:
       type: object
       description: 知识点讲解归档。isCurated=true 为预制入库的精品样例（pilot 做 3–5 个），长期保存，与动态生成严格区分。
-      required: [explanationId, pointId, mode, content, isCurated, createdAt]
+      required: [explanationId, mode, content, isCurated, createdAt]
       properties:
         explanationId: { type: string }
         pointId:
@@ -4997,6 +5008,8 @@ components:
           description: >-
             上下文栈（D36）：深度=3、LIFO、会话级。超限时最旧者按类型沉降——
             任务草稿转持久化中间态、搜题/讲解转知识页归档、纯闲聊直接丢弃。
+            ⚠️ 栈项结构（分支类型 / 进入步骤 / 挂起载荷）**由 B 板块在实现时定义并回填本节**，
+            X0 只定「这是一个会话级数组」这一层。
           items:
             type: object
     ChatRawMessage:
