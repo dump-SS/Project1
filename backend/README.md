@@ -60,7 +60,7 @@ backend/
 ├── database.py              SQLAlchemy 2.0 + SessionLocal + get_db
 ├── middleware.py            请求 ID + 访问日志
 ├── mock_data.py             阶段 2 的硬编码假数据（直接复用 openapi.yaml example）
-├── models/                  SQLAlchemy ORM 模型（42 张表）
+├── models/                  SQLAlchemy ORM 模型（47 张表）
 │   ├── user.py              User / Settings / GuardianAuthorization
 │   ├── goal.py              Goal
 │   ├── plan.py              Plan / PlanTask
@@ -203,4 +203,7 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
       - ⚠️ **依赖补缺**：`pyproject.toml` 此前**没有任何 Postgres 驱动**，DATABASE_URL 指向 Neon 时会直接报 `No module named 'psycopg2'`。已补 `psycopg2-binary`。
       - 验证：空库 `upgrade head` 在 **SQLite 与 Neon Postgres 各跑通一次**；`downgrade` 可回退；对迁移后的空库跑 `alembic check` 报 "No new upgrade operations detected"（迁移产物与 ORM 元数据一致）。
       - 学科数据：`kb_subjects` 此前 **0 行**（导致 `GET /knowledge/subjects` 必返空），已由 `scripts/seed_kb_subjects.py` 补 9 行（幂等），本地库与 Neon 均已导入。
+- [x] **M0 补漏迁移（2026-09-19 同日）**：`b81d83bafb89`，`down_revision = 5015e9b1bdeb`，**单 head**。
+      - 原 11 张表未覆盖 M2+ 的硬需求，补齐 5 张：`timer_sessions` + `timer_segments`（C·§3.6/D30/D31/#14 服务端持久化计时会话与分段）、`analytics_events`（G·D39 三块埋点）、`search_archives`（D·§3.8.4 搜题归档，与讲解归档分开）、`card_impressions`（E·D28 推荐卡冷却与去重指纹）。表数 42 → **47**。
+      - 全部是新建表（无 ALTER），故无 SQLite 方言问题；`upgrade` / `downgrade` / `alembic check` 均已验证，SQLite 与 Neon 同步升级。
 - [ ] 集成测试（用 `httpx.AsyncClient` 真发 HTTP）

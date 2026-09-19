@@ -73,3 +73,9 @@ v1.1 批量插入 500 时存在缩进 bug：成功响应（200/201/202/204）的
   - `Exam` / `Collection` 补 `updatedAt`；`CollectionSnapshot` 补 `format`（markdown / plain，避免前端正则嗅探）；`UserProfileEntry` 补 `sourceRef`（画像 trace 线索）；`TopicSummary` 补 `sessionId`。
   - 三条口径写死进 description：对话原文留存窗口 **30 天**（取 §3.8.3 建议区间上限）、会话老化阈值 **7 天**（取 §3.8.1 建议区间偏长端）、**邀请码生成走后台脚本、不进用户产品 API**（口径同 D42）。
   - schema 总数 145 → **150**，paths 仍 51。
+- **补漏（同日第二张迁移 `b81d83bafb89`）**：定稿时发现原 11 张表**未覆盖 M2+ 的硬需求**，补齐 5 张表的 schema（+7 枚举）：
+  - `TimerSession` / `TimerSegment` / `TimerRestore`（C·§3.6 / D30 / D31 / #14）——**服务端持久化「进行中的计时会话」**，根治现状「靠路由 state 传参、刷新即丢上下文」；`TimerRestore.needsVerdict` 承载僵尸治理的**恢复裁决卡**语义（不自动记账），`effectiveSeconds` 明确「有效时长 ≠ 墙上时长」。
+  - `AnalyticsEvent`（G·D39）——三块埋点统一落表，description 里写死「**结构化事件，不含对话原文流水**」的口径划分。
+  - `SearchArchive`（D·§3.8.4）——搜题归档与讲解归档**分开**（不做对话历史后用户会重复问，两条链路语义不同）。
+  - `CardImpression`（E·D28）——推荐卡冷却（3天/7天/每周1）与去重指纹**依赖它**，没有这张表规则无从判断。
+  - schema 总数 150 → **162**；表数 42 → **47**；paths 仍 51。

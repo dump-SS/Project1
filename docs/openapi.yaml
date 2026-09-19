@@ -5152,3 +5152,214 @@ components:
             到期时间；TTL 清除 job 据此物理删除。**留存窗口定为 30 天**（§3.8.3 建议 7–30 天，取上限）：
             L3 危机响应要求事后可追溯，对未成年产品而言「出了事查不到用户说了什么」是反向风险，
             宁可多留几天。窗口值集中在配置里，不散落在各调用点。
+
+    # ========== M0 补漏 · M2+ 硬需求（第二张迁移，X0 定 schema） ==========
+    #
+    # 原 11 张表未覆盖下列需求，各板块开工前补齐（依据见各自 description）：
+    # timer_sessions / timer_segments（C·§3.6）、analytics_events（G·D39）、
+    # search_archives（D·§3.8.4）、card_impressions（E·D28）。
+
+    # ---------- C 板块：计时会话（§3.6 / D30 / D31 / #14） ----------
+    TimerMode:
+      type: string
+      description: 计时模式。countdown=倒计时（有目标时长）；countup=正计时（不限时）
+      enum: [countdown, countup]
+    TimerStatus:
+      type: string
+      description: >-
+        会话状态。running=进行中；finished=正常收尾（产生学习记录）；
+        abandoned=僵尸裁决后丢弃（**不产生学习记录**）。
+      enum: [running, finished, abandoned]
+    TimerSession:
+      type: object
+      description: >-
+        计时会话。**服务端持久化「进行中的会话」**（started_at + mode + target_minutes + 计划引用），
+        前端只是视图——回来按**真实经过时间**恢复，根治现状「靠路由 state 传参、刷新即丢上下文」。
+        只留「结束」一个出口、不做挂起（避免僵尸计时）。
+      required: [sessionId, mode, startedAt, status, createdAt]
+      properties:
+        sessionId: { type: string }
+        mode:
+          $ref: '#/components/schemas/TimerMode'
+        startedAt:
+          type: string
+          format: date-time
+          description: 两种模式都有；恢复计算的基准
+        targetMinutes:
+          type: integer
+          nullable: true
+          description: 仅 countdown 有；countup 为 null
+        planId: { type: string, nullable: true }
+        taskId: { type: string, nullable: true }
+        subject:
+          $ref: '#/components/schemas/Subject'
+        status:
+          $ref: '#/components/schemas/TimerStatus'
+        endedAt: { type: string, format: date-time, nullable: true }
+        effectiveSeconds:
+          type: integer
+          nullable: true
+          description: >-
+            **有效时长**（秒），≠ 墙上时长（D31）：倒计时 = min(经过, target)；正计时异常时
+            必须用户核实后才写入。不要把 endedAt − startedAt 直接当学习时长。
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最近心跳；僵尸判定与「异常会话」识别的依据
+        segments:
+          type: array
+          description: 分段（#14）：切换任务即新开一段，结束只走一次收尾
+          items:
+            $ref: '#/components/schemas/TimerSegment'
+        createdAt: { type: string, format: date-time }
+    TimerSegment:
+      type: object
+      description: 计时会话内的一段（#14 分段计时）。一个会话可挂多段，每段标注所属任务。
+      required: [segmentId, startedAt]
+      properties:
+        segmentId: { type: string }
+        taskId:
+          type: string
+          nullable: true
+          description: 本段属于哪个任务；切换任务即新开一段
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time, nullable: true }
+        seconds:
+          type: integer
+          nullable: true
+          description: 本段有效秒数（口径同 effectiveSeconds）
+    TimerRestore:
+      type: object
+      description: >-
+        恢复视图（D30 按 mode 分支计算）。`needsVerdict=true` 表示识别到**异常会话**，
+        前端必须弹**恢复裁决卡**（D31：「上次计时似乎没正常结束（已计 X 分钟）·
+        [保留按 X 记] [丢弃] [手动改时长]」），**不得自动记账**。
+      required: [sessionId, mode, needsVerdict]
+      properties:
+        sessionId: { type: string }
+        mode:
+          $ref: '#/components/schemas/TimerMode'
+        remainingSeconds:
+          type: integer
+          nullable: true
+          description: 仅 countdown：剩余 = target − 已过；≤0 视为已到点（软提醒，不自动结束）
+        elapsedSeconds:
+          type: integer
+          nullable: true
+          description: 仅 countup：累计 = now − startedAt
+        needsVerdict:
+          type: boolean
+          description: 是否需用户裁决（正计时超上限 / 倒计时到点后长时间未收尾）
+        suggestedMinutes:
+          type: integer
+          nullable: true
+          description: 裁决卡「保留按 X 记」的预填值（倒计时封顶 target；正计时按截断点）
+
+    # ---------- G 板块：埋点事件（D39 / §8） ----------
+    AnalyticsCategory:
+      type: string
+      description: >-
+        D39 的三块埋点：chat_interaction=Chat 交互（消息/卡片/意图纠正/上下文栈/引导式搜题交互）；
+        ai_quality=AI 质量反馈（读完率/采纳率/有用性/纠错）；profile_trace=画像 trace（提取与改删事件）。
+      enum: [chat_interaction, ai_quality, profile_trace]
+    AnalyticsEvent:
+      type: object
+      description: >-
+        结构化埋点事件。⚠️ **与对话原文的口径不可混同**（§3.8.3 / §8 反复强调）：
+        本表存的是**结构化事件**（意图判定结果、卡片事件、锚定结果、提取事件…），
+        **不含对话原文流水**——原文属 `chat_raw_messages` 的短期安全留存（产品不可见、到期物理删除）。
+        `payload` 入库前走 privacy_filter 脱敏。
+      required: [id, category, eventType, occurredAt]
+      properties:
+        id: { type: string }
+        category:
+          $ref: '#/components/schemas/AnalyticsCategory'
+        eventType:
+          type: string
+          description: >-
+            事件名，如 message_sent / card_shown / card_clicked / intent_corrected /
+            stack_pushed / stack_sunk / suggestion_rated / profile_extracted
+        sessionId: { type: string, nullable: true }
+        payload:
+          type: object
+          nullable: true
+          description: 结构化事件体（**不含对话原文流水**；脱敏后入库）
+        occurredAt:
+          type: string
+          format: date-time
+          description: 事件业务发生时间（与落库时间区分）
+        createdAt: { type: string, format: date-time }
+
+    # ---------- D 板块：搜题归档（§3.8.4 / D24 / D52） ----------
+    SearchMode:
+      type: string
+      description: >-
+        解题三态（D24）：direct=直给（一次给出完整解答）/ analytic=解析式（按步骤逐项说明）/
+        guided=引导式（多轮交互教学循环）。**记忆上次选择**，故必须落库。
+      enum: [direct, analytic, guided]
+    SearchArchive:
+      type: object
+      description: >-
+        搜题归档（§3.8.4）。不做对话历史后，用户会重复问同一题/同一知识点，
+        所以知识页归档扩为「**搜题 + 讲解**」两条链路分别留存——搜题（解一道题）与
+        讲解（讲透概念）语义不同，不合并。
+        题面原文属 knowledge_raw：**本地留存、永不出域**（embedding 走本地模型，PRD 12.6）。
+      required: [archiveId, rawText, createdAt]
+      properties:
+        archiveId: { type: string }
+        subject:
+          $ref: '#/components/schemas/Subject'
+        rawText:
+          type: string
+          description: 题面原文（knowledge_raw，永不出域）
+        solution:
+          type: string
+          nullable: true
+          description: 解答正文（Markdown）
+        mode:
+          $ref: '#/components/schemas/SearchMode'
+        pointIds:
+          type: array
+          description: 结尾统一输出的知识点卡片（D24：三态都输出知识点卡）
+          items:
+            type: string
+        createdAt: { type: string, format: date-time }
+
+    # ---------- E 板块：推荐卡展示记录（D21 / D28） ----------
+    CardGroup:
+      type: string
+      description: 首页推荐卡三组（D21）：go_on=继续 / recommend=推荐 / insight=洞察
+      enum: [go_on, recommend, insight]
+    CardAction:
+      type: string
+      description: shown=展示 / clicked=点击 / dismissed=划掉（划掉后 3 天不推）
+      enum: [shown, clicked, dismissed]
+    CardImpression:
+      type: object
+      description: >-
+        卡片展示 / 点击 / 划掉事件。**D28 的冷却与去重规则直接依赖本表**——
+        没有「已展示过什么」的记录，3 天 / 7 天 / 每周 1 的冷却就无从判断。
+        与 `recommendations`（AI 生成的建议）不是一回事，故单独记录。
+      required: [id, group, cardType, fingerprint, action, shownAt]
+      properties:
+        id: { type: string }
+        group:
+          $ref: '#/components/schemas/CardGroup'
+        cardType:
+          type: string
+          description: >-
+            卡面类型（D22 卡片协议）：continue_plan / state_advice / content_advice /
+            goal_planning / group_insight
+        fingerprint:
+          type: string
+          description: >-
+            去重指纹。Go on 用 planId/recordId；推荐用 type+pointId/subject；洞察用 维度+周期。
+            同指纹在冷却期内不重复出现。
+        action:
+          $ref: '#/components/schemas/CardAction'
+        shownAt:
+          type: string
+          format: date-time
+          description: 展示时间（冷却窗口的计算基准）
+        createdAt: { type: string, format: date-time }

@@ -78,6 +78,14 @@ X1 前端壳与响应式、X2 QA 安全观测：全程横切，共享入口文�
 > ② `pyproject.toml` **没有任何 Postgres 驱动**，DATABASE_URL 指向 Neon 会直接报 `No module named 'psycopg2'` → 补 `psycopg2-binary`；
 > ③ `auth_sessions` 由存 email 改存 user_id 时**必须重建表**（NOT NULL 新列无默认值 + SQLite DROP COLUMN 受限），代价是升级后需重新登录一次。
 
+> **M0 补漏（2026-09-19，第二张迁移 `b81d83bafb89`）**：定稿时发现原 11 张表**未覆盖 M2+ 的硬需求**，若等各板块开工才发现，会撞上「Alembic 只有 X0 能写」的排期墙。已一次补齐 5 张表（表数 42 → 47）：
+> - `timer_sessions` + `timer_segments`（**C·M2 地基**）—— §3.6/D30 要求服务端持久化进行中的计时会话，D31 僵尸治理与 #14 分段计时都挂在它上面；没有它，C 的验收门「刷新/断线按 mode 正确恢复」无法实现。
+> - `analytics_events`（G·M6 / D39 三块埋点）。
+> - `search_archives`（D·M3 / §3.8.4：搜题归档与讲解归档分开）。
+> - `card_impressions`（E·M4 / D28：冷却与去重指纹的直接依据）。
+>
+> 契约同步升至 **162 schemas**；SQLite 与 Neon 均已升级，`downgrade` 与 `alembic check` 通过。字段设计依据与「为什么必须有」都写在各 model 与 schema 的 docstring/description 里，板块若认为字段不合适可在开工前提变更（pilot 删档期改表成本低）。
+
 ### M1 · 地基：身份与 Chat 内核（A + B 核心 + G-usage_ledger + X1 壳初版）
 
 范围：
