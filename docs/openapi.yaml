@@ -4778,6 +4778,38 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CollectionItem'
+    CollectionItemUpdate:
+      type: object
+      description: >-
+        收藏条目的标记更新。**内容不可编辑**（保证留存真实性，D46），只能改分组、标题、
+        高亮与虚化标记——虚化必须可持久化（#41），否则每次展开都要重设。
+      minProperties: 1
+      properties:
+        collectionId:
+          type: string
+          nullable: true
+          description: 移动到自定义分组；传 null 表示移出分组
+        title:
+          type: string
+          nullable: true
+        highlights:
+          type: array
+          description: 高亮区间**全量覆盖**（不是增量），前端一次提交当前全部区间
+          items:
+            $ref: '#/components/schemas/CollectionHighlight'
+        blurStates:
+          type: array
+          description: 虚化区间**全量覆盖**；「全部虚化」一键即提交完整列表
+          items:
+            $ref: '#/components/schemas/CollectionBlurState'
+    CollectionUpdate:
+      type: object
+      description: 重命名收藏分组（自定义分组是用户标签字段，与内置筛选维度正交）
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 64
 
     # ---------- G 板块：成本计量（#9 / D38） ----------
     UsageLedgerEntry:
