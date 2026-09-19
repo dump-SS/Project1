@@ -15,6 +15,7 @@
 5. 组件不直接 fetch，统一走 `frontend/src/services/`；服务文件按 openapi tag 命名，消灭 V2/复数并存。
 6. 每完成一项：`pytest` 绿 → `npm run typecheck` → 更新对应文档。**跑测试不会清开发库**（`4a2afea` 已隔离），但不要在测试外手动清 `data.db` / `kb_vectors/`。
 7. 工作区存在多人未提交内容（README/.gitignore/新 docs/Neon 配置/.workbuddy-ai/）——**禁止 reset、clean、覆盖、删除**。
+8. **契约状态（2026-09-19）**：`docs/openapi.yaml` 已冻结至 **v1.6.0（162 schemas / 51 paths）**，数据库 **47 张表**、迁移**单 head `b81d83bafb89`**，SQLite 与 Neon 均已升级。**各板块可直接开工**；此后任何契约变更走 X0 评审，并须同步「契约 → 迁移 → 实现」三者（见 §2 已落定的实体字典）。
 
 ---
 
@@ -158,24 +159,60 @@
 
 ---
 
-## 2. 共享实体字典（新实体一览，DDL 全归 X0）
+## 2. 共享实体字典（**已落定**，DDL 全归 X0）
 
-| 实体 | 关键字段（草案） | 主要消费方 | 对应决策 |
-|---|---|---|---|
-| exams | id、user_id、subject、name、exam_date、score、full_score | C | D49 |
-| collections | id、user_id、name（自定义分组）、内置维度不入表（筛选用） | E | D46/D47 |
-| collection_items | id、collection_id、**snapshot_json（快照）**、source_ref、highlight_json、blur_state、created_at | E（B/F 经 API 写入） | D46/#41/#52 |
-| usage_ledger | id、user_id、feature_tier、model、tokens_in、tokens_out、cost、created_at（**只存数值**） | G | #9/D38 |
-| invite_codes | code、used_by、used_at、note（一码一用） | A | #50 |
-| violation_logs | id、user_id、level、action（warn/temp_ban/perm_ban）、reason、created_at | G | #43 |
-| error_reports | id、user_id、message_id、intent、context_json、created_at | G | #46 |
-| medals | id、user_id、milestone、awarded_at（3–5 个里程碑枚举） | G | #49 |
-| user_profiles（画像） | user_id、group（学习/状态/归因/兴趣经历）、key、value、source、updated_at（可改可删、无手动新建） | B | D50 |
-| topic_summaries | user_id、session_id、summary（2–3 条）、created_at | B | #34 |
-| explanations（讲解归档） | id、user_id、point_id、mode（original/regenerated）、content、is_curated（精品标记） | D | D52/#22 |
-| kb_errors 扩展 | +error_cause、+intent、+source_exam_id（三列加在现有表） | D | D48/D49 |
+> 状态：**2026-09-19 已落定**。下表是**实际表名与列名**（与 `backend/models/` 一致），契约侧对应
+> `docs/openapi.yaml` components.schemas（v1.6.0 · 162 schemas）。迁移：`5015e9b1bdeb`（主批）
+> + `b81d83bafb89`（补漏），**单 head**，SQLite 与 Neon 均已升级。
+> 各板块补接口时**直接引用契约 schema**，不得另起字段名；要改表结构提需求给 X0。
 
-> 字段名为草案，**以 openapi.yaml 最终落定为准**。加列/新表一律 X0 出迁移。
+### 2.1 主批（M0 原计划 11 张 + 4 处既有表扩展）
+
+| 表 | 契约 schema | 关键列 | 消费方 | 决策 |
+|---|---|---|---|---|
+| `exams` | Exam / ExamCreate / ExamUpdate / ExamList | id, user_id, subject, name, exam_date, **score(可空)**, full_score, created_at, updated_at | C | D49 |
+| `collections` | Collection / CollectionCreate / CollectionUpdate / CollectionList | id, user_id, name, created_at, updated_at | E | D46/D47 |
+| `collection_items` | CollectionItem / CollectionItemCreate / CollectionItemUpdate / CollectionItemList | id, user_id, collection_id(可空), title(可空), **snapshot_json(必填)**, source_ref_json, highlight_json, blur_state_json, created_at, updated_at | E（B/F 经 API 写） | D46/#41/#52 |
+| `usage_ledger` | UsageLedgerEntry / UsageLedgerList | id, user_id, feature_tier, reasoning_tier(可空), model, tokens_in, tokens_out, cost, created_at（**只存数值**） | G | #9/D38 |
+| `invite_codes` | InviteCode | code(PK), note, used_by, used_at, created_at（一码一用；**生成走脚本，无用户侧接口**） | A | #50 |
+| `violation_logs` | ViolationLog | id, user_id, level, action, reason, created_at | G | #43 |
+| `error_reports` | ErrorReport / ErrorReportCreate | id, user_id, message_id, intent, description, context_json, created_at | G | #46 |
+| `medals` | Medal | id, user_id, milestone, awarded_at（唯一约束 user_id + milestone） | G | #49 |
+| `user_profiles` | UserProfileEntry / UserProfileEntryUpdate / UserProfileList | id, user_id, **`profile_group`**（`group` 是 SQL 保留字，列名加前缀）, key, value, source, confidence, source_ref, created_at, updated_at（唯一约束 user_id + profile_group + key） | B | D50 |
+| `topic_summaries` | TopicSummary | id, user_id, session_id, summary, created_at | B | #34 |
+| `explanations` | Explanation | id, user_id, **point_id(可空：库外知识)**, subject, mode, content, is_curated, created_at | D | D52/#22 |
+| `chat_sessions` | ChatSession / ChatContextStackItem | id, user_id, started_at, last_active_at, **context_stack_json**（栈项结构见 `ChatContextStackItem`，深度 3） | B | D2/D36/D45 |
+| `chat_raw_messages` | ChatRawMessage | id, user_id, session_id, role, content, created_at, **expires_at（TTL 30 天）** | B | D45 |
+| `kb_errors`（扩展） | ErrorRecord 系列 | **+error_cause, +intent, +source_exam_id** | D | D48/D49 |
+| `goals`（扩展） | Goal 系列 | **+parent_goal_id, +exam_id, +target_score** | C | D6/D49 |
+| `users` / `auth_users` / `auth_sessions`（改造） | User / AuthMeResponse | users **+email +handle**；auth_users **+user_id**；**auth_sessions 由存 email 改存 user_id** | X0 | D59 |
+
+### 2.2 补漏批（M2+ 硬需求，2026-09-19 追加；原 11 张表未覆盖）
+
+| 表 | 契约 schema | 关键列 | 消费方 | 决策 |
+|---|---|---|---|---|
+| `timer_sessions` | TimerSession / TimerRestore | id, user_id, mode, started_at, target_minutes, plan_id, task_id, subject, status, ended_at, **effective_seconds**, **last_heartbeat_at** | C | §3.6/D30/D31 |
+| `timer_segments` | TimerSegment | id, session_id, user_id, task_id, started_at, ended_at, seconds | C | #14 |
+| `analytics_events` | AnalyticsEvent | id, user_id, category, event_type, session_id, payload_json, occurred_at, created_at | G | D39 |
+| `search_archives` | SearchArchive | id, user_id, subject, raw_text, solution, mode, point_ids, created_at | D | §3.8.4/D24 |
+| `card_impressions` | CardImpression | id, user_id, group, card_type, fingerprint, action, shown_at, created_at | E | D28 |
+
+### 2.3 已定枚举（直接用，不要另造）
+
+`ErrorCause`(6：concept_unclear / calculation_error / misreading / careless / knowledge_gap / other)、
+`ErrorIntent`(4：review / good / typical / doubtful)、`SearchMode`(3：direct / analytic / guided)、
+`ViolationAction`(3：warn / temp_ban / perm_ban)、`MedalMilestone`(5)、`UserProfileGroup`(4：learning / state / attribution / interest)、
+`ExplanationMode`(2：original / regenerated)、`UsageFeatureTier`(4：chat / embedded / advanced / multimodal)、
+`ReasoningTier`(3：quick / standard / deep)、`TimerMode`(2：countdown / countup)、`TimerStatus`(3：running / finished / abandoned)、
+`AnalyticsCategory`(3：chat_interaction / ai_quality / profile_trace)、`CardGroup`(3：go_on / recommend / insight)、`CardAction`(3：shown / clicked / dismissed)
+
+### 2.4 三条已写死的口径（原「实现时定」）
+
+- 对话原文留存 **30 天**（`chat_raw_messages.expires_at`，TTL job 依据）
+- 会话老化阈值 **7 天**（`chat_sessions.last_active_at`；不采用每日零点重置）
+- 邀请码生成**走后台脚本**，不进用户产品 API（口径同 D42）
+
+> ⚠️ 所有实体**都不下发 `userId`**——资源以当前用户为作用域，不设 userId 路径参数，不存在跨用户读取接口（沿用既有约定，别误以为漏了）。
 
 ## 3. 跨板块协议（文本先冻结，实现后跟进）
 
