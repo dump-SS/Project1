@@ -3172,6 +3172,14 @@ components:
         templateId:
           type: string
           description: 可选，从预设模板创建时带上
+        pointIds:
+          type: array
+          description: >-
+            可选，目标绑定的知识点 ID（与 Goal.pointIds 同源）。⚠️ 补齐既有缺口：
+            `goals.point_ids` 列早已存在（v2.2），但创建/更新请求体此前都没有这个字段，
+            等于建目标时根本传不进来，只能一直是空。
+          items:
+            type: string
         parentGoalId:
           type: string
           nullable: true
@@ -3205,6 +3213,11 @@ components:
           type: string
           description: active / archived（归档代替删除）
           enum: [active, archived]
+        pointIds:
+          type: array
+          description: 可选，目标绑定的知识点 ID（全量覆盖；传空数组表示清空绑定）
+          items:
+            type: string
         parentGoalId:
           type: string
           nullable: true
@@ -4135,7 +4148,8 @@ components:
       description: >-
         结构化错因（错题专有，D48）。与 errorType（自由文本，历史兼容）并存：
         errorCause 用于统计与 mastery 归因，errorType 保留自述原文。
-      enum: [concept_unclear, calculation_error, misreading, knowledge_gap, other]
+        取值对应目标态 §4.4.1 的错因分类；careless 与既有自由文本口径里的 "careless" 对齐。
+      enum: [concept_unclear, calculation_error, misreading, careless, knowledge_gap, other]
     ErrorIntent:
       type: string
       description: >-
@@ -4628,6 +4642,10 @@ components:
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间（考试可编辑，见 ExamUpdate）
     ExamCreate:
       type: object
       required: [subject, name, examDate, fullScore]
@@ -4672,6 +4690,10 @@ components:
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间（分组可重命名，见 CollectionUpdate）
     CollectionCreate:
       type: object
       required: [name]
@@ -4695,6 +4717,13 @@ components:
         content:
           type: string
           description: 收藏时的正文快照（原样保存，不随原文过期而失效）
+        format:
+          type: string
+          enum: [markdown, plain]
+          description: >-
+            content 的文本格式。模型输出多为 Markdown，收藏时**原样保存格式**，
+            前端据此决定是否渲染（不要靠猜或正则嗅探）。
+          default: markdown
         imageRef:
           type: string
           nullable: true
@@ -4812,6 +4841,22 @@ components:
           maxLength: 64
 
     # ---------- G 板块：成本计量（#9 / D38） ----------
+    UsageFeatureTier:
+      type: string
+      description: >-
+        功能档位（分档定价依据，D38）。对应目标态 §7 的三类 AI + 上传解析：
+        chat=对话式（闲聊 / 搜题 / 讲知识点 / 查；用户主动发起、有感）；
+        embedded=嵌入式（建议 / 复盘 / 口语转译 / 画像提取 / 推荐卡；系统自动、无感，**不进 credits**）；
+        advanced=高级（L3 富交互仿真 / 多模态搜题；稀有且贵，高级月卡或 credits 单次）；
+        multimodal=文件解析（上传的图片 / PDF / PPT 理解，F 板块）。
+        ⚠️ 新增档位属契约变更，需同步本枚举与定价口径。
+      enum: [chat, embedded, advanced, multimodal]
+    ReasoningTier:
+      type: string
+      description: >-
+        推理等级（#33：快速 / 标准 / 深度），与 credits 扣费档位绑定。
+        随手问浮窗跟随主对话档位，浮窗内不单独给选择。
+      enum: [quick, standard, deep]
     UsageLedgerEntry:
       type: object
       description: >-
@@ -4821,12 +4866,11 @@ components:
       properties:
         id: { type: string }
         featureTier:
-          type: string
-          description: 功能档位（chat / search / explain / embedded / multimodal 等），用于分档定价
+          $ref: '#/components/schemas/UsageFeatureTier'
         reasoningTier:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/ReasoningTier'
           nullable: true
-          description: 推理等级（#33：quick / standard / deep），与 credits 扣费档位绑定
         model: { type: string }
         tokensIn: { type: integer }
         tokensOut: { type: integer }
@@ -4851,7 +4895,11 @@ components:
     # ---------- A 板块：邀请码（#50） ----------
     InviteCode:
       type: object
-      description: pilot 期邀请码，一码一用、可追踪。
+      description: >-
+        pilot 期邀请码，一码一用、可追踪（#50）。
+        ⚠️ **pilot 期不提供用户产品侧的邀请码管理接口**——生成走后台脚本，运营工具不进用户产品
+        API（口径同 D42：引擎权重调参也移出用户产品）。注册时由 A 板块校验本表；
+        `usedBy` / `usedAt` 供溯源，不做面向用户的展示接口。
       required: [code, createdAt]
       properties:
         code: { type: string }
@@ -4963,6 +5011,12 @@ components:
           type: number
           nullable: true
           description: 推断置信度（显式来源为 null）
+        sourceRef:
+          type: string
+          nullable: true
+          description: >-
+            提取来源引用（会话 id / 消息 id），供「这条画像是哪来的」审计追溯（§8 画像 trace）。
+            ⚠️ 对话原文有 TTL（30 天），到期后该引用可能已无法还原内容——**它只是线索，不是凭据**。
         updatedAt: { type: string, format: date-time }
     UserProfileEntryUpdate:
       type: object
@@ -4990,6 +5044,10 @@ components:
       required: [summaryId, summary, createdAt]
       properties:
         summaryId: { type: string }
+        sessionId:
+          type: string
+          nullable: true
+          description: 产出该摘要的会话 id（会话老化后仍保留摘要，故可为空）
         summary:
           type: string
           description: 单条摘要，如「上次聊到函数单调性」「卡在几何辅助线」
@@ -5021,6 +5079,35 @@ components:
         createdAt: { type: string, format: date-time }
 
     # ---------- B 板块：会话与对话原文短期留存（D2 / D36 / D45） ----------
+    ChatContextStackItem:
+      type: object
+      description: >-
+        上下文栈的一层（D36）。栈最多挂 3 个「聊到一半」的分支，LIFO 取用（栈顶 = 最近切走的事，
+        切回优先接续）。超限时最旧者按 `branchType` **沉降**（不丢，转对应持久层）：
+        task_draft → 持久化中间态（进首页 Go on 组）；knowledge_help → 知识页归档（可重新发起）；
+        chat → 纯闲聊直接丢弃。
+      required: [branchType, enteredAt]
+      properties:
+        branchType:
+          type: string
+          description: 分支类型，同时决定超限时的沉降去向
+          enum: [chat, task_draft, knowledge_help]
+        intent:
+          type: string
+          nullable: true
+          description: 进入该分支时的意图判定结果（闲聊 / 建任务 / 知识求助）
+        step:
+          type: string
+          nullable: true
+          description: 分支内进行到哪一步（如引导式搜题的步骤标识），用于「切回优先接续」
+        payload:
+          type: object
+          nullable: true
+          description: 该分支的挂起载荷（结构化；**不含对话原文流水**）
+        enteredAt:
+          type: string
+          format: date-time
+          description: 入栈时间（LIFO 与老化判定依据）
     ChatSession:
       type: object
       description: >-
@@ -5034,16 +5121,15 @@ components:
         lastActiveAt:
           type: string
           format: date-time
-          description: 最近交互时间；据此判断会话是否老化
+          description: >-
+            最近交互时间；据此判断会话是否老化。**老化阈值定为 7 天**（§3.8.1 建议 24h–7d、默认偏长）：
+            超过 7 天无交互即清空栈内上下文；沉降物不随会话老化，各走各的 TTL。
         contextStack:
           type: array
-          description: >-
-            上下文栈（D36）：深度=3、LIFO、会话级。超限时最旧者按类型沉降——
-            任务草稿转持久化中间态、搜题/讲解转知识页归档、纯闲聊直接丢弃。
-            ⚠️ 栈项结构（分支类型 / 进入步骤 / 挂起载荷）**由 B 板块在实现时定义并回填本节**，
-            X0 只定「这是一个会话级数组」这一层。
+          description: 上下文栈（D36）：深度=3、LIFO、会话级，栈项结构见 ChatContextStackItem
+          maxItems: 3
           items:
-            type: object
+            $ref: '#/components/schemas/ChatContextStackItem'
     ChatRawMessage:
       type: object
       description: >-
@@ -5062,4 +5148,7 @@ components:
         expiresAt:
           type: string
           format: date-time
-          description: 到期时间；TTL 清除 job 据此物理删除
+          description: >-
+            到期时间；TTL 清除 job 据此物理删除。**留存窗口定为 30 天**（§3.8.3 建议 7–30 天，取上限）：
+            L3 危机响应要求事后可追溯，对未成年产品而言「出了事查不到用户说了什么」是反向风险，
+            宁可多留几天。窗口值集中在配置里，不散落在各调用点。

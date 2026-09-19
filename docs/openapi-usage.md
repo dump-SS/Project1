@@ -66,3 +66,10 @@ v1.1 批量插入 500 时存在缩进 bug：成功响应（200/201/202/204）的
 - **游客态口径**写入 `info.description`：生产无有效会话一律 401（不再兜底共享账号），游客试用**不走后端接口**（不落库、不串号），A 板块落地时不得新增「游客可写」接口。
 - **验证**：`yaml.safe_load` 解析通过；schema 总数 111 → **145**；paths 保持 **51**（本次不新增接口）；所有 `$ref` 可解析；对迁移后的空库跑 `alembic check` 报告 "No new upgrade operations detected"（迁移产物与 ORM 元数据完全一致）。
 - 配套 DDL 见 `backend/alembic/versions/5015e9b1bdeb_m0_contracts_freeze_stable_user_id_new_.py`（单 head，`down_revision = 1a6f0c6bb285`）；空库 `upgrade head` 已在 SQLite 与 Neon Postgres 各验证一次，`downgrade` 亦验证可回退。
+- **同轮定稿**（原则：X0 能定的不留悬念，让各板块直接开发）：
+  - 新增 3 个 schema：`ChatContextStackItem`（上下文栈的栈项结构：branchType / intent / step / payload / enteredAt，并把三种 branchType 的**沉降去向**写进 description）、`UsageFeatureTier`（chat / embedded / advanced / multimodal）、`ReasoningTier`（quick / standard / deep）。
+  - `ErrorCause` 补 `careless`（与既有自由文本口径对齐，共 6 值）。
+  - `GoalCreate` / `GoalUpdate` 补 `pointIds`——**既有缺口**：`goals.point_ids` 列早已存在，但请求体一直没有该字段，建目标时根本传不进来。
+  - `Exam` / `Collection` 补 `updatedAt`；`CollectionSnapshot` 补 `format`（markdown / plain，避免前端正则嗅探）；`UserProfileEntry` 补 `sourceRef`（画像 trace 线索）；`TopicSummary` 补 `sessionId`。
+  - 三条口径写死进 description：对话原文留存窗口 **30 天**（取 §3.8.3 建议区间上限）、会话老化阈值 **7 天**（取 §3.8.1 建议区间偏长端）、**邀请码生成走后台脚本、不进用户产品 API**（口径同 D42）。
+  - schema 总数 145 → **150**，paths 仍 51。
