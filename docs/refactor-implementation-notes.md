@@ -85,7 +85,8 @@ pilot 不收费，但需**按用户统计模型花费**为后续定价做准备�
 
 - 协议与条款（缺）
 - 未成年付费（监护人 / 支付资质）—— 与支付渠道选型一并推迟到 pilot 后
-- 危机响应 prompt 基线（§4.6 P2）
+- ✅ **危机响应 prompt 基线（§4.6 P2）**—— 已由 X0 交付：`backend/prompts/crisis_response.txt`（三档基调 + L3 固定转介文案 + 触发范围），并**内联**进 `backend/prompts/chat_system.txt` 第 6 条硬约束（防实现侧漏注入导致合规事故）
+- ✅ **#24 中学解法约束 prompt 基线**—— 已由 X0 交付：`backend/prompts/chat_system.txt` 第 1 条硬约束（禁洛必达 / 微积分等超纲方法）；B 板块据此实现，并补「超纲触发」的用例
 - CORS 白名单 + Cookie `Secure`（[deployment-stack-evaluation.md](./deployment-stack-evaluation.md) §4）
 - **`current_user` 越权修复（P0）** —— 任务单见 [deployment-stack-evaluation.md](./deployment-stack-evaluation.md) 附 A
 
