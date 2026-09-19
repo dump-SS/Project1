@@ -75,7 +75,7 @@
 | 1 | Chat 纯 mock（setTimeout+mockData） | **下架**（已拍板），真链路替换 | M1 |
 | 2 | Community localStorage 假人 + CommunityDemoBadge | 随真接口接线**一并下线**，不留双轨 | M4 |
 | 3 | Knowledge 页 KNOWLEDGE_TREE 假树 | 删除，全真数据 | M3 |
-| 4 | OCR 501 占位 | 删路由+挂载+文案 | M0 |
+| 4 | OCR 501 占位 | ✅ **已删**（M0：`routes/ocr.py` + `main.py` 挂载 + 目标态 §3.5 文案） | M0 |
 | 5 | 设置页「AI 自动调权」开关 | 下线（避免假控制感，D42）；接口留内部 | M4 |
 | 6 | StudyPlanEditor 旧目录 | 被 StudyGuide 复用的组件挪位保留，其余删 | M2 |
 | 7 | `mock_data.py`（210 行，仅测试引用） | 测试改用工厂/fixtures 后删除 | M6 |

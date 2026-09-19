@@ -116,6 +116,14 @@ class ErrorRecord(Base):
     error_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     vector_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # open/resolved
+    # 题本升格（D48）：错因 + 意图两个正交维度。
+    # error_cause 是结构化错因（concept_unclear/calculation_error/misreading/knowledge_gap/other），
+    # 用于统计与 mastery 归因；error_type 保留为自由文本（自述原文），二者并存不冲突。
+    # ⚠️ mastery 与归因只消费「有错因」的题——只有意图的 star 题不污染现有逻辑。
+    error_cause: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    intent: Mapped[str | None] = mapped_column(String(16), nullable=True)  # review/good/typical/doubtful
+    # 来源考试（D49）：错题可标记来自某次考试
+    source_exam_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 软删

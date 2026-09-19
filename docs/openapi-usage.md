@@ -1,6 +1,6 @@
 # openapi.yaml 使用说明
 
-> **当前口径（2026-09-18 实测）**：`docs/openapi.yaml` **v1.5.0 · 51 paths · 66 operations · 111 schemas**，是前后端与 QA 的**唯一契约真相源**（不是任何文档的"机器可读版本"）。
+> **当前口径（2026-09-19 实测）**：`docs/openapi.yaml` **v1.6.0 · 51 paths · 145 schemas**，是前后端与 QA 的**唯一契约真相源**（不是任何文档的"机器可读版本"）。
 > 其早期母体 `api-design-unified.md` 已归档至 `docs/archive/`，不再维护；下文各「校验状态」章节是**各时点的历史校验记录**（数字为当时值，如 39 operation/71 schema），仅留痕，不代表当前文件。
 > 变更规则：任何字段/实体/接口先改本文件（X0 评审），再写实现——见 `docs/refactor-module-contracts.md` §0。
 
@@ -53,3 +53,29 @@ v1.1 批量插入 500 时存在缩进 bug：成功响应（200/201/202/204）的
 - 新增 7 个 auth schema（OkResponse / EmailOnlyRequest / RegisterRequest / LoginByCodeRequest / LoginByPasswordRequest / ResetPasswordRequest / AuthMeResponse）+ `EmailNotRegistered` 响应；schema 总数 64→71。
 - schema 约束补齐：`windowScore` 三处加 0-1 范围、`LearningRecord.note` 回读字段、`Goal`/`GoalSummary` 增加可选 `outcome`+`completionNote`。
 - 验证：YAML 解析通过；39 个 operation；所有 `$ref` 无断链（含新 auth schema 与 EmailNotRegistered）；8 个公开 auth 接口均 `security: []`。
+
+## 2026-09-19 重构 M0 契约冻结（v1.6.0）
+
+本次为重构第一阶段的**契约增量**：未改动任何既有字段名（增量式、向后兼容）。
+
+- **稳定用户 ID 语义落地（D59）**：`User.userId` 描述明确为「稳定内部主键（`u_` 前缀），与登录凭证解耦，**不是邮箱**」；`AuthMeResponse.user` 增补可选 `userId`（`email` 仍 required，前端展示继续用它）。
+- **新增 13 个实体 schema**：Exam / Collection / CollectionItem / UsageLedgerEntry / InviteCode / ViolationLog / ErrorReport / Medal / UserProfileEntry / TopicSummary / Explanation / ChatSession / ChatRawMessage；另加 5 个枚举：ErrorCause / ErrorIntent / ViolationAction / UserProfileGroup / ExplanationMode。
+  ⚠️ 这些 schema **尚未挂到任何 path**——接口由各板块按里程碑补齐，字段名以本节为准（不得另起）。
+- **题本升格（D48）**：`ErrorRecord` / `ErrorRecordCreate` / `ErrorRecordUpdate` 扩展 `errorCause` / `intent` / `sourceExamId`；`errorType` 保留为自由文本（历史兼容）。
+- **目标（D6 / D49）**：`Goal` / `GoalSummary` / `GoalCreate` / `GoalUpdate` 增补 `parentGoalId`、`examId`、`targetScore`；**`status` 的 enum 未动**（`active`/`archived` 被 `?status=` 过滤依赖）。
+- **游客态口径**写入 `info.description`：生产无有效会话一律 401（不再兜底共享账号），游客试用**不走后端接口**（不落库、不串号），A 板块落地时不得新增「游客可写」接口。
+- **验证**：`yaml.safe_load` 解析通过；schema 总数 111 → **145**；paths 保持 **51**（本次不新增接口）；所有 `$ref` 可解析；对迁移后的空库跑 `alembic check` 报告 "No new upgrade operations detected"（迁移产物与 ORM 元数据完全一致）。
+- 配套 DDL 见 `backend/alembic/versions/5015e9b1bdeb_m0_contracts_freeze_stable_user_id_new_.py`（单 head，`down_revision = 1a6f0c6bb285`）；空库 `upgrade head` 已在 SQLite 与 Neon Postgres 各验证一次，`downgrade` 亦验证可回退。
+- **同轮定稿**（原则：X0 能定的不留悬念，让各板块直接开发）：
+  - 新增 3 个 schema：`ChatContextStackItem`（上下文栈的栈项结构：branchType / intent / step / payload / enteredAt，并把三种 branchType 的**沉降去向**写进 description）、`UsageFeatureTier`（chat / embedded / advanced / multimodal）、`ReasoningTier`（quick / standard / deep）。
+  - `ErrorCause` 补 `careless`（与既有自由文本口径对齐，共 6 值）。
+  - `GoalCreate` / `GoalUpdate` 补 `pointIds`——**既有缺口**：`goals.point_ids` 列早已存在，但请求体一直没有该字段，建目标时根本传不进来。
+  - `Exam` / `Collection` 补 `updatedAt`；`CollectionSnapshot` 补 `format`（markdown / plain，避免前端正则嗅探）；`UserProfileEntry` 补 `sourceRef`（画像 trace 线索）；`TopicSummary` 补 `sessionId`。
+  - 三条口径写死进 description：对话原文留存窗口 **30 天**（取 §3.8.3 建议区间上限）、会话老化阈值 **7 天**（取 §3.8.1 建议区间偏长端）、**邀请码生成走后台脚本、不进用户产品 API**（口径同 D42）。
+  - schema 总数 145 → **150**，paths 仍 51。
+- **补漏（同日第二张迁移 `b81d83bafb89`）**：定稿时发现原 11 张表**未覆盖 M2+ 的硬需求**，补齐 5 张表的 schema（+7 枚举）：
+  - `TimerSession` / `TimerSegment` / `TimerRestore`（C·§3.6 / D30 / D31 / #14）——**服务端持久化「进行中的计时会话」**，根治现状「靠路由 state 传参、刷新即丢上下文」；`TimerRestore.needsVerdict` 承载僵尸治理的**恢复裁决卡**语义（不自动记账），`effectiveSeconds` 明确「有效时长 ≠ 墙上时长」。
+  - `AnalyticsEvent`（G·D39）——三块埋点统一落表，description 里写死「**结构化事件，不含对话原文流水**」的口径划分。
+  - `SearchArchive`（D·§3.8.4）——搜题归档与讲解归档**分开**（不做对话历史后用户会重复问，两条链路语义不同）。
+  - `CardImpression`（E·D28）——推荐卡冷却（3天/7天/每周1）与去重指纹**依赖它**，没有这张表规则无从判断。
+  - schema 总数 150 → **162**；表数 42 → **47**；paths 仍 51。

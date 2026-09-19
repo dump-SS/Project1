@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.5.0
+  version: 1.6.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -17,6 +17,23 @@ info:
     - 监护人授权失效时所有写接口返回 403 `GUARDIAN_AUTHORIZATION_EXPIRED`，读接口不受影响。
 
     阶段口径：pilot。本文档为前后端与 QA 的唯一契约来源。项目当前处于 pilot 阶段（小范围试用验证，非 beta/正式发布），由学生团队维持。板块三契约已于 M1 转正（口径见 docs/module3-m0-decision-proposal.md v1.7 §4.11）。
+
+    **v1.6.0（重构 M0 · 契约冻结）**——本次为重构第一阶段的契约增量，未改动任何既有字段名：
+    - **稳定用户 ID 落地（D59）**：`User.userId` 语义明确为稳定内部主键（`u_` 前缀），与登录凭证
+      解耦；`AuthMeResponse.user` 增补可选 `userId`（`email` 保留，前端展示仍用它）。
+    - **新增 M0 实体 schema**：Exam / Collection / CollectionItem / UsageLedgerEntry / InviteCode /
+      ViolationLog / ErrorReport / Medal / UserProfileEntry / TopicSummary / Explanation /
+      ChatSession / ChatRawMessage。⚠️ 这些 schema **尚未挂到任何 path**，接口由各板块按里程碑补齐；
+      字段名以本节为准，各板块不得另起。
+    - **题本升格（D48）**：新增 `ErrorCause` / `ErrorIntent` 两个正交维度，`ErrorRecord` 系列扩展
+      `errorCause` / `intent` / `sourceExamId` 三个可选字段（`errorType` 保留为自由文本，向后兼容）。
+    - **目标（D6 / D49）**：`Goal` / `GoalSummary` / `GoalCreate` / `GoalUpdate` 增补
+      `parentGoalId`（父子树）、`examId` + `targetScore`（引用考试）。`status` 的 enum 未改动。
+    - **OCR 路线已彻底放弃**（#32）：契约本就没有 /ocr 路径，本次删除后端 501 占位实现。
+    - **游客态口径**（与全局 security 的关系）：生产环境无有效会话一律 401 `UNAUTHENTICATED`，
+      **不再兜底共享账号** `u_10237`。因此游客的「试用」**不走后端接口**——纯前端本地状态，
+      不落库、不串号；登录/注册成功后试用数据直接清空（D1/D43）。A 板块落地时在此口径上叠加，
+      **不得新增任何「游客可写」的接口**。
 
 servers:
   - url: /api/v1
@@ -2793,6 +2810,10 @@ components:
             email:
               type: string
               format: email
+              description: 登录凭证邮箱（可改、可换绑；仅用于认证与展示，不作为身份标识）
+            userId:
+              type: string
+              description: 稳定用户 ID，与 User.userId 同源（D59；前端展示当前仍用 email）
 
     # ---------- 通用结构 ----------
     Error:
@@ -2886,7 +2907,10 @@ components:
       properties:
         userId:
           type: string
-          description: 用户 ID
+          description: >-
+            稳定用户 ID（`u_` 前缀短码）。与登录凭证解耦——改邮箱、换绑、换设备均不变，
+            是所有业务表外键指向的内部主键（D59 三层身份：内部主键 / 登录凭证 / 对外标识）。
+            注意：它不是邮箱。
         stage:
           $ref: '#/components/schemas/Stage'
         grade:
@@ -3051,6 +3075,23 @@ components:
           description: 目标绑定的知识点 ID（v2.2，可选，用于「建议先补」短板提示）
           items:
             type: string
+        parentGoalId:
+          type: string
+          nullable: true
+          description: >-
+            父目标 ID（D6/D29：长期目标下挂多个短期子目标，父子树）。顶层目标为 null。
+            注意 status 的 enum 不得改动（active/archived 被 ?status= 过滤依赖），
+            父子关系用平行字段表达。
+        examId:
+          type: string
+          nullable: true
+          description: >-
+            引用的考试 ID（D49）。用 examId + targetScore 表达「这次考到 X 分」，
+            避免与 Exam 形成两套平行的目标体系。
+        targetScore:
+          type: number
+          nullable: true
+          description: 目标分数（配合 examId 使用；满分取该考试的 fullScore）
         progress:
           $ref: '#/components/schemas/GoalProgress'
         createdAt:
@@ -3091,6 +3132,18 @@ components:
           maxLength: 200
           nullable: true
           description: 目标完成总结；取值同 Goal.completionNote
+        parentGoalId:
+          type: string
+          nullable: true
+          description: 父目标 ID（D6 父子树，侧面板按此缩进；顶层为 null）
+        examId:
+          type: string
+          nullable: true
+          description: 关联考试 ID（D49）
+        targetScore:
+          type: number
+          nullable: true
+          description: 目标分数（配合 examId）
         progress:
           $ref: '#/components/schemas/GoalProgress'
     GoalCreate:
@@ -3119,6 +3172,26 @@ components:
         templateId:
           type: string
           description: 可选，从预设模板创建时带上
+        pointIds:
+          type: array
+          description: >-
+            可选，目标绑定的知识点 ID（与 Goal.pointIds 同源）。⚠️ 补齐既有缺口：
+            `goals.point_ids` 列早已存在（v2.2），但创建/更新请求体此前都没有这个字段，
+            等于建目标时根本传不进来，只能一直是空。
+          items:
+            type: string
+        parentGoalId:
+          type: string
+          nullable: true
+          description: 可选，父目标 ID（D6 父子树；不传即顶层目标）
+        examId:
+          type: string
+          nullable: true
+          description: 可选，关联考试 ID（D49）
+        targetScore:
+          type: number
+          nullable: true
+          description: 可选，目标分数（配合 examId）
     GoalUpdate:
       type: object
       description: 更新 / 归档目标请求体，字段全可选
@@ -3140,6 +3213,23 @@ components:
           type: string
           description: active / archived（归档代替删除）
           enum: [active, archived]
+        pointIds:
+          type: array
+          description: 可选，目标绑定的知识点 ID（全量覆盖；传空数组表示清空绑定）
+          items:
+            type: string
+        parentGoalId:
+          type: string
+          nullable: true
+          description: 父目标 ID（D6 父子树）；传 null 表示提升为顶层目标
+        examId:
+          type: string
+          nullable: true
+          description: 关联考试 ID（D49）
+        targetScore:
+          type: number
+          nullable: true
+          description: 目标分数（配合 examId）
     GoalList:
       type: object
       description: 目标列表响应
@@ -4052,6 +4142,21 @@ components:
           enum: [embedding, keyword_fallback]
 
     # ==================== 板块二：错题本（PRD 12.3.2） ====================
+    # ---------- 题本升格：错因 + 意图两个正交维度（D48） ----------
+    ErrorCause:
+      type: string
+      description: >-
+        结构化错因（错题专有，D48）。与 errorType（自由文本，历史兼容）并存：
+        errorCause 用于统计与 mastery 归因，errorType 保留自述原文。
+        取值对应目标态 §4.4.1 的错因分类；careless 与既有自由文本口径里的 "careless" 对齐。
+      enum: [concept_unclear, calculation_error, misreading, careless, knowledge_gap, other]
+    ErrorIntent:
+      type: string
+      description: >-
+        用户主观意图（D48）。review=想复习 / good=好题 / typical=典型 / doubtful=存疑。
+        错题 = 有错因标记；star 题 = 只有意图标记、无错因；两者都进艾宾浩斯复习队列，
+        但 mastery 与归因只消费「有错因」的。
+      enum: [review, good, typical, doubtful]
     ErrorRecordCreate:
       type: object
       required: [subject, rawText]
@@ -4082,6 +4187,13 @@ components:
           description: 用户确认关联的知识点 ID
           items:
             type: string
+        errorCause:
+          $ref: '#/components/schemas/ErrorCause'
+        intent:
+          $ref: '#/components/schemas/ErrorIntent'
+        sourceExamId:
+          type: string
+          description: 来源考试 ID（D49；错题可标记来自某次考试）
     ErrorRecordUpdate:
       type: object
       description: 错题局部更新，至少传一项
@@ -4099,6 +4211,14 @@ components:
           type: array
           items:
             type: string
+        errorCause:
+          $ref: '#/components/schemas/ErrorCause'
+        intent:
+          $ref: '#/components/schemas/ErrorIntent'
+        sourceExamId:
+          type: string
+          nullable: true
+          description: 来源考试 ID；传 null 表示清除关联
     LinkedPoint:
       type: object
       required: [pointId, confidence]
@@ -4146,6 +4266,20 @@ components:
           type: string
           format: date-time
           nullable: true
+        errorCause:
+          allOf:
+            - $ref: '#/components/schemas/ErrorCause'
+          nullable: true
+          description: 结构化错因（D48）；无错因即非「错题」（可能是只有意图的 star 题）
+        intent:
+          allOf:
+            - $ref: '#/components/schemas/ErrorIntent'
+          nullable: true
+          description: 用户主观意图（D48）
+        sourceExamId:
+          type: string
+          nullable: true
+          description: 来源考试 ID（D49）
     ErrorBookList:
       type: object
       required: [items, pagination]
@@ -4473,3 +4607,759 @@ components:
           type: string
           format: date-time
           description: 聚合计算时间
+
+    # ========== 重构 M0 · 新增实体（X0 定 schema，接口由各板块后续补） ==========
+    #
+    # 本节 schema 对应 M0 新建的 13 张表 + 3 处既有表扩展。**字段名为最终口径**：
+    # 各板块补接口时直接引用，不得另起字段名（契约铁律：先改本文件再写接口）。
+    # DDL 由 X0 出 Alembic 迁移，单 head（见 refactor-module-contracts.md §2）。
+    # 表名与 schema 的对应：exams / collections / collection_items / usage_ledger /
+    # invite_codes / violation_logs / error_reports / medals / user_profiles /
+    # topic_summaries / explanations / chat_sessions / chat_raw_messages。
+
+    # ---------- C 板块：考试（D49） ----------
+    Exam:
+      type: object
+      description: 考试。独立实体，不是 Goal 的一种；Goal 用 examId + targetScore 引用它。
+      required: [examId, subject, name, examDate, fullScore, createdAt]
+      properties:
+        examId: { type: string }
+        subject:
+          $ref: '#/components/schemas/Subject'
+        name:
+          type: string
+          description: 考试名称，如「期中考试」
+        examDate:
+          type: string
+          format: date
+        score:
+          type: number
+          nullable: true
+          description: >-
+            得分。考后回填，回填前为 null。成绩是唯一能把「自评」与「实际」对上的客观数据，
+            回填后喂状态评估与画像（D49）。
+        fullScore: { type: number }
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间（考试可编辑，见 ExamUpdate）
+    ExamCreate:
+      type: object
+      required: [subject, name, examDate, fullScore]
+      properties:
+        subject:
+          $ref: '#/components/schemas/Subject'
+        name: { type: string }
+        examDate: { type: string, format: date }
+        fullScore: { type: number }
+        score: { type: number, nullable: true }
+    ExamUpdate:
+      type: object
+      description: 考试局部更新，至少传一项
+      minProperties: 1
+      properties:
+        name: { type: string }
+        examDate: { type: string, format: date }
+        fullScore: { type: number }
+        score: { type: number, nullable: true }
+    ExamList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Exam'
+
+    # ---------- E 板块：收藏体系（D46 / D47 / #41 / #52） ----------
+    Collection:
+      type: object
+      description: 收藏的自定义分组。内置分组（学科 / 时间 / 掌握度）是筛选维度、不入表，两者正交。
+      required: [collectionId, name, createdAt]
+      properties:
+        collectionId: { type: string }
+        name:
+          type: string
+          description: 用户自建分组名（如「计划」「闲聊」）
+        itemCount:
+          type: integer
+          description: 组内条目数（列表接口按需下发）
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间（分组可重命名，见 CollectionUpdate）
+    CollectionCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 64 }
+    CollectionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Collection'
+    CollectionSnapshot:
+      type: object
+      description: >-
+        收藏内容的**快照**（D46 硬约束）。因为 D45 不存对话历史、原文只做短期留存，
+        收藏若只存引用，原文一到期就变成死链。图片圈选的收藏必须存裁剪后的小图。
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: 收藏时的正文快照（原样保存，不随原文过期而失效）
+        format:
+          type: string
+          enum: [markdown, plain]
+          description: >-
+            content 的文本格式。模型输出多为 Markdown，收藏时**原样保存格式**，
+            前端据此决定是否渲染（不要靠猜或正则嗅探）。
+          default: markdown
+        imageRef:
+          type: string
+          nullable: true
+          description: 裁剪后小图的存储引用（图片圈选场景）
+    CollectionSourceRef:
+      type: object
+      description: 来源引用（仅用于溯源标注，不承担内容可读性）
+      properties:
+        type:
+          type: string
+          enum: [chat_message, explanation, search_answer, knowledge_point, upload_summary, manual]
+        refId: { type: string, nullable: true }
+        label: { type: string, nullable: true }
+        subject:
+          $ref: '#/components/schemas/Subject'
+    CollectionHighlight:
+      type: object
+      description: 划选高亮（内容不可编辑，高亮只改显示）
+      properties:
+        start:
+          type: integer
+          description: 起始偏移（**按 Unicode 码点计**，不是字节；前端划选直接取 selection 的字符偏移）
+        end:
+          type: integer
+          description: 结束偏移（同上，左闭右开）
+    CollectionBlurState:
+      type: object
+      description: >-
+        「虚化」标记（#41 / §4.8.4）：把选中文本做模糊显示，用于隐藏信息或自测（填空题）。
+        虚化不算编辑——只改显示不改内容，且状态必须持久化。
+      properties:
+        start:
+          type: integer
+          description: 起始偏移（按 Unicode 码点计，口径同 CollectionHighlight）
+        end:
+          type: integer
+          description: 结束偏移（左闭右开）
+    CollectionItem:
+      type: object
+      description: 收藏条目。内容不可编辑（保证留存真实性），只支持高亮与虚化标记。
+      required: [itemId, snapshot, createdAt]
+      properties:
+        itemId: { type: string }
+        collectionId:
+          type: string
+          nullable: true
+          description: 自定义分组 ID；未分组为 null（内置维度不入表）
+        title: { type: string, nullable: true }
+        snapshot:
+          $ref: '#/components/schemas/CollectionSnapshot'
+        sourceRef:
+          $ref: '#/components/schemas/CollectionSourceRef'
+        highlights:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionHighlight'
+        blurStates:
+          type: array
+          description: 虚化区间；全屏展开时方向键切换焦点、空格临时解除
+          items:
+            $ref: '#/components/schemas/CollectionBlurState'
+        createdAt:
+          type: string
+          format: date-time
+    CollectionItemCreate:
+      type: object
+      description: 新增收藏。同一条内容反复收藏 → 覆盖并给轻提示（#52），不新增副本。
+      required: [snapshot]
+      properties:
+        collectionId: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        snapshot:
+          $ref: '#/components/schemas/CollectionSnapshot'
+        sourceRef:
+          $ref: '#/components/schemas/CollectionSourceRef'
+    CollectionItemList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionItem'
+    CollectionItemUpdate:
+      type: object
+      description: >-
+        收藏条目的标记更新。**内容不可编辑**（保证留存真实性，D46），只能改分组、标题、
+        高亮与虚化标记——虚化必须可持久化（#41），否则每次展开都要重设。
+      minProperties: 1
+      properties:
+        collectionId:
+          type: string
+          nullable: true
+          description: 移动到自定义分组；传 null 表示移出分组
+        title:
+          type: string
+          nullable: true
+        highlights:
+          type: array
+          description: 高亮区间**全量覆盖**（不是增量），前端一次提交当前全部区间
+          items:
+            $ref: '#/components/schemas/CollectionHighlight'
+        blurStates:
+          type: array
+          description: 虚化区间**全量覆盖**；「全部虚化」一键即提交完整列表
+          items:
+            $ref: '#/components/schemas/CollectionBlurState'
+    CollectionUpdate:
+      type: object
+      description: 重命名收藏分组（自定义分组是用户标签字段，与内置筛选维度正交）
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 64
+
+    # ---------- G 板块：成本计量（#9 / D38） ----------
+    UsageFeatureTier:
+      type: string
+      description: >-
+        功能档位（分档定价依据，D38）。对应目标态 §7 的三类 AI + 上传解析：
+        chat=对话式（闲聊 / 搜题 / 讲知识点 / 查；用户主动发起、有感）；
+        embedded=嵌入式（建议 / 复盘 / 口语转译 / 画像提取 / 推荐卡；系统自动、无感，**不进 credits**）；
+        advanced=高级（L3 富交互仿真 / 多模态搜题；稀有且贵，高级月卡或 credits 单次）；
+        multimodal=文件解析（上传的图片 / PDF / PPT 理解，F 板块）。
+        ⚠️ 新增档位属契约变更，需同步本枚举与定价口径。
+      enum: [chat, embedded, advanced, multimodal]
+    ReasoningTier:
+      type: string
+      description: >-
+        推理等级（#33：快速 / 标准 / 深度），与 credits 扣费档位绑定。
+        随手问浮窗跟随主对话档位，浮窗内不单独给选择。
+      enum: [quick, standard, deep]
+    UsageLedgerEntry:
+      type: object
+      description: >-
+        按用户记录模型数值成本。**只存数值，不存任何提示词或输出内容**；
+        与刻意去身份化的 AICallLog 分两套，不合并（绝不给 AICallLog 补身份字段）。
+      required: [id, featureTier, model, tokensIn, tokensOut, cost, createdAt]
+      properties:
+        id: { type: string }
+        featureTier:
+          $ref: '#/components/schemas/UsageFeatureTier'
+        reasoningTier:
+          allOf:
+            - $ref: '#/components/schemas/ReasoningTier'
+          nullable: true
+        model: { type: string }
+        tokensIn: { type: integer }
+        tokensOut: { type: integer }
+        cost: { type: number, description: 数值成本（内部计价，非对用户计费） }
+        createdAt:
+          type: string
+          format: date-time
+    UsageLedgerList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageLedgerEntry'
+        totalCost:
+          type: number
+          description: 区间内数值成本合计
+        totalTokensIn: { type: integer }
+        totalTokensOut: { type: integer }
+
+    # ---------- A 板块：邀请码（#50） ----------
+    InviteCode:
+      type: object
+      description: >-
+        pilot 期邀请码，一码一用、可追踪（#50）。
+        ⚠️ **pilot 期不提供用户产品侧的邀请码管理接口**——生成走后台脚本，运营工具不进用户产品
+        API（口径同 D42：引擎权重调参也移出用户产品）。注册时由 A 板块校验本表；
+        `usedBy` / `usedAt` 供溯源，不做面向用户的展示接口。
+      required: [code, createdAt]
+      properties:
+        code: { type: string }
+        note: { type: string, nullable: true, description: 备注（发给谁 / 批次） }
+        usedBy:
+          type: string
+          nullable: true
+          description: 使用者的稳定 user_id（未使用为 null）
+        usedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    # ---------- G 板块：违规处置（#43） ----------
+    ViolationAction:
+      type: string
+      description: 分级处置动作（1 次警告 → 3 次临时封禁 → 永久封禁），必须留痕
+      enum: [warn, temp_ban, perm_ban]
+    ViolationLog:
+      type: object
+      required: [id, level, action, reason, createdAt]
+      properties:
+        id: { type: string }
+        level:
+          type: integer
+          description: 累计违规等级（1 起）
+        action:
+          $ref: '#/components/schemas/ViolationAction'
+        reason: { type: string, description: 处置原因（命中类型，不含原文） }
+        createdAt: { type: string, format: date-time }
+
+    # ---------- G 板块：报错入口（#46） ----------
+    ErrorReport:
+      type: object
+      description: 用户报错。两处入口：设置常驻 + 每条模型输出旁的消息级按钮；必须带上下文。
+      required: [id, createdAt]
+      properties:
+        id: { type: string }
+        messageId:
+          type: string
+          nullable: true
+          description: 消息级报错时的消息 ID（设置常驻入口为 null）
+        intent:
+          type: string
+          nullable: true
+          description: 该条消息的意图判定结果（便于定位问题）
+        description:
+          type: string
+          description: 用户描述的问题（回读用，与 ErrorReportCreate.description 对应）
+        context:
+          type: object
+          nullable: true
+          description: 上下文快照（消息角色 / 结构化体等，**不含对话原文流水**）
+        createdAt: { type: string, format: date-time }
+    ErrorReportCreate:
+      type: object
+      required: [description]
+      properties:
+        messageId: { type: string, nullable: true }
+        intent: { type: string, nullable: true }
+        description:
+          type: string
+          maxLength: 2000
+          description: 用户描述的问题
+        context:
+          type: object
+          nullable: true
+
+    # ---------- G 板块：奖章（#49） ----------
+    MedalMilestone:
+      type: string
+      description: pilot 只做最小版里程碑；不做积分商城 / 排行榜（与「社区不做社交」冲突）
+      enum: [first_record, streak_7_days, first_summary, first_goal_achieved, first_topic_book]
+    Medal:
+      type: object
+      required: [medalId, milestone, awardedAt]
+      properties:
+        medalId: { type: string }
+        milestone:
+          $ref: '#/components/schemas/MedalMilestone'
+        awardedAt: { type: string, format: date-time }
+
+    # ---------- B 板块：画像（D50） ----------
+    UserProfileGroup:
+      type: string
+      description: >-
+        画像四组（按消费方划分，注入时按意图选组、不全量注入）：
+        learning=学习画像（建任务/内容建议/mastery 校准）、state=状态画像（状态建议/节奏）、
+        attribution=归因画像（决定建议语气）、interest=兴趣与经历（仅闲聊语气）。
+      enum: [learning, state, attribution, interest]
+    UserProfileEntry:
+      type: object
+      description: >-
+        画像条目。**可看 / 可改 / 可删，但不可手动新建**（D10/D50）——模型隐式提取写入。
+        它是「不做对话历史」（D45）的信任基础设施：用户看不到往日对话，必须能检查
+        模型到底记得自己什么。每条应可 trace 到提取来源。
+      required: [entryId, group, key, value, updatedAt]
+      properties:
+        entryId: { type: string }
+        group:
+          $ref: '#/components/schemas/UserProfileGroup'
+        key:
+          type: string
+          description: 条目键，如「薄弱知识点」「学习习惯」
+        value: { type: string, description: 提取后的结构化值（非原始流水） }
+        source:
+          type: string
+          nullable: true
+          description: 来源（explicit=用户显式填写 / inferred=模型推断 / self_report=自评叙事轨）
+        confidence:
+          type: number
+          nullable: true
+          description: 推断置信度（显式来源为 null）
+        sourceRef:
+          type: string
+          nullable: true
+          description: >-
+            提取来源引用（会话 id / 消息 id），供「这条画像是哪来的」审计追溯（§8 画像 trace）。
+            ⚠️ 对话原文有 TTL（30 天），到期后该引用可能已无法还原内容——**它只是线索，不是凭据**。
+        updatedAt: { type: string, format: date-time }
+    UserProfileEntryUpdate:
+      type: object
+      description: 用户修改画像条目（只能改值与分组，不能新建）
+      minProperties: 1
+      properties:
+        value: { type: string }
+        group:
+          $ref: '#/components/schemas/UserProfileGroup'
+    UserProfileList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfileEntry'
+
+    # ---------- B 板块：跨登录话题摘要（#34） ----------
+    TopicSummary:
+      type: object
+      description: >-
+        会话结束时生成的结构化摘要（2–3 条），**不存对话原文**。下次冷启动注入，
+        是首页问候语「预设骨架 + 动态填充」中动态内容的唯一数据源。
+      required: [summaryId, summary, createdAt]
+      properties:
+        summaryId: { type: string }
+        sessionId:
+          type: string
+          nullable: true
+          description: 产出该摘要的会话 id（会话老化后仍保留摘要，故可为空）
+        summary:
+          type: string
+          description: 单条摘要，如「上次聊到函数单调性」「卡在几何辅助线」
+        createdAt: { type: string, format: date-time }
+
+    # ---------- D 板块：讲解归档（D52 / #22） ----------
+    ExplanationMode:
+      type: string
+      description: >-
+        回顾取原文（original）、重新讲现生成（regenerated）——两者并存，不用一个顶掉另一个：
+        重生成保证不了一致性，而讲解的价值恰恰在「上次那个讲法、那个例子」。
+      enum: [original, regenerated]
+    Explanation:
+      type: object
+      description: 知识点讲解归档。isCurated=true 为预制入库的精品样例（pilot 做 3–5 个），长期保存，与动态生成严格区分。
+      required: [explanationId, mode, content, isCurated, createdAt]
+      properties:
+        explanationId: { type: string }
+        pointId:
+          type: string
+          nullable: true
+          description: 知识点 ID；库外知识为 null（只进画像归因，不进 mastery）
+        subject:
+          $ref: '#/components/schemas/Subject'
+        mode:
+          $ref: '#/components/schemas/ExplanationMode'
+        content: { type: string, description: 讲解正文（Markdown / 结构化分节） }
+        isCurated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    # ---------- B 板块：会话与对话原文短期留存（D2 / D36 / D45） ----------
+    ChatContextStackItem:
+      type: object
+      description: >-
+        上下文栈的一层（D36）。栈最多挂 3 个「聊到一半」的分支，LIFO 取用（栈顶 = 最近切走的事，
+        切回优先接续）。超限时最旧者按 `branchType` **沉降**（不丢，转对应持久层）：
+        task_draft → 持久化中间态（进首页 Go on 组）；knowledge_help → 知识页归档（可重新发起）；
+        chat → 纯闲聊直接丢弃。
+      required: [branchType, enteredAt]
+      properties:
+        branchType:
+          type: string
+          description: 分支类型，同时决定超限时的沉降去向
+          enum: [chat, task_draft, knowledge_help]
+        intent:
+          type: string
+          nullable: true
+          description: 进入该分支时的意图判定结果（闲聊 / 建任务 / 知识求助）
+        step:
+          type: string
+          nullable: true
+          description: 分支内进行到哪一步（如引导式搜题的步骤标识），用于「切回优先接续」
+        payload:
+          type: object
+          nullable: true
+          description: 该分支的挂起载荷（结构化；**不含对话原文流水**）
+        enteredAt:
+          type: string
+          format: date-time
+          description: 入栈时间（LIFO 与老化判定依据）
+    ChatSession:
+      type: object
+      description: >-
+        单对话模型的会话。全产品只有一条持续演进的对话——**无历史列表、无「新建对话」**。
+        会话 = 一个连续使用周期，跨刷新 / 跨设备持久（服务端持久化，前端仅是视图）；
+        无交互超阈值则栈内上下文老化清空（不采用每日零点重置）。
+      required: [sessionId, startedAt, lastActiveAt]
+      properties:
+        sessionId: { type: string }
+        startedAt: { type: string, format: date-time }
+        lastActiveAt:
+          type: string
+          format: date-time
+          description: >-
+            最近交互时间；据此判断会话是否老化。**老化阈值定为 7 天**（§3.8.1 建议 24h–7d、默认偏长）：
+            超过 7 天无交互即清空栈内上下文；沉降物不随会话老化，各走各的 TTL。
+        contextStack:
+          type: array
+          description: 上下文栈（D36）：深度=3、LIFO、会话级，栈项结构见 ChatContextStackItem
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ChatContextStackItem'
+    ChatRawMessage:
+      type: object
+      description: >-
+        对话原文短期留存（D45 / §3.8.3）。**产品上不给任何回看入口**（无列表 / 无搜索 / 无导出），
+        仅用于安全审计与异常排查——L3 危机响应需要事后可追溯，完全不存对未成年产品是反向风险。
+        不入画像，到期物理删除（TTL 清除 job）。与「埋点存结构化事件」口径不同，不可混同。
+      required: [id, role, content, createdAt, expiresAt]
+      properties:
+        id: { type: string }
+        sessionId: { type: string }
+        role:
+          type: string
+          enum: [user, assistant]
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        expiresAt:
+          type: string
+          format: date-time
+          description: >-
+            到期时间；TTL 清除 job 据此物理删除。**留存窗口定为 30 天**（§3.8.3 建议 7–30 天，取上限）：
+            L3 危机响应要求事后可追溯，对未成年产品而言「出了事查不到用户说了什么」是反向风险，
+            宁可多留几天。窗口值集中在配置里，不散落在各调用点。
+
+    # ========== M0 补漏 · M2+ 硬需求（第二张迁移，X0 定 schema） ==========
+    #
+    # 原 11 张表未覆盖下列需求，各板块开工前补齐（依据见各自 description）：
+    # timer_sessions / timer_segments（C·§3.6）、analytics_events（G·D39）、
+    # search_archives（D·§3.8.4）、card_impressions（E·D28）。
+
+    # ---------- C 板块：计时会话（§3.6 / D30 / D31 / #14） ----------
+    TimerMode:
+      type: string
+      description: 计时模式。countdown=倒计时（有目标时长）；countup=正计时（不限时）
+      enum: [countdown, countup]
+    TimerStatus:
+      type: string
+      description: >-
+        会话状态。running=进行中；finished=正常收尾（产生学习记录）；
+        abandoned=僵尸裁决后丢弃（**不产生学习记录**）。
+      enum: [running, finished, abandoned]
+    TimerSession:
+      type: object
+      description: >-
+        计时会话。**服务端持久化「进行中的会话」**（started_at + mode + target_minutes + 计划引用），
+        前端只是视图——回来按**真实经过时间**恢复，根治现状「靠路由 state 传参、刷新即丢上下文」。
+        只留「结束」一个出口、不做挂起（避免僵尸计时）。
+      required: [sessionId, mode, startedAt, status, createdAt]
+      properties:
+        sessionId: { type: string }
+        mode:
+          $ref: '#/components/schemas/TimerMode'
+        startedAt:
+          type: string
+          format: date-time
+          description: 两种模式都有；恢复计算的基准
+        targetMinutes:
+          type: integer
+          nullable: true
+          description: 仅 countdown 有；countup 为 null
+        planId: { type: string, nullable: true }
+        taskId: { type: string, nullable: true }
+        subject:
+          $ref: '#/components/schemas/Subject'
+        status:
+          $ref: '#/components/schemas/TimerStatus'
+        endedAt: { type: string, format: date-time, nullable: true }
+        effectiveSeconds:
+          type: integer
+          nullable: true
+          description: >-
+            **有效时长**（秒），≠ 墙上时长（D31）：倒计时 = min(经过, target)；正计时异常时
+            必须用户核实后才写入。不要把 endedAt − startedAt 直接当学习时长。
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最近心跳；僵尸判定与「异常会话」识别的依据
+        segments:
+          type: array
+          description: 分段（#14）：切换任务即新开一段，结束只走一次收尾
+          items:
+            $ref: '#/components/schemas/TimerSegment'
+        createdAt: { type: string, format: date-time }
+    TimerSegment:
+      type: object
+      description: 计时会话内的一段（#14 分段计时）。一个会话可挂多段，每段标注所属任务。
+      required: [segmentId, startedAt]
+      properties:
+        segmentId: { type: string }
+        taskId:
+          type: string
+          nullable: true
+          description: 本段属于哪个任务；切换任务即新开一段
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time, nullable: true }
+        seconds:
+          type: integer
+          nullable: true
+          description: 本段有效秒数（口径同 effectiveSeconds）
+    TimerRestore:
+      type: object
+      description: >-
+        恢复视图（D30 按 mode 分支计算）。`needsVerdict=true` 表示识别到**异常会话**，
+        前端必须弹**恢复裁决卡**（D31：「上次计时似乎没正常结束（已计 X 分钟）·
+        [保留按 X 记] [丢弃] [手动改时长]」），**不得自动记账**。
+      required: [sessionId, mode, needsVerdict]
+      properties:
+        sessionId: { type: string }
+        mode:
+          $ref: '#/components/schemas/TimerMode'
+        remainingSeconds:
+          type: integer
+          nullable: true
+          description: 仅 countdown：剩余 = target − 已过；≤0 视为已到点（软提醒，不自动结束）
+        elapsedSeconds:
+          type: integer
+          nullable: true
+          description: 仅 countup：累计 = now − startedAt
+        needsVerdict:
+          type: boolean
+          description: 是否需用户裁决（正计时超上限 / 倒计时到点后长时间未收尾）
+        suggestedMinutes:
+          type: integer
+          nullable: true
+          description: 裁决卡「保留按 X 记」的预填值（倒计时封顶 target；正计时按截断点）
+
+    # ---------- G 板块：埋点事件（D39 / §8） ----------
+    AnalyticsCategory:
+      type: string
+      description: >-
+        D39 的三块埋点：chat_interaction=Chat 交互（消息/卡片/意图纠正/上下文栈/引导式搜题交互）；
+        ai_quality=AI 质量反馈（读完率/采纳率/有用性/纠错）；profile_trace=画像 trace（提取与改删事件）。
+      enum: [chat_interaction, ai_quality, profile_trace]
+    AnalyticsEvent:
+      type: object
+      description: >-
+        结构化埋点事件。⚠️ **与对话原文的口径不可混同**（§3.8.3 / §8 反复强调）：
+        本表存的是**结构化事件**（意图判定结果、卡片事件、锚定结果、提取事件…），
+        **不含对话原文流水**——原文属 `chat_raw_messages` 的短期安全留存（产品不可见、到期物理删除）。
+        `payload` 入库前走 privacy_filter 脱敏。
+      required: [id, category, eventType, occurredAt]
+      properties:
+        id: { type: string }
+        category:
+          $ref: '#/components/schemas/AnalyticsCategory'
+        eventType:
+          type: string
+          description: >-
+            事件名，如 message_sent / card_shown / card_clicked / intent_corrected /
+            stack_pushed / stack_sunk / suggestion_rated / profile_extracted
+        sessionId: { type: string, nullable: true }
+        payload:
+          type: object
+          nullable: true
+          description: 结构化事件体（**不含对话原文流水**；脱敏后入库）
+        occurredAt:
+          type: string
+          format: date-time
+          description: 事件业务发生时间（与落库时间区分）
+        createdAt: { type: string, format: date-time }
+
+    # ---------- D 板块：搜题归档（§3.8.4 / D24 / D52） ----------
+    SearchMode:
+      type: string
+      description: >-
+        解题三态（D24）：direct=直给（一次给出完整解答）/ analytic=解析式（按步骤逐项说明）/
+        guided=引导式（多轮交互教学循环）。**记忆上次选择**，故必须落库。
+      enum: [direct, analytic, guided]
+    SearchArchive:
+      type: object
+      description: >-
+        搜题归档（§3.8.4）。不做对话历史后，用户会重复问同一题/同一知识点，
+        所以知识页归档扩为「**搜题 + 讲解**」两条链路分别留存——搜题（解一道题）与
+        讲解（讲透概念）语义不同，不合并。
+        题面原文属 knowledge_raw：**本地留存、永不出域**（embedding 走本地模型，PRD 12.6）。
+      required: [archiveId, rawText, createdAt]
+      properties:
+        archiveId: { type: string }
+        subject:
+          $ref: '#/components/schemas/Subject'
+        rawText:
+          type: string
+          description: 题面原文（knowledge_raw，永不出域）
+        solution:
+          type: string
+          nullable: true
+          description: 解答正文（Markdown）
+        mode:
+          $ref: '#/components/schemas/SearchMode'
+        pointIds:
+          type: array
+          description: 结尾统一输出的知识点卡片（D24：三态都输出知识点卡）
+          items:
+            type: string
+        createdAt: { type: string, format: date-time }
+
+    # ---------- E 板块：推荐卡展示记录（D21 / D28） ----------
+    CardGroup:
+      type: string
+      description: 首页推荐卡三组（D21）：go_on=继续 / recommend=推荐 / insight=洞察
+      enum: [go_on, recommend, insight]
+    CardAction:
+      type: string
+      description: shown=展示 / clicked=点击 / dismissed=划掉（划掉后 3 天不推）
+      enum: [shown, clicked, dismissed]
+    CardImpression:
+      type: object
+      description: >-
+        卡片展示 / 点击 / 划掉事件。**D28 的冷却与去重规则直接依赖本表**——
+        没有「已展示过什么」的记录，3 天 / 7 天 / 每周 1 的冷却就无从判断。
+        与 `recommendations`（AI 生成的建议）不是一回事，故单独记录。
+      required: [id, group, cardType, fingerprint, action, shownAt]
+      properties:
+        id: { type: string }
+        group:
+          $ref: '#/components/schemas/CardGroup'
+        cardType:
+          type: string
+          description: >-
+            卡面类型（D22 卡片协议）：continue_plan / state_advice / content_advice /
+            goal_planning / group_insight
+        fingerprint:
+          type: string
+          description: >-
+            去重指纹。Go on 用 planId/recordId；推荐用 type+pointId/subject；洞察用 维度+周期。
+            同指纹在冷却期内不重复出现。
+        action:
+          $ref: '#/components/schemas/CardAction'
+        shownAt:
+          type: string
+          format: date-time
+          description: 展示时间（冷却窗口的计算基准）
+        createdAt: { type: string, format: date-time }

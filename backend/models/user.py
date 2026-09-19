@@ -21,11 +21,28 @@ from database import Base
 
 
 class User(Base):
-    """当前用户资料（userId 由后端生成并写回）。"""
+    """当前用户资料（userId 由后端生成并写回）。
+
+    三层身份（D59）：
+      - `id`（内部主键，永不变）——所有业务表外键指向它，与登录凭证解耦；
+      - `email`（登录凭证，可改可换绑）——仅认证与展示，**不作为身份**；
+      - `handle`（对外标识，可选）——展示用，不暴露邮箱。
+
+    改造前 `id` 里实际填的是邮箱（改邮箱 = 换主键 = 全表外键更新），
+    pilot 删档期已按新 schema 重建，不做存量迁移。
+    """
 
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # 登录凭证邮箱：可空（测试/联调可用 X-User-ID 造无凭证用户），唯一索引防重复注册
+    email: Mapped[str | None] = mapped_column(
+        String(254), nullable=True, unique=True, index=True
+    )
+    # 对外标识：默认不生成（避免用真名/邮箱前缀，未成年保护），用户可自设
+    handle: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
     stage: Mapped[str] = mapped_column(String(16), nullable=False)  # junior / senior
     grade: Mapped[str] = mapped_column(String(32), nullable=False)  # 自由文本，如 "高二"
     subjects: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)

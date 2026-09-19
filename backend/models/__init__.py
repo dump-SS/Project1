@@ -24,8 +24,16 @@ from database import Base
 from auth.models import AuthCode, AuthSession, AuthUser
 
 from .assessment import AssessmentSnapshot
+from .analytics import AnalyticsEvent
+from .card import CardImpression
+from .chat import ChatRawMessage, ChatSession, TopicSummary, UserProfile
+from .collection import Collection, CollectionItem
 from .community import CommunityAggregate, CommunityAuditLog, CommunityFeature
+from .exam import Exam
+from .explanation import Explanation
 from .goal import Goal
+from .governance import ErrorReport, Medal, UsageLedger, ViolationLog
+from .invite import InviteCode
 from .knowledge import (
     EmbeddingRef,
     ErrorPoint,
@@ -40,7 +48,9 @@ from .learning_record import LearningRecord
 from .plan import Plan, PlanTask
 from .recommendation import Recommendation
 from .rate_limit import AuthRateLimit, RateLimitCounter
+from .search import SearchArchive
 from .summary import Summary
+from .timer import TimerSegment, TimerSession
 from .user import GuardianAuthorization, Settings, User
 from .weight import UserWeightConfig, WeightAdjustLog
 from .ai_call_log import AICallLog
@@ -88,4 +98,24 @@ __all__ = [
     "CommunityFeature",
     "CommunityAggregate",
     "CommunityAuditLog",
+    # 重构 M0 新增实体（DDL 见 alembic/versions 的 M0 迁移）
+    "Exam",
+    "Collection",
+    "CollectionItem",
+    "UsageLedger",
+    "InviteCode",
+    "ViolationLog",
+    "ErrorReport",
+    "Medal",
+    "UserProfile",
+    "TopicSummary",
+    "Explanation",
+    "ChatSession",
+    "ChatRawMessage",
+    # M0 补漏（第二张迁移 6e7b1d2c9a04）：M2+ 的硬需求，原 11 张表未覆盖
+    "TimerSession",
+    "TimerSegment",
+    "AnalyticsEvent",
+    "SearchArchive",
+    "CardImpression",
 ]

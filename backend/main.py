@@ -150,7 +150,7 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, community, daily_summary, error_book, goal, knowledge, knowledge_kb, learning_record, mastery, ocr, plan, recommendation, recommendation_content, summary, user, weight
+from routes import assessment, auth, community, daily_summary, error_book, goal, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, summary, user, weight
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -168,7 +168,8 @@ api_v1.include_router(knowledge.router)
 api_v1.include_router(knowledge_kb.router)
 api_v1.include_router(error_book.router)
 api_v1.include_router(mastery.router)
-api_v1.include_router(ocr.router)
+# OCR 路线已彻底放弃（#32）：原 routes/ocr.py 的 501 占位已删除，统一走多模态。
+# 契约里本就没有 /ocr 路径，删除后代码与契约一致。
 api_v1.include_router(community.router)
 api_v1.include_router(community.aggregate_router)
 

@@ -10,6 +10,9 @@ uvicorn_*.log
 # Data
 *.db
 *.db-journal
+# 迁移前的开发库备份（如 data.db.bak-m0-20260919）——体积大且是本地一次性产物
+*.db.bak*
+.tmp_*.db
 
 # Env
 .env

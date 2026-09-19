@@ -49,7 +49,7 @@ pilot 不收费，但需**按用户统计模型花费**为后续定价做准备�
 - **范围**：Chat 可随意上传（不只是搜题）。照片可入闲聊提供信息；guide 场景**发作业单直接生成计划**。
 - **约束**：限页数与大小；**仅会话内有效**；**文件不落库**。
 - **留案**：生成的「文档要点」可进收藏（走 `privacy_filter` 脱敏），用户可删。
-- ⚠️ 目前**全仓无 `UploadFile` 路由**（OCR 为 501 占位），需新建上传通道；R2 等此时再启用。
+- ⚠️ 目前**全仓无 `UploadFile` 路由**（原 OCR 501 占位已于 M0 删除），需新建上传通道；R2 等此时再启用。
 - **题面 / 解答提取必须可编辑**（§3.5）——多模态提取同样会错，这条不因放弃 OCR 而失效。
 
 ## 6. 端与适配（#6 / #10 / #12 / #11）
@@ -75,7 +75,7 @@ pilot 不收费，但需**按用户统计模型花费**为后续定价做准备�
 
 | 项 | 结论 |
 |---|---|
-| **OCR 路线**（#32）| **彻底放弃**，只保留多模态。待办：§3.5 删 OCR 表述；`backend/routes/ocr.py` 的 501 占位可删 |
+| **OCR 路线**（#32）| **彻底放弃**，只保留多模态。✅ **M0 已落地**：`backend/routes/ocr.py` 与 `main.py` 挂载已删；目标态 §3.5 文案已同步（契约本无 /ocr 路径，删后代码与契约一致）|
 | **chenglou/pretext**（#27）| 不引入。是文本测量排版库，我们用不到其核心价值 |
 | **feitangyuan/motion-web**（#27）| **不能用**。License 为 **CC BY-NC 4.0，禁止商业集成**——我们收费，直接侵权。只能参考其方法论（反 AI 塑料感、弹簧阻尼、自动验收判据）|
 | **FastAPI-Users**（#5）| 不引入，会重写认证层且不覆盖 14 岁以下 / 监护人授权分支。详见 [deployment-stack-evaluation.md](./deployment-stack-evaluation.md) |
@@ -85,7 +85,8 @@ pilot 不收费，但需**按用户统计模型花费**为后续定价做准备�
 
 - 协议与条款（缺）
 - 未成年付费（监护人 / 支付资质）—— 与支付渠道选型一并推迟到 pilot 后
-- 危机响应 prompt 基线（§4.6 P2）
+- ✅ **危机响应 prompt 基线（§4.6 P2）**—— 已由 X0 交付：`backend/prompts/crisis_response.txt`（三档基调 + L3 固定转介文案 + 触发范围），并**内联**进 `backend/prompts/chat_system.txt` 第 6 条硬约束（防实现侧漏注入导致合规事故）
+- ✅ **#24 中学解法约束 prompt 基线**—— 已由 X0 交付：`backend/prompts/chat_system.txt` 第 1 条硬约束（禁洛必达 / 微积分等超纲方法）；B 板块据此实现，并补「超纲触发」的用例
 - CORS 白名单 + Cookie `Secure`（[deployment-stack-evaluation.md](./deployment-stack-evaluation.md) §4）
 - **`current_user` 越权修复（P0）** —— 任务单见 [deployment-stack-evaluation.md](./deployment-stack-evaluation.md) 附 A
 

@@ -41,6 +41,10 @@ reasonix.toml
 # 调试与临时文件
 *.log
 *.txt
+# 例外：prompt 模板是产品资产，必须入库。
+# `*.txt` 原本用于忽略调试输出，但会连带忽略 backend/prompts/ 下新增的模板
+# （suggestion.txt 因早已被跟踪而不受影响，新文件却会被静默忽略——已踩过一次）。
+!backend/prompts/*.txt
 .neon
 
 # 内部分派文档(不上库，仅供团队内部发活用)
