@@ -7,7 +7,7 @@
 
 | 文档 | 角色 | 备注 |
 |---|---|---|
-| `openapi.yaml` | **唯一契约真相源**（v1.5.0 · 51 paths · 66 operations · 111 schemas） | 改动走 X0 评审 |
+| `openapi.yaml` | **唯一契约真相源**（v1.6.0 · 51 paths · 162 schemas · 表 47 张 / 单 head `b81d83bafb89`） | 改动走 X0 评审 |
 | `openapi-usage.md` | 契约使用说明 | 内含历史校验记录，以文首当前口径为准 |
 | `product-redesign-target.md` | **产品目标态** v0.29（D1–D59） | 不含 UI 视觉细节 |
 | `product-redesign-target.html` | 目标态汇报页 | Skyer 9/17 亲自重做的结构，**只增量编辑，禁止覆盖重建** |
