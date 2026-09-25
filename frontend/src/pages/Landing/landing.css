@@ -89,6 +89,16 @@
   50%, 95% { opacity: 0; }
 }
 
+/* TextType 光标（gsap → CSS，见 bits/TextType.tsx 头注） */
+.lp-caret {
+  margin-left: 0.08em;
+  animation: lp-caret-blink 1s steps(1) infinite;
+}
+.lp-caret--out {
+  animation: none;
+  opacity: 0;
+}
+
 /* 触达淡入（进入视口的通用过渡） */
 @keyframes lp-fade-up {
   from { opacity: 0; transform: translateY(24px); }
