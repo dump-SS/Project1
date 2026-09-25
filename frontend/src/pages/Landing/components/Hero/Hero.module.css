@@ -101,7 +101,9 @@
 }
 
 /* slogan：无衬线（正在说）；「你」蓝字 = 本屏动作蓝 */
+/* ⚠️ 显式 color：global.css 的 h1-h5 元素规则会把标题染成旧主题深靛蓝（深底不可见） */
 .slogan {
+  color: var(--lp-text);
   font-family: var(--lp-font-sans);
   font-weight: 500;
   font-size: clamp(30px, 4.6vw, 56px);

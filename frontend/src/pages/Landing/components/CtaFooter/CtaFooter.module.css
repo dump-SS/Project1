@@ -3,6 +3,7 @@
 /* ---------- 上部 CTA（暗区） ---------- */
 .cta {
   min-height: 72vh;
+  padding-bottom: 72px; /* 滑到底时输入框与页尾留出呼吸距离（两区互不挤压） */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,7 +96,7 @@
 .bgScrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(237, 246, 252, 0.42), rgba(223, 236, 248, 0.55));
+  background: linear-gradient(180deg, rgba(237, 246, 252, 0.55), rgba(216, 232, 246, 0.68));
 }
 
 .footerInner {
@@ -129,7 +130,7 @@
   font-family: var(--lp-font-serif);
   font-size: 14px;
   line-height: 1.8;
-  color: rgba(15, 21, 32, 0.72);
+  color: rgba(15, 21, 32, 0.85);
 }
 
 /* 链接组：占位 span（虚线样式，地址留空） */
@@ -142,7 +143,7 @@
 .linkPlaceholder {
   font-family: var(--lp-font-sans);
   font-size: 14px;
-  color: rgba(15, 21, 32, 0.78);
+  color: rgba(15, 21, 32, 0.9);
   border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
   padding-block: 4px;
   cursor: default;
@@ -177,7 +178,7 @@
   gap: 6px;
   font-family: var(--lp-font-sans);
   font-size: 13px;
-  color: rgba(15, 21, 32, 0.66);
+  color: rgba(15, 21, 32, 0.82);
 }
 
 .blank {

@@ -30,6 +30,7 @@
 }
 
 .title {
+  color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
   font-family: var(--lp-font-sans);
   font-weight: 500;
   font-size: clamp(26px, 3vw, 36px);
@@ -77,6 +78,7 @@
 }
 
 .cardName {
+  color: var(--lp-text); /* h3 同样中招 global.css 元素规则 */
   font-family: var(--lp-font-sans);
   font-weight: 500;
   font-size: 19px;

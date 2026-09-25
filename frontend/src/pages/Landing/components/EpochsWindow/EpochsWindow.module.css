@@ -99,6 +99,7 @@
 }
 
 .headline {
+  color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
   font-family: var(--lp-font-sans);
   font-weight: 500;
   font-size: clamp(24px, 3.2vw, 38px);
