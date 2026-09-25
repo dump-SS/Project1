@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
 
 export default defineConfig(({ mode }) => {
@@ -27,10 +28,25 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // 落地页重依赖（gsap / ogl，来自 React Bits 组件）单独成 chunk，
+          // 只被落地页动态 import 引用，保证不进主包（dev-spec §2.3）。
+          manualChunks(id: string) {
+            if (/[\\/]node_modules[\\/](gsap|ogl)[\\/]/.test(id)) return 'landing-gfx';
+            return undefined;
+          },
+        },
+      },
+    },
+    // Tailwind v4：仅为落地页引入（utilities 层，preflight 不进——页面级 landing.css 只
+    // @import "tailwindcss/utilities"，避免重置全站基础样式）。现有 CSS Modules 不动。
     // dev-only:GET /dev-login 一键登录本地演示账户(demo@epochx.local),
     // 写入 7 天 HttpOnly cookie 后 302 到目标页,跳过登录页。生产构建不生效。
     plugins: [
       react(),
+      tailwindcss(),
       {
         name: 'dev-login',
         configureServer(server) {
