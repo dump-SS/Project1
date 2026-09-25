@@ -92,3 +92,19 @@ export async function getPlanByDate(date: string): Promise<Plan | null> {
     return null;
   }
 }
+
+/**
+ * 按 planId 拉计划（openapi.yaml GET /plans/{planId}）。
+ *
+ * 为什么需要它：`/study-timer?planId=xxx` 用 query 承载上下文（刷新/直链都不丢），
+ * 而"按日期找计划"在跨日或计划被重新生成时会指错——有 planId 就应当按 id 精确取。
+ *
+ * @returns 计划对象；不存在或不属于当前用户时返回 null（不抛错，让调用方走兜底）。
+ */
+export async function getPlanById(planId: string): Promise<Plan | null> {
+  try {
+    return await apiGet<Plan>(`/plans/${encodeURIComponent(planId)}`);
+  } catch {
+    return null;
+  }
+}

@@ -1,52 +1,32 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import styles from './index.module.css'
 import { subjectLabels } from '@/styles/theme'
-import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
+import { getRecommendation, updateLearningRecord } from '@/services/learningRecord'
 import { putRecommendationFeedback } from '@/services/feedback'
-import { getPlanByDate, localDateString } from '@/services/plans'
+import { getPlanByDate, getPlanById, localDateString } from '@/services/plans'
+import {
+  computeDisplaySeconds,
+  discardTimerSession,
+  finishTimerSession,
+  getCurrentTimerSession,
+  heartbeatTimerSession,
+  isCountdownReached,
+  startTimerSession,
+} from '@/services/timer'
 
-const FOCUS_LABELS = { 1: '分心', 2: '一般', 3: '还好', 4: '专注', 5: '非常专注' }
-const FATIGUE_LABELS = { 1: '精神', 2: '轻微', 3: '一般', 4: '疲劳', 5: '非常疲劳' }
 const EMOTION_LABELS = { positive: '积极', neutral: '一般', negative: '消极' }
-const DIFFICULTY_LABELS = { easy: '简单', moderate: '适中', hard: '困难' }
 const COMPLETION_LABELS = { completed: '完成', partial: '部分完成', abandoned: '放弃' }
 const RATING_LABELS = { useful: '有用', neutral: '一般', not_useful: '没用' }
 
+/** 心跳间隔：僵尸判定阈值是 30 分钟无心跳，60s 上报有足够余量 */
+const HEARTBEAT_INTERVAL_MS = 60 * 1000
+
 function formatTime(totalSeconds) {
-  if (totalSeconds <= 0) return '00:00'
-  const m = Math.floor(totalSeconds / 60)
-  const s = totalSeconds % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-function DurationField({ label, value, min, max, onCommit }) {
-  const [draft, setDraft] = useState(String(value))
-
-  const commit = () => {
-    let n = parseInt(draft, 10)
-    if (Number.isNaN(n)) n = value
-    n = Math.min(max, Math.max(min, n))
-    setDraft(String(n))
-    onCommit(n)
-  }
-
-  return (
-    <label className={styles.durationField}>
-      <span className={styles.durationLabel}>{label}</span>
-      <input
-        className={styles.durationInput}
-        type="number"
-        min={min}
-        max={max}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-      />
-      <span className={styles.durationUnit}>分</span>
-    </label>
-  )
+  const s = Math.max(0, Math.floor(totalSeconds || 0))
+  const m = Math.floor(s / 60)
+  const rest = s % 60
+  return `${String(m).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
 function RatingButtons({ value, onChange, options, wide = false }) {
@@ -71,37 +51,52 @@ function RatingButtons({ value, onChange, options, wide = false }) {
   )
 }
 
-function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
-  const [completion, setCompletion] = useState('completed')
-  const [focus, setFocus] = useState(null)
-  const [fatigue, setFatigue] = useState(null)
-  const [emotion, setEmotion] = useState(null)
-  const [difficultyFeel, setDifficultyFeel] = useState(null)
-
-  const complete = focus !== null && fatigue !== null && emotion !== null && difficultyFeel !== null
-
-  const submit = () => {
-    if (!complete) return
-    onConfirm({ focus, fatigue, emotion, difficultyFeel, completion })
-  }
-
+/**
+ * 收尾**层 1**（D20）：结束瞬间的 0 步卡。
+ *
+ * 核心改造：**从「拦截式量表」变「非拦截式轻卡」——结束动作本身不拦。**
+ * 到这里记录已经落库了，用户可以直接走（[完成 ✓]），也可以花 10 秒补两句。
+ * 这正是 D15「记录是活实体、可事后回写」在 UI 上的样子。
+ */
+function SettleCard({ subjectLabel, minutes, onDone, onRefine }) {
   return (
     <>
       <div className={styles.popHeader}>
-        <span className={styles.popTitle}>任务完成</span>
-        <span className={styles.popText}>「{task}」已完成</span>
+        <span className={styles.popTitle}>本次已记录</span>
+        <span className={styles.popText}>
+          {subjectLabel} · {minutes} 分钟
+        </span>
       </div>
+      <div className={styles.settleMeta}>
+        已经帮你留下来了。想补两句就展开，不想就收起来——之后随时能补。
+      </div>
+      <div className={styles.popActions}>
+        <button type="button" className={styles.popOk} onClick={onDone}>完成 ✓</button>
+        <button type="button" className={styles.popRestart} onClick={onRefine}>再说两句</button>
+      </div>
+    </>
+  )
+}
 
-      {/* 今日计划完成计数（PRD 5.3：让用户感知"今天做完了几个"） */}
-      {planTaskStats && planTaskStats.total > 0 && (
-        <div className={styles.planStats}>
-          今日已完成
-          <strong className={styles.planStatsNum}>
-            {planTaskStats.completed} / {planTaskStats.total}
-          </strong>
-          个计划任务
-        </div>
-      )}
+/**
+ * 收尾**层 2**（D20）：轻收尾卡，约 10 秒。
+ *
+ * - **完成度**：唯一"半强制"的问句（三选一，直填）；
+ * - **一句感受**：叙事轨，可选。写进 note；
+ * - **情绪快捷词**：可选兜底（非 1–5 刻度）。
+ *
+ * ⚠️ **专注 / 疲劳 / 难度不在这里问**——目标态 §3.7(a) 定的是"由模型从一句感受转译"，
+ * 那是 B 板块的口语转译（D34）。转译接上之前这三个字段**留空**，
+ * 由服务端按"软字段缺失 → 跳过并按可用部分归一化"处理。**不造数**。
+ */
+function LightSettleCard({ completion, setCompletion, note, setNote, emotion, setEmotion,
+                           saving, error, onSave, onSkip }) {
+  return (
+    <>
+      <div className={styles.popHeader}>
+        <span className={styles.popTitle}>再补两句？</span>
+        <span className={styles.popText}>都可以跳过</span>
+      </div>
 
       <div className={styles.selfSection}>
         <span className={styles.selfLabel}>完成情况</span>
@@ -117,20 +112,14 @@ function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
       </div>
 
       <div className={styles.selfSection}>
-        <span className={styles.selfLabel}>专注度</span>
-        <RatingButtons
-          value={focus}
-          onChange={setFocus}
-          options={[1, 2, 3, 4, 5].map((n) => ({ value: n, num: n, label: FOCUS_LABELS[n] }))}
-        />
-      </div>
-
-      <div className={styles.selfSection}>
-        <span className={styles.selfLabel}>疲劳度</span>
-        <RatingButtons
-          value={fatigue}
-          onChange={setFatigue}
-          options={[1, 2, 3, 4, 5].map((n) => ({ value: n, num: n, label: FATIGUE_LABELS[n] }))}
+        <span className={styles.selfLabel}>一句感受</span>
+        <textarea
+          className={styles.noteInput}
+          value={note}
+          maxLength={100}
+          rows={2}
+          placeholder="卡在哪、哪句没看懂…（可不写）"
+          onChange={(e) => setNote(e.target.value)}
         />
       </div>
 
@@ -147,32 +136,66 @@ function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
         />
       </div>
 
-      <div className={styles.selfSection}>
-        <span className={styles.selfLabel}>难度感受</span>
-        <RatingButtons
-          value={difficultyFeel}
-          onChange={setDifficultyFeel}
-          wide
-          options={['easy', 'moderate', 'hard'].map((d) => ({
-            value: d,
-            label: DIFFICULTY_LABELS[d],
-          }))}
-        />
+      <div className={styles.hintLine}>
+        正确率和错题不急着现在填——之后在记录里随时能补。
       </div>
 
       {error && <div className={styles.popError}>{error}</div>}
 
       <div className={styles.popActions}>
-        <button
-          type="button"
-          className={styles.popOk}
-          disabled={!complete}
-          onClick={submit}
-        >
-          提交记录
+        <button type="button" className={styles.popOk} disabled={saving} onClick={onSave}>
+          {saving ? '保存中…' : '保存'}
         </button>
-        <button type="button" className={styles.popRestart} onClick={onSkip}>
-          跳过
+        <button type="button" className={styles.popRestart} onClick={onSkip}>跳过</button>
+      </div>
+    </>
+  )
+}
+
+/**
+ * 恢复裁决卡（D31）。**不自动记账**——僵尸会话最怕的就是系统替用户编一段时长。
+ * 三态：保留按 X 记 / 手动改时长 / 丢弃。
+ */
+function VerdictCard({ restore, subjectLabel, saving, error, onKeep, onManual, onDiscard }) {
+  const [manual, setManual] = useState(String(restore?.suggestedMinutes ?? 25))
+  return (
+    <>
+      <div className={styles.popHeader}>
+        <span className={styles.popTitle}>上次计时没正常结束</span>
+        <span className={styles.popText}>{subjectLabel}</span>
+      </div>
+      <div className={styles.settleMeta}>
+        这个会话中途断了（关页面或长时间没操作）。已计{' '}
+        <strong>{restore?.suggestedMinutes ?? '—'}</strong> 分钟。
+        系统不会替你记时长——你说记多少就记多少。
+      </div>
+
+      <div className={styles.verdictManual}>
+        <span className={styles.durationLabel}>改成</span>
+        <input
+          className={styles.durationInput}
+          type="number"
+          min={1}
+          max={600}
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+        />
+        <span className={styles.durationUnit}>分</span>
+      </div>
+
+      {error && <div className={styles.popError}>{error}</div>}
+
+      <div className={styles.verdictActions}>
+        <button type="button" className={styles.popOk} disabled={saving}
+                onClick={() => onKeep(restore?.suggestedMinutes ?? 1)}>
+          保留按 {restore?.suggestedMinutes ?? 1} 分钟记
+        </button>
+        <button type="button" className={styles.popRestart} disabled={saving}
+                onClick={() => onManual(Number(manual) || 1)}>
+          按我改的记
+        </button>
+        <button type="button" className={styles.popRestart} disabled={saving} onClick={onDiscard}>
+          丢弃（不记）
         </button>
       </div>
     </>
@@ -278,120 +301,80 @@ function RecommendationPanel({ recommendation, onOk, onRestart }) {
 }
 
 export default function StudyTimerPage() {
-  // 兜底文案：未读到当日计划时使用，避免空白任务显示
   const FALLBACK_TASK = '今日学习（待编辑）'
 
-  // 接 location.state：StudyPlanEditor / StudyGuide 点「进入」时透传。
-  // - availableMinutes：覆盖默认 25 分钟（计划设了 60，番茄钟就该是 60）
-  // - task：覆盖 fallback 任务（用户输入的主题或规则引擎推荐）
-  // - subject：与任务配套
-  // 直接访问 /study-timer 路由时 state 为空，保留原默认值 25 + FALLBACK_TASK
-  const location = useLocation()
-  const navState = location.state || {}
-  const initialMinutes = Number.isInteger(navState.availableMinutes) && navState.availableMinutes > 0
-    ? navState.availableMinutes
-    : 25
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
 
-  const [task, setTask] = useState(navState.task || FALLBACK_TASK)
-  const [taskSource, setTaskSource] = useState(navState.task ? 'plan' : 'fallback') // 'plan' | 'edited' | 'fallback'
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(navState.task || FALLBACK_TASK)
+  // ---------------------------------------------------------------------------
+  // 上下文来源：**URL query 自取，不再依赖 navigate(state)**
+  //
+  // 技术债「/study-timer 刷新丢上下文」的根因就是靠 location.state 传参——
+  // 刷新/直链进来 state 为空，任务、时长、planId 全丢。
+  // 现在 query 承载上下文（可刷新、可分享、可直链），会话本身则由服务端持久化。
+  // ---------------------------------------------------------------------------
+  const queryPlanId = searchParams.get('planId')
+  const queryTaskId = searchParams.get('taskId')
+  const queryMinutes = Number(searchParams.get('minutes')) || null
+  const querySubject = searchParams.get('subject')
 
-  // 学科默认值：state 透传 > 任务字符串解析（如「数学 · 函数与导数 · 巩固」前缀）
-  // 解析不到时维持 math
-  const initialSubject = (() => {
-    if (typeof navState.subject === 'string' && navState.subject) return navState.subject
-    const t = navState.task
-    if (typeof t === 'string') {
-      const hit = Object.entries(subjectLabels).find(([, label]) => t.startsWith(`${label} ·`))
-      if (hit) return hit[0]
-    }
-    return 'SX'
-  })()
-  const [subject, setSubject] = useState(initialSubject)
+  const [booting, setBooting] = useState(true)
+  const [session, setSession] = useState(null)
+  const [restore, setRestore] = useState(null)
 
-  const [mode, setMode] = useState('focus')
-  // 关键：focusMinutes 默认值改为 state 透传的可用分钟（PRD 5.1：计划与执行端一致）
-  const [focusMinutes, setFocusMinutes] = useState(initialMinutes)
-  const [breakMinutes, setBreakMinutes] = useState(5)
-  const [remaining, setRemaining] = useState(initialMinutes * 60)
-  const [isRunning, setIsRunning] = useState(false)
-  const [showDone, setShowDone] = useState(false)
-  const [sessionStart, setSessionStart] = useState(null)
+  // 开始面板的参数（无进行中会话时用）
+  const [task, setTask] = useState(FALLBACK_TASK)
+  const [taskId, setTaskId] = useState(queryTaskId || null)
+  const [planId, setPlanId] = useState(queryPlanId || null)
+  const [subject, setSubject] = useState(querySubject || 'SX')
+  const [mode, setMode] = useState('countdown')
+  const [targetMinutes, setTargetMinutes] = useState(queryMinutes || 25)
+  const [startError, setStartError] = useState(null)
 
-  // 标记：state 透传时跳过 useEffect 拉 plan（任务已确定，避免 100% 重复拉取）
-  const skipPlanFetch = Boolean(navState.task && navState.availableMinutes)
+  // 本地暂停（服务端没有挂起语义：只留「结束」一个出口）
+  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef({ pausedAt: null, accumulatedMs: 0 })
 
-  const [popupPhase, setPopupPhase] = useState('selfAssessment')
-  const [recId, setRecId] = useState(null)
-  const [recommendation, setRecommendation] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [stage, setStage] = useState('idle') // idle | settle | light | polling | summary | verdict
+  const [record, setRecord] = useState(null)
+  const [completion, setCompletion] = useState('completed')
+  const [note, setNote] = useState('')
+  const [emotion, setEmotion] = useState(null)
+  const [busy, setBusy] = useState(false)
   const [popupError, setPopupError] = useState(null)
-
-  // 今日计划完成计数（PRD 5.3：完成弹窗里展示「今日已完成 N / M」）
-  // mount 拉一次，自评提交成功后拉一次
+  const [recId, setRecId] = useState(null)
+  const [recReady, setRecReady] = useState(false)
+  const [recommendation, setRecommendation] = useState(null)
   const [planTaskStats, setPlanTaskStats] = useState({ completed: 0, total: 0 })
 
-  // 当前正在执行的计划任务 ID（用于提交学习记录时关联计划任务，驱动状态更新和 AI 上下文）
-  const [planTaskId, setPlanTaskId] = useState(null)
-  const [planId, setPlanId] = useState(navState.planId || null)
+  // `now` 每秒更新，暂停时长自动跟着重算（暂停中也在涨）
+  const pausedSeconds = useMemo(() => {
+    const { pausedAt, accumulatedMs } = pausedRef.current
+    const extra = pausedAt ? Date.now() - pausedAt : 0
+    return (accumulatedMs + extra) / 1000
+  }, [now])
 
-  const timerRef = useRef(null)
+  const display = useMemo(() => {
+    if (!session) return { remaining: null, elapsed: 0 }
+    return computeDisplaySeconds(session, now, pausedSeconds)
+  }, [session, now, pausedSeconds])
 
-  const totalSeconds = (mode === 'focus' ? focusMinutes : breakMinutes) * 60
+  const reachedTarget = session ? isCountdownReached(session, display.elapsed) : false
+  const subjectLabel = subjectLabels[session?.subject || subject] ?? (session?.subject || subject)
 
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-    setIsRunning(false)
+  // ---------------------------------------------------------------------------
+  // 每秒 tick：只驱动显示，不递减任何本地状态
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
   }, [])
 
-  const startTimer = useCallback(() => {
-    if (totalSeconds <= 0) return
-    if (timerRef.current) return
-    setIsRunning(true)
-    timerRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current)
-          timerRef.current = null
-          setIsRunning(false)
-          if (mode === 'focus') {
-            setShowDone(true)
-            setPopupPhase('selfAssessment')
-            setRecId(null)
-            setRecommendation(null)
-            setPopupError(null)
-          }
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }, [mode, totalSeconds])
-
-  useEffect(() => {
-    stopTimer()
-    setRemaining(totalSeconds)
-  }, [mode, totalSeconds, stopTimer])
-
-  // 挂载时拉取今日 plan 的所有 tasks 算完成计数（弹窗展示用）
-  // 不依赖 skipPlanFetch（state 透传时也要统计展示）
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const plan = await getPlanByDate(localDateString())
-      if (cancelled) return
-      const tasks = plan?.tasks || []
-      const completed = tasks.filter((t) => t.status === 'completed').length
-      setPlanTaskStats({ completed, total: tasks.length })
-    })()
-    return () => { cancelled = true }
-  }, [])
-
-  // 提交自评后刷新计数（PRD 5.3：完成弹窗展示「今日已完成 N/M」实时数）
-  const refreshPlanStats = useCallback(async () => {
+  // ---------------------------------------------------------------------------
+  // 进入页面：先问服务端"现在有没有进行中的会话"
+  // ---------------------------------------------------------------------------
+  const refreshStats = useCallback(async () => {
     const plan = await getPlanByDate(localDateString())
     const tasks = plan?.tasks || []
     setPlanTaskStats({
@@ -400,47 +383,89 @@ export default function StudyTimerPage() {
     })
   }, [])
 
-  // 挂载时拉取当日计划的第一条任务作为默认学习任务。
-  // - 命中 → 用「学科 · 方向」做默认文案，并把学科选项切到对应 subject
-  // - 未命中或网络异常 → 保留 FALLBACK_TASK，不阻塞计时主流程
-  // - 透传 state 时跳过：任务/学科已从 location.state 取到
-  useEffect(() => {
-    if (skipPlanFetch) return
-    let cancelled = false
-    ;(async () => {
-      const plan = await getPlanByDate(localDateString())
-      if (cancelled) return
-      const first = plan?.tasks?.[0]
-      if (!first) return
-      const subjectLabel = subjectLabels[first.subject] ?? first.subject
-      const next = `${subjectLabel} · ${first.topic}`
-      setTask(next)
-      setDraft(next)
-      setTaskSource('plan')
-      if (first.subject) setSubject(first.subject)
-      setPlanTaskId(first.taskId)
-      setPlanId(plan.planId)
-    })()
-    return () => {
-      cancelled = true
+  const loadCurrent = useCallback(async () => {
+    try {
+      const current = await getCurrentTimerSession()
+      if (current?.active && current.session) {
+        setSession(current.session)
+        setRestore(current.restore || null)
+        if (current.restore?.needsVerdict) setStage('verdict')
+        else setStage('idle')
+      } else {
+        setSession(null)
+        setRestore(null)
+        setStage('idle')
+      }
+    } catch {
+      // 拉不到就按"没有会话"处理：不阻塞用户手动开始
+      setSession(null)
+      setRestore(null)
+    } finally {
+      setBooting(false)
     }
-  }, [skipPlanFetch])
+  }, [])
 
-  // 从 StudyPlanEditor/StudyGuide 透传进入时，已有 planId 但没有 taskId，
-  // 需查计划获取首条任务的 taskId（用于提交学习记录时关联计划任务）
   useEffect(() => {
-    if (!skipPlanFetch || !navState.planId) return
+    loadCurrent()
+    refreshStats().catch(() => {})
+  }, [loadCurrent, refreshStats])
+
+  // 补齐任务文案：**只解析一次**。
+  //
+  // 为什么在"有会话"时也要跑：刷新回来时 session 是从服务端恢复的，而任务文案是本页
+  // 从计划里查出来的展示信息——不查就只能显示兜底文案，用户看不出自己在学什么。
+  // 优先用会话自带的 planId/taskId（服务端记录的那次），没有才用 query。
+  const contextResolvedRef = useRef(false)
+  useEffect(() => {
+    if (booting || contextResolvedRef.current) return
+    const pid = session?.planId || queryPlanId
+    const tid = session?.taskId || queryTaskId
+    if (!pid && !tid) {
+      contextResolvedRef.current = true
+      return
+    }
     let cancelled = false
     ;(async () => {
-      const plan = await getPlanByDate(localDateString())
-      if (cancelled) return
-      setPlanId(plan.planId)
-      const first = plan?.tasks?.[0]
-      if (first) setPlanTaskId(first.taskId)
+      try {
+        const plan = pid ? await getPlanById(pid) : await getPlanByDate(localDateString())
+        if (cancelled || !plan) return
+        const target = tid
+          ? (plan.tasks || []).find((t) => t.taskId === tid)
+          : (plan.tasks || [])[0]
+        if (target) {
+          const label = subjectLabels[target.subject] ?? target.subject
+          setTask(`${label} · ${target.topic}`)
+        }
+        // 开始面板的默认值只在"还没有会话"时设——别覆盖正在进行的会话参数
+        if (!session) {
+          setPlanId(plan.planId)
+          if (target) {
+            setTaskId(target.taskId)
+            if (!querySubject && target.subject) setSubject(target.subject)
+            if (!queryMinutes && target.estimatedMinutes) setTargetMinutes(target.estimatedMinutes)
+          }
+        }
+      } catch {
+        // 拉计划失败不阻塞：任务文案退回兜底，用户仍可开始计时
+      } finally {
+        contextResolvedRef.current = true
+      }
     })()
     return () => { cancelled = true }
-  }, [skipPlanFetch, navState.planId])
+  }, [booting, session, queryPlanId, queryTaskId, queryMinutes, querySubject])
 
+  // ---------------------------------------------------------------------------
+  // 心跳：僵尸判定的唯一依据。不刷新心跳的后果不是报错，而是下次回来被判异常会话。
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!session || session.status !== 'running' || paused) return
+    const id = setInterval(() => {
+      heartbeatTimerSession(session.sessionId).catch(() => {})
+    }, HEARTBEAT_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [session, paused])
+
+  // 建议轮询
   useEffect(() => {
     if (!recId) return
     let cancelled = false
@@ -450,96 +475,233 @@ export default function StudyTimerPage() {
       try {
         const result = await getRecommendation(recId)
         if (cancelled) return
-        const status = result.generation?.status
-        if (status === 'pending') return
+        if (result.generation?.status === 'pending') return
         if (timer) clearInterval(timer)
         setRecommendation(result)
-        setPopupPhase('recommendation')
+        setRecReady(true)
+        // ⚠️ 只有不在收尾卡阶段时才自动前进：否则建议生成得够快时，
+        // 「本次已记录」那张卡会被小结面板直接顶掉，用户根本没机会看一眼。
+        setStage((prev) => (prev === 'settle' || prev === 'light' ? prev : 'summary'))
       } catch {
         if (cancelled) return
         if (timer) clearInterval(timer)
         setRecommendation(null)
         setPopupError('获取建议失败，请稍后再试')
-        setPopupPhase('recommendation')
+        setRecReady(true)
+        setStage((prev) => (prev === 'settle' || prev === 'light' ? prev : 'summary'))
       }
     }
 
     poll()
     timer = setInterval(poll, 2000)
-
     return () => {
       cancelled = true
       if (timer) clearInterval(timer)
     }
   }, [recId])
 
-  const resetPopup = () => {
-    setShowDone(false)
-    setPopupPhase('selfAssessment')
+  // ---------------------------------------------------------------------------
+  // 开始 / 暂停 / 结束
+  // ---------------------------------------------------------------------------
+  const handleStart = async () => {
+    setStartError(null)
+    setBusy(true)
+    try {
+      const created = await startTimerSession({
+        mode,
+        ...(mode === 'countdown' ? { targetMinutes } : {}),
+        ...(planId ? { planId } : {}),
+        ...(taskId ? { taskId } : {}),
+        subject,
+      })
+      pausedRef.current = { pausedAt: null, accumulatedMs: 0 }
+      setPaused(false)
+      setSession(created)
+      setRestore(null)
+      setNow(Date.now())
+      setStage('idle')
+    } catch (err) {
+      if (err?.status === 409) {
+        // 已有进行中的会话：重新拉一次，让用户看到它并做处置（不静默接管）
+        setStartError('已有一个进行中的计时，先处理它再开始新的')
+        await loadCurrent()
+      } else {
+        setStartError('开始计时失败，请稍后再试')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handlePauseToggle = () => {
+    if (paused) {
+      // 恢复：把这段暂停累计进去
+      const { pausedAt, accumulatedMs } = pausedRef.current
+      pausedRef.current = {
+        pausedAt: null,
+        accumulatedMs: accumulatedMs + (pausedAt ? Date.now() - pausedAt : 0),
+      }
+      setPaused(false)
+      heartbeatTimerSession(session.sessionId).catch(() => {})
+    } else {
+      pausedRef.current = { ...pausedRef.current, pausedAt: Date.now() }
+      setPaused(true)
+    }
+    setNow(Date.now())
+  }
+
+  /**
+   * 结束 → 收尾层 1。
+   *
+   * 时长口径：
+   * - **有过暂停** → 显式传 durationMinutes（服务端不知道前端暂停了多久），
+   *   倒计时还要按 target 封顶；
+   * - **没暂停** → 不传，让服务端按 mode 算（封顶逻辑在服务端更可靠）。
+   */
+  const handleFinish = async () => {
+    if (!session) return
+    setBusy(true)
+    setPopupError(null)
+    const hadPause = pausedRef.current.accumulatedMs > 0 || pausedRef.current.pausedAt
+    let durationMinutes
+    if (hadPause) {
+      const elapsed = display.elapsed
+      const capped = session.mode === 'countdown'
+        ? Math.min(elapsed, (session.targetMinutes ?? 0) * 60)
+        : elapsed
+      durationMinutes = Math.max(1, Math.round(capped / 60))
+    }
+    try {
+      const created = await finishTimerSession(session.sessionId, {
+        completion: 'completed',
+        ...(durationMinutes ? { durationMinutes } : {}),
+      })
+      setRecord(created)
+      setCompletion('completed')
+      setNote('')
+      setEmotion(null)
+      setSession(null)
+      setRestore(null)
+      pausedRef.current = { pausedAt: null, accumulatedMs: 0 }
+      setPaused(false)
+      setStage('settle')
+      refreshStats().catch(() => {})
+      if (created.recommendation?.recommendationId) {
+        setRecReady(false)
+        setRecId(created.recommendation.recommendationId)
+      }
+    } catch (err) {
+      // 异常会话必须由用户裁决，不能自动记账（D31）
+      if (err?.status === 400 && err?.field === 'durationMinutes') {
+        await loadCurrent()
+        setStage('verdict')
+      } else {
+        setPopupError('结束失败，请稍后再试')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** 收尾卡之后去哪：建议好了直接看小结；没好去轮询；压根没建议就直接小结 */
+  const advanceAfterSettle = useCallback(() => {
+    if (!recId) {
+      setStage('summary')
+      return
+    }
+    setStage(recReady ? 'summary' : 'polling')
+  }, [recId, recReady])
+
+  /** 收尾层 2 保存：**回写**那条已经落库的记录（D15） */
+  const handleSaveLight = async () => {
+    if (!record) return
+    setBusy(true)
+    setPopupError(null)
+    try {
+      await updateLearningRecord(record.recordId, {
+        completion,
+        ...(note.trim() ? { note: note.trim() } : {}),
+        ...(emotion ? { selfReport: { emotion } } : {}),
+      })
+      advanceAfterSettle()
+    } catch {
+      setPopupError('保存失败，请稍后再试')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const closePopup = () => {
+    setStage('idle')
+    setRecord(null)
     setRecId(null)
+    setRecReady(false)
     setRecommendation(null)
     setPopupError(null)
   }
 
-  const handleConfirmSelfReport = async (payload) => {
-    const { completion, ...selfReport } = payload
-    setPopupPhase('submitting')
+  const handleSettleDone = () => {
+    // 用户直接走人：建议还在生成就让它后台跑，不拦着
+    advanceAfterSettle()
+  }
+
+  // ---------------------------------------------------------------------------
+  // 裁决卡三态（D31）
+  // ---------------------------------------------------------------------------
+  const handleVerdictFinish = async (minutes) => {
+    setBusy(true)
     setPopupError(null)
     try {
-      // 用「实际跑过的秒数」向上取整到分钟，不复用预设的 focusMinutes；
-      // 否则用户跑 1:29 也会被记成"预设 25 分钟"，与实际偏差高达 20+ 分钟。
-      const actualSeconds = Math.max(0, totalSeconds - remaining)
-      const actualMinutes = Math.max(1, Math.ceil(actualSeconds / 60))
-      const result = await createLearningRecord({
-        subject,
-        startedAt: sessionStart || new Date(Date.now() - actualSeconds * 1000).toISOString(),
-        durationMinutes: actualMinutes,
-        behavior: { completion },
-        selfReport,
-        planTaskId,
+      const created = await finishTimerSession(session.sessionId, {
+        completion: 'completed',
+        durationMinutes: minutes,
       })
-
-      // 刷新今日计划完成计数（PRD 5.3：弹窗里展示「今日已完成 N/M」）
-      // 在设置 recId 之前先调，让弹窗切到 recommendation 前数据已就绪
-      refreshPlanStats().catch(() => {}); // 失败不影响主流程
-
-      if (result.recommendation?.recommendationId) {
-        setRecId(result.recommendation.recommendationId)
-        setPopupPhase('polling')
-      } else {
-        setRecommendation(null)
-        setPopupPhase('recommendation')
+      setRecord(created)
+      setSession(null)
+      setRestore(null)
+      setStage('settle')
+      refreshStats().catch(() => {})
+      if (created.recommendation?.recommendationId) {
+        setRecReady(false)
+        setRecId(created.recommendation.recommendationId)
       }
     } catch {
-      setPopupError('提交失败，请稍后再试')
-      setPopupPhase('selfAssessment')
+      setPopupError('处理失败，请稍后再试')
+    } finally {
+      setBusy(false)
     }
   }
 
-  const handleRestart = () => {
-    resetPopup()
-    setMode('focus')
-    setRemaining(focusMinutes * 60)
-  }
-
-  const handleDone = () => {
-    resetPopup()
-    setRemaining(totalSeconds)
-  }
-
-  const handleSaveTask = () => {
-    const next = draft.trim()
-    if (next) {
-      setTask(next)
-      setTaskSource('edited')
+  const handleVerdictDiscard = async () => {
+    setBusy(true)
+    setPopupError(null)
+    try {
+      await discardTimerSession(session.sessionId)
+      setSession(null)
+      setRestore(null)
+      setStage('idle')
+    } catch {
+      setPopupError('丢弃失败，请稍后再试')
+    } finally {
+      setBusy(false)
     }
-    setDraft(next || task)
-    setEditing(false)
   }
 
-  const handleCancelTask = () => {
-    setDraft(task)
-    setEditing(false)
+  // ---------------------------------------------------------------------------
+  // 渲染
+  // ---------------------------------------------------------------------------
+  const showPopup = ['settle', 'light', 'polling', 'summary', 'verdict'].includes(stage)
+
+  if (booting) {
+    return (
+      <div className={styles.app}>
+        <div className={styles.bgSky} aria-hidden="true" />
+        <main className={styles.centerStage}>
+          <h1 className={styles.epochx}>EpochX</h1>
+          <div className={styles.recHint}>正在读取计时状态…</div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -550,36 +712,18 @@ export default function StudyTimerPage() {
         <img className={styles.brandLogo} src="/brand/logo-full-on-light.png" alt="logo" />
 
         <div className={styles.taskInline}>
-          {editing ? (
-            <div className={styles.taskEdit}>
-              <input
-                className={styles.taskInput}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={40}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveTask()
-                  if (e.key === 'Escape') handleCancelTask()
-                }}
-              />
-              <button className={styles.iconBtn} onClick={handleSaveTask}>保存</button>
-              <button className={`${styles.iconBtn} ${styles.ghost}`} onClick={handleCancelTask}>取消</button>
-            </div>
-          ) : (
-            <div className={styles.taskView}>
-              <span className={styles.taskLabel}>任务</span>
-              <span className={styles.taskTitle}>{task}</span>
-              <button className={`${styles.iconBtn} ${styles.ghost}`} onClick={() => setEditing(true)}>编辑</button>
-            </div>
-          )}
+          <div className={styles.taskView}>
+            <span className={styles.taskLabel}>任务</span>
+            <span className={styles.taskTitle}>{session ? (task || FALLBACK_TASK) : task}</span>
+          </div>
         </div>
 
         <label className={styles.subjectField}>
           <span className={styles.subjectLabel}>学科</span>
           <select
             className={styles.subjectSelect}
-            value={subject}
+            value={session?.subject || subject}
+            disabled={Boolean(session)}
             onChange={(e) => setSubject(e.target.value)}
           >
             {Object.entries(subjectLabels).map(([key, label]) => (
@@ -590,83 +734,117 @@ export default function StudyTimerPage() {
 
         <div className={styles.modeTabs}>
           <button
-            className={`${styles.modeTab} ${mode === 'focus' ? styles.active : ''}`}
-            onClick={() => setMode('focus')}
+            className={`${styles.modeTab} ${(session?.mode || mode) === 'countdown' ? styles.active : ''}`}
+            disabled={Boolean(session)}
+            onClick={() => setMode('countdown')}
           >
-            专注
+            倒计时
           </button>
           <button
-            className={`${styles.modeTab} ${mode === 'break' ? styles.active : ''}`}
-            onClick={() => setMode('break')}
+            className={`${styles.modeTab} ${(session?.mode || mode) === 'countup' ? styles.active : ''}`}
+            disabled={Boolean(session)}
+            onClick={() => setMode('countup')}
           >
-            休息
+            正计时
           </button>
         </div>
 
-        <DurationField label="专注" value={focusMinutes} min={0} max={180} onCommit={setFocusMinutes} />
-        <DurationField label="休息" value={breakMinutes} min={0} max={60} onCommit={setBreakMinutes} />
+        {!session && mode === 'countdown' && (
+          <label className={styles.durationField}>
+            <span className={styles.durationLabel}>目标</span>
+            <input
+              className={styles.durationInput}
+              type="number"
+              min={1}
+              max={600}
+              value={targetMinutes}
+              onChange={(e) => setTargetMinutes(Math.max(1, Math.min(600, Number(e.target.value) || 1)))}
+            />
+            <span className={styles.durationUnit}>分</span>
+          </label>
+        )}
 
-        <span className={styles.timeBig}>{formatTime(remaining)}</span>
+        <span className={styles.timeBig}>
+          {session
+            ? formatTime(display.remaining !== null ? display.remaining : display.elapsed)
+            : formatTime((mode === 'countdown' ? targetMinutes : 0) * 60)}
+        </span>
+        {paused && <span className={styles.pausedTag}>已暂停</span>}
 
         <div className={styles.controls}>
-          {!isRunning ? (
-            <button
-              className={`${styles.btn} ${styles.primary}`}
-              disabled={totalSeconds <= 0 && remaining <= 0}
-              onClick={() => {
-                if (remaining === 0) {
-                  setRemaining(totalSeconds)
-                } else {
-                  if (remaining === totalSeconds) setSessionStart(new Date().toISOString())
-                  startTimer()
-                }
-              }}
-            >
-              {remaining === 0 ? '重新开始' : remaining === totalSeconds ? '开始' : '继续'}
+          {!session ? (
+            <button className={`${styles.btn} ${styles.primary}`} disabled={busy} onClick={handleStart}>
+              开始
             </button>
           ) : (
-            <button className={`${styles.btn} ${styles.ghost}`} onClick={stopTimer}>
-              暂停
-            </button>
+            <>
+              <button className={`${styles.btn} ${styles.ghost}`} onClick={handlePauseToggle}>
+                {paused ? '继续' : '暂停'}
+              </button>
+              <button className={`${styles.btn} ${styles.primary}`} disabled={busy} onClick={handleFinish}>
+                结束
+              </button>
+            </>
           )}
-          <button
-            className={`${styles.btn} ${styles.ghost}`}
-            onClick={() => {
-              stopTimer()
-              setRemaining(totalSeconds)
-            }}
-          >
-            重置
-          </button>
         </div>
       </header>
 
       <main className={styles.centerStage}>
         <h1 className={styles.epochx}>EpochX</h1>
+        {!session && (
+          <div className={styles.idleHint}>
+            {mode === 'countdown'
+              ? `目标 ${targetMinutes} 分钟 · 到点只是提醒，不会自动结束`
+              : '正计时不限时，随时可以结束'}
+          </div>
+        )}
+        {session && reachedTarget && !paused && (
+          <div className={styles.idleHint}>到点了 · 可以结束，也可以继续（继续的部分照常计入）</div>
+        )}
+        {startError && <div className={styles.popError}>{startError}</div>}
       </main>
 
-      {showDone && (
+      {showPopup && (
         <div className={styles.completionPop}>
-          {popupPhase === 'selfAssessment' && (
-            <SelfAssessment
-              task={task}
+          {stage === 'verdict' && (
+            <VerdictCard
+              restore={restore}
+              subjectLabel={subjectLabel}
+              saving={busy}
               error={popupError}
-              planTaskStats={planTaskStats}
-              onConfirm={handleConfirmSelfReport}
-              onSkip={handleDone}
+              onKeep={handleVerdictFinish}
+              onManual={handleVerdictFinish}
+              onDiscard={handleVerdictDiscard}
             />
           )}
-          {popupPhase === 'submitting' && (
-            <div className={styles.popLoading}>正在提交记录…</div>
+          {stage === 'settle' && record && (
+            <SettleCard
+              subjectLabel={subjectLabels[record.subject] ?? record.subject}
+              minutes={record.durationMinutes}
+              onDone={handleSettleDone}
+              onRefine={() => setStage('light')}
+            />
           )}
-          {popupPhase === 'polling' && (
-            <div className={styles.popLoading}>正在生成学习建议…</div>
+          {stage === 'light' && (
+            <LightSettleCard
+              completion={completion}
+              setCompletion={setCompletion}
+              note={note}
+              setNote={setNote}
+              emotion={emotion}
+              setEmotion={setEmotion}
+              saving={busy}
+              error={popupError}
+              onSave={handleSaveLight}
+              onSkip={advanceAfterSettle}
+            />
           )}
-          {popupPhase === 'recommendation' && (
+          {stage === 'polling' && <div className={styles.popLoading}>正在生成学习建议…</div>}
+          {stage === 'summary' && (
             <RecommendationPanel
               recommendation={recommendation}
-              onOk={handleDone}
-              onRestart={handleRestart}
+              onOk={closePopup}
+              onRestart={() => { closePopup(); navigate('/study-timer', { replace: true }) }}
             />
           )}
         </div>
