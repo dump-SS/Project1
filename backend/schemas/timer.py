@@ -117,7 +117,8 @@ class TimerCurrent(BaseModel):
 class TimerFinish(BaseModel):
     """计时收尾（D20 三层形态：结束瞬间 0 步 → 轻收尾卡 → 正确率延后补）。
 
-    必填只有 `completion`（唯一"半强制"问句）与 `selfReport`；
+    必填只有 `completion`（唯一"半强制"问句）；`selfReport` **可整段省略**、
+    其中专注/疲劳/情绪/难度**任一可缺**（软字段转译不出就留空，D34 不造数）。
     `durationMinutes` 显式传入时**覆盖服务端按 mode 算出的有效时长**——
     这正是裁决卡第三态「手动改时长」的落点。
     """
@@ -134,7 +135,9 @@ class TimerFinish(BaseModel):
     )
 
     completion: Completion
-    self_report: RecordSelfReport = Field(..., alias="selfReport")
+    self_report: RecordSelfReport | None = Field(
+        None, alias="selfReport", description="自评；可整段省略，软字段也可缺"
+    )
     duration_minutes: int | None = Field(
         None, alias="durationMinutes", ge=1, le=600, description="不传则按 mode 算有效时长；传入即以它为准"
     )

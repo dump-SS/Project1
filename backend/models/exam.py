@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, String, func
+from sqlalchemy import Date, DateTime, Float, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -33,6 +33,10 @@ class Exam(Base):
     # 得分可空：考后回填，回填前 null（不做 0 值兜底，0 分与未回填是两回事）
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     full_score: Mapped[float] = mapped_column(Float, nullable=False)
+    # 考试时长（分钟，可空）。存在的理由很具体：成绩回填要生成一条学习记录（D49 喂状态评估），
+    # 而记录的学习时长是必填——考试时长是**客观事实**，填了才生成记录，不填就不生成，
+    # 绝不为了凑一条记录去编一个时长（D34 不造数）。
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

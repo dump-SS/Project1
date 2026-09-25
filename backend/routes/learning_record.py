@@ -70,6 +70,7 @@ def create_learning_record(
 @router.get("", response_model=LearningRecordList, summary="学习记录列表")
 def list_learning_records(
     subject: str | None = None,
+    source: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     page: int = 1,
@@ -80,6 +81,10 @@ def list_learning_records(
     query = select(LearningRecordORM).where(LearningRecordORM.user_id == _user.user_id)
     if subject:
         query = query.where(LearningRecordORM.subject == subject)
+    # 按来源过滤（D49）：`?source=exam` 只取考试成绩回填生成的记录，
+    # `?source=self_report` 排除它们。有了这个过滤，消费方不必自己拿 examId 反查。
+    if source:
+        query = query.where(LearningRecordORM.source == source)
     if date_from:
         query = query.where(LearningRecordORM.started_at >= date_from)
     if date_to:

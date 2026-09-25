@@ -105,3 +105,14 @@ class TimerStatus(str, Enum):
     running = "running"
     finished = "finished"
     abandoned = "abandoned"
+
+
+class RecordSource(str, Enum):
+    """学习记录的来源（D49）。
+
+    为什么需要这一列：考试是**客观结果**，它没有自评（没人会为一次期中考试填"专注度 4 分"）。
+    没有来源标记，就只能靠编造自评把考试混进状态窗口——那是造数（D34 禁止）。
+    有了来源，消费方（状态评估 / mastery / 画像 / 列表）才能区分与过滤。
+    """
+    self_report = "self_report"   # 用户自评产生的记录（正常学习记录）
+    exam = "exam"                 # 考试成绩回填自动生成（自评整段缺失）

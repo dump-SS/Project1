@@ -42,6 +42,17 @@ class Exam(BaseModel):
         None, ge=0, description="得分。考后回填，回填前为 null（不做 0 值兜底：0 分与未回填是两回事）"
     )
     full_score: float = Field(..., alias="fullScore", gt=0)
+    duration_minutes: int | None = Field(
+        None,
+        alias="durationMinutes",
+        ge=1,
+        le=600,
+        description=(
+            "考试时长（分钟）。存在的理由很具体：成绩回填要生成一条学习记录（D49 喂状态评估），"
+            "而记录的学习时长必填——考试时长是客观事实，填了才生成记录，**不填就不生成**，"
+            "绝不为了凑一条记录去编一个时长。"
+        ),
+    )
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime | None = Field(None, alias="updatedAt", description="最近更新时间（考试可编辑）")
 
@@ -66,6 +77,7 @@ class ExamCreate(BaseModel):
     exam_date: date = Field(..., alias="examDate")
     full_score: float = Field(..., alias="fullScore", gt=0)
     score: float | None = Field(None, ge=0)
+    duration_minutes: int | None = Field(None, alias="durationMinutes", ge=1, le=600)
 
 
 class ExamUpdate(BaseModel):
@@ -82,6 +94,7 @@ class ExamUpdate(BaseModel):
     score: float | None = Field(
         None, ge=0, description="得分；显式传 null 表示撤回回填（回到「未出分」）"
     )
+    duration_minutes: int | None = Field(None, alias="durationMinutes", ge=1, le=600)
 
 
 class ExamList(BaseModel):

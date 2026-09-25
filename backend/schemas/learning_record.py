@@ -11,7 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from .common import Pagination
-from .enums import Completion, DifficultyFeel, Emotion, Subject
+from .enums import Completion, DifficultyFeel, Emotion, RecordSource, Subject
 
 
 class RecordBehavior(BaseModel):
@@ -26,12 +26,23 @@ class RecordBehavior(BaseModel):
 
 
 class RecordSelfReport(BaseModel):
-    """自评数据，控制在 10 秒内完成。"""
+    """自评数据。
 
-    focus: int = Field(..., ge=1, le=5, description="专注度 1-5")
-    fatigue: int = Field(..., ge=1, le=5, description="疲劳度 1-5")
-    emotion: Emotion
-    difficulty_feel: DifficultyFeel = Field(..., alias="difficultyFeel")
+    ⚠️ 四字段**全部可空**（2026-09-25 放开，原为全必填）。依据目标态 §3.7(a)：
+    三层收尾里唯一"半强制"的只有**完成度**；专注/疲劳/难度是模型从"一句感受"转译的
+    **软字段**，情绪快捷词也只是"可选兜底"。转译不出就留空——状态引擎会跳过该项并按
+    可用部分归一化（D34：宁缺毋滥、**不造数**）。
+    整段缺失的典型场景：考试成绩回填生成的记录（考试没有自评）。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    focus: int | None = Field(None, ge=1, le=5, description="专注度 1-5；未采集为 null")
+    fatigue: int | None = Field(None, ge=1, le=5, description="疲劳度 1-5；未采集为 null")
+    emotion: Emotion | None = Field(None, description="情绪；未采集为 null")
+    difficulty_feel: DifficultyFeel | None = Field(
+        None, alias="difficultyFeel", description="难度感受；未采集为 null"
+    )
 
 
 class RecordInput(BaseModel):
@@ -59,7 +70,11 @@ class RecordInput(BaseModel):
         None, alias="planTaskId", description="关联计划任务；自由学习可不传"
     )
     behavior: RecordBehavior
-    self_report: RecordSelfReport = Field(..., alias="selfReport")
+    self_report: RecordSelfReport | None = Field(
+        None,
+        alias="selfReport",
+        description="自评；可整段省略（三层收尾里只有完成度是半强制的），软字段也可缺",
+    )
     note: str | None = Field(None, max_length=100, description="≤100 字备注，出域受 sendTextToAI 控制")
     skip_recommendation: bool | None = Field(
         None, alias="skipRecommendation", description="true 时不自动生成建议"
@@ -97,6 +112,13 @@ class LearningRecord(BaseModel):
     # 于是路由明明塞了 note 也被 model_validate 静默丢弃——用户写的备注永远读不回来。
     note: str | None = Field(None, max_length=100, description="用户备注，未填写时为 null")
     created_at: datetime = Field(..., alias="createdAt")
+    source: RecordSource = Field(
+        RecordSource.self_report,
+        description="记录来源（D49）：self_report=用户自评产生；exam=考试成绩回填自动生成（自评整段缺失）",
+    )
+    source_exam_id: str | None = Field(
+        None, alias="sourceExamId", description="来源考试 ID；仅 source=exam 时有值"
+    )
 
 
 class RecordUpdate(BaseModel):

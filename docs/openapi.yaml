@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.7.0
+  version: 1.7.1
   description: |
     中学学情导学与状态评估 API。
 
@@ -1586,6 +1586,14 @@ paths:
           schema:
             type: string
             format: date
+        - name: source
+          in: query
+          required: false
+          description: |
+            按记录来源过滤（D49）。`exam` 只取考试成绩回填生成的记录，
+            `self_report` 排除它们——消费方不必自己拿 examId 反查。
+          schema:
+            $ref: '#/components/schemas/RecordSource'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -3962,29 +3970,48 @@ components:
         blurCount:
           type: integer
           description: 可选，页面失焦次数（小程序弱信号），客户端自动采集
+    RecordSource:
+      type: string
+      description: |
+        学习记录的来源（D49）。为什么需要这一列：考试是**客观结果**，它没有自评
+        （没人会为一次期中考试填「专注度 4 分」）。没有来源标记，就只能靠编造自评
+        把考试混进状态窗口——那是造数（D34 禁止）。有了来源，消费方才能区分与过滤。
+      enum: [self_report, exam]
     RecordSelfReport:
       type: object
-      description: 自评数据，控制在 10 秒内完成
-      required: [focus, fatigue, emotion, difficultyFeel]
+      description: |
+        自评数据。**四字段全部可空**（2026-09-25 放开，原为全必填）。
+        依据目标态 §3.7(a)：三层收尾里唯一「半强制」的只有**完成度**；
+        专注 / 疲劳 / 难度是模型从「一句感受」转译的**软字段**，情绪快捷词也只是「可选兜底」。
+        转译不出就留空——状态引擎跳过该项并按可用部分归一化（D34：宁缺毋滥、**不造数**）。
+        整段缺失的典型场景：考试成绩回填生成的记录（考试没有自评）。
       properties:
         focus:
           type: integer
+          nullable: true
           minimum: 1
           maximum: 5
-          description: 专注度 1-5
+          description: 专注度 1-5；未采集为 null
         fatigue:
           type: integer
+          nullable: true
           minimum: 1
           maximum: 5
-          description: 疲劳度 1-5
+          description: 疲劳度 1-5；未采集为 null
         emotion:
-          $ref: '#/components/schemas/Emotion'
+          allOf:
+            - $ref: '#/components/schemas/Emotion'
+          nullable: true
+          description: 情绪；未采集为 null
         difficultyFeel:
-          $ref: '#/components/schemas/DifficultyFeel'
+          allOf:
+            - $ref: '#/components/schemas/DifficultyFeel'
+          nullable: true
+          description: 难度感受；未采集为 null
     RecordInput:
       type: object
       description: 提交学习记录请求体
-      required: [subject, startedAt, durationMinutes, behavior, selfReport]
+      required: [subject, startedAt, durationMinutes, behavior]
       properties:
         subject:
           allOf:
@@ -4005,7 +4032,12 @@ components:
         behavior:
           $ref: '#/components/schemas/RecordBehavior'
         selfReport:
-          $ref: '#/components/schemas/RecordSelfReport'
+          allOf:
+            - $ref: '#/components/schemas/RecordSelfReport'
+          nullable: true
+          description: |
+            自评；**可整段省略**——三层收尾里只有完成度是半强制的（D20），
+            软字段转译不出也留空（D34）。缺省不写任何默认值。
         note:
           type: string
           maxLength: 100
@@ -4017,7 +4049,7 @@ components:
     LearningRecord:
       type: object
       description: 已保存的学习记录
-      required: [recordId, subject, startedAt, durationMinutes, behavior, selfReport, createdAt]
+      required: [recordId, subject, startedAt, durationMinutes, behavior, selfReport, createdAt, source]
       properties:
         recordId:
           type: string
@@ -4050,6 +4082,13 @@ components:
           type: string
           format: date-time
           description: 提交时间
+        source:
+          $ref: '#/components/schemas/RecordSource'
+        sourceExamId:
+          type: string
+          nullable: true
+          description: 来源考试 ID；仅 source=exam 时有值
+
     AssessmentSnapshot:
       type: object
       description: |
@@ -5052,11 +5091,13 @@ components:
           type: number
           nullable: true
         behaviorSubAvg: { type: number }
-        selfReportSubAvg: { type: number }
-        behaviorContribution: { type: number }
-        selfReportContribution: { type: number }
-        behaviorShare: { type: number }
-        selfReportShare: { type: number }
+        # 窗口内一条自评都没有时（例如只有考试成绩回填的记录）为 null，
+        # 前端显示「—」。不拿 0.0 冒充——0.0 读起来是「自评很差」，与「压根没自评」是两回事。
+        selfReportSubAvg: { type: number, nullable: true }
+        behaviorContribution: { type: number, nullable: true }
+        selfReportContribution: { type: number, nullable: true }
+        behaviorShare: { type: number, nullable: true }
+        selfReportShare: { type: number, nullable: true }
         recordCount: { type: integer }
         stateLabel:
           $ref: '#/components/schemas/StateLabel'
@@ -5197,6 +5238,15 @@ components:
             得分。考后回填，回填前为 null。成绩是唯一能把「自评」与「实际」对上的客观数据，
             回填后喂状态评估与画像（D49）。
         fullScore: { type: number }
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
+          description: |
+            考试时长（分钟）。存在的理由很具体：成绩回填要生成一条学习记录（D49 喂状态评估），
+            而记录的学习时长必填——考试时长是客观事实，填了才生成记录，**不填就不生成**，
+            绝不为了凑一条记录去编一个时长。
         createdAt:
           type: string
           format: date-time
@@ -5213,6 +5263,11 @@ components:
         name: { type: string }
         examDate: { type: string, format: date }
         fullScore: { type: number }
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
         score: { type: number, nullable: true }
     ExamUpdate:
       type: object
@@ -5222,6 +5277,11 @@ components:
         name: { type: string }
         examDate: { type: string, format: date }
         fullScore: { type: number }
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
         score: { type: number, nullable: true }
     ExamList:
       type: object
@@ -5833,15 +5893,18 @@ components:
       type: object
       description: |
         计时收尾请求体（D20 三层形态：结束瞬间 0 步 → 轻收尾卡 → 正确率延后补）。
-        必填只有 `completion`（唯一"半强制"问句）与 `selfReport`；
+        必填只有 `completion`（唯一"半强制"问句）；`selfReport` **可整段省略**，
+        其中专注/疲劳/情绪/难度任一可缺（软字段转译不出就留空，D34 不造数）。
         `durationMinutes` 显式传入时覆盖服务端按 mode 算出的有效时长——
         这正是裁决卡第三态「手动改时长」的落点。
-      required: [completion, selfReport]
+      required: [completion]
       properties:
         completion:
           $ref: '#/components/schemas/Completion'
         selfReport:
-          $ref: '#/components/schemas/RecordSelfReport'
+          allOf:
+            - $ref: '#/components/schemas/RecordSelfReport'
+          nullable: true
         durationMinutes:
           type: integer
           nullable: true

@@ -35,7 +35,7 @@ from models.learning_record import LearningRecord as LearningRecordORM
 from models.recommendation import Recommendation as RecommendationORM
 from models.weight import UserWeightConfig
 from state_engine.types import WeightConfig
-from schemas.learning_record import RecordInput
+from schemas.learning_record import RecordInput, RecordSelfReport
 from state_calculator import (
     compute_window_for_records,
     gen_id,
@@ -164,13 +164,21 @@ def persist_record(
     user_id: str,
     body: RecordInput,
     background_tasks: BackgroundTasks | None = None,
+    *,
+    source: str = "self_report",
+    source_exam_id: str | None = None,
 ) -> dict:
     """落一条学习记录 + 三件连带动作，返回 `LearningRecordCreated` 形状的 dict。
 
     `background_tasks` 为 None 时**不生成建议**（等价于 skipRecommendation=true）——
     用于"补记历史记录"这类不需要即时建议的场景。
+
+    `source` / `source_exam_id`：记录来源（D49）。考试成绩回填生成的记录传
+    `source="exam"`，它自评整段缺失，靠这两个字段与自评记录区分（消费方可过滤）。
     """
     record_id = gen_id("r")
+    # 自评可整段省略（三层收尾里只有完成度是半强制的）——缺省即全 null，不编数据
+    sr = body.self_report or RecordSelfReport()
 
     db.add(
         LearningRecordORM(
@@ -184,10 +192,12 @@ def persist_record(
             behavior_accuracy=body.behavior.accuracy,
             behavior_interruptions=body.behavior.interruptions or 0,
             behavior_blur_count=body.behavior.blur_count,
-            self_report_focus=body.self_report.focus,
-            self_report_fatigue=body.self_report.fatigue,
-            self_report_emotion=body.self_report.emotion.value,
-            self_report_difficulty_feel=body.self_report.difficulty_feel.value,
+            self_report_focus=sr.focus,
+            self_report_fatigue=sr.fatigue,
+            self_report_emotion=sr.emotion.value if sr.emotion else None,
+            self_report_difficulty_feel=sr.difficulty_feel.value if sr.difficulty_feel else None,
+            source=source,
+            source_exam_id=source_exam_id,
             note=body.note,
             skip_recommendation=bool(body.skip_recommendation),
         )
@@ -253,15 +263,17 @@ def persist_record(
             "blurCount": body.behavior.blur_count,
         },
         "selfReport": {
-            "focus": body.self_report.focus,
-            "fatigue": body.self_report.fatigue,
-            "emotion": body.self_report.emotion.value,
-            "difficultyFeel": body.self_report.difficulty_feel.value,
+            "focus": sr.focus,
+            "fatigue": sr.fatigue,
+            "emotion": sr.emotion.value if sr.emotion else None,
+            "difficultyFeel": sr.difficulty_feel.value if sr.difficulty_feel else None,
         },
         "note": body.note,
         "assessment": assessment,
         "recommendation": recommendation,
         "createdAt": as_utc_iso(created_at),
+        "source": source,
+        "sourceExamId": source_exam_id,
     }
 
 
@@ -287,6 +299,8 @@ def record_orm_to_payload(row: LearningRecordORM) -> dict:
         },
         "note": row.note,
         "createdAt": row.created_at.isoformat(),
+        "source": row.source,
+        "sourceExamId": row.source_exam_id,
     }
 
 
