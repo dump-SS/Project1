@@ -1,5 +1,5 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { lazy, Suspense } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 import RequireAuth from './components/RequireAuth/index.jsx'
@@ -28,15 +28,31 @@ import ChatPage from './pages/Chat/index.tsx'
 import CommunityUploadPage from './pages/Community/Upload.tsx'
 import CommunityComparePage from './pages/Community/Compare.tsx'
 
+// 官网落地页：路由级代码分割（dev-spec §2.3），不套 AppShell / RequireAuth。
+const LandingPage = lazy(() => import('./pages/Landing/index.tsx'))
+
 export default function App() {
+  const location = useLocation()
+  // 落地页跳过全局开屏动画与自定义光标（旧液态玻璃语言 + 光标会干扰手电视效），
+  // CloudTransition 只在主题切换时触发，落地页无切换入口，自然不出现。
+  const isLanding = location.pathname === '/'
+
   return (
     <div className="app-shell">
       <ThemeProvider>
         <AuthProvider>
-          <LaunchScreen />
-          <CustomCursor />
+          {!isLanding && <LaunchScreen />}
+          {!isLanding && <CustomCursor />}
           <CloudTransition />
           <Routes>
+          <Route
+            path="/"
+            element={
+              <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#10161E' }} />}>
+                <LandingPage />
+              </Suspense>
+            }
+          />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -46,7 +62,6 @@ export default function App() {
               AppShell 是四条路由共用的顶部导航条，登录/注册/找回密码页不套它。 */}
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
-              <Route path="/" element={<Navigate to="/study-guide" replace />} />
               <Route path="/personal-data" element={<PersonalDataPage />} />
               <Route path="/study-timer" element={<StudyTimerPage />} />
               <Route path="/study-guide" element={<StudyGuide />} />

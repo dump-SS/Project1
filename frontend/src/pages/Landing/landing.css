@@ -1,0 +1,108 @@
+/**
+ * 落地页样式唯一入口（页面级，不进 global.css——main.jsx 全局引 tokens/global，
+ * 这里不得新增任何全局规则：不写 :root / 元素选择器，全部收在 .landing 作用域内）。
+ *
+ * Tailwind v4 共存引入：只取 utilities 层，不引 preflight / theme
+ * （仓库现有 35 个 CSS / 9577 行建在既有基础样式上，preflight 会全站视觉回归）。
+ * 工具类默认用任意值语法（text-[#4AD1FF] 等），不依赖 Tailwind 主题变量。
+ */
+@import "tailwindcss/utilities";
+
+/* ---------- 字体：子集化自托管（fontTools 按落地页字符集裁剪，见 scripts 同目录说明） ---------- */
+@font-face {
+  font-family: 'LP-Serif';
+  src: url('/fonts/NotoSerifSC-lp.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'LP-Sans';
+  src: url('/fonts/NotoSansSC-lp-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'LP-Sans';
+  src: url('/fonts/NotoSansSC-lp-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- 页面作用域：夜色谱（visual-language §3 深色档） ---------- */
+.landing {
+  /* 底与面 */
+  --lp-bg: #10161E;        /* 页面底 · 偏蓝深底（H≈214/S≈30%/L≈9%） */
+  --lp-bg-deep: #0B1017;   /* 更深一档 · 收暗段落 */
+  --lp-surface: #1B222D;   /* 卡片面 */
+  --lp-hairline: #2A3542;  /* 发丝线 · 同为暗纹线稿色 */
+  --lp-text: #E8EAED;      /* 主文 */
+  --lp-text-2: #9AA4B0;    /* 次文 */
+  --lp-blue: #4AD1FF;      /* 品牌蓝 · 深底档（只有光晕/唯一焦点/高亮「你」三处出口） */
+  --lp-motif: #2A3542;     /* 暗纹线稿 · 静止时近不可见 */
+  --lp-scrim: rgba(11, 16, 23, 0.72); /* 亮区上的暗色压层（保对比度 ≥4.5:1） */
+
+  /* 字体时态（visual-language §5）：无衬线=正在说（标题/按钮/导航），衬线=已写下的（对话/小字） */
+  --lp-font-serif: 'LP-Serif', 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', serif;
+  --lp-font-sans: 'LP-Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+
+  position: relative;
+  min-height: 100vh;
+  background: var(--lp-bg);
+  color: var(--lp-text);
+  font-family: var(--lp-font-sans);
+  line-height: 1.75;
+  /* 遮盖 body 的天空渐变底（main.jsx 全局样式），顶栏虚化才不会透出旧主题 */
+  isolation: isolate;
+}
+
+/* 落地页统一宽度容器 */
+.landing-wrap {
+  width: 100%;
+  max-width: 1160px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+@media (min-width: 768px) {
+  .landing-wrap { padding-inline: 40px; }
+}
+
+/* ---------- 共享 keyframes（各屏复用） ---------- */
+
+/* Hero 光场呼吸（6–8s，visual-language §7.1） */
+@keyframes lp-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+
+/* 图标海无缝循环（极慢，~80s） */
+@keyframes lp-sea-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* 光标闪烁（打字机） */
+@keyframes lp-caret-blink {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+}
+
+/* 触达淡入（进入视口的通用过渡） */
+@keyframes lp-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- 降级：prefers-reduced-motion 全局静止（dev-spec §6） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .landing *,
+  .landing *::before,
+  .landing *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
