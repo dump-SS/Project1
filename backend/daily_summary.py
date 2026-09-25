@@ -183,7 +183,9 @@ def generate_day_summary(db: Session, user_id: str, date_str: str) -> str:
 
     try:
         provider = get_provider()
-        text = provider.generate(user, context={"system": system})
+        text = provider.generate(user, context={
+            "system": system, "user_id": user_id, "feature_tier": "embedded",
+        })
     except Exception as e:  # noqa: BLE001 — 任何 LLM 异常都降级
         logger.warning("[DAY_SUMMARY] LLM 调用异常: %s: %s", type(e).__name__, e)
         text = None
