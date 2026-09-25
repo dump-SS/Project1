@@ -179,3 +179,93 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* ===================================================================
+   D4 卡内操作：改时间 / 移除 · 2026-09-25
+   =================================================================== */
+
+/* 时长从静态文本变成可点按钮——不加下划线/边框，避免把"能点"做得太吵 */
+.task-time-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.task-time-btn:hover:not(:disabled) {
+  background: rgba(111, 168, 214, 0.14);
+}
+
+.task-time-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.task-time-editing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-time-input {
+  width: 52px;
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(111, 168, 214, 0.5);
+  border-radius: 6px;
+}
+
+.task-time-input:focus {
+  outline: none;
+  border-color: #4ad1ff;
+}
+
+.task-time-unit {
+  opacity: 0.7;
+}
+
+.task-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 移除是破坏性操作：默认低调，hover 才显形，避免误点 */
+.task-remove-btn {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.45;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.task-remove-btn:hover:not(:disabled) {
+  opacity: 1;
+  color: #d9534f;
+  border-color: rgba(217, 83, 79, 0.4);
+}
+
+.task-remove-btn:disabled {
+  cursor: default;
+  opacity: 0.25;
+}
+
+.task-empty {
+  margin: 0;
+  padding: 14px 4px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
