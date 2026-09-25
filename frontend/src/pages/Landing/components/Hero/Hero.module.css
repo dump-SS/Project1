@@ -23,13 +23,12 @@
   will-change: transform, opacity;
 }
 
-/* LaserFlow 光场宿主（2026-09-25 Skyer 引入）：screen 混合让组件黑底隐入页面，
-   只留光束与雾；上下 CSS mask 渐隐防止光切断在硬边。触屏 / reduced 不挂载。 */
-.laserHost {
+/* Prism 光场宿主（2026-09-25 Skyer 指定）：Prism 自带 alpha 透明合成（无需混合模式），
+   上下 CSS mask 渐隐防止光锥切断在硬边。触屏 / reduced 不挂载。 */
+.prismHost {
   position: absolute;
-  inset: 6% 0 18% 0;
-  mix-blend-mode: screen;
-  opacity: 0.55;
+  inset: 2% 0 22% 0;
+  opacity: 0.6;
   pointer-events: none;
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);

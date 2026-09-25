@@ -31,11 +31,11 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
-          // 落地页重依赖（ogl，来自 React Bits Grainient；three，来自 LaserFlow）单独成 chunk，
+          // 落地页重依赖（ogl，来自 React Bits Grainient / Prism）单独成 chunk，
           // 只被落地页动态 import 引用，保证不进主包（dev-spec §2.3）。
           // TextType 已适配为 CSS 光标，gsap 未引入。
           manualChunks(id: string) {
-            if (/[\\/]node_modules[\\/](gsap|ogl|three)[\\/]/.test(id)) return 'landing-gfx';
+            if (/[\\/]node_modules[\\/](gsap|ogl)[\\/]/.test(id)) return 'landing-gfx';
             return undefined;
           },
         },

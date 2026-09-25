@@ -11,9 +11,9 @@ import {
 } from '../../icons/DarkMotifs'
 import styles from './Hero.module.css'
 
-// LaserFlow（React Bits，three）：Hero 光场底光。three 只进 landing-gfx chunk，
-// 懒加载——CSS 呼吸光晕为第一帧与降级兜底（dev-spec §2.3 重背景先静态后增强）。
-const LaserFlow = lazy(() => import('../bits/LaserFlow'))
+// Prism（React Bits，ogl）：Hero 光场。ogl 与 Grainient 同库（已在 deps），懒加载——
+// CSS 呼吸光晕为第一帧与降级兜底（dev-spec §2.3 重背景先静态后增强）。
+const Prism = lazy(() => import('../bits/Prism'))
 
 const MOTIF_ICONS = [
   IconReportCard, IconBook, IconNotebook, IconPencil, IconRuler, IconCompass,
@@ -68,8 +68,8 @@ export default function Hero() {
   const sectionRef = useFlashlight<HTMLElement>(!reduced)
   const glowRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
-  // LaserFlow 仅精确指针设备开启（触屏静态光晕——移动端简化，dev-spec §6）
-  const laserOn = !reduced && hasHoverPointer()
+  // Prism 仅精确指针设备开启（触屏静态光晕——移动端简化，dev-spec §6）
+  const prismOn = !reduced && hasHoverPointer()
 
   // 光场交互：指针轻微推移（reduced-motion 不动）
   useEffect(() => {
@@ -125,22 +125,22 @@ export default function Hero() {
 
   return (
     <section className={styles.hero} ref={sectionRef} aria-label="EpochX 学习状态智能助手">
-      {/* 光场：品牌蓝 LaserFlow 光束底光（懒加载 three，screen 混合隐黑底）；触屏/reduced 不挂载 */}
-      {laserOn ? (
-        <div className={styles.laserHost} aria-hidden>
+      {/* 光场：Prism 棱镜光锥（懒加载 ogl，alpha 透明合成）；触屏/reduced 不挂载 */}
+      {prismOn ? (
+        <div className={styles.prismHost} aria-hidden>
           <Suspense fallback={null}>
-            <LaserFlow
-              color="#4AD1FF"
-              backgroundColor="#000000"
-              flowSpeed={0.32}
-              fogIntensity={0.38}
-              wispIntensity={2.8}
-              flowStrength={0.22}
-              verticalSizing={1.7}
-              horizontalSizing={0.62}
-              decay={1.45}
-              mouseTiltStrength={0.02}
-              dpr={1.5}
+            <Prism
+              height={3.2}
+              baseWidth={5.0}
+              animationType="rotate"
+              glow={1.0}
+              noise={0.35}
+              scale={3.2}
+              hueShift={0}
+              colorFrequency={0.9}
+              bloom={1.1}
+              timeScale={0.4}
+              suspendWhenOffscreen
             />
           </Suspense>
         </div>
