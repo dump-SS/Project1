@@ -150,7 +150,7 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, community, daily_summary, error_book, exam, goal, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, summary, timer, user, weight
+from routes import assessment, auth, community, daily_summary, error_book, exam, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, summary, timer, user, weight
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -174,6 +174,8 @@ api_v1.include_router(mastery.router)
 # 契约里本就没有 /ocr 路径，删除后代码与契约一致。
 api_v1.include_router(community.router)
 api_v1.include_router(community.aggregate_router)
+# G 板块（pilot 运营与治理）：用量查询 / 报错 / 违规留痕 / 奖章 / 埋点（openapi v1.7.0）
+api_v1.include_router(governance.router)
 
 app.include_router(health.router)
 app.include_router(api_v1)
