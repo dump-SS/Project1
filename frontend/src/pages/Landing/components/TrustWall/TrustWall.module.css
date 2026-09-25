@@ -131,6 +131,13 @@
   min-height: 0;
 }
 
+/* 0fr 折叠的裁剪层：必须零 margin/padding/border，否则其盒模型尺寸会把
+   grid 轨道从 0 撑起来（实测漏出 38px 的 S5 对话切片 / 占位框虚线顶边） */
+.figureClip {
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* 占位块：等比容器 + 中性块 + TODO（禁假界面图，dev-spec §5.3） */
 .placeholder {
   margin-top: 8px;

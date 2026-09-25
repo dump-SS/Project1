@@ -90,6 +90,7 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  white-space: nowrap; /* 窄屏下按钮文字不得折行（375px 走查发现破碎） */
   transition: background 0.2s ease, color 0.2s ease;
 }
 .menuBtn:hover,
@@ -121,6 +122,7 @@
   text-decoration: none;
   border: 1px solid var(--lp-hairline);
   border-radius: 8px;
+  white-space: nowrap;
   transition: border-color 0.25s ease, background 0.25s ease;
 }
 .loginBtn:hover {
@@ -155,6 +157,25 @@
   .panelInner {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+  /* 窄屏菜单紧凑化：按钮不折行（375px 实测），间距收紧 */
+  .menus {
+    gap: 0;
+  }
+  .menuBtn {
+    height: 38px;
+    padding: 0 9px;
+    font-size: 13.5px;
+    gap: 5px;
+  }
+  .naTag {
+    padding: 2px 4px;
+  }
+  .loginBtn {
+    height: 36px;
+    margin-left: 6px;
+    padding: 0 12px;
+    font-size: 13.5px;
   }
 }
 

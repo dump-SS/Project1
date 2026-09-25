@@ -71,13 +71,16 @@ export default function TrustWall() {
 
   const stripP = clamp01((progress - 0.05) / 0.75) // 卡片横移进度
   const trackShift = stripP * 62 // vh 单位的横移量（由卡片总宽决定）
+  /* 标题随横移起步淡出：卡片会滑过标题区，标题不让位就会透过半透明卡面露字。
+     淡出在卡 1 抵达标题区之前完成（前 25% 横移内），初始「sticky 在左」语义不变。 */
+  const titleOpacity = 1 - clamp01(stripP / 0.25)
 
   return (
     <div className={styles.runway} ref={runwayRef}>
       <section className={styles.pin} ref={sectionRef} aria-label="隐私安全">
         <div className={`${styles.stage} landing-wrap`}>
           {/* 标题 sticky 在左 */}
-          <div className={styles.titleBlock}>
+          <div className={styles.titleBlock} style={{ opacity: titleOpacity }}>
             <h2 className={styles.title}>{TRUST_COPY.title}</h2>
           </div>
 
@@ -160,14 +163,17 @@ function TrustCard({
 
       {/* 配图区：卡 4 = S5 真对话；卡 1/2/3 = 占位块 + TODO（禁假界面图） */}
       <div className={`${styles.figure} ${open || expanded ? styles.figureOpen : ''}`}>
-        {isS5 ? (
-          <S5Preview />
-        ) : (
-          /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
-          <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
-            <span>界面截图 · 待接入</span>
-          </div>
-        )}
+        {/* 0fr 折叠靠这一层零装饰裁剪（子元素自身的 margin/padding 会撑起轨道下限导致漏出） */}
+        <div className={styles.figureClip}>
+          {isS5 ? (
+            <S5Preview />
+          ) : (
+            /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
+            <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
+              <span>界面截图 · 待接入</span>
+            </div>
+          )}
+        </div>
       </div>
     </article>
   )

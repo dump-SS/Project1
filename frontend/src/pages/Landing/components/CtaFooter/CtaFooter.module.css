@@ -41,6 +41,8 @@
 }
 
 .lineIn {
+  position: absolute; /* 与首句同位叠放交叉淡入——否则成为文档流第二行，溢出压到输入框 */
+  inset: 0;
   color: var(--lp-blue); /* 翻转句 = 光全开时刻的唯一焦点蓝 */
 }
 
