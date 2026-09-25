@@ -19,6 +19,32 @@ import type { Goal, GoalCreate, GoalOutcome, GoalSummary, GoalUpdate } from '@/t
 import type { GoalCard, GoalPanel } from '@/types/view';
 import { subjectLabels } from '@/styles/theme';
 
+/**
+ * 目标树与考试引用（openapi v1.7.1 · D6 / D29 / D49）。
+ *
+ * ⚠️ 这三个字段在契约里已冻结，但 `types/api.ts` 归 X1 管（X0 定字段 / X1 管导出），
+ * C 板块不动手，所以先定义在这里；X1 收口时把它们并进 `types/api.ts` 即可。
+ *
+ * - `parentGoalId`：父目标。目标表达意愿，考试表达事实，两者不混；
+ *   父子树表达的是「长期目标 → 多个短期子目标」的**从属关系**。
+ * - `examId` + `targetScore`：这次考试想考到多少分。**目标只存意愿，分数结果存在 exams 表里**。
+ */
+export interface GoalExtras {
+  parentGoalId?: string | null;
+  examId?: string | null;
+  targetScore?: number | null;
+}
+
+export type GoalCreateInput = GoalCreate & GoalExtras;
+export type GoalUpdateInput = GoalUpdate & GoalExtras;
+export type GoalCardWithExtras = GoalCard & GoalExtras;
+/** 树节点：卡片 + 子目标（由 buildGoalTree 组装，后端返回的是扁平列表） */
+export type GoalTreeNode = GoalCardWithExtras & { children?: GoalTreeNode[] };
+export type GoalPanelWithExtras = Omit<GoalPanel, 'active' | 'finished'> & {
+  active: GoalCardWithExtras[];
+  finished: GoalCardWithExtras[];
+};
+
 const TYPE_LABELS: Record<GoalSummary['type'], string> = {
   short_term: '短期',
   long_term: '长期',
@@ -40,7 +66,7 @@ function resolveStatusLabel(status: GoalSummary['status'], outcome: GoalOutcome 
   return outcome ? OUTCOME_LABELS[outcome] : '已完成';
 }
 
-function toCard(goal: GoalSummary): GoalCard {
+function toCard(goal: GoalSummary & Partial<GoalExtras>): GoalCardWithExtras {
   const outcome = goal.outcome ?? null;
 
   return {
@@ -58,21 +84,78 @@ function toCard(goal: GoalSummary): GoalCard {
     plannedTasks: goal.progress?.plannedTasks ?? 0,
     completedTasks: goal.progress?.completedTasks ?? 0,
     completionNote: goal.completionNote ?? null,
+    // 目标树与考试引用（D6/D49）
+    parentGoalId: goal.parentGoalId ?? null,
+    examId: goal.examId ?? null,
+    targetScore: goal.targetScore ?? null,
   };
 }
 
-export async function fetchGoals(signal?: AbortSignal): Promise<GoalPanel> {
+export async function fetchGoals(signal?: AbortSignal): Promise<GoalPanelWithExtras> {
   // 用 apiGetAllPages 翻页取全部，与其余 service 一致；
   // 之前用 apiGet 只取第 1 页，归档目标超过 50 条时后续会被静默丢弃。
   const [activeItems, archivedItems] = await Promise.all([
-    apiGetAllPages<GoalSummary>('/goals', { status: 'active' }, signal),
-    apiGetAllPages<GoalSummary>('/goals', { status: 'archived' }, signal),
+    apiGetAllPages<GoalSummary & Partial<GoalExtras>>('/goals', { status: 'active' }, signal),
+    apiGetAllPages<GoalSummary & Partial<GoalExtras>>('/goals', { status: 'archived' }, signal),
   ]);
 
   return {
     active: activeItems.map(toCard),
     finished: archivedItems.map(toCard),
   };
+}
+
+/**
+ * 把扁平列表组装成**父子树**（D6/D29）。
+ *
+ * 两条兜底很重要：
+ * - 父目标**不在 active 列表里**（已归档 / 跨页丢失）→ 子目标按顶层处理，
+ *   不能因为找不到父就把整条子树丢掉；
+ * - 历史脏数据可能造成**环**，组装时用 visited 集合断环，避免渲染时死循环。
+ */
+export function buildGoalTree(items: GoalCardWithExtras[]): GoalTreeNode[] {
+  const byId = new Map(items.map((g) => [g.goalId, g]));
+  const childrenOf = new Map<string | null, GoalCardWithExtras[]>();
+
+  for (const goal of items) {
+    const parentId = goal.parentGoalId && byId.has(goal.parentGoalId) ? goal.parentGoalId : null;
+    const bucket = childrenOf.get(parentId) ?? [];
+    bucket.push(goal);
+    childrenOf.set(parentId, bucket);
+  }
+
+  const visited = new Set<string>();
+  const attach = (goal: GoalCardWithExtras): GoalTreeNode => {
+    visited.add(goal.goalId);
+    const kids = (childrenOf.get(goal.goalId) ?? [])
+      .filter((k) => !visited.has(k.goalId)) // 断环
+      .map(attach);
+    return { ...goal, children: kids };
+  };
+
+  const roots = childrenOf.get(null) ?? [];
+
+  // ⚠️ 兜住「互相指着对方」的环：环里的节点**没有任何根可达**，
+  // 只按 roots 渲染会让整条环从列表里消失——用户会以为目标被删了。
+  // 所以把不可达节点提升为顶层，至少保证它可见、可编辑（编辑时又能把环解开）。
+  const reachable = new Set<string>();
+  const mark = (nodes: GoalCardWithExtras[]) => {
+    for (const n of nodes) {
+      if (reachable.has(n.goalId)) continue; // 环不会无限递归
+      reachable.add(n.goalId);
+      mark(childrenOf.get(n.goalId) ?? []);
+    }
+  };
+  mark(roots);
+  const promoted = items.filter((g) => !reachable.has(g.goalId));
+
+  // 逐个 attach，跳过已渲染过的（提升的节点可能同时是另一个提升节点的子节点）
+  const out: GoalTreeNode[] = [];
+  for (const g of [...roots, ...promoted]) {
+    if (visited.has(g.goalId)) continue;
+    out.push(attach(g));
+  }
+  return out;
 }
 
 /**
@@ -173,10 +256,11 @@ export function placeholderGoals(): GoalPanel {
 
 /**
  * 创建学习目标。对应 `POST /api/v1/goals`（openapi.yaml createGoal）。
- * 必填 type / subject / title；description / targetDate / templateId 可选。
+ * 必填 type / subject / title；description / targetDate / templateId 可选，
+ * 另有 parentGoalId / examId / targetScore（D6 / D49）。
  * 成功后服务端返回完整 Goal 对象，调用方可立即塞进本地列表。
  */
-export function createGoal(payload: GoalCreate, signal?: AbortSignal): Promise<Goal> {
+export function createGoal(payload: GoalCreateInput, signal?: AbortSignal): Promise<Goal> {
   return apiPost<Goal>('/goals', payload, signal);
 }
 
@@ -184,10 +268,13 @@ export function createGoal(payload: GoalCreate, signal?: AbortSignal): Promise<G
  * 更新目标字段。对应 `PATCH /api/v1/goals/{goalId}`（openapi.yaml updateGoal）。
  * 至少传一项；title ≤ 50、description ≤ 200。
  * 成功后服务端返回完整 Goal（含最新的 progress）。
+ *
+ * ⚠️ **「不传」与「传 null」语义不同**：`parentGoalId: null` = 提升为顶层目标
+ * （与「不传=不动」区分），调用方想清空关联必须**显式**传 null。
  */
 export function updateGoal(
   goalId: string,
-  patch: GoalUpdate,
+  patch: GoalUpdateInput,
   signal?: AbortSignal,
 ): Promise<Goal> {
   return apiPatch<Goal>(`/goals/${encodeURIComponent(goalId)}`, patch, signal);
