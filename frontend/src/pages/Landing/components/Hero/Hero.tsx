@@ -38,7 +38,7 @@ const MOTIF_SPOTS: Array<{
 export default function Hero() {
   const reduced = useReducedMotion()
   const navigate = useNavigate()
-  const { text, youVisible, finished } = useSloganSequence()
+  const { text, youVisible, strongFrom, finished } = useSloganSequence()
   const sectionRef = useFlashlight<HTMLElement>(!reduced)
   const glowRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
@@ -79,8 +79,21 @@ export default function Hero() {
 
   const goLogin = () => navigate('/login')
 
-  // slogan：you 高亮为蓝字
-  const youIdx = youVisible ? text.indexOf('你') : -1
+  // slogan：「你」高亮为蓝字（蓝字渲染辅助：在给定片段里拆出「你」）
+  const renderWithYou = (s: string) => {
+    const idx = youVisible ? s.indexOf('你') : -1
+    if (idx < 0) return <span>{s}</span>
+    return (
+      <>
+        <span>{s.slice(0, idx)}</span>
+        <span className={styles.you}>{s[idx]}</span>
+        <span>{s.slice(idx + 1)}</span>
+      </>
+    )
+  }
+  // 加粗段（新加的「围着你转」）：从 strongFrom 起、到该段结束为止（句号不加粗）
+  const strongStart = strongFrom ?? -1
+  const strongEnd = strongStart >= 0 ? strongStart + HERO_SLOGAN.strong.length : -1
 
   return (
     <section className={styles.hero} ref={sectionRef} aria-label="EpochX 学习状态智能助手">
@@ -133,17 +146,19 @@ export default function Hero() {
             src="/brand/logo-full-on-dark-trim.png"
             alt="EpochX"
             className={styles.logo}
-            height={40}
+            height={62}
           />
           <h1 className={styles.slogan} aria-label={HERO_SLOGAN.final}>
-            {youIdx >= 0 ? (
+            {strongStart >= 0 && text.length > strongStart ? (
               <>
-                <span>{text.slice(0, youIdx)}</span>
-                <span className={styles.you}>{text[youIdx]}</span>
-                <span>{text.slice(youIdx + 1)}</span>
+                <span>{text.slice(0, strongStart)}</span>
+                <span className={styles.sloganStrong}>
+                  {renderWithYou(text.slice(strongStart, strongEnd))}
+                </span>
+                <span>{text.slice(strongEnd)}</span>
               </>
             ) : (
-              <span>{text}</span>
+              renderWithYou(text)
             )}
             <span
               className={`lp-caret ${finished ? 'lp-caret--out' : ''}`}

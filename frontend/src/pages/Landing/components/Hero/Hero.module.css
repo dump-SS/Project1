@@ -93,9 +93,10 @@
   gap: 20px;
 }
 
-/* 紧裁全称 lockup（724×155）——方形原图直接渲染会把内容缩到不可见 */
+/* 紧裁全称 lockup（724×155）——方形原图直接渲染会把内容缩到不可见。
+   尺寸（2026-09-25 Skyer）：视觉上与 slogan 字号一致甚至略大，随视口同缩。 */
 .logo {
-  height: 40px;
+  height: clamp(40px, 4.4vw, 63px);
   width: auto;
   /* .left 是纵向 flex（默认 stretch），不锁起点会把交叉轴拉满容器宽、图片横向变形 */
   align-self: flex-start;
@@ -116,6 +117,11 @@
 
 .you {
   color: var(--lp-blue);
+}
+
+/* 新加段「围着你转」加粗（2026-09-25 Skyer）：LP-Sans 700 自托管字重 */
+.sloganStrong {
+  font-weight: 700;
 }
 
 /* ---------- 动作区三级阶梯 ---------- */
