@@ -97,6 +97,8 @@
 .logo {
   height: 40px;
   width: auto;
+  /* .left 是纵向 flex（默认 stretch），不锁起点会把交叉轴拉满容器宽、图片横向变形 */
+  align-self: flex-start;
   opacity: 0.92;
 }
 
