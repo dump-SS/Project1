@@ -159,7 +159,7 @@
 .slogan {
   color: var(--lp-text);
   font-family: var(--lp-font-sans);
-  font-weight: 500;
+  font-weight: 400; /* 前缀细（2026-09-25 Skyer：学习工具不够细） */
   font-size: clamp(30px, 4.6vw, 56px);
   line-height: 1.3;
   letter-spacing: 0.01em;
@@ -170,9 +170,9 @@
   color: var(--lp-blue);
 }
 
-/* 新加段「围着你转」加粗（2026-09-25 Skyer）：LP-Sans 700 自托管字重 */
+/* 新加段「围着你转」加粗（2026-09-25 Skyer）：LP-Sans 800 自托管字重（700 不够粗） */
 .sloganStrong {
-  font-weight: 700;
+  font-weight: 800;
 }
 
 /* ---------- 动作区：输入栏 + 并排按钮行（2026-09-25 Skyer：横向并置、圆角加大） ---------- */

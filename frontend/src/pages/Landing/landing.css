@@ -32,8 +32,8 @@
 }
 @font-face {
   font-family: 'LP-Sans';
-  src: url('/fonts/NotoSansSC-lp-700.woff2') format('woff2');
-  font-weight: 700;
+  src: url('/fonts/NotoSansSC-lp-800.woff2') format('woff2');
+  font-weight: 800;
   font-style: normal;
   font-display: swap;
 }
