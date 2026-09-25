@@ -53,6 +53,13 @@
   background: rgba(16, 22, 30, 0.85);
 }
 
+/* 下拉展开：顶栏转纯色（与面板同色连体，2026-09-25 Skyer） */
+.navSolidBg {
+  position: absolute;
+  inset: 0;
+  background: var(--lp-bg);
+}
+
 /* ---------- logo 两态：EX 标 + 全称滑出 ---------- */
 .logo {
   display: flex;
@@ -149,10 +156,12 @@
 
 /* ---------- mega 面板 ---------- */
 .panel {
+  position: relative; /* 压过 absolute 的 .navSolidBg（static 会被其盖住内容） */
+  z-index: 1;
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  background: rgba(16, 22, 30, 0.92);
+  background: var(--lp-bg); /* 下拉展开时与顶栏连体纯色（2026-09-25 Skyer） */
   border-bottom: 1px solid var(--lp-hairline);
   transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }

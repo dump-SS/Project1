@@ -213,12 +213,14 @@ export default function Hero() {
               <SpecularButton
                 onClick={goLogin}
                 size="md"
-                radius={16}
-                tint="#4AD1FF"
+                radius={24}
+                tint="#2BA9E0"
                 tintOpacity={1}
                 textColor="#0B1017"
-                lineColor="#CFEFFF"
+                lineColor="#EAF7FF"
                 baseColor="#0F1520"
+                intensity={2}
+                thickness={1.3}
                 className={styles.ctaBtn}
               >
                 {HERO_ACTIONS.primary}

@@ -197,8 +197,8 @@
   font-size: 15px;
   color: var(--lp-text);
   background: rgba(27, 34, 45, 0.72);
-  border: 1px solid var(--lp-hairline);
-  border-radius: 10px;
+  border: 1px solid rgba(140, 160, 180, 0.16);
+  border-radius: 999px;
   outline: none;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
@@ -227,7 +227,7 @@
   color: var(--lp-text);
   text-decoration: none;
   border: 1px solid var(--lp-hairline);
-  border-radius: 16px;
+  border-radius: 999px;
   transition: border-color 0.25s ease, background 0.25s ease, transform 0.2s ease;
 }
 .ghost:hover {
@@ -236,7 +236,7 @@
   transform: translateY(-1px);
 }
 
-/* 桌面端：虚线灰空位（灰=不可用，不占蓝色——visual-language §4） */
+/* 桌面端：深灰填充空位（灰=不可用，不占蓝色——visual-language §4） */
 .desktop {
   display: flex;
   flex: 1;
@@ -247,9 +247,9 @@
   font-family: var(--lp-font-sans);
   font-size: 13.5px;
   color: var(--lp-text-2);
-  border: 1px dashed var(--lp-hairline);
-  border-radius: 16px;
-  opacity: 0.75;
+  background: #2A3440;
+  border-radius: 999px;
+  opacity: 0.85;
   white-space: nowrap;
   user-select: none;
 }

@@ -125,8 +125,11 @@ export default function LandingNav() {
         ].join(' ')}
         onMouseLeave={closePanel}
       >
-        {/* 出 Hero 后的玻璃底（Glass Surface；reduced-transparency → 纯色回退） */}
-        {scrolledPastHero &&
+        {/* 背景层：下拉展开时顶栏连同面板一起转纯色（2026-09-25 Skyer）；
+            出 Hero 后为 GlassSurface 玻璃底（reduced-transparency → 纯色回退） */}
+        {openMenu ? (
+          <div className={styles.navSolidBg} aria-hidden />
+        ) : scrolledPastHero &&
           (reduceTransparency ? (
             <div className={styles.navBgFallback} aria-hidden />
           ) : (
