@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.6.0
+  version: 1.7.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -2471,6 +2471,136 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/GuardianAuthorizationExpired'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/usage:
+    get:
+      tags: [pilot 运营与治理]
+      operationId: getMyUsage
+      summary: 只读用量查询（按月返回当前用户的模型数值成本流水与合计）
+      description: |
+        用量页数据源（D38/#9）。**只读，无任何支付/充值语义**——支付整体推迟到 pilot 结束后。
+        返回 usage_ledger 流水（只存数值，不含任何提示词或输出内容）与区间合计；
+        month 缺省为当前月。与刻意去身份化的 AICallLog 分两套，不合并。
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: 查询月份 YYYY-MM；缺省为当前月
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+      responses:
+        '200':
+          description: 区间内用量流水与合计
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageLedgerList'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /error-reports:
+    post:
+      tags: [pilot 运营与治理]
+      operationId: createErrorReport
+      summary: 用户报错（设置常驻入口 messageId=null；消息级按钮带 messageId 与上下文）
+      description: |
+        #46 两处入口共用的后端。消息级报错必须带上下文（哪条消息、什么意图），
+        context 只放结构化快照，**不含对话原文流水**（与 D45 原文短期留存口径分开）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorReportCreate'
+      responses:
+        '201':
+          description: 报错已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorReport'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/violations:
+    get:
+      tags: [pilot 运营与治理]
+      operationId: getMyViolations
+      summary: 本人违规处置留痕（warn / temp_ban / perm_ban，按时间倒序）
+      description: |
+        #43 分级处置（1 次警告 → 3 次临时封禁 → 永久）必须留痕；本人可查自己的处置记录。
+        reason 只含命中类型，不含用户原文。
+      responses:
+        '200':
+          description: 处置留痕列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViolationLogList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/medals:
+    get:
+      tags: [pilot 运营与治理]
+      operationId: getMyMedals
+      summary: 本人已获得奖章（#49 最小版：里程碑见 MedalMilestone，未获得的不返回）
+      description: |
+        虚拟奖章最小版，只列已获得里程碑。**不做积分商城 / 排行榜**
+        （排行榜与 §4.5「社区不做社交」冲突）。
+      responses:
+        '200':
+          description: 已获得奖章列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedalList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/events:
+    post:
+      tags: [pilot 运营与治理]
+      operationId: createAnalyticsEvent
+      summary: 结构化埋点事件上报（D39 三块；不含对话原文流水，payload 入库前脱敏）
+      description: |
+        D39 三块埋点统一上报口：chat_interaction（Chat 交互）/ ai_quality（AI 质量反馈）/
+        profile_trace（画像 trace）。**与对话原文的口径不可混同**：本接口只收结构化事件
+        （意图判定结果、卡片事件、锚定结果、提取事件…），不含对话原文流水；
+        payload 入库前经 privacy_filter 脱敏，身份只走服务端会话，不进 payload。
+        id / createdAt 由服务端生成；响应返回脱敏后实际落库的内容。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyticsEventCreate'
+      responses:
+        '201':
+          description: 事件已落库（返回脱敏后的实际存储内容）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsEvent'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -4979,6 +5109,49 @@ components:
         milestone:
           $ref: '#/components/schemas/MedalMilestone'
         awardedAt: { type: string, format: date-time }
+    MedalList:
+      type: object
+      description: G 板块增量（2026-09-25）：本人已获得奖章列表（#49 最小版）
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medal'
+    ViolationLogList:
+      type: object
+      description: G 板块增量（2026-09-25）：本人违规处置留痕列表（#43）
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViolationLog'
+    AnalyticsEventCreate:
+      type: object
+      description: >-
+        G 板块增量（2026-09-25）：埋点上报体（D39）。id / createdAt 由服务端生成；
+        payload 只收结构化事件体，**不含对话原文流水**，入库前经 privacy_filter 脱敏。
+      required: [category, eventType]
+      properties:
+        category:
+          $ref: '#/components/schemas/AnalyticsCategory'
+        eventType:
+          type: string
+          maxLength: 64
+          description: >-
+            事件名，如 message_sent / card_shown / card_clicked / intent_corrected /
+            stack_pushed / stack_sunk / suggestion_rated / profile_extracted
+        sessionId: { type: string, nullable: true }
+        payload:
+          type: object
+          nullable: true
+          description: 结构化事件体（不含对话原文流水；脱敏后入库）
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 事件业务发生时间；缺省为服务端接收时间
 
     # ---------- B 板块：画像（D50） ----------
     UserProfileGroup:
