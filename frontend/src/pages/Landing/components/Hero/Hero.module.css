@@ -35,7 +35,7 @@
   mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
 }
 
-/* ---------- 暗纹层：drift wall（放大铺满、斜置、缓慢漂移） ---------- */
+/* ---------- 暗纹层：成列 drift wall（整墙斜置，相邻列反向滚动） ---------- */
 .motifs {
   position: absolute;
   inset: 0;
@@ -74,25 +74,53 @@
   );
 }
 
-/* 漂移轨道：JS rAF 写 transform（基底/手电双层同值同步） */
-.drift {
+/* 列墙容器：整墙斜置，超尺寸裁边（inset 负值补旋转留白），列间均分铺满 */
+.colsWrap {
   position: absolute;
-  inset: 0;
-  will-change: transform;
+  inset: -18%;
+  display: flex;
+  justify-content: space-between;
+  transform: rotate(-12deg);
 }
 
-/* 拼贴单元：定宽片（横向两片首尾相接做无缝循环）；片内图标绝对散布 */
-.wallSheet {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2600px;
+/* 单列循环带：内容 ×2 拼接，translateY ±50% 无缝循环；
+   偶数列向上（lp-col-up），奇数列向下（lp-col-down）——Skyer 指定错开方向 */
+.wallCol {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  animation: lp-col-up 80s linear infinite;
+}
+
+.colDown {
+  animation-name: lp-col-down;
+}
+
+@keyframes lp-col-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+@keyframes lp-col-down {
+  from { transform: translateY(-50%); }
+  to { transform: translateY(0); }
+}
+
+/* 单元：margin 收在单元内（含末位），保证半循环高度恰好对齐拷贝边界 */
+.cell {
+  display: block;
+  margin-bottom: 96px;
 }
 
 /* 触屏 / 无精确指针：手电取消，暗纹低辨识度常亮（dev-spec §6） */
 @media (hover: none) {
   .motifsTorch { display: none; }
   .motifsBase { opacity: 0.5; }
+  .wallCol { animation: none; }
+}
+
+/* reduced-motion：整墙静止 */
+@media (prefers-reduced-motion: reduce) {
+  .wallCol { animation: none; }
 }
 
 /* ---------- 底部地平线 ---------- */

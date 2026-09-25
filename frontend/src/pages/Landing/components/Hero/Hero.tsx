@@ -21,50 +21,45 @@ const MOTIF_ICONS = [
   IconStopwatch,
 ]
 
-/** 暗纹散布：确定性伪随机布局（刷新不跳位）。
- *  2026-09-25 Skyer 调整：图标放大铺满、统一斜置（drift wall 形态，覆盖 §7.1 静止暗纹口径）。 */
-const MOTIF_SPOTS: Array<{
-  icon: number
-  x: number
-  y: number
-  size: number
-  rotate: number
-}> = Array.from({ length: 26 }, (_, i) => {
-  const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1
-  return {
-    icon: Math.floor(r(1) * MOTIF_ICONS.length),
-    x: 1 + r(2) * 94,
-    y: 2 + r(3) * 93,
-    size: 96 + Math.floor(r(4) * 88),
-    rotate: -34 + Math.floor(r(5) * 28),
-  }
-})
+/** 暗纹列配置：确定性伪随机（刷新不跳位）。
+ *  2026-09-25 Skyer 调整：成列排布、整墙斜置、相邻列反向滚动（drift wall 列形态，
+ *  覆盖 §7.1 静止暗纹口径）。 */
+const MOTIF_SPOTS: Array<{ icon: number; size: number; rotate: number }> =
+  Array.from({ length: 13 }, (_, i) => {
+    const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1
+    return {
+      icon: i % MOTIF_ICONS.length,
+      size: 132 + Math.floor(r(4) * 46),
+      rotate: -16 + Math.floor(r(5) * 22),
+    }
+  })
 
-/** 单片暗纹墙（drift wall 拼贴单元，CSS 定尺寸；横向两片首尾相接做无缝漂移） */
-function MotifSheet() {
+const WALL_COLS = 12 // 列数（斜置 + inset 裁边后仍铺满超宽屏）
+const CELLS_PER_COL = 6 // 每列半个循环的图标数（×2 拼接做无缝循环）
+
+/** 单列暗纹：图标纵向循环带，偶数列向上 / 奇数列向下（2026-09-25 Skyer 指定错开方向） */
+function MotifColumn({ col }: { col: number }) {
+  // i 与 i+6 必须取同一图标（translateY(-50%) 无缝循环的前提）
+  const cells = Array.from({ length: CELLS_PER_COL * 2 }, (_, i) => {
+    const spot = MOTIF_SPOTS[(col * 3 + (i % CELLS_PER_COL) * 5) % MOTIF_SPOTS.length]
+    return { ...spot, key: i }
+  })
   return (
-    <div className={styles.wallSheet}>
-      {MOTIF_SPOTS.map((s, i) => {
+    <div
+      className={`${styles.wallCol} ${col % 2 === 0 ? styles.colUp : styles.colDown}`}
+      style={{ animationDelay: `${-(col * 3.7).toFixed(1)}s` }}
+    >
+      {cells.map((s, i) => {
         const Icon = MOTIF_ICONS[s.icon]
         return (
-          <Icon
-            key={i}
-            size={s.size}
-            style={{
-              position: 'absolute',
-              left: `${s.x}%`,
-              top: `${s.y}%`,
-              transform: `rotate(${s.rotate}deg)`,
-            }}
-          />
+          <span key={i} className={styles.cell}>
+            <Icon size={s.size} style={{ transform: `rotate(${s.rotate}deg)` }} />
+          </span>
         )
       })}
     </div>
   )
 }
-
-/** drift wall 漂移速度（px/s）——drift wall 级别的慢 */
-const DRIFT_SPEED = 22
 
 export default function Hero() {
   const reduced = useReducedMotion()
@@ -72,33 +67,9 @@ export default function Hero() {
   const { text, youVisible, strongFrom, finished } = useSloganSequence()
   const sectionRef = useFlashlight<HTMLElement>(!reduced)
   const glowRef = useRef<HTMLDivElement>(null)
-  const driftBaseRef = useRef<HTMLDivElement>(null)
-  const driftTorchRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
   // LaserFlow 仅精确指针设备开启（触屏静态光晕——移动端简化，dev-spec §6）
   const laserOn = !reduced && hasHoverPointer()
-
-  // drift wall 漂移：rAF 匀速横移，基底/手电双层同一帧写同一 transform 保证严丝合缝；
-  // 触屏与 reduced-motion 静止
-  useEffect(() => {
-    if (reduced || !hasHoverPointer()) return
-    const base = driftBaseRef.current
-    const torch = driftTorchRef.current
-    if (!base || !torch) return
-    let raf = 0
-    const tick = (t: number) => {
-      raf = requestAnimationFrame(tick)
-      const sheet = base.firstElementChild as HTMLElement | null
-      const w = sheet ? sheet.offsetWidth : 0
-      if (!w) return
-      const x = -((t / 1000 * DRIFT_SPEED) % w)
-      const tf = `translate3d(${x}px, 0, 0)`
-      base.style.transform = tf
-      torch.style.transform = tf
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [reduced])
 
   // 光场交互：指针轻微推移（reduced-motion 不动）
   useEffect(() => {
@@ -178,20 +149,22 @@ export default function Hero() {
       {/* 光场：大面积低强度品牌蓝光晕，呼吸 6–8s（第一帧兜底 + 深度层） */}
       <div className={styles.glow} ref={glowRef} aria-hidden />
 
-      {/* 暗纹层：drift wall——放大铺满、斜置、缓慢漂移。
+      {/* 暗纹层：成列 drift wall——整墙斜置，偶数列向上 / 奇数列向下循环滚动。
           基底低辨识常亮；手电层被径向 mask 包在未变换的层上（指针坐标即 mask 坐标），
-          内部与基底同 rAF 同步漂移，显形位置始终跟随指针。 */}
+          内部列动画与基底同参数同帧启动，显形位置始终跟随指针。 */}
       <div className={styles.motifs} aria-hidden>
         <div className={styles.motifsBase}>
-          <div className={styles.drift} ref={driftBaseRef}>
-            <MotifSheet />
-            <MotifSheet />
+          <div className={styles.colsWrap}>
+            {Array.from({ length: WALL_COLS }, (_, c) => (
+              <MotifColumn key={c} col={c} />
+            ))}
           </div>
         </div>
         <div className={styles.motifsTorch}>
-          <div className={styles.drift} ref={driftTorchRef}>
-            <MotifSheet />
-            <MotifSheet />
+          <div className={styles.colsWrap}>
+            {Array.from({ length: WALL_COLS }, (_, c) => (
+              <MotifColumn key={c} col={c} />
+            ))}
           </div>
         </div>
       </div>
