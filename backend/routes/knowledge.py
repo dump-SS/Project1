@@ -168,6 +168,8 @@ def create_knowledge_summary(
                 # EgressGuard：知识聚合包白名单（无原文）
                 "egress_fields": {"subject": payload.subject, "period": payload.period},
                 "data_class": "knowledge_aggregated",
+                "user_id": _user.user_id,
+                "feature_tier": "embedded",
             },
         )
         if text:
@@ -255,7 +257,12 @@ def create_error_parse(
         provider = get_provider()
         text = provider.generate(
             prompt,
-            context={"system": ERROR_PARSE_SYSTEM, "scene": "error_parse"},
+            context={
+                "system": ERROR_PARSE_SYSTEM,
+                "scene": "error_parse",
+                "user_id": _user.user_id,
+                "feature_tier": "embedded",
+            },
         )
         if text:
             from safety_filter import check

@@ -3,6 +3,7 @@ import { ConfigProvider, Switch } from 'antd'
 import { getSettings, updateSettings } from '@/services/settings'
 import { isNetworkError, apiGet, apiPost } from '@/services/http'
 import { fetchCommunityConsent, putCommunityConsent } from '@/services/communityApi'
+import GovernancePanel from './GovernancePanel' // G 板块：用量 / 奖章 / 报错常驻入口
 import { antdThemeToken } from '@/styles/theme'
 import styles from './index.module.css'
 
@@ -119,6 +120,8 @@ export default function SettingsPage() {
           <CommunityConsentPanel />
 
           <WeightPanel />
+
+          <GovernancePanel />
         </div>
       </main>
     </ConfigProvider>

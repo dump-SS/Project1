@@ -7,7 +7,7 @@
 
 | 文档 | 角色 | 备注 |
 |---|---|---|
-| `openapi.yaml` | **唯一契约真相源**（v1.6.0 · 51 paths · 162 schemas · 表 47 张 / 单 head `b81d83bafb89`） | 改动走 X0 评审 |
+| `openapi.yaml` | **唯一契约真相源**（v1.7.0 · 56 paths · 165 schemas · 表 47 张 / 单 head `b81d83bafb89`） | 改动走 X0 评审；v1.7.0 = G 板块增量（用量/报错/违规/奖章/埋点，2026-09-25） |
 | `openapi-usage.md` | 契约使用说明 | 内含历史校验记录，以文首当前口径为准 |
 | `product-redesign-target.md` | **产品目标态** v0.29（D1–D59） | 不含 UI 视觉细节 |
 | `visual-language.md` | **视觉语言基准** v0.1（品牌世界观 / 色板 / 字体时态 / 蓝色两种存在 / 文案红线 / 落地页八屏 / 动效分层） | 2026-09-25 新建；此前品牌共识只存在于 agent 私有记忆（gitignore），本文是它进库的唯一入口。落地页已定，**产品内视觉仍属讨论阶段（#51 未拍板）** |
@@ -17,6 +17,7 @@
 | `refactor-migration-checklist.md` | 迁移清单（现有页面/接口/表逐项处置） | 四件套 ③ |
 | `refactor-decision-mapping.md` | D1–D59 全量映射（零孤儿验收索引） | 四件套 ④ |
 | `refactor-implementation-notes.md` | 执行细节（计量/上传/治理/稳定 ID 等） | 与目标态配套 |
+| `pilot-metrics-and-admission.md` | pilot 核心指标口径 + pilot→beta 准入标准（#53） | G 板块基线；指标全部可从埋点/usage_ledger 读出，阈值待拍板 |
 | `landing-page-dev-spec.md` | **落地页开发实施文档** v0.1（技术基线 / 动效引入 / 逐屏规格 / 素材与占位 / 降级矩阵 / 验收清单） | 2026-09-25 新建；**视觉与文案的真源是 `visual-language.md`，本文只写实现**。三处待实测（组件选型 / React 18 兼容 / 性能预算） |
 | `refactor-2026-09-feature-ia-logic.md` | 现状基线（功能清单/IA/技术债） | 与勘误对照读 |
 | `refactor-baseline-recheck-2026-09-18.md` | 现状勘误（10 条已过时 / 7 条仍准确 / 新发现） | 以 HEAD 实测为准 |
