@@ -3,7 +3,7 @@
 > **版本**：v0.1 · 2026-09-25
 > **定位**：落地页从"设计定稿"到"可上线"的施工说明。**视觉与文案的唯一真源是 [visual-language.md](./visual-language.md)**，本文只写"怎么实现"，不重复设计结论；两者冲突时以视觉语言文档为准并回来改本文。
 > **范围**：官网落地页（`域/`）。应用侧（`域/app`）与产品内视觉不在本文范围。
-> **实测缺口**：第 3 节的组件选型、React 18 兼容性验证、第 7 节性能预算数字需实测后回填，其余可照做。
+> **实测状态（2026-09-25 回填）**：第 3 节组件选型与 React 18 兼容已实测回填（§3.2/§3.3），性能数字见 §7；§5.3 卡 3 素材状态已按实际核实更正。落地页已在 `feat/landing-page` 分支实现完毕；八屏走查 + 四类降级实测（reduced-motion / reduced-transparency / 触屏 / 键盘）+ typecheck/build 全部通过（走查中发现并修复 4 处实现问题，见 §8 备注）。
 
 ---
 
@@ -103,29 +103,32 @@ React Bits **没有独立 MCP server**，官方路径是 shadcn MCP + registry�
 
 **变体一律取 `-TS-TW`**（TS + Tailwind），与 beautifului 同一套。组件以**源码 copy 进仓库**（不装 react-bits 包），依赖 ogl / GSAP 等由组件自带。
 
-### 3.2 候选组件（⏳ 全部待实测，勿直接采信）
+### 3.2 候选组件（✅ 已实测回填，2026-09-25）
 
-| 位置 | 候选（registry 名） | 用途 |
+| 位置 | 组件 | 结论 | 体积（gzip） | reduced-motion | 触屏 | 备注 |
+|---|---|---|---|---|---|---|
+| Hero slogan | `TextType-TS-TW` | ✅ **采纳**（功能屏「写出」模式底座） | ~2 KB（去 gsap 后） | 无内置 → 调用方门控：reduced 时直显成稿 | 无关（纯文本） | 落盘改动见 §3.3；Hero 退格因需精确编排（删指定字+停顿）另写了时间线引擎 `useSloganSequence`，与 TextType 构成一删一写 |
+| 页尾背景 | `Grainient-TS-TW` | ✅ **采纳** | landing-gfx chunk 12.9 KB（ogl）+ 组件 3.0 KB | 无内置 → 落盘版加 `staticFrame`（静态单帧） | 无指针交互 → 落盘版加 pointer 视差（hover 设备） | lightMode 适配亮区；IO/visibility 暂停为原版自带 |
+| 页尾背景候选 | `Aurora-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 无交互 | 极光带状形态偏「氛围灯」，流体感与页尾「鲜明」要求不符 |
+| 页尾背景候选 | `Balatro-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 有交互 | 像素化旋转质感是 Balatro 扑克游戏符号，与品牌无关 |
+| 页尾背景候选 | `ColorBends-TS-TW` | ❌ 未采纳 | **three 系** | — | — | 依赖 `@react-three/fiber@^9`（仅 React 19），React 18 不兼容 |
+| Hero 光场候选 | `Beams-TS-TW` / `Dither-TS-TW` | ❌ 未采纳 | **three 系** | — | — | 同上，r3f v9 仅 React 19 |
+| Hero 光场候选 | `Ribbons-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 无交互 | 流动丝带属装饰，过不了「它在讲什么」检验（§4 通用规则） |
+| Hero 光场候选 | `Waves-TS-TW` | ❌ 未采纳 | 0（纯 Canvas 2D） | 无内置 | 有交互 | 波浪线簇形态偏「科技发布会」，与「光在你前方」的语义不符 |
+| Hero 光场 | **CSS 径向渐变呼吸光场**（自实现） | ✅ **最终方案** | 0（零依赖） | `lp-breathe` 动画由 landing.css 统一静止 | 光晕无触屏依赖；指针视差仅 hover 设备 | 品牌蓝大面积低强度光晕 + 6–8s 呼吸 + 指针轻推 |
+| 装饰类 | `PixelTrail` / `Ballpit` / `MagicRings` / `SplashCursor` | ❌ 不采用 | — | — | — | 均过不了「它在讲什么」检验，且 SplashCursor 与手电语言冲突 |
+
+> 实测环境：React 18.3.1 + Vite 5.4.11；体积来自 `npm run build` 产物（gzip）。
+
+### 3.3 React 19 → 18 兼容验证（✅ 逐组件记录，2026-09-25）
+
+| 组件 | 结论 | 详情 |
 |---|---|---|
-| Hero slogan | `TextType-TS-TW` | 打字 / 删除 / 多文本循环 → 退格动效底座 |
-| 页尾背景 | `Aurora` / `ColorBends` / `Grainient` / `Balatro` | 流体渐变 abstract background（**鲜明光感**） |
-| Hero 光场 / 暗纹 | `Beams` / `Ribbons` / `Waves` / `Dither` | 光晕与流动 |
-| 装饰动效 | `PixelTrail` / `Ballpit` / `MagicRings` / `SplashCursor` | 视效果而定 |
+| `TextType-TS-TW` | ✅ 兼容（含改动） | 无 React 19 API（无 `use()` / ref-as-prop / Actions）；`ref` 经 `createElement` 传给 DOM 元素在 React 18 合法。**落盘改动**：光标闪烁 gsap 补间 → CSS 动画（`.lp-caret`），gsap 依赖整体移除 |
+| `Grainient-TS-TW` | ✅ 兼容（含改动） | 纯 hooks + ogl，无 React 19 API。**落盘改动**：① 新增指针交互（pointermove → ref 缓存 → 渲染循环写 uniform，不触发重渲染，触屏不注册）② 新增 `staticFrame` prop（reduced-motion 静态单帧）；原版工程化（IO 暂停 / visibilitychange 暂停 / ResizeObserver / context 释放）保留 |
+| three 系（Beams / ColorBends / Dither） | ❌ 不可用 | 依赖 `@react-three/fiber@^9` + `@react-three/drei@^10`，均要求 React 19；降级 r3f v8 需改组件源码，不值得引入 three（>600KB） |
 
-实测要求：① 视觉效果是否贴品牌（不滑向霓虹/宇宙）② 依赖体积 ③ 是否响应 `prefers-reduced-motion` ④ 触屏等价行为。**结论回填本表。**
-
-> **本表只是起点，不是白名单。** 开发可以自行在 React Bits registry 里挑选本文未提及的其他组件——只要它更贴合某一屏的叙事。唯一前提：**必须通过上面的四项实测与 §3.3 的 React 18 兼容验证**，并把结论回填到本表（含组件名、用途、体积、降级情况）。挑到更合适的就换，不必受本文限制。
-
-### 3.3 React 19 → 18 兼容验证（每个组件必做）
-
-React Bits registry 基于 React 19，本项目 React 18.3。逐组件验证步骤：
-
-1. 装到隔离分支 / 临时目录，**先单独渲染**确认不报错；
-2. 检查是否用了 React 19 专属 API（`use()`、`ref` 作为 prop 无 forwardRef、Actions/useFormStatus 等）；
-3. 检查依赖包 peer 要求；
-4. 通过后再合入落地页，并在本文表格记录"已验证"。
-
-> 已知教训：DotGrid 实测拖 **GSAP 101KB gzip**，且无内置 reduced-motion / 触屏替代 → 重背景必须走 §2.3 分割。
+> 已知教训（复验）：DotGrid 拖 GSAP 101KB gzip 的教训在本轮兑现——TextType 原版同样依赖 gsap，已通过 CSS 光标方案移除；全页最终 **0 个动画运行时库**（仅 ogl 44KB raw / 12.9KB gzip，且只随页尾懒加载 chunk）。
 
 ### 3.4 License
 
@@ -243,12 +246,14 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 
 ### 5.3 实拍截图（占位，M1 后替换）
 
+> ⚠️ **2026-09-25 核实更正**：原表把卡 3 标为「真实存在（mock-server 模板）」——实际核查 mock-server 只有注册/登录/重置验证码邮件模板，后端 guardian 流程 MVP 阶段不真发邮件（`backend/routes/user.py`），**监护人授权邮件模板并不存在**。经拍板（D4）：卡 3 与卡 1/2 一致做占位块 + TODO，M1 后统一替换真素材。
+
 | # | 位置 | 内容 | 状态 |
 |---|---|---|---|
 | 1 | 信任屏卡 1 | 数据不出境相关界面 | ⏳ 占位（M1 后） |
 | 2 | 信任屏卡 2 | 不评判·不排名相关界面 | ⏳ 占位（M1 后） |
-| 3 | 信任屏卡 3 | 监护人授权邮件截图 | ✅ 真实存在（mock-server 模板） |
-| 4 | 信任屏卡 4 | S5 对话 | ✅ 真实存在（跑批产出） |
+| 3 | 信任屏卡 3 | 监护人授权邮件截图 | ⏳ 占位（原标「真实存在」有误，见上方更正；M1 后） |
+| 4 | 信任屏卡 4 | S5 对话 | ✅ 真实存在（跑批产出，v1.1） |
 
 占位实现：等比容器 + 中性占位块 + 明确 TODO 注释，**不得用假界面图顶替**。
 
@@ -270,45 +275,74 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 
 ---
 
-## 7. 性能预算（⏳ 待实测回填）
+## 7. 性能预算（✅ 2026-09-25 实测回填）
 
-框架与初步目标：
+> 数据来源：`npm run build` 产物（`dist/assets/`）gzip 实测 + 浏览器 `performance.getEntriesByType('resource')`。
 
-- 首屏（hero）**不加载重依赖 chunk**；重动效按屏懒加载。
-- 落地页 chunk 与主包**严格分离**（manualChunks）。
-- 目标（待实测校准）：LCP < 2.5s（4G 模拟）、落地页总 JS（含动效）控制在不影响首屏的范围内。
-- 实测项：候选组件体积（gzip）、未使用依赖剔除、字体加载对 LCP 的影响。
+| 项 | 实测 | 说明 |
+|---|---|---|
+| **主包** | 664 KB gzip（`index-*.js`） | antd 为主的既有体量；**落地页未向主包新增任何依赖**（gsap 已剔除，ogl 只进 gfx chunk） |
+| **落地页路由 chunk** | 11.9 KB gzip（32.2 KB raw） | `React.lazy` 独立分包，首屏产品页不加载 |
+| **landing-gfx chunk（ogl）** | **12.8 KB gzip**（44.4 KB raw） | 仅页尾 Grainient 接近视口（`40% 0px` rootMargin）才动态 import；`manualChunks` 强制 gsap/ogl 与主包分离 |
+| **Grainient 组件 chunk** | 3.0 KB gzip | 随 gfx chunk 一起懒加载 |
+| **动画运行时库** | **0 个** | gsap 已从 TextType 移除（改 CSS 光标）；Hero 光场为纯 CSS 径向渐变呼吸（零依赖） |
+| **字体（子集自托管）** | NotoSerifSC-lp.woff2 85 KB + NotoSansSC-lp 400/500 各 66 KB，`font-display: swap` | 落地页元素全部走 `LP-Serif`/`LP-Sans` 本地字体，**零外部字体请求**（实测 network 仅 1 个外部请求 = `index.html` 既有的 Google Fonts CDN link，产品内页面全局依赖，非落地页发起；其按需化留待产品内页面后续处理） |
+| **LCP < 2.5s（4G 模拟）** | ⏳ 待真机校准 | 构建产物已满足结构前提（首屏 JS = 主包 + 路由 chunk，重依赖与字体均不阻塞渲染；字体 swap 不挡首绘）。真机 LCP 数值需 DevTools 4G 节流实测后补录 |
 
 ---
 
-## 8. 验收清单
+## 8. 验收清单（✅ 2026-09-25 走查完成，浏览器实测 1440×900 + 375×720）
 
-- [ ] 顶栏：logo 两态、三菜单、定价「暂无」灰标签、虚化与降级、滚动收起/弹出、信任屏区间不抖、页尾加深遮罩
-- [ ] Hero：退格时序、手电只照亮暗纹、三级动作、草稿跨登录
-- [ ] 第二屏：三时代一屏内、视窗扩大动效、光收暗与回归
-- [ ] 功能屏 ×3：标题为对话原句、只删句未改字、每屏一处蓝、打字机参数不雷同
-- [ ] 信任屏：四卡、hover/click/focus 三种触发、横滚三护栏、配图来源正确（2 真 2 占位）
-- [ ] 图标海：无缝循环、极慢、顺序为"学生的一天"
-- [ ] CTA+页尾：句子翻转与光同步、两区不遮挡、合规声明可见、占位无编造
-- [ ] 全局：reduced-motion / reduced-transparency / 触屏 / 键盘 四类降级实测
-- [ ] 全局：重依赖只在落地页 chunk；主包无新增重依赖
-- [ ] 素材：图标约 20 个齐备、2 张实景图到位、截图占位标注 TODO
+- [x] 顶栏：logo 两态、三菜单、定价「暂无」灰标签、虚化与降级、滚动收起/弹出、信任屏区间不抖、页尾加深遮罩
+  （实测：EX 标→全称滑出、mega 面板 click/hover 展开 + Esc 关闭、下滑收起/上滑弹出断言、劫持区间常显、`navFooter` 加深生效）
+- [x] Hero：退格时序、手电只照亮暗纹、三级动作、草稿跨登录
+  （实测：初稿「学习工具围着题转！|」打字态与成稿「围着你转。」截图、localStorage `epochx.landing.draft` 写入 + 刷新恢复、桌面端 disabled 虚线）
+- [x] 第二屏：三时代一屏内、视窗扩大动效、光收暗与回归
+  （实测：斜切视窗、logo 段定格、sticky 跑道到底自动释放进入图标海）
+- [x] 功能屏 ×3：标题为对话原句、只删句未改字、每屏一处蓝、打字机参数不雷同
+  （实测：三句标题均带「」逐字打出，峰值态清晰；滚动切换低谷态为正常屏间过渡）
+- [x] 信任屏：四卡、hover/click/focus 三种触发、横滚三护栏、配图来源正确（1 真 3 占位）
+  （实测：click/focus 展开断言、底部进度条随推进、sticky 跑道到底自动释放、卡 4 = S5 真对话完整呈现。⚠️ 卡 3 按 §5.3 更正为占位，原「2 真 2 占位」口径随之修正）
+- [x] 图标海：无缝循环、极慢、顺序为"学生的一天"
+  （实测：8 图标 ×2 复制双份结构，顺序 计划→计时→记录→错题→知识点→复盘→Chat→收藏）
+- [x] CTA+页尾：句子翻转与光同步、两区不遮挡、合规声明可见、占位无编造
+  （实测：滑到底「You're everything.」蓝色翻转 = 光全开同一拍、暗区/亮区边界清晰、合规声明显著、链接/年份/备案全部结构留位）
+- [x] 全局：reduced-motion / reduced-transparency / 触屏 / 键盘 四类降级实测
+  （实测：① reduced-motion——dist 注入 matchMedia 垫片强制：Hero 成稿直显、信任屏静态网格全展开、页尾 canvas=0 走静态 fallback、CTA 翻转正常；② reduced-transparency——dist CSS 强制生效：`backdrop-filter: none` + 纯遮罩 `rgba(16,22,30,0.92)`；③ 触屏（hover:none 垫片）——手电/Grainient 指针注册的 JS 门控关闭、展开按钮在无 hover 设备显示（CSS 反转验证）；④ 键盘——Tab 聚焦信任卡即展开、Esc 关闭菜单）
+- [x] 全局：重依赖只在落地页 chunk；主包无新增重依赖（见 §7 实测表）
+- [x] 素材：图标约 20 个齐备、2 张实景图到位、截图占位标注 TODO
+  （实测：24 枚 monoline 图标、实景图 2 张 duotone 占位 + 3 张截图占位（卡 3 更正后）均带 TODO，无假界面图）
+
+**走查中发现并已修复的实现问题**（均为代码缺陷修复，不涉及视觉/文案拍板项）：
+
+1. **CTA 翻转句与输入框重叠**：`.finalLine` 固定 1.2em 高，翻转句 `.lineIn` 处于文档流成为第二行溢出压住输入框 → 改为与首句同位叠放（`position: absolute; inset: 0`）交叉淡入。
+2. **信任屏标题叠压卡片**：卡片横移滑过标题区，55% 半透明卡面透出标题文字 → 标题随横移进度在前 25% 内淡出（「sticky 在左」初始语义不变，淡出让位给卡片；供 Skyer review，如需标题全程可见可改卡片轨道裁切方案）。
+3. **信任卡折叠态内容泄漏**：`.figure` 的 `0fr` 折叠被子元素自身 margin/padding/边框撑起轨道下限（实测漏出 38px 的 S5 对话切片与占位框虚线顶边）→ 增加零装饰裁剪层 `.figureClip` 作为 grid 直接子元素。
+4. **移动端顶栏菜单折行破碎**（375px 实测）：菜单/登录按钮文字竖排换行 → `white-space: nowrap` + 720px 断点紧凑化（字号/间距收紧）。
 
 ---
 
 ## 9. 待定与待实测
 
-**待实测（回填后本文才能最终定稿）**
+**待实测（✅ 2026-09-25 全部回填完毕）**
 
-1. 动效组件选型（§3.2 候选表）：视觉效果 / 体积 / reduced-motion / 触屏
-2. React 19→18 逐组件兼容验证（§3.3）
-3. 性能预算具体数字（§7）
+1. ~~动效组件选型（§3.2 候选表）~~ → 已回填（采纳 TextType / Grainient + 自实现 CSS 呼吸光场；three 系组件因 React 18 不兼容整体否决）
+2. ~~React 19→18 逐组件兼容验证（§3.3）~~ → 已回填
+3. ~~性能预算具体数字（§7）~~ → 已回填（LCP 真机校准一项待补）
 
 **待拍板**
 
-1. 字体加载方案：子集自托管 vs CDN（§2.2）
-2. 落地页开发顺序与 X1 壳的协调（§1.3 共享文件）
+1. ~~字体加载方案：子集自托管 vs CDN（§2.2）~~ → **已定：子集自托管**（已落地 `public/fonts/` 3 个 woff2）
+2. 落地页开发顺序与 X1 壳的协调（§1.3 共享文件）——共享文件改动已按用户授权直接提交（单独 commit 标注待 review）
 3. ~~是否分两阶段（先静态版再叠动效）~~ → **已定：不分阶段，动效一次加齐**（Skyer 拍板）。代码分割与懒加载策略仍然照做（§2.3），那是加载策略不是交付阶段。
+
+**遗留待确认（实现期间记录，不阻塞上线走查）**
+
+1. 功能屏三句标题在 S3/S4 跑批对话中无逐字出处（按 visual-language 定稿执行，`content/copy.ts` 头注有标）。
+2. 信任屏四卡「简要说明」正文为按要点的最小扩写稿，待 Skyer review。
+3. 顶栏「资源」四项与页尾链接组的指向（占位规则：结构留位、内容留空）。
+4. 桌面端按钮 disabled 的最终交互（订阅通知属占位内容，默认不做）。
+5. reduced-motion 下打字机光标仍存在于 DOM（视觉已隐藏，仅语义洁癖层面可优化）。
 
 ---
 
