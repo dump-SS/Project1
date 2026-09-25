@@ -92,7 +92,34 @@ class LearningRecord(BaseModel):
     plan_task_id: str | None = Field(None, alias="planTaskId")
     behavior: RecordBehavior
     self_report: RecordSelfReport = Field(..., alias="selfReport")
+    # ⚠️ 补漏（C 板块）：契约 LearningRecord 一直有 note（描述里写明「此前 RecordInput 有 note
+    # 入参但出参缺失，用户无法找回自己写过的内容，已补齐」），但本 Pydantic 模型漏了该字段，
+    # 于是路由明明塞了 note 也被 model_validate 静默丢弃——用户写的备注永远读不回来。
+    note: str | None = Field(None, max_length=100, description="用户备注，未填写时为 null")
     created_at: datetime = Field(..., alias="createdAt")
+
+
+class RecordUpdate(BaseModel):
+    """事后回写请求体（D15：记录是活实体，正确率/完成度/备注可事后补）。
+
+    语义：**只在字段被显式传入时才改**（路由侧用 `model_fields_set` 判定）——
+    传 `accuracy: null` 表示「清空（确实没填）」，不传表示「别动」。
+    两者必须区分，否则用户只想改个备注会把正确率抹掉。
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={"example": {"accuracy": 0.75, "note": "老师讲完才知道对了几道"}},
+    )
+
+    completion: Completion | None = Field(None, description="修正完成度（completed / partial / abandoned）")
+    accuracy: float | None = Field(
+        None, ge=0.0, le=1.0, description="正确率 0-1；显式传 null 表示清空（三态中的「永不填」）"
+    )
+    note: str | None = Field(None, max_length=100, description="备注，≤100 字")
+    self_report: RecordSelfReport | None = Field(
+        None, alias="selfReport", description="整体覆盖自评四字段（不支持局部改）"
+    )
 
 
 class AssessmentSnapshot(BaseModel):
@@ -176,6 +203,22 @@ class LearningRecordDeleted(BaseModel):
 
     deleted: bool
     record_id: str = Field(..., alias="recordId")
+    recalculated_assessment: LearningRecordCreatedAssessment = Field(
+        ..., alias="recalculatedAssessment"
+    )
+
+
+class LearningRecordUpdated(BaseModel):
+    """事后回写的响应（D15）。
+
+    带上 `recalculatedAssessment`：回写正确率/自评会改变状态分，
+    前端要能立刻拿到新读数，而不是再发一次 GET /assessments/current。
+    ⚠️ 与提交记录的区别：这里**不返回 recommendation**——回写不重复触发建议生成。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    record: LearningRecord
     recalculated_assessment: LearningRecordCreatedAssessment = Field(
         ..., alias="recalculatedAssessment"
     )

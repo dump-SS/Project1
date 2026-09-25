@@ -92,3 +92,16 @@ class Rating(str, Enum):
     useful = "useful"
     neutral = "neutral"
     not_useful = "not_useful"
+
+
+class TimerMode(str, Enum):
+    """计时模式（D30）。countdown 有目标时长；countup 不限时。"""
+    countdown = "countdown"
+    countup = "countup"
+
+
+class TimerStatus(str, Enum):
+    """计时会话状态。abandoned 是「僵尸裁决后丢弃」，**不产生学习记录**。"""
+    running = "running"
+    finished = "finished"
+    abandoned = "abandoned"

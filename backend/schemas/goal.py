@@ -60,6 +60,13 @@ class GoalSummary(GoalBase):
     point_ids: list[str] = Field(
         default_factory=list, alias="pointIds", description="目标绑定的知识点 ID（板块二 v2.2，可选）"
     )
+    parent_goal_id: str | None = Field(
+        None, alias="parentGoalId", description="父目标 ID（D6 父子树）；顶层目标为 null"
+    )
+    exam_id: str | None = Field(None, alias="examId", description="关联考试 ID（D49）")
+    target_score: float | None = Field(
+        None, alias="targetScore", description="目标分数（配合 examId，表达「这次想考到 X」）"
+    )
     progress: GoalProgress
 
 
@@ -93,6 +100,13 @@ class GoalCreate(BaseModel):
     target_date: date | None = Field(None, alias="targetDate", description="短期目标建议必填")
     template_id: str | None = Field(None, alias="templateId", description="从预设模板创建时带上")
     point_ids: list[str] | None = Field(None, alias="pointIds", description="绑定知识点 ID（v2.2，可选）")
+    parent_goal_id: str | None = Field(
+        None, alias="parentGoalId", description="父目标 ID（D6 父子树）；不传即顶层目标"
+    )
+    exam_id: str | None = Field(None, alias="examId", description="关联考试 ID（D49）")
+    target_score: float | None = Field(
+        None, alias="targetScore", description="目标分数（配合 examId）"
+    )
 
 
 class GoalUpdate(BaseModel):
@@ -114,6 +128,13 @@ class GoalUpdate(BaseModel):
         None, alias="completionNote", max_length=200, description="归档完成总结"
     )
     point_ids: list[str] | None = Field(None, alias="pointIds", description="绑定知识点 ID（v2.2，可选）")
+    parent_goal_id: str | None = Field(
+        None,
+        alias="parentGoalId",
+        description="父目标 ID（D6 父子树）；**显式传 null 表示提升为顶层目标**（与「不传=不动」区分）",
+    )
+    exam_id: str | None = Field(None, alias="examId", description="关联考试 ID（D49）；传 null 解除关联")
+    target_score: float | None = Field(None, alias="targetScore", description="目标分数（配合 examId）")
 
 
 class GoalList(BaseModel):

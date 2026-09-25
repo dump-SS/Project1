@@ -7,7 +7,7 @@
 
 | 文档 | 角色 | 备注 |
 |---|---|---|
-| `openapi.yaml` | **唯一契约真相源**（v1.6.0 · 51 paths · 162 schemas · 表 47 张 / 单 head `b81d83bafb89`） | 改动走 X0 评审 |
+| `openapi.yaml` | **唯一契约真相源**（v1.7.0 · 59 paths · 170 schemas · 表 47 张 / 单 head `b81d83bafb89`） | 改动走 X0 评审 |
 | `openapi-usage.md` | 契约使用说明 | 内含历史校验记录，以文首当前口径为准 |
 | `product-redesign-target.md` | **产品目标态** v0.29（D1–D59） | 不含 UI 视觉细节 |
 | `product-redesign-target.html` | 目标态汇报页 | Skyer 9/17 亲自重做的结构，**只增量编辑，禁止覆盖重建** |
@@ -27,6 +27,7 @@
 | `deployment-stack-evaluation.md` | 部署栈选型 + 落地清单 | P0/P1/P2 多数已完成（文首状态说明）；剩平台选型/密钥/R2 |
 | `pending-decisions.md` | #1–#53 决策痕迹 | 已批量拍板，仅支付三项推迟 |
 | `module3-consent-copy.md` | 社区授权文案 v1.0（定稿） | 文案资产仍生效，重构 M4 社区接线时复用 |
+| `refactor-c-handoff-to-x0.md` | **C → X0 需求单**：`self_report` 软字段可空化 + 记录来源字段（D20/D34/D49 的三处阻塞） | 2026-09-25 新增，**待 X0 评审**；C 侧已按"不造数"口径只做能做的部分 |
 
 ## 三、已归档（`archive/` · 历史留痕，勿据此安排工作）
 
