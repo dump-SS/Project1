@@ -1,0 +1,199 @@
+/* CTA + 页尾（visual-language §7.8）：从夜走到光 */
+
+/* ---------- 上部 CTA（暗区） ---------- */
+.cta {
+  min-height: 72vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctaInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+/* 末句：英文短句，翻转过渡（两行叠放，交叉淡入） */
+.finalLine {
+  position: relative;
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: clamp(28px, 4.4vw, 52px);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  height: 1.2em;
+  text-align: center;
+}
+
+.finalLine span {
+  display: block;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.lineHidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(30%);
+}
+
+.lineIn {
+  color: var(--lp-blue); /* 翻转句 = 光全开时刻的唯一焦点蓝 */
+}
+
+.lineOut {
+  opacity: 0;
+  transform: translateY(-30%);
+}
+
+.input {
+  width: min(460px, 100%);
+  height: 52px;
+  padding: 0 20px;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: var(--lp-text);
+  background: rgba(27, 34, 45, 0.72);
+  border: 1px solid var(--lp-hairline);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.input::placeholder { color: var(--lp-text-2); }
+.input:focus {
+  border-color: rgba(74, 209, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.10);
+}
+
+/* ---------- 下部页尾（亮区：全站唯一「大面积+鲜明+流体渐变」特例） ---------- */
+.footer {
+  position: relative;
+  padding-block: 72px 40px;
+  color: #0F1520; /* 亮区上的暗字 */
+  overflow: hidden;
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* 静态兜底（reduced-motion / chunk 未加载）：亮色品牌渐变 */
+.bgFallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 80% at 30% 30%, rgba(74, 209, 255, 0.5), transparent 70%),
+    radial-gradient(50% 70% at 75% 60%, rgba(27, 93, 191, 0.45), transparent 72%),
+    linear-gradient(160deg, #d8eefc 0%, #eef7ff 55%, #dce9fb 100%);
+}
+
+/* scrim：光感保留、文字可读（对比度保障层，不切文字颜色） */
+.bgScrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(237, 246, 252, 0.42), rgba(223, 236, 248, 0.55));
+}
+
+.footerInner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 48px;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .footerInner {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+.brandCol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.footerLogo {
+  height: 36px;
+  width: auto;
+}
+
+.tagline {
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  line-height: 1.8;
+  color: rgba(15, 21, 32, 0.72);
+}
+
+/* 链接组：占位 span（虚线样式，地址留空） */
+.links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, auto));
+  gap: 10px 32px;
+}
+
+.linkPlaceholder {
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: rgba(15, 21, 32, 0.78);
+  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
+  padding-block: 4px;
+  cursor: default;
+}
+
+.backTop {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: #0F1520;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(15, 21, 32, 0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+.backTop:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* 版权 + 备案 + 合规声明 */
+.legal {
+  position: relative;
+  z-index: 1;
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--lp-font-sans);
+  font-size: 13px;
+  color: rgba(15, 21, 32, 0.66);
+}
+
+.blank {
+  display: inline-block;
+  min-width: 64px;
+  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
+}
+
+.blankRow {
+  min-height: 1em;
+}
+
+/* 合规硬项：显著标注（不加透明度，字号提一档） */
+.compliance {
+  font-size: 14px;
+  font-weight: 500;
+  color: #10161E;
+  margin-top: 4px;
+}

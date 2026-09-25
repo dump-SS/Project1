@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
  * 容器高度 = 视口高 + pinRange（外层撑出的滚动跑道）。
  */
 export function useScrollProgress<T extends HTMLElement>(): [
-  React.RefObject<T | null>,
+  React.RefObject<T>,
   number,
 ] {
   const ref = useRef<T | null>(null)

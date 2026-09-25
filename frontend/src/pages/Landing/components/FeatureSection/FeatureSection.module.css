@@ -1,0 +1,140 @@
+/* 功能屏 ×3（visual-language §7.3–7.5） */
+
+.section {
+  position: relative;
+  min-height: 92vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  /* 屏间切换：进入时淡入上移 */
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sectionIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 920px) {
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .section {
+    min-height: auto;
+    padding-block: 88px;
+  }
+}
+
+/* ---------- 左：金句标题 + 功能名 ---------- */
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 标题：无衬线（正在说） */
+.title {
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 42px);
+  line-height: 1.45;
+  min-height: 1.45em;
+}
+
+/* 功能名小字：衬线（注释时态） */
+.featureName {
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  letter-spacing: 0.28em;
+  color: var(--lp-text-2);
+}
+
+/* ---------- 右：对话气泡（本屏唯一蓝 = 光晕落在此处） ---------- */
+.dialogue {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  border-radius: 16px;
+  background: rgba(27, 34, 45, 0.45);
+  border: 1px solid var(--lp-hairline);
+}
+
+/* 光晕：大面积低强度（作为「光」存在），只此一处 */
+.dialogue::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  background: radial-gradient(
+    42% 50% at 55% 45%,
+    rgba(74, 209, 255, 0.12),
+    transparent 72%
+  );
+}
+
+/* 用户短句：无衬线（随口输入的） */
+.bubbleUser {
+  align-self: flex-end;
+  max-width: 78%;
+  padding: 10px 16px;
+  border-radius: 12px 12px 4px 12px;
+  background: rgba(42, 53, 66, 0.55);
+}
+
+.userText {
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* 产品回复：衬线（已写下来的），行高 1.8、字重不上 Bold */
+.bubbleProduct {
+  align-self: flex-start;
+  max-width: 92%;
+  padding: 12px 18px;
+  border-radius: 12px 12px 12px 4px;
+  background: rgba(16, 22, 30, 0.65);
+  border: 1px solid var(--lp-hairline);
+}
+
+.productText {
+  font-family: var(--lp-font-serif);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--lp-text);
+}
+
+/* ---------- 底部暗纹（近不可见，#2A3542 档） ---------- */
+.motifStrip {
+  position: absolute;
+  bottom: 28px;
+  right: 6%;
+  display: flex;
+  align-items: flex-end;
+  gap: 36px;
+  color: var(--lp-motif);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.motifIcon {
+  transform: rotate(-8deg);
+}
+
+.motifIcon:nth-child(2) {
+  transform: rotate(10deg);
+}

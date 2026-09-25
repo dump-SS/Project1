@@ -1,0 +1,240 @@
+/* 顶栏（visual-language §7.0）：logo 两态 / mega 面板 / 失焦虚化 / 滚动收起弹出 / 页尾加深 */
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.35s ease, backdrop-filter 0.35s ease;
+}
+
+/* 下滑收起（劫持区间与展开面板时不收起） */
+.navHidden {
+  transform: translateY(-100%);
+}
+
+/* 滚过 hero：底色渐显（常态半透明，页内始终可读） */
+.navSolid {
+  background: rgba(16, 22, 30, 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(42, 53, 66, 0.6);
+}
+
+/* 页尾（亮色流体渐变）加深遮罩，不切文字颜色 */
+.navFooter {
+  background: rgba(11, 16, 23, 0.78);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+/* ---------- logo 两态：EX 标 + 全称滑出 ---------- */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.logoMark {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* 全称包裹层：宽度从 0 展开（滚过 hero 后保持） */
+.logoWordWrap {
+  display: block;
+  width: 0;
+  overflow: hidden;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  opacity: 0;
+}
+.navSolid .logoWordWrap,
+.navFooter .logoWordWrap {
+  width: 76px; /* wordmark 417×155 @ h28 ≈ 76px */
+  opacity: 1;
+}
+
+.logoWord {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* ---------- 菜单 ---------- */
+.menus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.menuBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: var(--lp-text);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.menuBtn:hover,
+.menuBtn:focus-visible,
+.menuBtnOn {
+  background: rgba(27, 34, 45, 0.7);
+  outline: none;
+}
+
+/* 「暂无」灰描边标签（不可用=灰，不占蓝色） */
+.naTag {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--lp-text-2);
+  border: 1px solid var(--lp-hairline);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+.loginBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  margin-left: 12px;
+  padding: 0 20px;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: var(--lp-text);
+  text-decoration: none;
+  border: 1px solid var(--lp-hairline);
+  border-radius: 8px;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+.loginBtn:hover {
+  border-color: rgba(232, 234, 237, 0.4);
+  background: rgba(27, 34, 45, 0.6);
+}
+
+/* ---------- mega 面板 ---------- */
+.panel {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  background: rgba(16, 22, 30, 0.92);
+  border-bottom: 1px solid var(--lp-hairline);
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.panelOpen {
+  max-height: 320px;
+  opacity: 1;
+}
+
+.panelInner {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 40px;
+  align-items: start;
+  padding-block: 36px 40px;
+}
+
+@media (max-width: 720px) {
+  .panelInner {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.panelLead {
+  font-family: var(--lp-font-serif);
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--lp-text-2);
+  max-width: 280px;
+}
+
+.panelList {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 8px 32px;
+}
+
+.panelLink,
+.panelLinkPlaceholder {
+  display: block;
+  padding: 10px 14px;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  border-radius: 8px;
+}
+
+.panelLink {
+  color: var(--lp-text);
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+.panelLink:hover,
+.panelLink:focus-visible {
+  background: rgba(27, 34, 45, 0.8);
+  outline: none;
+}
+
+/* 占位项（桌面端 / 文档等）：灰态 */
+.panelLinkPlaceholder {
+  color: var(--lp-text-2);
+  border: 1px dashed var(--lp-hairline);
+  cursor: default;
+}
+
+/* ---------- 背景失焦遮罩（面板展开时） ---------- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(11, 16, 23, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  /* 虚化：backdrop-filter 8–16px + 半透明遮罩 */
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.scrimOn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 页尾亮区上开面板：遮罩加深 */
+.scrimDeep {
+  background: rgba(11, 16, 23, 0.55);
+}
+
+/* prefers-reduced-transparency：虚化 → 纯遮罩 */
+@media (prefers-reduced-transparency: reduce) {
+  .scrim {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(11, 16, 23, 0.6);
+  }
+  .navSolid,
+  .navFooter {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(16, 22, 30, 0.92);
+  }
+}

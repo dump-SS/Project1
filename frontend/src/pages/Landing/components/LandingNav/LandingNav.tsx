@@ -1,0 +1,194 @@
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
+import { NAV_COPY } from '../../content/copy'
+import { getHijackRange, subscribeHijack } from '../../lib/navScrollGuard'
+import styles from './LandingNav.module.css'
+
+type MenuKey = 'product' | 'pricing' | 'resources' | null
+
+interface PanelDef {
+  readonly lead: string
+  readonly items: ReadonlyArray<{ readonly name: string; readonly href: string }>
+}
+
+const PANELS: Record<Exclude<MenuKey, null>, PanelDef | null> = {
+  product: NAV_COPY.productPanel,
+  pricing: null, // 定价无展开面板，选项后带灰描边「暂无」标签
+  resources: NAV_COPY.resourcesPanel,
+}
+
+export default function LandingNav() {
+  const { status } = useAuth()
+  const [openMenu, setOpenMenu] = useState<MenuKey>(null)
+  const [scrolledPastHero, setScrolledPastHero] = useState(false)
+  const [hidden, setHidden] = useState(false) // 下滑收起 / 上滑弹出
+  const [footerInView, setFooterInView] = useState(false)
+  const lastY = useRef(0)
+  const ticking = useRef(false)
+
+  const hijackActive = useSyncExternalStore(
+    subscribeHijack,
+    () => getHijackRange() !== null,
+  )
+
+  /* 劫持区间激活时（sticky 冻结纵向滚动、scroll 事件停发）→ 强制常显 */
+  useEffect(() => {
+    if (hijackActive) setHidden(false)
+  }, [hijackActive])
+
+  /* ---------- 滚动行为：下滑收起、上滑弹出（信任屏劫持区间内禁用） ---------- */
+  useEffect(() => {
+    const onScroll = () => {
+      if (ticking.current) return
+      ticking.current = true
+      requestAnimationFrame(() => {
+        ticking.current = false
+        const y = window.scrollY
+        setScrolledPastHero(y > window.innerHeight * 0.6)
+
+        const range = getHijackRange()
+        const inHijack = range !== null && y >= range.top && y <= range.bottom
+        if (inHijack || y < 24) {
+          setHidden(false) // 劫持区间 / 顶部：常显
+        } else {
+          const delta = y - lastY.current
+          if (Math.abs(delta) > 8) setHidden(delta > 0)
+        }
+        lastY.current = y
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  /* ---------- 页尾进入视口 → 加深遮罩 ---------- */
+  useEffect(() => {
+    const footer = document.getElementById('landing-footer')
+    if (!footer || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setFooterInView(e.isIntersecting), {
+      threshold: 0.15,
+    })
+    io.observe(footer)
+    return () => io.disconnect()
+  }, [])
+
+  /* ---------- Esc 关闭 + 失焦关闭 ---------- */
+  useEffect(() => {
+    if (!openMenu) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [openMenu])
+
+  const closePanel = useCallback(() => setOpenMenu(null), [])
+  const toggleMenu = useCallback((key: Exclude<MenuKey, null>) => {
+    setOpenMenu((cur) => (cur === key ? null : key))
+  }, [])
+
+  const authed = status === 'authenticated'
+  const panel = openMenu ? PANELS[openMenu] : null
+  // 背景失焦虚化（backdrop-filter + 遮罩）与 reduced-transparency 降级均在 CSS 内处理
+
+  return (
+    <>
+      {/* 背景失焦遮罩层（展开 mega 面板时） */}
+      <div
+        className={`${styles.scrim} ${openMenu ? styles.scrimOn : ''} ${footerInView ? styles.scrimDeep : ''}`}
+        aria-hidden
+        onClick={closePanel}
+      />
+
+      <header
+        className={[
+          styles.nav,
+          hidden && !openMenu ? styles.navHidden : '',
+          scrolledPastHero ? styles.navSolid : '',
+          footerInView ? styles.navFooter : '',
+        ].join(' ')}
+        onMouseLeave={closePanel}
+      >
+        <div className={`${styles.bar} landing-wrap`}>
+          {/* logo 两态：hero 内只显示 EX 标；滚过 hero 后全称从标识侧滑出并保持 */}
+          <Link to="/" className={styles.logo} aria-label="EpochX 首页" onClick={closePanel}>
+            <img
+              src="/brand/logo-mark-on-dark-trim.png"
+              alt=""
+              className={styles.logoMark}
+              height={28}
+            />
+            <span className={styles.logoWordWrap}>
+              <img
+                src="/brand/logo-wordmark-on-dark.png"
+                alt=""
+                className={styles.logoWord}
+                height={28}
+              />
+            </span>
+          </Link>
+
+          <nav className={styles.menus} aria-label="主导航">
+            {(NAV_COPY.menus as readonly string[]).map((label) => {
+              const key = label === NAV_COPY.menus[0] ? 'product'
+                : label === NAV_COPY.menus[1] ? 'pricing'
+                : 'resources'
+              const isOpen = openMenu === key
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`${styles.menuBtn} ${isOpen ? styles.menuBtnOn : ''}`}
+                  aria-expanded={isOpen}
+                  aria-haspopup="true"
+                  // hover / click / focus 三种触发同效（dev-spec §4.0 可达性）
+                  onMouseEnter={() => setOpenMenu(key as Exclude<MenuKey, null>)}
+                  onFocus={() => setOpenMenu(key as Exclude<MenuKey, null>)}
+                  onClick={() => toggleMenu(key as Exclude<MenuKey, null>)}
+                >
+                  {label}
+                  {key === 'pricing' && <span className={styles.naTag}>{NAV_COPY.pricingNa}</span>}
+                </button>
+              )
+            })}
+
+            {authed ? (
+              <Link to="/study-guide" className={styles.loginBtn}>
+                {NAV_COPY.enterApp}
+              </Link>
+            ) : (
+              <Link to="/login" className={styles.loginBtn}>
+                {NAV_COPY.login}
+              </Link>
+            )}
+          </nav>
+        </div>
+
+        {/* mega 面板：整个顶栏下拉展开（关闭时内容不渲染，避免零高容器里的链接可聚焦） */}
+        <div className={`${styles.panel} ${openMenu && panel ? styles.panelOpen : ''}`}>
+          {openMenu && panel && (
+            <div className={`${styles.panelInner} landing-wrap`}>
+              <p className={styles.panelLead}>{panel.lead}</p>
+              <ul className={styles.panelList}>
+                {panel.items.map((item) => (
+                  <li key={item.name}>
+                    {item.href ? (
+                      <Link to={item.href} className={styles.panelLink} onClick={closePanel}>
+                        {item.name}
+                      </Link>
+                    ) : (
+                      /* 占位项：未上线 / 待补——灰态，不留空 href */
+                      <span className={styles.panelLinkPlaceholder}>{item.name}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </header>
+    </>
+  )
+}

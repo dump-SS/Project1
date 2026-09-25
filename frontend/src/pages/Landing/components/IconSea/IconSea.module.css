@@ -1,0 +1,66 @@
+/* 图标海屏（visual-language §7.7）：极慢无缝循环 */
+
+.section {
+  padding-block: 120px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  overflow: hidden;
+}
+
+.caption {
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.you {
+  color: var(--lp-blue);
+}
+
+/* 滚动海：整宽溢出隐藏 */
+.sea {
+  overflow: hidden;
+  /* 两侧渐隐，让循环边界不生硬 */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+/* 轨道宽 = 内容两倍，translateX(-50%) 无缝循环 */
+.track {
+  display: flex;
+  width: max-content;
+  gap: 0;
+}
+
+.trackAnim {
+  animation: lp-sea-scroll 80s linear infinite;
+}
+
+.trackAnim:hover {
+  animation-play-state: paused; /* 盯着看的时候停得住 */
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 168px;
+  flex: 0 0 auto;
+  color: var(--lp-text-2);
+  transition: color 0.3s ease;
+}
+
+.cell:hover {
+  color: var(--lp-text);
+}
+
+/* 功能名小字：衬线（注释时态） */
+.label {
+  font-family: var(--lp-font-serif);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}

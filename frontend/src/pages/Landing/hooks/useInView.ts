@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 export function useInView<T extends HTMLElement>(
   rootMargin = '20% 0px',
   once = true,
-): [React.RefObject<T | null>, boolean] {
+): [React.RefObject<T>, boolean] {
   const ref = useRef<T | null>(null)
   const [inView, setInView] = useState(false)
 

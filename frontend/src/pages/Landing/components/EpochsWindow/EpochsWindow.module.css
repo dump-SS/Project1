@@ -1,0 +1,159 @@
+/* 第二屏 · 三时代视窗（visual-language §7.2） */
+
+/* 滚动跑道：总高 = 视口 3.2 倍，内层 sticky 钉住一屏 */
+.runway {
+  height: 320vh;
+  position: relative;
+}
+
+.pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 380px);
+  gap: 48px;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  .stage {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+/* ---------- 斜向平行四边形视窗（斜角 ≈ logo X 斜体） ---------- */
+.window {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: 68vh;
+  /* 斜切 ≈12°（logo X 斜体角）：斜角=时间切片 */
+  clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
+  overflow: hidden;
+  background: var(--lp-bg-deep);
+  transition: none; /* 由滚动进度直接驱动 */
+}
+
+/* 窗内横滚轨道：三格各占一窗宽 */
+.track {
+  display: flex;
+  width: 300%;
+  height: 100%;
+  will-change: transform;
+}
+
+.frame {
+  flex: 0 0 33.3333%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* 实景图占位：等比容器 + 暗蓝 duotone 渐变 + TODO（dev-spec §5.2/5.3，禁假图） */
+.ph {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  color: var(--lp-text-2);
+  background:
+    linear-gradient(135deg, rgba(27, 93, 191, 0.22), rgba(11, 16, 23, 0.9)),
+    linear-gradient(315deg, rgba(42, 53, 66, 0.5), rgba(16, 22, 30, 0.95));
+  border: 1px dashed var(--lp-hairline);
+  border-radius: 8px;
+}
+
+/* logo 格：原色（不做 duotone） */
+.frameLogo {
+  background: radial-gradient(50% 60% at 50% 55%, rgba(74, 209, 255, 0.08), transparent 75%);
+}
+
+/* 光的调度：历史段主光收暗（越暗越久远），logo 显现时褪去 */
+.lightVeil {
+  position: absolute;
+  inset: 0;
+  background: #06090d;
+  pointer-events: none;
+}
+
+/* ---------- 右侧文案（已定稿） ---------- */
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.headline {
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: clamp(24px, 3.2vw, 38px);
+  line-height: 1.4;
+}
+
+.you {
+  color: var(--lp-blue); /* 该屏唯一蓝字 */
+}
+
+.sub {
+  font-family: var(--lp-font-serif);
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--lp-text-2);
+}
+
+/* ---------- 静态降级（reduced-motion）：三格并排 + logo 定格 ---------- */
+.staticSection {
+  padding-block: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+.staticGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 860px) {
+  .staticGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.staticFrame {
+  aspect-ratio: 3 / 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  color: var(--lp-text-2);
+  background:
+    linear-gradient(135deg, rgba(27, 93, 191, 0.18), rgba(11, 16, 23, 0.9));
+  border: 1px dashed var(--lp-hairline);
+  border-radius: 8px;
+}
+
+.staticFrameLogo {
+  composes: staticFrame;
+  border-style: solid;
+  border-color: var(--lp-hairline);
+}

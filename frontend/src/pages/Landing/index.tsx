@@ -6,6 +6,13 @@
  * 本文件只做组装；各屏实现在 components/ 下，文案全部来自 content/。
  */
 import LandingRoot from './LandingRoot'
+import LandingNav from './components/LandingNav/LandingNav'
+import Hero from './components/Hero/Hero'
+import EpochsWindow from './components/EpochsWindow/EpochsWindow'
+import FeatureSection from './components/FeatureSection/FeatureSection'
+import TrustWall from './components/TrustWall/TrustWall'
+import IconSea from './components/IconSea/IconSea'
+import CtaFooter from './components/CtaFooter/CtaFooter'
 // 页面级样式唯一入口（Tailwind utilities-only + .landing 作用域 token）。
 // 非 CSS Module（工具类需全局可用），但所有规则都收在 .landing 作用域内，不泄漏全站。
 import './landing.css'
@@ -13,11 +20,17 @@ import './landing.css'
 export default function LandingPage() {
   return (
     <LandingRoot>
+      <LandingNav />
       <main id="landing-main">
-        {/* 各屏组件按阶段 5 逐个接入 */}
-        <p className="landing-wrap" style={{ paddingBlock: 80 }}>
-          Landing under construction.
-        </p>
+        <Hero />
+        <EpochsWindow />
+        {/* 功能屏 ×3：顺序 = 由近及远（当下 → 事后 → 周期） */}
+        <FeatureSection screenId="state" />
+        <FeatureSection screenId="error-book" />
+        <FeatureSection screenId="review" />
+        <TrustWall />
+        <IconSea />
+        <CtaFooter />
       </main>
     </LandingRoot>
   )

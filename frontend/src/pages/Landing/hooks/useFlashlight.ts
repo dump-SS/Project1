@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react'
  * - prefers-reduced-motion：本 hook 无动画帧，仅跟随指针，无需额外处理；
  *   但视觉上暗纹显形属交互反馈而非运动，保留。
  */
-export function useFlashlight<T extends HTMLElement>(enabled: boolean) {
+export function useFlashlight<T extends HTMLElement>(enabled: boolean): React.RefObject<T> {
   const ref = useRef<T | null>(null)
 
   useEffect(() => {
