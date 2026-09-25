@@ -14,26 +14,43 @@
   transform: translateY(-100%);
 }
 
-/* 滚过 hero：底色渐显（常态半透明，页内始终可读） */
+/* 滚过 hero：logo 全称保持；玻璃底由 GlassSurface 组件层承担（2026-09-25 Skyer 指定），
+   本类仅作为状态标记驱动 logo 两态 */
 .navSolid {
-  background: rgba(16, 22, 30, 0.55);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(42, 53, 66, 0.6);
+  /* 玻璃底见 .glassLayer/.glassNav */
 }
 
-/* 页尾（亮色流体渐变）加深遮罩，不切文字颜色 */
+/* 页尾（亮区流体渐变）加深：GlassSurface backgroundOpacity 调高，此类仅作状态标记 */
 .navFooter {
-  background: rgba(11, 16, 23, 0.78);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
 }
 
 .bar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 64px;
+}
+
+/* ---------- 玻璃底（Glass Surface）与回退 ---------- */
+.glassLayer {
+  position: absolute;
+  inset: 0;
+}
+
+/* GlassSurface 内部按 prefers-color-scheme 选底色，本页恒为夜色——强制暗底；
+   出 Hero 后通栏玻璃条，无圆角 */
+.glassNav {
+  background: rgba(16, 22, 30, 0.38) !important;
+  border-radius: 0 !important;
+}
+
+/* reduced-transparency：纯色底回退（不用磨砂/位移滤镜） */
+.navBgFallback {
+  position: absolute;
+  inset: 0;
+  background: rgba(16, 22, 30, 0.85);
 }
 
 /* ---------- logo 两态：EX 标 + 全称滑出 ---------- */
@@ -245,17 +262,12 @@
   background: rgba(11, 16, 23, 0.55);
 }
 
-/* prefers-reduced-transparency：虚化 → 纯遮罩 */
+/* prefers-reduced-transparency：玻璃底组件本身走 .navBgFallback 纯色回退（见 TSX）；
+   面板遮罩同样退纯色 */
 @media (prefers-reduced-transparency: reduce) {
   .scrim {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: rgba(11, 16, 23, 0.6);
-  }
-  .navSolid,
-  .navFooter {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background: rgba(16, 22, 30, 0.92);
   }
 }

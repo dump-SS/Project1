@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { NAV_COPY } from '../../content/copy'
 import { getHijackRange, subscribeHijack } from '../../lib/navScrollGuard'
+import GlassSurface from '../bits/GlassSurface'
 import styles from './LandingNav.module.css'
 
 type MenuKey = 'product' | 'pricing' | 'resources' | null
@@ -32,12 +33,24 @@ export default function LandingNav() {
     () => getHijackRange() !== null,
   )
 
+  /* reduced-transparency：玻璃层退纯色底（GlassSurface 的磨砂语义不适用） */
+  const [reduceTransparency, setReduceTransparency] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)')
+    const on = () => setReduceTransparency(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+
   /* 劫持区间激活时（sticky 冻结纵向滚动、scroll 事件停发）→ 强制常显 */
   useEffect(() => {
     if (hijackActive) setHidden(false)
   }, [hijackActive])
 
-  /* ---------- 滚动行为：下滑收起、上滑弹出（信任屏劫持区间内禁用） ---------- */
+  /* ---------- 滚动行为：下滑收起、上滑弹出（信任屏劫持区间内禁用） ----------
+     2026-09-25 Skyer 调整：Hero 页内（≤100vh）无论滑动速度如何都不收起；
+     玻璃底也只在出 Hero 后出现（Hero 内顶栏无背景不变）。 */
   useEffect(() => {
     const onScroll = () => {
       if (ticking.current) return
@@ -45,12 +58,13 @@ export default function LandingNav() {
       requestAnimationFrame(() => {
         ticking.current = false
         const y = window.scrollY
-        setScrolledPastHero(y > window.innerHeight * 0.6)
+        const heroEnd = window.innerHeight
+        setScrolledPastHero(y > heroEnd)
 
         const range = getHijackRange()
         const inHijack = range !== null && y >= range.top && y <= range.bottom
-        if (inHijack || y < 24) {
-          setHidden(false) // 劫持区间 / 顶部：常显
+        if (inHijack || y <= heroEnd) {
+          setHidden(false) // 劫持区间 / Hero 页内：常显
         } else {
           const delta = y - lastY.current
           if (Math.abs(delta) > 8) setHidden(delta > 0)
@@ -111,6 +125,25 @@ export default function LandingNav() {
         ].join(' ')}
         onMouseLeave={closePanel}
       >
+        {/* 出 Hero 后的玻璃底（Glass Surface；reduced-transparency → 纯色回退） */}
+        {scrolledPastHero &&
+          (reduceTransparency ? (
+            <div className={styles.navBgFallback} aria-hidden />
+          ) : (
+            <div className={styles.glassLayer} aria-hidden>
+              <GlassSurface
+                width="100%"
+                height="100%"
+                borderRadius={0}
+                backgroundOpacity={footerInView ? 0.55 : 0.38}
+                blur={14}
+                saturation={1.3}
+                className={styles.glassNav}
+                style={{ position: 'absolute', inset: 0 }}
+              />
+            </div>
+          ))}
+
         <div className={`${styles.bar} landing-wrap`}>
           {/* logo 两态：hero 内只显示 EX 标；滚过 hero 后全称从标识侧滑出并保持 */}
           <Link to="/" className={styles.logo} aria-label="EpochX 首页" onClick={closePanel}>

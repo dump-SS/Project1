@@ -34,41 +34,39 @@
   mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
 }
 
-/* ---------- 暗纹层：成列 drift wall（整墙斜置，相邻列反向滚动） ---------- */
+/* ---------- 暗纹层：成列 drift wall（整墙斜置，相邻列反向滚动） ----------
+   下界收到品牌 logo 上方（2026-09-25 Skyer）；单层墙 + 手电亮度洞（见 .torchHole）。 */
 .motifs {
   position: absolute;
-  inset: 0;
+  inset: 0 0 28% 0;
+  overflow: hidden;
   pointer-events: none;
-}
-
-/* 基底：近不可见（#2A3542 档） */
-.motifsBase {
-  position: absolute;
-  inset: 0;
   color: var(--lp-motif);
-  opacity: 0.35;
+  opacity: 0.55;
 }
 
-/* 手电层：径向 mask 只在指针附近显形（图标放大后光圈随之加大；
-   显形亮度提到 text-2 档——drift wall 下 hairline 档对比不可感） */
-.motifsTorch {
+/* 手电：跟随指针的亮度洞——backdrop-filter 直接提亮视觉背后的图标（天然对齐）；
+   径向 mask 做软边；变量由 useFlashlight 写在 Hero section 上 */
+.torchHole {
   position: absolute;
-  inset: 0;
-  color: var(--lp-text-2);
-  opacity: 0.95;
-  /* 默认光熄灭（torch 坐标在屏外） */
-  --lp-torch-x: -9999px;
-  --lp-torch-y: -9999px;
+  left: var(--lp-torch-x, -9999px);
+  top: var(--lp-torch-y, -9999px);
+  width: 540px;
+  height: 540px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  -webkit-backdrop-filter: brightness(2.5) saturate(1.15);
+  backdrop-filter: brightness(2.5) saturate(1.15);
   -webkit-mask-image: radial-gradient(
-    circle 260px at var(--lp-torch-x) var(--lp-torch-y),
+    circle,
     #000 0%,
-    rgba(0, 0, 0, 0.6) 45%,
+    rgba(0, 0, 0, 0.5) 48%,
     transparent 100%
   );
   mask-image: radial-gradient(
-    circle 260px at var(--lp-torch-x) var(--lp-torch-y),
+    circle,
     #000 0%,
-    rgba(0, 0, 0, 0.6) 45%,
+    rgba(0, 0, 0, 0.5) 48%,
     transparent 100%
   );
 }
@@ -112,9 +110,7 @@
 
 /* 触屏 / 无精确指针：手电取消，暗纹低辨识度常亮（dev-spec §6） */
 @media (hover: none) {
-  .motifsTorch { display: none; }
-  .motifsBase { opacity: 0.5; }
-  .wallCol { animation: none; }
+  .motifs { opacity: 0.5; }
 }
 
 /* reduced-motion：整墙静止 */
@@ -179,13 +175,19 @@
   font-weight: 700;
 }
 
-/* ---------- 动作区三级阶梯 ---------- */
+/* ---------- 动作区：输入栏 + 并排按钮行（2026-09-25 Skyer：横向并置、圆角加大） ---------- */
 .actions {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
   width: min(340px, 100%);
+}
+
+.actionRow {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .input {
@@ -206,9 +208,16 @@
   box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.10);
 }
 
-/* 即刻开始：ghost（给只想进来的人） */
+/* 即刻开始：Specular Button（品牌色填充，ogl 高光边缘） */
+.ctaBtn {
+  flex: 1;
+  font-family: var(--lp-font-sans) !important;
+}
+
+/* 即刻开始的 Suspense 兜底（ogl chunk 加载前占位，样式与成品对齐） */
 .ghost {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
   height: 48px;
@@ -218,7 +227,7 @@
   color: var(--lp-text);
   text-decoration: none;
   border: 1px solid var(--lp-hairline);
-  border-radius: 10px;
+  border-radius: 16px;
   transition: border-color 0.25s ease, background 0.25s ease, transform 0.2s ease;
 }
 .ghost:hover {
@@ -230,15 +239,18 @@
 /* 桌面端：虚线灰空位（灰=不可用，不占蓝色——visual-language §4） */
 .desktop {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
   height: 48px;
+  padding: 0 8px;
   font-family: var(--lp-font-sans);
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--lp-text-2);
   border: 1px dashed var(--lp-hairline);
-  border-radius: 10px;
+  border-radius: 16px;
   opacity: 0.75;
+  white-space: nowrap;
   user-select: none;
 }
 

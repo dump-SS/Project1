@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useFlashlight, hasHoverPointer } from '../../hooks/useFlashlight'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useSloganSequence } from '../../hooks/useSloganSequence'
@@ -14,6 +14,8 @@ import styles from './Hero.module.css'
 // Prism（React Bits，ogl）：Hero 光场。ogl 与 Grainient 同库（已在 deps），懒加载——
 // CSS 呼吸光晕为第一帧与降级兜底（dev-spec §2.3 重背景先静态后增强）。
 const Prism = lazy(() => import('../bits/Prism'))
+// SpecularButton（React Bits，ogl）：「即刻开始」主 CTA（品牌色填充，ogl 同 chunk）
+const SpecularButton = lazy(() => import('../bits/SpecularButton'))
 
 const MOTIF_ICONS = [
   IconReportCard, IconBook, IconNotebook, IconPencil, IconRuler, IconCompass,
@@ -150,23 +152,16 @@ export default function Hero() {
       <div className={styles.glow} ref={glowRef} aria-hidden />
 
       {/* 暗纹层：成列 drift wall——整墙斜置，偶数列向上 / 奇数列向下循环滚动。
-          基底低辨识常亮；手电层被径向 mask 包在未变换的层上（指针坐标即 mask 坐标），
-          内部列动画与基底同参数同帧启动，显形位置始终跟随指针。 */}
+          手电（2026-09-25 重做）：单层墙 + 跟随指针的 backdrop-filter 亮度洞——
+          光照直接作用在视觉背后的图标上，天然对齐（旧「暗层+显形层」双树在
+          合成器动画下无法保证逐帧对齐，显形失效）。下界收到品牌 logo 上方。 */}
       <div className={styles.motifs} aria-hidden>
-        <div className={styles.motifsBase}>
-          <div className={styles.colsWrap}>
-            {Array.from({ length: WALL_COLS }, (_, c) => (
-              <MotifColumn key={c} col={c} />
-            ))}
-          </div>
+        <div className={styles.colsWrap}>
+          {Array.from({ length: WALL_COLS }, (_, c) => (
+            <MotifColumn key={c} col={c} />
+          ))}
         </div>
-        <div className={styles.motifsTorch}>
-          <div className={styles.colsWrap}>
-            {Array.from({ length: WALL_COLS }, (_, c) => (
-              <MotifColumn key={c} col={c} />
-            ))}
-          </div>
-        </div>
+        {hasHoverPointer() ? <div className={styles.torchHole} /> : null}
       </div>
 
       {/* 底部地平线：左 logo + slogan，右动作区 */}
@@ -200,7 +195,8 @@ export default function Hero() {
         </div>
 
         <div className={styles.actions}>
-          {/* 三级阶梯：输入框（主焦点）→ 即刻开始（ghost）→ 桌面端（虚线灰空位） */}
+          {/* 三级阶梯：输入栏（主焦点）→ 下方并置「即刻开始」（Specular 主 CTA，品牌色填充）
+              + 「桌面端」（虚线灰空位，2026-09-25 Skyer：横向并置、圆角加大） */}
           <input
             className={styles.input}
             type="text"
@@ -212,12 +208,26 @@ export default function Hero() {
             placeholder={HERO_ACTIONS.inputPlaceholder}
             aria-label={HERO_ACTIONS.inputPlaceholder}
           />
-          <Link to="/login" className={styles.ghost}>
-            {HERO_ACTIONS.primary}
-          </Link>
-          <span className={styles.desktop} aria-disabled="true" title="桌面端尚未推出">
-            {HERO_ACTIONS.desktop}
-          </span>
+          <div className={styles.actionRow}>
+            <Suspense fallback={<span className={styles.ghost}>{HERO_ACTIONS.primary}</span>}>
+              <SpecularButton
+                onClick={goLogin}
+                size="md"
+                radius={16}
+                tint="#4AD1FF"
+                tintOpacity={1}
+                textColor="#0B1017"
+                lineColor="#CFEFFF"
+                baseColor="#0F1520"
+                className={styles.ctaBtn}
+              >
+                {HERO_ACTIONS.primary}
+              </SpecularButton>
+            </Suspense>
+            <span className={styles.desktop} aria-disabled="true" title="桌面端尚未推出">
+              {HERO_ACTIONS.desktop}
+            </span>
+          </div>
         </div>
       </div>
     </section>
