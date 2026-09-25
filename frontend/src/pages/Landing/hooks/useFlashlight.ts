@@ -1,14 +1,17 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Hero 暗纹层「手电」（visual-language §7.1，仅 Hero 使用，不推广到卡片/截图）。
- * 机制：监听容器 pointer 位置 → 写 CSS 变量 --lp-torch-x/y → 暗纹层用
- * radial-gradient mask 让鼠标附近 1.5px 线稿显形（静止时近不可见）。
+ * Hero 暗纹层「手电」（2026-09-25 Skyer 调整：监听提到 window 级）。
+ * 机制：跟随指针位置写 CSS 变量 --lp-torch-x/y，暗纹层的亮度洞
+ * （backdrop-filter，见 Hero.module.css .torchHole）随之提亮指针附近的图标。
+ *
+ * ⚠️ 监听必须在 window 上：原来挂在 Hero section 上时，光标移到顶栏
+ * （fixed，不是 section 后代）后事件不再到达 section，手电即失效。
+ * 坐标仍按 section 几何换算，指针在页面任意位置（含顶栏）都有效。
  *
  * 降级（dev-spec §6）：
- * - 触屏 / 无 hover：由调用方判断（matchMedia '(hover: none)'），常亮低辨识度暗纹；
- * - prefers-reduced-motion：本 hook 无动画帧，仅跟随指针，无需额外处理；
- *   但视觉上暗纹显形属交互反馈而非运动，保留。
+ * - 触屏 / 无 hover：由调用方判断（matchMedia '(hover: none)'），暗纹低辨识度常亮；
+ * - 指针离开文档（documentElement mouseleave）→ 变量归 -9999（光熄灭）。
  */
 export function useFlashlight<T extends HTMLElement>(enabled: boolean): React.RefObject<T> {
   const ref = useRef<T | null>(null)
@@ -25,16 +28,15 @@ export function useFlashlight<T extends HTMLElement>(enabled: boolean): React.Re
       el.style.setProperty('--lp-torch-y', `${e.clientY - rect.top}px`)
     }
     const onLeave = () => {
-      // 离开容器 → 光熄灭（半径归零，暗纹回到近不可见）
       el.style.setProperty('--lp-torch-x', '-9999px')
       el.style.setProperty('--lp-torch-y', '-9999px')
     }
 
-    el.addEventListener('pointermove', onMove)
-    el.addEventListener('pointerleave', onLeave)
+    window.addEventListener('pointermove', onMove, { passive: true })
+    document.documentElement.addEventListener('mouseleave', onLeave)
     return () => {
-      el.removeEventListener('pointermove', onMove)
-      el.removeEventListener('pointerleave', onLeave)
+      window.removeEventListener('pointermove', onMove)
+      document.documentElement.removeEventListener('mouseleave', onLeave)
     }
   }, [enabled])
 

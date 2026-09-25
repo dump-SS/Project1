@@ -101,6 +101,14 @@
   gap: 4px;
 }
 
+/* 2026-09-25 Skyer：菜单移到 logo 后面——左组成组，登录独立靠右 */
+.barLeft {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+}
+
 .menuBtn {
   display: inline-flex;
   align-items: center;
@@ -134,6 +142,7 @@
   padding: 3px 6px;
 }
 
+/* 登录：白底黑字（2026-09-25 Skyer） */
 .loginBtn {
   display: inline-flex;
   align-items: center;
@@ -142,18 +151,18 @@
   padding: 0 20px;
   font-family: var(--lp-font-sans);
   font-size: 15px;
-  color: var(--lp-text);
+  color: #0B1017;
+  background: #F7F9FC;
   text-decoration: none;
-  border: 1px solid var(--lp-hairline);
+  border: none;
   border-radius: 8px;
   white-space: nowrap;
-  transition: border-color 0.25s ease, background 0.25s ease;
+  transition: background 0.25s ease, transform 0.2s ease;
 }
 .loginBtn:hover {
-  border-color: rgba(232, 234, 237, 0.4);
-  background: rgba(27, 34, 45, 0.6);
+  background: #E4EBF4;
+  transform: translateY(-1px);
 }
-
 /* ---------- mega 面板 ---------- */
 .panel {
   position: relative; /* 压过 absolute 的 .navSolidBg（static 会被其盖住内容） */

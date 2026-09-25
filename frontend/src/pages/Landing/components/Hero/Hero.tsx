@@ -164,8 +164,8 @@ export default function Hero() {
         {hasHoverPointer() ? <div className={styles.torchHole} /> : null}
       </div>
 
-      {/* 底部地平线：左 logo + slogan，右动作区 */}
-      <div className={`${styles.ground} landing-wrap`}>
+      {/* 底部地平线：左 logo + slogan，右动作区（容器向两边靠，2026-09-25 Skyer） */}
+      <div className={`${styles.ground} landing-wide`}>
         <div className={styles.left}>
           <img
             src="/brand/logo-full-on-dark-trim.png"

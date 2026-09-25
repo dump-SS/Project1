@@ -147,59 +147,61 @@ export default function LandingNav() {
             </div>
           ))}
 
-        <div className={`${styles.bar} landing-wrap`}>
-          {/* logo 两态：hero 内只显示 EX 标；滚过 hero 后全称从标识侧滑出并保持 */}
-          <Link to="/" className={styles.logo} aria-label="EpochX 首页" onClick={closePanel}>
-            <img
-              src="/brand/logo-mark-on-dark-trim.png"
-              alt=""
-              className={styles.logoMark}
-              height={28}
-            />
-            <span className={styles.logoWordWrap}>
+        {/* 2026-09-25 Skyer：菜单移到 logo 后面（左侧成组），登录右侧；容器向两边靠 */}
+        <div className={`${styles.bar} landing-wide`}>
+          <div className={styles.barLeft}>
+            <Link to="/" className={styles.logo} aria-label="EpochX 首页" onClick={closePanel}>
               <img
-                src="/brand/logo-wordmark-on-dark.png"
+                src="/brand/logo-mark-on-dark-trim.png"
                 alt=""
-                className={styles.logoWord}
+                className={styles.logoMark}
                 height={28}
               />
-            </span>
-          </Link>
+              <span className={styles.logoWordWrap}>
+                <img
+                  src="/brand/logo-wordmark-on-dark.png"
+                  alt=""
+                  className={styles.logoWord}
+                  height={28}
+                />
+              </span>
+            </Link>
 
-          <nav className={styles.menus} aria-label="主导航">
-            {(NAV_COPY.menus as readonly string[]).map((label) => {
-              const key = label === NAV_COPY.menus[0] ? 'product'
-                : label === NAV_COPY.menus[1] ? 'pricing'
-                : 'resources'
-              const isOpen = openMenu === key
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={`${styles.menuBtn} ${isOpen ? styles.menuBtnOn : ''}`}
-                  aria-expanded={isOpen}
-                  aria-haspopup="true"
-                  // hover / click / focus 三种触发同效（dev-spec §4.0 可达性）
-                  onMouseEnter={() => setOpenMenu(key as Exclude<MenuKey, null>)}
-                  onFocus={() => setOpenMenu(key as Exclude<MenuKey, null>)}
-                  onClick={() => toggleMenu(key as Exclude<MenuKey, null>)}
-                >
-                  {label}
-                  {key === 'pricing' && <span className={styles.naTag}>{NAV_COPY.pricingNa}</span>}
-                </button>
-              )
-            })}
+            <nav className={styles.menus} aria-label="主导航">
+              {(NAV_COPY.menus as readonly string[]).map((label) => {
+                const key = label === NAV_COPY.menus[0] ? 'product'
+                  : label === NAV_COPY.menus[1] ? 'pricing'
+                  : 'resources'
+                const isOpen = openMenu === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`${styles.menuBtn} ${isOpen ? styles.menuBtnOn : ''}`}
+                    aria-expanded={isOpen}
+                    aria-haspopup="true"
+                    // hover / click / focus 三种触发同效（dev-spec §4.0 可达性）
+                    onMouseEnter={() => setOpenMenu(key as Exclude<MenuKey, null>)}
+                    onFocus={() => setOpenMenu(key as Exclude<MenuKey, null>)}
+                    onClick={() => toggleMenu(key as Exclude<MenuKey, null>)}
+                  >
+                    {label}
+                    {key === 'pricing' && <span className={styles.naTag}>{NAV_COPY.pricingNa}</span>}
+                  </button>
+                )
+              })}
+            </nav>
+          </div>
 
-            {authed ? (
-              <Link to="/study-guide" className={styles.loginBtn}>
-                {NAV_COPY.enterApp}
-              </Link>
-            ) : (
-              <Link to="/login" className={styles.loginBtn}>
-                {NAV_COPY.login}
-              </Link>
-            )}
-          </nav>
+          {authed ? (
+            <Link to="/study-guide" className={styles.loginBtn}>
+              {NAV_COPY.enterApp}
+            </Link>
+          ) : (
+            <Link to="/login" className={styles.loginBtn}>
+              {NAV_COPY.login}
+            </Link>
+          )}
         </div>
 
         {/* mega 面板：整个顶栏下拉展开（关闭时内容不渲染，避免零高容器里的链接可聚焦） */}

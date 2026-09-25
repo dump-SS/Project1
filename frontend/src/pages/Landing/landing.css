@@ -81,6 +81,14 @@
   margin-inline: auto;
   padding-inline: 24px;
 }
+
+/* Hero 下部与顶栏专用（2026-09-25 Skyer）：向左右两边靠——更宽、更贴边 */
+.landing-wide {
+  width: 100%;
+  max-width: 1720px;
+  margin-inline: auto;
+  padding-inline: clamp(24px, 3.4vw, 56px);
+}
 @media (min-width: 768px) {
   .landing-wrap { padding-inline: 40px; }
 }
