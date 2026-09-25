@@ -778,3 +778,74 @@
 .verdictActions > button {
   width: 100%;
 }
+/* ===================================================================
+   #14 分段计时：段数标记 + 切换任务面板 · 2026-09-25
+   =================================================================== */
+
+.segmentTag {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--primary-deep);
+  background: var(--primary-soft);
+}
+
+.taskPickerList {
+  list-style: none;
+  margin: 4px 0 8px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.taskPickerItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--glass-stroke-soft);
+  border-radius: 12px;
+  background: var(--glass-fill);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.taskPickerItem:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(111, 168, 214, 0.08);
+}
+
+.taskPickerItem:disabled {
+  cursor: default;
+}
+
+.taskPickerItemActive {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.taskPickerSubject {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.taskPickerTopic {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskPickerMinutes {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.6;
+}

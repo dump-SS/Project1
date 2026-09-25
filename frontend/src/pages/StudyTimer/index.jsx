@@ -13,6 +13,7 @@ import {
   heartbeatTimerSession,
   isCountdownReached,
   startTimerSession,
+  switchTimerTask,
 } from '@/services/timer'
 
 const EMOTION_LABELS = { positive: '积极', neutral: '一般', negative: '消极' }
@@ -347,6 +348,11 @@ export default function StudyTimerPage() {
   const [recReady, setRecReady] = useState(false)
   const [recommendation, setRecommendation] = useState(null)
   const [planTaskStats, setPlanTaskStats] = useState({ completed: 0, total: 0 })
+  /** 当日计划的任务列表——「切换任务」的候选（#14 分段计时） */
+  const [planTasks, setPlanTasks] = useState([])
+  const [showTaskPicker, setShowTaskPicker] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [switchError, setSwitchError] = useState(null)
 
   // `now` 每秒更新，暂停时长自动跟着重算（暂停中也在涨）
   const pausedSeconds = useMemo(() => {
@@ -381,6 +387,8 @@ export default function StudyTimerPage() {
       completed: tasks.filter((t) => t.status === 'completed').length,
       total: tasks.length,
     })
+    // 顺带把任务列表留给「切换任务」（#14）——多拉一次不如复用这次结果
+    if (tasks.length) setPlanTasks(tasks)
   }, [])
 
   const loadCurrent = useCallback(async () => {
@@ -429,9 +437,11 @@ export default function StudyTimerPage() {
       try {
         const plan = pid ? await getPlanById(pid) : await getPlanByDate(localDateString())
         if (cancelled || !plan) return
+        const tasks = plan.tasks || []
+        if (tasks.length) setPlanTasks(tasks)
         const target = tid
-          ? (plan.tasks || []).find((t) => t.taskId === tid)
-          : (plan.tasks || [])[0]
+          ? tasks.find((t) => t.taskId === tid)
+          : tasks[0]
         if (target) {
           const label = subjectLabels[target.subject] ?? target.subject
           setTask(`${label} · ${target.topic}`)
@@ -548,6 +558,36 @@ export default function StudyTimerPage() {
       setPaused(true)
     }
     setNow(Date.now())
+  }
+
+  /**
+   * 切换任务 → 服务端开新的一段（#14 分段计时）。
+   *
+   * 为什么是「换段」而不是「新开一个计时」：一个计时会话内**不允许并行计时**，
+   * 换任务只是让后面这段时间挂到另一件事上；**结束仍只走一次收尾**。
+   * 服务端会把旧段结算、新段起算，并把会话的 taskId/subject 跟着换过去。
+   */
+  const handleSwitchTask = async (task) => {
+    if (!session || !task) return
+    setSwitching(true)
+    setSwitchError(null)
+    try {
+      await switchTimerTask(session.sessionId, task.taskId)
+      // 段与 taskId/subject 都在服务端变了，重新拉一次会话（别在本地拼，容易和服务端不一致）
+      const current = await getCurrentTimerSession()
+      if (current?.active && current.session) {
+        setSession(current.session)
+        setRestore(current.restore || null)
+      }
+      const label = subjectLabels[task.subject] ?? task.subject
+      setTask(`${label} · ${task.topic}`)
+      setTaskId(task.taskId)
+      setShowTaskPicker(false)
+    } catch {
+      setSwitchError('切换任务失败，请稍后再试')
+    } finally {
+      setSwitching(false)
+    }
   }
 
   /**
@@ -715,6 +755,19 @@ export default function StudyTimerPage() {
           <div className={styles.taskView}>
             <span className={styles.taskLabel}>任务</span>
             <span className={styles.taskTitle}>{session ? (task || FALLBACK_TASK) : task}</span>
+            {/* #14：一个会话内分段，段数 > 1 说明中途换过任务 */}
+            {session && (session.segments?.length ?? 0) > 1 && (
+              <span className={styles.segmentTag}>第 {session.segments.length} 段</span>
+            )}
+            {session && (
+              <button
+                type="button"
+                className={`${styles.iconBtn} ${styles.ghost}`}
+                onClick={() => { setSwitchError(null); setShowTaskPicker(true) }}
+              >
+                切换任务
+              </button>
+            )}
           </div>
         </div>
 
@@ -803,6 +856,46 @@ export default function StudyTimerPage() {
         )}
         {startError && <div className={styles.popError}>{startError}</div>}
       </main>
+
+      {showTaskPicker && session && (
+        <div className={styles.completionPop}>
+          <div className={styles.popHeader}>
+            <span className={styles.popTitle}>换一件事做</span>
+            <span className={styles.popText}>计时不中断，只是从此刻起记到新任务上</span>
+          </div>
+          {planTasks.length === 0 ? (
+            <div className={styles.recHint}>今天的计划里还没有任务，先去计划页安排一下。</div>
+          ) : (
+            <ul className={styles.taskPickerList}>
+              {planTasks.map((t) => {
+                const isCurrent = t.taskId === session.taskId
+                return (
+                  <li key={t.taskId}>
+                    <button
+                      type="button"
+                      className={[styles.taskPickerItem, isCurrent ? styles.taskPickerItemActive : ''].join(' ')}
+                      disabled={switching || isCurrent}
+                      onClick={() => handleSwitchTask(t)}
+                    >
+                      <span className={styles.taskPickerSubject}>{subjectLabels[t.subject] ?? t.subject}</span>
+                      <span className={styles.taskPickerTopic}>{t.topic}</span>
+                      <span className={styles.taskPickerMinutes}>
+                        {isCurrent ? '正在做' : `${t.estimatedMinutes} min`}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {switchError && <div className={styles.popError}>{switchError}</div>}
+          <div className={styles.popActions}>
+            <button type="button" className={styles.popRestart} onClick={() => setShowTaskPicker(false)}>
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
 
       {showPopup && (
         <div className={styles.completionPop}>
