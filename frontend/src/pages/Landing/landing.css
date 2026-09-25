@@ -38,12 +38,13 @@
   font-display: swap;
 }
 
-/* global.css L79 的元素选择器规则（body, p, span, div, ... → var(--font-sans)）
+/* global.css 的元素选择器规则（body, p, span, div, ... → var(--font-sans) + 350 字重）
    会击穿 .landing 的字体继承：落地页内所有 span/div 回退到 CDN/系统字体栈，
-   自托管 LP-*（含 700 字重）全部失效。这里在页面作用域内把元素级声明收回
-   inherit，统一走 .landing 的 LP-* 栈（.landing 是祖先，inherit 即 LP-Sans）。 */
-.landing span, .landing p, .landing div, .landing a, .landing button,
-.landing input, .landing textarea, .landing label, .landing select {
+   自托管 LP-*（含多字重）与 class 级衬线声明全部失效。
+   用 :where(div.landing) 前缀把特异性压到 (0,0,1)——与 global 元素规则同级但
+   靠 landing.css 靠后的打包顺序稳赢；同时必输给任何 class 级声明
+   （.cardBrief/.s5Product 衬线、.sloganStrong 800 等全部正常生效）。 */
+div:where(.landing) :where(span, p, div, a, button, input, textarea, label, select) {
   font-family: inherit;
 }
 
