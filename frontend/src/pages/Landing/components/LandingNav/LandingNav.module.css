@@ -142,20 +142,20 @@
   padding: 3px 6px;
 }
 
-/* 登录：白底黑字（2026-09-25 Skyer） */
+/* 登录：白底黑字药丸（2026-09-25 Skyer） */
 .loginBtn {
   display: inline-flex;
   align-items: center;
   height: 40px;
   margin-left: 12px;
-  padding: 0 20px;
+  padding: 0 22px;
   font-family: var(--lp-font-sans);
   font-size: 15px;
   color: #0B1017;
   background: #F7F9FC;
   text-decoration: none;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   white-space: nowrap;
   transition: background 0.25s ease, transform 0.2s ease;
 }
@@ -163,7 +163,8 @@
   background: #E4EBF4;
   transform: translateY(-1px);
 }
-/* ---------- mega 面板 ---------- */
+/* ---------- mega 面板（2026-09-25 Skyer 重排）：
+   选项竖列（对齐母按钮位置）→ 竖分割线 → 放大加粗纯白 lead（分行） ---------- */
 .panel {
   position: relative; /* 压过 absolute 的 .navSolidBg（static 会被其盖住内容） */
   z-index: 1;
@@ -181,18 +182,89 @@
 }
 
 .panelInner {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
-  gap: 40px;
-  align-items: start;
-  padding-block: 36px 40px;
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  min-height: 150px; /* 不同菜单内容高度一致（Skyer：高度不一致问题） */
+  padding-block: 20px;
+  animation: lp-panel-fade 0.32s ease; /* 切换菜单时内容淡入 */
+}
+
+@keyframes lp-panel-fade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 选项竖列：纯文字——静止灰、hover 白 + 下划线生长（Skyer：不要按钮感） */
+.panelList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panelLink,
+.panelLinkPlaceholder {
+  display: inline-block;
+  width: max-content;
+  position: relative;
+  padding: 2px 0;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: var(--lp-text-2); /* 静止灰 */
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.panelLink::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 1.5px;
+  width: 100%;
+  background: #fff;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.panelLink:hover,
+.panelLink:focus-visible {
+  color: #fff; /* hover 白 */
+  outline: none;
+}
+.panelLink:hover::after,
+.panelLink:focus-visible::after {
+  transform: scaleX(1); /* 下划线生长 */
+}
+
+/* 占位项（未上线 / 待补）：灰态常驻，无 hover 效果 */
+.panelLinkPlaceholder {
+  cursor: default;
+}
+
+/* 竖分割线 */
+.panelDivider {
+  align-self: stretch;
+  width: 1px;
+  background: rgba(154, 164, 176, 0.35);
+}
+
+/* lead：字号放大、纯白加粗、限宽自然分行（断点落在「下一代」后） */
+.panelLead {
+  margin: 0;
+  font-family: var(--lp-font-sans);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #ffffff;
+  max-width: 200px;
 }
 
 @media (max-width: 720px) {
-  .panelInner {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
   /* 窄屏菜单紧凑化：按钮不折行（375px 实测），间距收紧 */
   .menus {
     gap: 0;
@@ -212,48 +284,17 @@
     padding: 0 12px;
     font-size: 13.5px;
   }
-}
-
-.panelLead {
-  font-family: var(--lp-font-serif);
-  font-size: 15px;
-  line-height: 1.8;
-  color: var(--lp-text-2);
-  max-width: 280px;
-}
-
-.panelList {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(160px, 1fr));
-  gap: 8px 32px;
-}
-
-.panelLink,
-.panelLinkPlaceholder {
-  display: block;
-  padding: 10px 14px;
-  font-family: var(--lp-font-sans);
-  font-size: 15px;
-  border-radius: 8px;
-}
-
-.panelLink {
-  color: var(--lp-text);
-  text-decoration: none;
-  transition: background 0.2s ease;
-}
-.panelLink:hover,
-.panelLink:focus-visible {
-  background: rgba(27, 34, 45, 0.8);
-  outline: none;
-}
-
-/* 占位项（桌面端 / 文档等）：灰态 */
-.panelLinkPlaceholder {
-  color: var(--lp-text-2);
-  border: 1px dashed var(--lp-hairline);
-  cursor: default;
+  .panelInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .panelDivider {
+    display: none;
+  }
+  .panelLead {
+    font-size: 18px;
+  }
 }
 
 /* ---------- 背景失焦遮罩（面板展开时） ---------- */

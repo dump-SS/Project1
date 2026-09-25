@@ -28,6 +28,24 @@ export default function LandingNav() {
   const lastY = useRef(0)
   const ticking = useRef(false)
 
+  /* 选项竖列对齐母按钮：展开时测量母按钮在栏内的横向位置（Skyer 2026-09-25） */
+  const barRef = useRef<HTMLDivElement>(null)
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [btnOffset, setBtnOffset] = useState(0)
+  useEffect(() => {
+    if (!openMenu) return
+    const measure = () => {
+      const btn = btnRefs.current[openMenu]
+      const bar = barRef.current
+      if (!btn || !bar) return
+      // 竖列文字起点 = 母按钮文字起点（panel 全宽与 bar 同缘，直接取按钮视口 x）
+      setBtnOffset(Math.max(0, btn.getBoundingClientRect().left - bar.getBoundingClientRect().left))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [openMenu])
+
   const hijackActive = useSyncExternalStore(
     subscribeHijack,
     () => getHijackRange() !== null,
@@ -148,7 +166,7 @@ export default function LandingNav() {
           ))}
 
         {/* 2026-09-25 Skyer：菜单移到 logo 后面（左侧成组），登录右侧；容器向两边靠 */}
-        <div className={`${styles.bar} landing-wide`}>
+        <div className={`${styles.bar} landing-wide`} ref={barRef}>
           <div className={styles.barLeft}>
             <Link to="/" className={styles.logo} aria-label="EpochX 首页" onClick={closePanel}>
               <img
@@ -176,6 +194,7 @@ export default function LandingNav() {
                 return (
                   <button
                     key={key}
+                    ref={(el) => { btnRefs.current[key] = el }}
                     type="button"
                     className={`${styles.menuBtn} ${isOpen ? styles.menuBtnOn : ''}`}
                     aria-expanded={isOpen}
@@ -204,11 +223,12 @@ export default function LandingNav() {
           )}
         </div>
 
-        {/* mega 面板：整个顶栏下拉展开（关闭时内容不渲染，避免零高容器里的链接可聚焦） */}
+        {/* mega 面板：整个顶栏下拉展开（关闭时内容不渲染，避免零高容器里的链接可聚焦）。
+            2026-09-25 Skyer 重排：选项竖列对齐母按钮位置 → 竖分割线 → 放大加粗纯白 lead 分行；
+            面板内容区定高（不同菜单高度一致），切换淡入。 */}
         <div className={`${styles.panel} ${openMenu && panel ? styles.panelOpen : ''}`}>
           {openMenu && panel && (
-            <div className={`${styles.panelInner} landing-wrap`}>
-              <p className={styles.panelLead}>{panel.lead}</p>
+            <div key={openMenu} className={`${styles.panelInner} landing-wide`} style={{ paddingLeft: btnOffset }}>
               <ul className={styles.panelList}>
                 {panel.items.map((item) => (
                   <li key={item.name}>
@@ -223,6 +243,8 @@ export default function LandingNav() {
                   </li>
                 ))}
               </ul>
+              <span className={styles.panelDivider} aria-hidden />
+              <p className={styles.panelLead}>{panel.lead}</p>
             </div>
           )}
         </div>
