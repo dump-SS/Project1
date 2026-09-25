@@ -23,7 +23,19 @@
   will-change: transform, opacity;
 }
 
-/* ---------- 暗纹层：学习物件 monoline 线稿 ---------- */
+/* LaserFlow 光场宿主（2026-09-25 Skyer 引入）：screen 混合让组件黑底隐入页面，
+   只留光束与雾；上下 CSS mask 渐隐防止光切断在硬边。触屏 / reduced 不挂载。 */
+.laserHost {
+  position: absolute;
+  inset: 6% 0 18% 0;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+}
+
+/* ---------- 暗纹层：drift wall（放大铺满、斜置、缓慢漂移） ---------- */
 .motifs {
   position: absolute;
   inset: 0;
@@ -38,27 +50,43 @@
   opacity: 0.35;
 }
 
-/* 手电层：径向 mask 只在指针附近显形 */
+/* 手电层：径向 mask 只在指针附近显形（图标放大后光圈随之加大；
+   显形亮度提到 text-2 档——drift wall 下 hairline 档对比不可感） */
 .motifsTorch {
   position: absolute;
   inset: 0;
-  color: var(--lp-hairline);
+  color: var(--lp-text-2);
   opacity: 0.95;
   /* 默认光熄灭（torch 坐标在屏外） */
   --lp-torch-x: -9999px;
   --lp-torch-y: -9999px;
   -webkit-mask-image: radial-gradient(
-    circle 180px at var(--lp-torch-x) var(--lp-torch-y),
+    circle 260px at var(--lp-torch-x) var(--lp-torch-y),
     #000 0%,
     rgba(0, 0, 0, 0.6) 45%,
     transparent 100%
   );
   mask-image: radial-gradient(
-    circle 180px at var(--lp-torch-x) var(--lp-torch-y),
+    circle 260px at var(--lp-torch-x) var(--lp-torch-y),
     #000 0%,
     rgba(0, 0, 0, 0.6) 45%,
     transparent 100%
   );
+}
+
+/* 漂移轨道：JS rAF 写 transform（基底/手电双层同值同步） */
+.drift {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+/* 拼贴单元：定宽片（横向两片首尾相接做无缝循环）；片内图标绝对散布 */
+.wallSheet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2600px;
 }
 
 /* 触屏 / 无精确指针：手电取消，暗纹低辨识度常亮（dev-spec §6） */

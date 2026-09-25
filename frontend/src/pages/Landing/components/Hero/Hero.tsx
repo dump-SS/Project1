@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useFlashlight, hasHoverPointer } from '../../hooks/useFlashlight'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
@@ -11,29 +11,60 @@ import {
 } from '../../icons/DarkMotifs'
 import styles from './Hero.module.css'
 
+// LaserFlow（React Bits，three）：Hero 光场底光。three 只进 landing-gfx chunk，
+// 懒加载——CSS 呼吸光晕为第一帧与降级兜底（dev-spec §2.3 重背景先静态后增强）。
+const LaserFlow = lazy(() => import('../bits/LaserFlow'))
+
 const MOTIF_ICONS = [
   IconReportCard, IconBook, IconNotebook, IconPencil, IconRuler, IconCompass,
   IconTriangle, IconFlask, IconBeaker, IconTestTube, IconGlobe, IconMicroscope,
   IconStopwatch,
 ]
 
-/** 暗纹散布：确定性伪随机布局（刷新不跳位） */
+/** 暗纹散布：确定性伪随机布局（刷新不跳位）。
+ *  2026-09-25 Skyer 调整：图标放大铺满、统一斜置（drift wall 形态，覆盖 §7.1 静止暗纹口径）。 */
 const MOTIF_SPOTS: Array<{
   icon: number
   x: number
   y: number
   size: number
   rotate: number
-}> = Array.from({ length: 18 }, (_, i) => {
+}> = Array.from({ length: 26 }, (_, i) => {
   const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1
   return {
     icon: Math.floor(r(1) * MOTIF_ICONS.length),
-    x: 4 + r(2) * 92,
-    y: 6 + r(3) * 84,
-    size: 40 + Math.floor(r(4) * 44),
-    rotate: Math.floor(r(5) * 70) - 35,
+    x: 1 + r(2) * 94,
+    y: 2 + r(3) * 93,
+    size: 96 + Math.floor(r(4) * 88),
+    rotate: -34 + Math.floor(r(5) * 28),
   }
 })
+
+/** 单片暗纹墙（drift wall 拼贴单元，CSS 定尺寸；横向两片首尾相接做无缝漂移） */
+function MotifSheet() {
+  return (
+    <div className={styles.wallSheet}>
+      {MOTIF_SPOTS.map((s, i) => {
+        const Icon = MOTIF_ICONS[s.icon]
+        return (
+          <Icon
+            key={i}
+            size={s.size}
+            style={{
+              position: 'absolute',
+              left: `${s.x}%`,
+              top: `${s.y}%`,
+              transform: `rotate(${s.rotate}deg)`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+/** drift wall 漂移速度（px/s）——drift wall 级别的慢 */
+const DRIFT_SPEED = 22
 
 export default function Hero() {
   const reduced = useReducedMotion()
@@ -41,7 +72,33 @@ export default function Hero() {
   const { text, youVisible, strongFrom, finished } = useSloganSequence()
   const sectionRef = useFlashlight<HTMLElement>(!reduced)
   const glowRef = useRef<HTMLDivElement>(null)
+  const driftBaseRef = useRef<HTMLDivElement>(null)
+  const driftTorchRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
+  // LaserFlow 仅精确指针设备开启（触屏静态光晕——移动端简化，dev-spec §6）
+  const laserOn = !reduced && hasHoverPointer()
+
+  // drift wall 漂移：rAF 匀速横移，基底/手电双层同一帧写同一 transform 保证严丝合缝；
+  // 触屏与 reduced-motion 静止
+  useEffect(() => {
+    if (reduced || !hasHoverPointer()) return
+    const base = driftBaseRef.current
+    const torch = driftTorchRef.current
+    if (!base || !torch) return
+    let raf = 0
+    const tick = (t: number) => {
+      raf = requestAnimationFrame(tick)
+      const sheet = base.firstElementChild as HTMLElement | null
+      const w = sheet ? sheet.offsetWidth : 0
+      if (!w) return
+      const x = -((t / 1000 * DRIFT_SPEED) % w)
+      const tf = `translate3d(${x}px, 0, 0)`
+      base.style.transform = tf
+      torch.style.transform = tf
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [reduced])
 
   // 光场交互：指针轻微推移（reduced-motion 不动）
   useEffect(() => {
@@ -97,45 +154,45 @@ export default function Hero() {
 
   return (
     <section className={styles.hero} ref={sectionRef} aria-label="EpochX 学习状态智能助手">
-      {/* 上部 2/3 光场：品牌蓝呼吸光晕（大面积低强度——作为「光」存在，visual-language §4） */}
+      {/* 光场：品牌蓝 LaserFlow 光束底光（懒加载 three，screen 混合隐黑底）；触屏/reduced 不挂载 */}
+      {laserOn ? (
+        <div className={styles.laserHost} aria-hidden>
+          <Suspense fallback={null}>
+            <LaserFlow
+              color="#4AD1FF"
+              backgroundColor="#000000"
+              flowSpeed={0.32}
+              fogIntensity={0.38}
+              wispIntensity={2.8}
+              flowStrength={0.22}
+              verticalSizing={1.7}
+              horizontalSizing={0.62}
+              decay={1.45}
+              mouseTiltStrength={0.02}
+              dpr={1.5}
+            />
+          </Suspense>
+        </div>
+      ) : null}
+
+      {/* 光场：大面积低强度品牌蓝光晕，呼吸 6–8s（第一帧兜底 + 深度层） */}
       <div className={styles.glow} ref={glowRef} aria-hidden />
 
-      {/* 暗纹层：流动的学习物件 monoline 线稿（静止近不可见，手电扫过显形） */}
+      {/* 暗纹层：drift wall——放大铺满、斜置、缓慢漂移。
+          基底低辨识常亮；手电层被径向 mask 包在未变换的层上（指针坐标即 mask 坐标），
+          内部与基底同 rAF 同步漂移，显形位置始终跟随指针。 */}
       <div className={styles.motifs} aria-hidden>
         <div className={styles.motifsBase}>
-          {MOTIF_SPOTS.map((s, i) => {
-            const Icon = MOTIF_ICONS[s.icon]
-            return (
-              <Icon
-                key={i}
-                size={s.size}
-                style={{
-                  position: 'absolute',
-                  left: `${s.x}%`,
-                  top: `${s.y}%`,
-                  transform: `rotate(${s.rotate}deg)`,
-                }}
-              />
-            )
-          })}
+          <div className={styles.drift} ref={driftBaseRef}>
+            <MotifSheet />
+            <MotifSheet />
+          </div>
         </div>
-        {/* 手电层：同一批线稿，径向 mask 只在指针附近显形（只属于 Hero，visual-language §8） */}
         <div className={styles.motifsTorch}>
-          {MOTIF_SPOTS.map((s, i) => {
-            const Icon = MOTIF_ICONS[s.icon]
-            return (
-              <Icon
-                key={i}
-                size={s.size}
-                style={{
-                  position: 'absolute',
-                  left: `${s.x}%`,
-                  top: `${s.y}%`,
-                  transform: `rotate(${s.rotate}deg)`,
-                }}
-              />
-            )
-          })}
+          <div className={styles.drift} ref={driftTorchRef}>
+            <MotifSheet />
+            <MotifSheet />
+          </div>
         </div>
       </div>
 
