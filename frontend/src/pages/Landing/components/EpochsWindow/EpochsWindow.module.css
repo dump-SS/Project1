@@ -70,10 +70,10 @@
   font-family: var(--lp-font-serif);
   font-size: 14px;
   letter-spacing: 0.2em;
-  color: var(--lp-text-2);
+  color: var(--lp-text);
   background:
-    linear-gradient(135deg, rgba(27, 93, 191, 0.22), rgba(11, 16, 23, 0.9)),
-    linear-gradient(315deg, rgba(42, 53, 66, 0.5), rgba(16, 22, 30, 0.95));
+    linear-gradient(135deg, rgba(27, 93, 191, 0.28), rgba(11, 16, 23, 0.82)),
+    linear-gradient(315deg, rgba(42, 53, 66, 0.55), rgba(16, 22, 30, 0.9));
   border: 1px dashed var(--lp-hairline);
   border-radius: 8px;
 }
@@ -83,11 +83,11 @@
   background: radial-gradient(50% 60% at 50% 55%, rgba(74, 209, 255, 0.08), transparent 75%);
 }
 
-/* 光的调度：历史段主光收暗（越暗越久远），logo 显现时褪去 */
+/* 光的调度：历史段主光收暗（偏蓝黑，非纯黑——沉蓝感），logo 显现时褪去 */
 .lightVeil {
   position: absolute;
   inset: 0;
-  background: #06090d;
+  background: #0A1220;
   pointer-events: none;
 }
 

@@ -37,10 +37,10 @@ export default function EpochsWindow() {
     )
   }
 
-  // 滚动编排：0–0.15 进入 → 0.15–0.75 窗内横滚（书简→题海→logo）→ 0.6–1.0 logo 入窗后视窗右移扩大 + 光回归
+  // 滚动编排：0–0.15 进入 → 0.15–0.75 窗内横滚（书简→题海→logo）→ 0.5–0.9 logo 入窗后视窗右移扩大 + 光回归
   const stripP = map(progress, 0.1, 0.8) // 窗内横滚进度
   const expandP = map(progress, 0.62, 0.95) // 视窗右移 + 扩大
-  const lightP = map(progress, 0.55, 0.85) // 光回归
+  const lightP = map(progress, 0.38, 0.7) // 光回归（logo 开始入窗即转亮）
   const dim = 1 - lightP // 历史段收暗系数
 
   return (
@@ -51,13 +51,14 @@ export default function EpochsWindow() {
           <div
             className={styles.window}
             style={{
-              width: `calc(38% + ${expandP * 16}%)`,
-              transform: `translateX(${expandP * 8}%)`,
+              width: `calc(100% + ${expandP * 6}vw)`,
+              transform: `translateX(${expandP * 4}%)`,
             }}
           >
             <div
               className={styles.track}
-              style={{ transform: `translateX(${-stripP * 200}%)` }}
+              /* track 宽 = 3 窗（300%），百分比相对自身 → 三格全程序 = -66.67% */
+              style={{ transform: `translateX(${-stripP * 66.6667}%)` }}
             >
               {/* 三格：古代书简（占位）→ 书山题海（占位）→ logo（原色） */}
               <div className={styles.frame}>
@@ -76,10 +77,10 @@ export default function EpochsWindow() {
                 <img src="/brand/logo-full-on-dark-trim.png" alt="EpochX" height={56} />
               </div>
             </div>
-            {/* 光的调度：历史段主光收暗 → logo 显现瞬间光回归 */}
+            {/* 光的调度：历史段主光收暗（沉蓝，内容仍隐约可读）→ logo 显现瞬间光回归 */}
             <div
               className={styles.lightVeil}
-              style={{ opacity: dim * 0.72 }}
+              style={{ opacity: dim * 0.42 }}
               aria-hidden
             />
           </div>
