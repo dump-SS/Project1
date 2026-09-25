@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.7.0
+  version: 1.7.1
   description: |
     中学学情导学与状态评估 API。
 
@@ -79,6 +79,16 @@ tags:
     description: |
       板块三（pilot）：匿名群体参照。只上传匿名分桶特征（服务端抽取为唯一真源）、只下发聚合结果
       （k≥20 才下发，不含个体值）。授权默认关闭、显式开启、可随时撤回（撤回即物理删除）。
+
+  - name: 考试
+    description: |
+      D49：考试作为**独立实体**（不是 Goal 的一种）。Goal 通过 examId + targetScore 引用它，
+      避免两套平行的目标体系。考后回填成绩 → 供状态评估与画像消费（客观结果比自评硬得多）。
+  - name: 专注计时
+    description: |
+      D30/D31/D32/#14：服务端持久化"进行中的计时会话"，前端只是视图。
+      双模式（倒计时/正计时）按 mode 恢复；僵尸会话走恢复裁决卡，**不自动记账**；
+      有效时长 ≠ 墙上时长；一会话内分段，不允许并行计时。
 
 paths:
   # ==================== 鉴权会话（外部账号体系，登录前公开） ====================
@@ -809,6 +819,460 @@ paths:
           $ref: '#/components/responses/GuardianAuthorizationExpired'
         '404':
           $ref: '#/components/responses/NotFound'
+  # ==================== 考试（D49 独立实体） ====================
+  /exams:
+    get:
+      tags: [考试]
+      operationId: listExams
+      summary: 考试列表
+      description: |
+        D49：考试是**独立实体**，不是 Goal 的一种——目标表达意愿（"这次想考到 120"），
+        考试表达事实（"11/05 期中，考了 118"）。Goal 通过 examId + targetScore 引用考试。
+        `score` 为 null 表示尚未回填成绩（**0 分与未回填是两回事**，不做 0 值兜底）。
+      parameters:
+        - name: subject
+          in: query
+          required: false
+          description: 按学科过滤（学科码见 Subject）
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          required: false
+          description: 考试日期下界（含）
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: false
+          description: 考试日期上界（含）
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 考试列表（按考试日期倒序）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamList'
+              example:
+                items:
+                  - examId: e_3f21
+                    subject: SX
+                    name: 期中考试
+                    examDate: '2026-11-05'
+                    score: 118
+                    fullScore: 150
+                    createdAt: '2026-10-20T09:00:00+08:00'
+                    updatedAt: '2026-11-06T20:30:00+08:00'
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 1
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [考试]
+      operationId: createExam
+      summary: 新建考试
+      description: |
+        考前先把日程记下来（score 留空）与考后一次录入（带 score）是同一个接口。
+        得分必须落在 [0, 满分]，超满分直接 400 —— 不静默截断，否则用户会以为系统算错了。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExamCreate'
+            example:
+              subject: SX
+              name: 期中考试
+              examDate: '2026-11-05'
+              fullScore: 150
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exam'
+              example:
+                examId: e_3f21
+                subject: SX
+                name: 期中考试
+                examDate: '2026-11-05'
+                score: null
+                fullScore: 150
+                createdAt: '2026-10-20T09:00:00+08:00'
+                updatedAt: '2026-10-20T09:00:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /exams/{examId}:
+    get:
+      tags: [考试]
+      operationId: getExam
+      summary: 考试详情
+      parameters:
+        - $ref: '#/components/parameters/ExamId'
+      responses:
+        '200':
+          description: 考试对象
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exam'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [考试]
+      operationId: updateExam
+      summary: 更新考试 / 回填成绩
+      description: |
+        **考后回填成绩走这里**（只传 `score`）。成绩是唯一能把「自评」与「实际」对上的
+        客观数据，回填后可供个人中心与画像消费（D49）。
+        `score: null` 表示**撤回回填**（分数记错了科目），与"不传=不动"区分。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ExamId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExamUpdate'
+            example:
+              score: 118
+      responses:
+        '200':
+          description: 更新后的考试对象
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exam'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [考试]
+      operationId: deleteExam
+      summary: 删除考试
+      description: |
+        被 Goal 引用时返回 409 —— 删掉会让 `goal.examId` 变悬空引用，
+        "目标指向一场不存在的考试"在界面上无法解释。请先 `PATCH /goals/{goalId}` 解除关联。
+      parameters:
+        - $ref: '#/components/parameters/ExamId'
+      responses:
+        '200':
+          description: 已删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamDeleted'
+              example:
+                deleted: true
+                examId: e_3f21
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  # ==================== 专注计时（D30/D31/D32/#14） ====================
+  # 服务端持久化"进行中的计时会话"：前端只是视图，刷新/换设备回来按 mode 恢复，
+  # 根治现状「/study-timer 靠 navigate(state) 传参、刷新即丢上下文」的技术债。
+  /timer-sessions:
+    post:
+      tags: [专注计时]
+      operationId: startTimerSession
+      summary: 开始计时
+      description: |
+        已有进行中会话时返回 **409**（不静默接管、也不静默丢弃）：
+        专注态同时只能有一个，用户必须先对上一个会话做出处置（继续 / 收尾 / 裁决丢弃），
+        否则会出现两段并行计时，或者学习时长被系统悄悄丢掉。
+
+        `countup` 不需要目标时长（传了也会被忽略，不报错——前端切换模式时不该吃 400）。
+        `subject` 不传时由服务端从 `taskId` 对应的计划任务推导，推不出才兜底 `other`。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimerSessionStart'
+            example:
+              mode: countdown
+              targetMinutes: 30
+              planId: p_1a2b
+              taskId: t_3c4d
+      responses:
+        '201':
+          description: 已开始
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerSession'
+              example:
+                sessionId: ts_9f8e
+                mode: countdown
+                startedAt: '2026-09-25T19:00:00+08:00'
+                targetMinutes: 30
+                planId: p_1a2b
+                taskId: t_3c4d
+                subject: SX
+                status: running
+                endedAt: null
+                effectiveSeconds: null
+                lastHeartbeatAt: '2026-09-25T19:00:00+08:00'
+                segments:
+                  - segmentId: seg_01
+                    taskId: t_3c4d
+                    startedAt: '2026-09-25T19:00:00+08:00'
+                    endedAt: null
+                    seconds: null
+                createdAt: '2026-09-25T19:00:00+08:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /timer-sessions/current:
+    get:
+      tags: [专注计时]
+      operationId: getCurrentTimerSession
+      summary: 当前计时会话（恢复视图）
+      description: |
+        前端进计时页 / 刷新 / 换设备回来时调用。`active=false` 是**正常流程**
+        （用户没在计时），不是错误，所以不用 404 表达。
+
+        `restore.needsVerdict=true` 时必须先弹**恢复裁决卡**（D31），**不得自动记账**：
+        识别到异常会话（断连超过 30 分钟 / 正计时超 6 小时 / 倒计时到点后又拖超 30 分钟）。
+      responses:
+        '200':
+          description: 当前会话（无会话时 active=false）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerCurrent'
+              example:
+                active: true
+                session:
+                  sessionId: ts_9f8e
+                  mode: countdown
+                  startedAt: '2026-09-25T19:00:00+08:00'
+                  targetMinutes: 30
+                  planId: p_1a2b
+                  taskId: t_3c4d
+                  subject: SX
+                  status: running
+                  endedAt: null
+                  effectiveSeconds: null
+                  lastHeartbeatAt: '2026-09-25T19:12:00+08:00'
+                  segments: []
+                  createdAt: '2026-09-25T19:00:00+08:00'
+                restore:
+                  sessionId: ts_9f8e
+                  mode: countdown
+                  remainingSeconds: 1080
+                  elapsedSeconds: null
+                  needsVerdict: false
+                  suggestedMinutes: 30
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /timer-sessions/{sessionId}:
+    get:
+      tags: [专注计时]
+      operationId: getTimerSession
+      summary: 计时会话详情
+      parameters:
+        - $ref: '#/components/parameters/TimerSessionId'
+      responses:
+        '200':
+          description: 会话对象（含分段）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [专注计时]
+      operationId: discardTimerSession
+      summary: 丢弃会话（裁决卡「丢弃」）
+      description: |
+        会话标记为 `abandoned`，**不产生任何学习记录**——这是 D31 验收里
+        「僵尸会话不产生记录」的落点：宁可少记一次，也不要凭空造一段没发生过的学习时长。
+      parameters:
+        - $ref: '#/components/parameters/TimerSessionId'
+      responses:
+        '200':
+          description: 已丢弃
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerDiscarded'
+              example:
+                discarded: true
+                sessionId: ts_9f8e
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /timer-sessions/{sessionId}/heartbeat:
+    post:
+      tags: [专注计时]
+      operationId: heartbeatTimerSession
+      summary: 上报心跳
+      description: |
+        刷新 `lastHeartbeatAt` —— 僵尸判定与「异常会话」识别的唯一依据。
+        前端应定时上报（并在每次用户交互时顺带上报）。不刷新心跳的后果不是报错，
+        而是**下一次回来会被判成异常会话、要求用户裁决**，所以宁可多报。
+      parameters:
+        - $ref: '#/components/parameters/TimerSessionId'
+      responses:
+        '200':
+          description: 刷新后的会话
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /timer-sessions/{sessionId}/segments:
+    post:
+      tags: [专注计时]
+      operationId: switchTimerTask
+      summary: 切换任务（开新的一段）
+      description: |
+        #14：一个会话内**分段**，每段标注所属任务；**不允许并行计时**，所以只能是"换段"。
+        旧段在切换瞬间关闭并结算秒数，新段从此刻开始；结束仍只走一次收尾。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/TimerSessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimerSegmentStart'
+            example:
+              taskId: t_5e6f
+      responses:
+        '201':
+          description: 新的一段
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerSegment'
+              example:
+                segmentId: seg_02
+                taskId: t_5e6f
+                startedAt: '2026-09-25T19:20:00+08:00'
+                endedAt: null
+                seconds: null
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /timer-sessions/{sessionId}/finish:
+    post:
+      tags: [专注计时]
+      operationId: finishTimerSession
+      summary: 结束计时并收尾（落学习记录）
+      description: |
+        结束会话 + 落学习记录，**一次原子动作**。不在前端分两步（先结束会话、再
+        POST /learning-records）：两步之间失败会留下"会话结束了但没有记录"的黑洞，
+        正是 D31 要消灭的僵尸形态。
+
+        **有效时长口径（D31：有效时长 ≠ 墙上时长）**：
+        - 传了 `durationMinutes` → 以它为准（裁决卡第三态「手动改时长」）；
+        - `countdown` → `min(经过, target)`（到点后继续学也不多记，§3.6 封顶）；
+        - `countup` → 实际经过；若已判异常且未给时长 → **400 要求先裁决**（不自动记账）。
+
+        响应与 `POST /learning-records` 同构（含同步重算的状态与建议句柄）。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/TimerSessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimerFinish'
+            example:
+              completion: completed
+              selfReport:
+                focus: 4
+                fatigue: 2
+                emotion: positive
+                difficultyFeel: moderate
+              note: 函数图像终于看懂了
+      responses:
+        '201':
+          description: 学习记录已落库（含状态快照与建议句柄）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningRecordCreated'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /plans:
     post:
       tags: [学习计划]
@@ -1122,6 +1586,14 @@ paths:
           schema:
             type: string
             format: date
+        - name: source
+          in: query
+          required: false
+          description: |
+            按记录来源过滤（D49）。`exam` 只取考试成绩回填生成的记录，
+            `self_report` 排除它们——消费方不必自己拿 examId 反查。
+          schema:
+            $ref: '#/components/schemas/RecordSource'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -1159,6 +1631,74 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
 
   /learning-records/{recordId}:
+    patch:
+      tags: [学习记录]
+      operationId: updateLearningRecord
+      summary: 事后回写学习记录（正确率 / 完成度 / 自评 / 备注）
+      description: |
+        D15：学习记录是「**可事后回写的活实体**」，不是「提交即封存」的快照。
+        正确率三态可填——结束即填 / 老师讲完再补 / 永不填，系统一律容忍缺失。
+
+        **语义（很重要）**：只在字段被**显式传入**时才改。
+        `accuracy: null` = 清空（"确实没填"）；不传 = 不动。两者必须区分，
+        否则用户只想改个备注会把正确率抹掉。
+
+        回写后**重算该学科状态快照**（accuracy/selfReport 都参与算分），
+        但**不创建新建议**——建议是"一次学习结束后"的产物，补个正确率不该再推一条给用户。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RecordId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordUpdate'
+            example:
+              accuracy: 0.75
+              note: 老师讲完才知道对了几道
+      responses:
+        '200':
+          description: 回写后的记录 + 重算的状态快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningRecordUpdated'
+              example:
+                record:
+                  recordId: r_88012
+                  subject: SX
+                  startedAt: '2026-09-20T19:00:00+08:00'
+                  durationMinutes: 45
+                  planTaskId: t_30011
+                  behavior:
+                    completion: partial
+                    accuracy: 0.75
+                    interruptions: 1
+                    blurCount: null
+                  selfReport:
+                    focus: 3
+                    fatigue: 3
+                    emotion: neutral
+                    difficultyFeel: moderate
+                  note: 老师讲完才知道对了几道
+                  createdAt: '2026-09-20T19:46:00+08:00'
+                recalculatedAssessment:
+                  assessmentId: a_7742
+                  subject: SX
+                  windowScore: 0.71
+                  trend: flat
+                  stateLabel: efficient_stable
+                  dataSufficient: true
+                  recordCount: 3
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     delete:
       tags: [学习记录]
       operationId: deleteLearningRecord
@@ -2665,6 +3205,21 @@ components:
       description: 计划内任务 ID
       schema:
         type: string
+    ExamId:
+      name: examId
+      in: path
+      required: true
+      description: 考试 ID
+      schema:
+        type: string
+    TimerSessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: 计时会话 ID
+      schema:
+        type: string
+
     RecordId:
       name: recordId
       in: path
@@ -2726,6 +3281,17 @@ components:
             error:
               code: GUARDIAN_AUTHORIZATION_EXPIRED
               message: 监护人授权已过期，请重新确认后继续使用
+    StateConflict:
+      description: 当前资源状态不允许该操作（同日计划已存在 / 会话已在运行 / 被引用不可删）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: STATE_CONFLICT
+              message: 当日已存在计划，如需覆盖请传 regenerate=true
+
     NotFound:
       description: 资源不存在或不属于当前用户
       content:
@@ -3534,29 +4100,48 @@ components:
         blurCount:
           type: integer
           description: 可选，页面失焦次数（小程序弱信号），客户端自动采集
+    RecordSource:
+      type: string
+      description: |
+        学习记录的来源（D49）。为什么需要这一列：考试是**客观结果**，它没有自评
+        （没人会为一次期中考试填「专注度 4 分」）。没有来源标记，就只能靠编造自评
+        把考试混进状态窗口——那是造数（D34 禁止）。有了来源，消费方才能区分与过滤。
+      enum: [self_report, exam]
     RecordSelfReport:
       type: object
-      description: 自评数据，控制在 10 秒内完成
-      required: [focus, fatigue, emotion, difficultyFeel]
+      description: |
+        自评数据。**四字段全部可空**（2026-09-25 放开，原为全必填）。
+        依据目标态 §3.7(a)：三层收尾里唯一「半强制」的只有**完成度**；
+        专注 / 疲劳 / 难度是模型从「一句感受」转译的**软字段**，情绪快捷词也只是「可选兜底」。
+        转译不出就留空——状态引擎跳过该项并按可用部分归一化（D34：宁缺毋滥、**不造数**）。
+        整段缺失的典型场景：考试成绩回填生成的记录（考试没有自评）。
       properties:
         focus:
           type: integer
+          nullable: true
           minimum: 1
           maximum: 5
-          description: 专注度 1-5
+          description: 专注度 1-5；未采集为 null
         fatigue:
           type: integer
+          nullable: true
           minimum: 1
           maximum: 5
-          description: 疲劳度 1-5
+          description: 疲劳度 1-5；未采集为 null
         emotion:
-          $ref: '#/components/schemas/Emotion'
+          allOf:
+            - $ref: '#/components/schemas/Emotion'
+          nullable: true
+          description: 情绪；未采集为 null
         difficultyFeel:
-          $ref: '#/components/schemas/DifficultyFeel'
+          allOf:
+            - $ref: '#/components/schemas/DifficultyFeel'
+          nullable: true
+          description: 难度感受；未采集为 null
     RecordInput:
       type: object
       description: 提交学习记录请求体
-      required: [subject, startedAt, durationMinutes, behavior, selfReport]
+      required: [subject, startedAt, durationMinutes, behavior]
       properties:
         subject:
           allOf:
@@ -3577,7 +4162,12 @@ components:
         behavior:
           $ref: '#/components/schemas/RecordBehavior'
         selfReport:
-          $ref: '#/components/schemas/RecordSelfReport'
+          allOf:
+            - $ref: '#/components/schemas/RecordSelfReport'
+          nullable: true
+          description: |
+            自评；**可整段省略**——三层收尾里只有完成度是半强制的（D20），
+            软字段转译不出也留空（D34）。缺省不写任何默认值。
         note:
           type: string
           maxLength: 100
@@ -3589,7 +4179,7 @@ components:
     LearningRecord:
       type: object
       description: 已保存的学习记录
-      required: [recordId, subject, startedAt, durationMinutes, behavior, selfReport, createdAt]
+      required: [recordId, subject, startedAt, durationMinutes, behavior, selfReport, createdAt, source]
       properties:
         recordId:
           type: string
@@ -3622,6 +4212,13 @@ components:
           type: string
           format: date-time
           description: 提交时间
+        source:
+          $ref: '#/components/schemas/RecordSource'
+        sourceExamId:
+          type: string
+          nullable: true
+          description: 来源考试 ID；仅 source=exam 时有值
+
     AssessmentSnapshot:
       type: object
       description: |
@@ -4624,11 +5221,13 @@ components:
           type: number
           nullable: true
         behaviorSubAvg: { type: number }
-        selfReportSubAvg: { type: number }
-        behaviorContribution: { type: number }
-        selfReportContribution: { type: number }
-        behaviorShare: { type: number }
-        selfReportShare: { type: number }
+        # 窗口内一条自评都没有时（例如只有考试成绩回填的记录）为 null，
+        # 前端显示「—」。不拿 0.0 冒充——0.0 读起来是「自评很差」，与「压根没自评」是两回事。
+        selfReportSubAvg: { type: number, nullable: true }
+        behaviorContribution: { type: number, nullable: true }
+        selfReportContribution: { type: number, nullable: true }
+        behaviorShare: { type: number, nullable: true }
+        selfReportShare: { type: number, nullable: true }
         recordCount: { type: integer }
         stateLabel:
           $ref: '#/components/schemas/StateLabel'
@@ -4769,6 +5368,15 @@ components:
             得分。考后回填，回填前为 null。成绩是唯一能把「自评」与「实际」对上的客观数据，
             回填后喂状态评估与画像（D49）。
         fullScore: { type: number }
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
+          description: |
+            考试时长（分钟）。存在的理由很具体：成绩回填要生成一条学习记录（D49 喂状态评估），
+            而记录的学习时长必填——考试时长是客观事实，填了才生成记录，**不填就不生成**，
+            绝不为了凑一条记录去编一个时长。
         createdAt:
           type: string
           format: date-time
@@ -4785,6 +5393,11 @@ components:
         name: { type: string }
         examDate: { type: string, format: date }
         fullScore: { type: number }
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
         score: { type: number, nullable: true }
     ExamUpdate:
       type: object
@@ -4794,6 +5407,11 @@ components:
         name: { type: string }
         examDate: { type: string, format: date }
         fullScore: { type: number }
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
         score: { type: number, nullable: true }
     ExamList:
       type: object
@@ -5386,6 +6004,136 @@ components:
           items:
             $ref: '#/components/schemas/TimerSegment'
         createdAt: { type: string, format: date-time }
+    # ---------- 考试（D49）与计时（D30/D31）的请求体 / 包装 ----------
+    ExamDeleted:
+      type: object
+      description: 删除考试的响应
+      required: [deleted, examId]
+      properties:
+        deleted:
+          type: boolean
+        examId:
+          type: string
+    TimerSessionStart:
+      type: object
+      description: |
+        开始计时的请求体。`targetMinutes` 仅 countdown 必填；
+        countup 传了会被忽略（不报错，避免前端切换模式时多余的 400）。
+        `subject` 可不传——服务端从 `taskId` 对应的计划任务推导，推不出才兜底 other。
+      required: [mode]
+      properties:
+        mode:
+          $ref: '#/components/schemas/TimerMode'
+        targetMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
+        planId:
+          type: string
+          nullable: true
+        taskId:
+          type: string
+          nullable: true
+        subject:
+          $ref: '#/components/schemas/Subject'
+    TimerSegmentStart:
+      type: object
+      description: 切换任务请求体（#14：一会话内分段，不允许并行计时）
+      properties:
+        taskId:
+          type: string
+          nullable: true
+          description: 本段要做什么任务；不传表示自由学习
+    TimerCurrent:
+      type: object
+      description: |
+        `GET /timer-sessions/current` 的响应。用 `active` 包装而不是"没有就 404"：
+        前端每次进计时页都会问一次，**"没有会话"是正常流程而不是错误**。
+      required: [active]
+      properties:
+        active:
+          type: boolean
+        session:
+          allOf:
+            - $ref: '#/components/schemas/TimerSession'
+          nullable: true
+        restore:
+          allOf:
+            - $ref: '#/components/schemas/TimerRestore'
+          nullable: true
+    TimerFinish:
+      type: object
+      description: |
+        计时收尾请求体（D20 三层形态：结束瞬间 0 步 → 轻收尾卡 → 正确率延后补）。
+        必填只有 `completion`（唯一"半强制"问句）；`selfReport` **可整段省略**，
+        其中专注/疲劳/情绪/难度任一可缺（软字段转译不出就留空，D34 不造数）。
+        `durationMinutes` 显式传入时覆盖服务端按 mode 算出的有效时长——
+        这正是裁决卡第三态「手动改时长」的落点。
+      required: [completion]
+      properties:
+        completion:
+          $ref: '#/components/schemas/Completion'
+        selfReport:
+          allOf:
+            - $ref: '#/components/schemas/RecordSelfReport'
+          nullable: true
+        durationMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 600
+          description: 不传则按 mode 算有效时长；传入即以它为准
+        note:
+          type: string
+          nullable: true
+          maxLength: 100
+        skipRecommendation:
+          type: boolean
+          default: false
+    TimerDiscarded:
+      type: object
+      description: 裁决卡「丢弃」的结果。**不产生学习记录**（D31）。
+      required: [discarded, sessionId]
+      properties:
+        discarded:
+          type: boolean
+        sessionId:
+          type: string
+    RecordUpdate:
+      type: object
+      description: |
+        事后回写请求体（D15）。字段全可选，**只在字段被显式传入时才改**：
+        `accuracy: null` 表示"清空（确实没填）"，不传表示"别动"。
+      minProperties: 1
+      properties:
+        completion:
+          $ref: '#/components/schemas/Completion'
+        accuracy:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: 正确率 0-1；显式传 null 表示清空（三态中的「永不填」）
+        note:
+          type: string
+          nullable: true
+          maxLength: 100
+        selfReport:
+          $ref: '#/components/schemas/RecordSelfReport'
+    LearningRecordUpdated:
+      type: object
+      description: |
+        事后回写的响应（D15）。带上 `recalculatedAssessment`：回写正确率/自评会改变
+        状态分，前端要能立刻拿到新读数。
+        ⚠️ 与提交记录的区别：这里**不返回 recommendation**——回写不重复触发建议生成。
+      required: [record, recalculatedAssessment]
+      properties:
+        record:
+          $ref: '#/components/schemas/LearningRecord'
+        recalculatedAssessment:
+          $ref: '#/components/schemas/AssessmentSnapshot'
+
     TimerSegment:
       type: object
       description: 计时会话内的一段（#14 分段计时）。一个会话可挂多段，每段标注所属任务。

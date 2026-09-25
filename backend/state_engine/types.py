@@ -51,11 +51,17 @@ class BehaviorInput:
 
 @dataclass(frozen=True, slots=True)
 class SelfReportInput:
-    """openapi.yaml RecordSelfReport"""
-    focus: int          # 1-5
-    fatigue: int        # 1-5
-    emotion: Emotion
-    difficulty_feel: Literal["easy", "moderate", "hard"]  # openapi: difficultyFeel
+    """openapi.yaml RecordSelfReport
+
+    ⚠️ 四字段**全部可空**（2026-09-25 放开，原为必填）。依据目标态 §3.7(a)：
+    三层收尾里唯一"半强制"的只有**完成度**；专注/疲劳/难度是模型从"一句感受"转译的
+    **软字段**，情绪快捷词也只是"可选兜底"。转译不出就缺省——**不造数**（D34）。
+    自评整段缺失的典型场景：考试成绩回填生成的记录。
+    """
+    focus: int | None = None                        # 1-5；None = 未采集
+    fatigue: int | None = None                      # 1-5；None = 未采集
+    emotion: Emotion | None = None                  # None = 未采集
+    difficulty_feel: Literal["easy", "moderate", "hard"] | None = None  # openapi: difficultyFeel
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,10 +100,14 @@ class WeightConfig:
 
 @dataclass(frozen=True, slots=True)
 class SessionScore:
-    """单次学习状态分（0-1），以及两个子分。"""
+    """单次学习状态分（0-1），以及两个子分。
+
+    `self_report_sub` **可空**：自评整段缺失时（考试成绩回填记录）为 None。
+    不能用 0.0 冒充——0.0 的含义是"自评很差"，会把窗口分数整体拉低，那是另一种造数。
+    """
     score: float
     behavior_sub: float
-    self_report_sub: float
+    self_report_sub: float | None
 
 
 @dataclass(frozen=True, slots=True)

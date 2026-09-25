@@ -104,6 +104,18 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("auth_sessions")}
         if "user_id" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # C 板块 M2（2026-09-25）：learning_records 新增 source / source_exam_id，
+    # 且自评四列由 NOT NULL 放开为可空（D20/D34/D49）。老测试库缺列会直接报
+    # "table learning_records has no column named source"，用 source 作探针重建。
+    if insp.has_table("learning_records"):
+        cols = {c["name"] for c in insp.get_columns("learning_records")}
+        if "source" not in cols:
+            Base.metadata.drop_all(bind=engine)
+    # 同一批：exams 新增 duration_minutes（成绩回填生成记录要用）
+    if insp.has_table("exams"):
+        cols = {c["name"] for c in insp.get_columns("exams")}
+        if "duration_minutes" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

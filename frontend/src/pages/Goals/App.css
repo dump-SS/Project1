@@ -391,3 +391,43 @@
     gap: 24px;
   }
 }
+/* ===================================================================
+   目标树（D6/D29）+ 考试引用（D49）· 2026-09-25
+   =================================================================== */
+
+/* 窄字段：目标分数只有 3 位数，占满会显得很空 */
+.goal-form-field--narrow {
+  max-width: 180px;
+}
+
+/* 字段下方的小字说明（比 label 弱一档，不抢视线） */
+.goal-field-hint {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.55;
+}
+
+/* 子目标的连接符号 */
+.goal-tree-branch {
+  margin-right: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: var(--color-text);
+  opacity: 0.35;
+}
+
+/* 子目标卡片：左侧加一条细竖线，让"从属"看得出来 */
+.goal-list-item--child {
+  border-left: 2px solid rgba(111, 168, 214, 0.35);
+  padding-left: 12px;
+}
+
+/* 「目标 X · 实际 Y/满分」这行是**对照**，不是装饰——给一点字重 */
+.goal-exam-link {
+  font-weight: 600;
+  opacity: 0.85;
+}

@@ -40,10 +40,14 @@ def record_payload_to_engine(payload: dict) -> RecordInput:
     """把 openapi 的 RecordInput（camelCase，如 FastAPI 收到的 body）转成引擎输入。
 
     只取计算所需字段；subject/startedAt/note 等元字段不参与公式，直接忽略。
+
+    ⚠️ 自评软字段可缺（2026-09-25）：全部走 `.get()`，缺字段/显式 null 一律得 None，
+    不再 `self_report["focus"]` 直接下标（那样缺字段会 KeyError，把"正常的缺失"变成 500）。
     """
     behavior = payload.get("behavior") or {}
     self_report = payload.get("selfReport") or {}
 
+    emotion_raw = self_report.get("emotion")
     return RecordInput(
         behavior=BehaviorInput(
             completion=Completion(behavior["completion"]),
@@ -52,10 +56,10 @@ def record_payload_to_engine(payload: dict) -> RecordInput:
             blur_count=behavior.get("blurCount") or 0,
         ),
         self_report=SelfReportInput(
-            focus=self_report["focus"],
-            fatigue=self_report["fatigue"],
-            emotion=Emotion(self_report["emotion"]),
-            difficulty_feel=self_report.get("difficultyFeel", "moderate"),
+            focus=self_report.get("focus"),
+            fatigue=self_report.get("fatigue"),
+            emotion=Emotion(emotion_raw) if emotion_raw else None,
+            difficulty_feel=self_report.get("difficultyFeel"),
         ),
         duration_minutes=int(payload.get("durationMinutes") or 0),
     )
@@ -90,6 +94,9 @@ def compute_subscore_breakdown(
     - 各自在总分中的占比（数据可视化用）
 
     记录为空或 < 1 条返回 None。
+
+    ⚠️ 窗口内**一条自评都没有**时（例如只有考试成绩回填的记录）：自评侧字段一律回 None，
+    不拿 0.0 冒充——0.0 读起来是"自评很差"，与"压根没自评"是两回事（D34 不造数）。
     """
     if not records:
         return None
@@ -97,8 +104,23 @@ def compute_subscore_breakdown(
     scores = [compute_session_score(r, weights) for r in records]
     n = len(scores)
     behavior_avg = sum(s.behavior_sub for s in scores) / n
-    self_report_avg = sum(s.self_report_sub for s in scores) / n
+
+    sr_values = [s.self_report_sub for s in scores if s.self_report_sub is not None]
     behavior_contrib = weights.alpha * behavior_avg
+
+    if not sr_values:
+        return {
+            "windowScore": round(behavior_contrib, 4),
+            "behaviorSubAvg": round(behavior_avg, 4),
+            "selfReportSubAvg": None,
+            "behaviorContribution": round(behavior_contrib, 4),
+            "selfReportContribution": None,
+            "behaviorShare": 1.0,
+            "selfReportShare": None,
+            "recordCount": n,
+        }
+
+    self_report_avg = sum(sr_values) / len(sr_values)
     self_report_contrib = weights.beta * self_report_avg
     total = behavior_contrib + self_report_contrib
     if total > 0:

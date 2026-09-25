@@ -84,20 +84,22 @@ export default function StudyGuide() {
   }
 
   // 水淹动画结束后跳转
+  //
+  // ⚠️ 上下文改用 **URL query** 承载，不再走 `navigate(state)`。
+  // 原因：location.state 一刷新就没了（技术债「/study-timer 刷新丢上下文」的根因）。
+  // query 可刷新、可直链、可分享；计时会话本身由服务端持久化，两边一起把上下文钉住。
   useEffect(() => {
     if (stage !== 'flooding') return
     const timer = setTimeout(() => {
-      navigate('/study-timer', {
-        state: {
-          availableMinutes: MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60,
-          task: taskValue || null,
-          subject: subject || null,
-          planId: plan?.planId || null,
-        },
-      })
+      const params = new URLSearchParams()
+      const mins = MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60
+      params.set('minutes', String(mins))
+      if (plan?.planId) params.set('planId', plan.planId)
+      if (rec.taskId) params.set('taskId', rec.taskId)
+      if (subject) params.set('subject', subject)
+      navigate(`/study-timer?${params.toString()}`)
     }, 1400) // 与水淹动画时长一致
-    return () => clearTimeout(timer)
-  }, [stage, navigate, minutes, taskValue, subject, plan, MINUTES_VALIDATOR])
+  }, [stage, navigate, minutes, subject, plan, rec.taskId, MINUTES_VALIDATOR])
 
   // 黑场阶段监听 Enter 键
   useEffect(() => {
