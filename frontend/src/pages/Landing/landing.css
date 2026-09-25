@@ -38,6 +38,15 @@
   font-display: swap;
 }
 
+/* global.css L79 的元素选择器规则（body, p, span, div, ... → var(--font-sans)）
+   会击穿 .landing 的字体继承：落地页内所有 span/div 回退到 CDN/系统字体栈，
+   自托管 LP-*（含 700 字重）全部失效。这里在页面作用域内把元素级声明收回
+   inherit，统一走 .landing 的 LP-* 栈（.landing 是祖先，inherit 即 LP-Sans）。 */
+.landing span, .landing p, .landing div, .landing a, .landing button,
+.landing input, .landing textarea, .landing label, .landing select {
+  font-family: inherit;
+}
+
 /* ---------- 页面作用域：夜色谱（visual-language §3 深色档） ---------- */
 .landing {
   /* 底与面 */
