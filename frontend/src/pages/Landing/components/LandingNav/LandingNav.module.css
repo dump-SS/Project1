@@ -191,7 +191,7 @@
 }
 
 @keyframes lp-panel-fade {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(14px); } /* 从下往上淡入（Skyer 2026-09-25） */
   to { opacity: 1; transform: translateY(0); }
 }
 
