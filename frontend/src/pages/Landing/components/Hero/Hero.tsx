@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useFlashlight, hasHoverPointer } from '../../hooks/useFlashlight'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
@@ -14,8 +14,42 @@ import styles from './Hero.module.css'
 // Prism（React Bits，ogl）：Hero 光场。ogl 与 Grainient 同库（已在 deps），懒加载——
 // CSS 呼吸光晕为第一帧与降级兜底（dev-spec §2.3 重背景先静态后增强）。
 const Prism = lazy(() => import('../bits/Prism'))
-// SpecularButton（React Bits，ogl）：「即刻开始」主 CTA（品牌色填充，ogl 同 chunk）
+// SpecularButton（React Bits，ogl）：「即刻开始」主 CTA（品牌色填充，ogl 高光边缘）
 const SpecularButton = lazy(() => import('../bits/SpecularButton'))
+// VariableProximity（React Bits，motion）：加粗段字重随指针接近度连续插值
+// （可变字体 LP-Sans-Var，wght 500→900；2026-09-25 Skyer 指定）
+const VariableProximity = lazy(() => import('../bits/VariableProximity'))
+
+/** 加粗段的 Variable Proximity 呈现（成稿后启用；reduced/触屏走静态 800 字重）。
+ *  蓝「你」夹在两段之间——VP 不支持单字染色，拆两段共用同一 containerRef。 */
+function StrongProximity({ sectionRef }: { sectionRef: RefObject<HTMLElement> }) {
+  const vpStyle = { fontFamily: '"LP-Sans-Var", "LP-Sans", sans-serif' } as const
+  return (
+    <span className={styles.sloganStrong}>
+      <Suspense fallback={null}>
+        <VariableProximity
+          label="围着"
+          fromFontVariationSettings="'wght' 500"
+          toFontVariationSettings="'wght' 900"
+          containerRef={sectionRef}
+          radius={320}
+          falloff="gaussian"
+          style={vpStyle}
+        />
+        <span className={styles.you}>你</span>
+        <VariableProximity
+          label="转"
+          fromFontVariationSettings="'wght' 500"
+          toFontVariationSettings="'wght' 900"
+          containerRef={sectionRef}
+          radius={320}
+          falloff="gaussian"
+          style={vpStyle}
+        />
+      </Suspense>
+    </span>
+  )
+}
 
 const MOTIF_ICONS = [
   IconReportCard, IconBook, IconNotebook, IconPencil, IconRuler, IconCompass,
@@ -102,6 +136,11 @@ export default function Hero() {
     if (saved) setDraft(saved)
   }, [])
 
+  // 预取 VariableProximity chunk（成稿切换时零等待）
+  useEffect(() => {
+    void import('../bits/VariableProximity')
+  }, [])
+
   const onDraftChange = (v: string) => {
     setDraft(v)
     localStorage.setItem(HERO_DRAFT_KEY, v)
@@ -177,9 +216,13 @@ export default function Hero() {
             {strongStart >= 0 && text.length > strongStart ? (
               <>
                 <span>{text.slice(0, strongStart)}</span>
-                <span className={styles.sloganStrong}>
-                  {renderWithYou(text.slice(strongStart, strongEnd))}
-                </span>
+                {finished && !reduced && hasHoverPointer() ? (
+                  <StrongProximity sectionRef={sectionRef} />
+                ) : (
+                  <span className={styles.sloganStrong}>
+                    {renderWithYou(text.slice(strongStart, strongEnd))}
+                  </span>
+                )}
                 <span>{text.slice(strongEnd)}</span>
               </>
             ) : (

@@ -37,6 +37,15 @@
   font-style: normal;
   font-display: swap;
 }
+/* 可变字体（wght 100-900 全轴）：供 VariableProximity 按指针接近度连续插值
+   font-variation-settings——直驱轴值，不走静态字重面匹配 */
+@font-face {
+  font-family: 'LP-Sans-Var';
+  src: url('/fonts/NotoSansSC-lp-var.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* global.css 的元素选择器规则（body, p, span, div, ... → var(--font-sans) + 350 字重）
    会击穿 .landing 的字体继承：落地页内所有 span/div 回退到 CDN/系统字体栈，
