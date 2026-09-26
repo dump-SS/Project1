@@ -227,7 +227,7 @@ function TrustCard({
         >
           {/* 卡内左上：品牌色渐变图标（依次：锁头 / 柱状图 / 回箭头 / 盾牌） */}
           <div className={styles.cardIcon}>
-            <Icon size={28} />
+            <Icon size={34} />
           </div>
 
           <p className={styles.cardBrief}>{card.brief}</p>

@@ -104,7 +104,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 22px 24px;
-  min-height: 208px; /* 未展开时四卡等高（Skyer 2026-09-25） */
+  min-height: 186px; /* 静息高度微收（Skyer 2026-09-25，原 208） */
   border-radius: 22px; /* 展开态的卡面色块也走圆角（避免 hover 后出现直角，Skyer 2026-09-25） */
   background: transparent; /* 底/边框由 BorderGlow 承担 */
   transition: background 0.25s ease;
@@ -193,12 +193,13 @@
   filter: blur(6px);
 }
 
+/* 详情层：文首落在图片左上，右端距图片右缘留一点空间（不中置，Skyer 2026-09-25） */
 .figureDetail {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
-  padding: 16px 18px;
+  align-items: flex-start; /* 顶部起排（原居中） */
+  padding: 14px 26px 14px 16px; /* 右内边距更大：文本右端留白 */
   background: rgba(11, 16, 23, 0.55);
   opacity: 0;
   pointer-events: none;
@@ -206,9 +207,12 @@
 }
 
 .figureDetail p {
+  margin: 0;
+  max-width: 100%;
   font-family: var(--lp-font-serif);
   font-size: 13.5px;
   line-height: 1.85;
+  text-align: left;
   color: #ffffff;
 }
 
