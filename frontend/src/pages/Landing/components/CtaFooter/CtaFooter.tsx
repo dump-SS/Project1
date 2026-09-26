@@ -53,6 +53,12 @@ export default function CtaFooter() {
 
   return (
     <>
+      {/* ---------- 图标海 → CTA 的分割线（Skyer 2026-09-25）----------
+          发丝灰线；外层借 landing-wrap 定宽居中，内层自动落在内容盒上（不含其内边距）。 */}
+      <div className="landing-wrap" aria-hidden>
+        <div className={styles.divider} />
+      </div>
+
       {/* ---------- 上部：末句 + 输入框（暗区） ---------- */}
       <section className={styles.cta} aria-label="开始使用" ref={ctaRef}>
         <div className={`${styles.ctaInner} landing-wrap`}>
