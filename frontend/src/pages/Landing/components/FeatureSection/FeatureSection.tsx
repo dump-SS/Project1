@@ -87,7 +87,8 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
           containerHeight="auto"
           imageWidth="auto"
           imageHeight="auto"
-          rotateAmplitude={10}
+          rotateAmplitude={14}
+          perspective={1600}
           scaleOnHover={1.02}
           showMobileWarning={false}
           showTooltip={false}

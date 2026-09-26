@@ -78,10 +78,10 @@
 .cardFace {
   position: relative;
   width: 100%;
-  min-height: 520px; /* 再长一些——卡不显空，气泡间距随之拉开 */
+  min-height: 580px; /* 再长一些——容纳前置气泡层缩放，卡不显空 */
   display: flex;
   align-items: center;
-  padding: 44px 46px;
+  padding: 58px 60px; /* 加大：吸收气泡层 1.14x 透视缩放 */
   border-radius: 32px; /* 圆角再加大 */
   background: #1B222D url('/cards/metal-card.jpg') center / cover;
   border: 1px solid rgba(154, 164, 176, 0.22);
@@ -113,7 +113,8 @@
   );
 }
 
-/* 前置气泡层：translateZ 使其浮于卡面之上，随 3D 倾斜产生前后景视差 */
+/* 前置气泡层：translateZ 大间距（200px）+ 大透视（1600）——层间视差显著，
+   缩放仅 1.14x（卡内边距已吸收） */
 .bubbleLayer {
   position: relative;
   z-index: 2;
@@ -122,7 +123,7 @@
   justify-content: center;
   gap: 26px; /* 间距加大 */
   width: 100%;
-  transform: translateZ(78px); /* 透视增强（原 42px） */
+  transform: translateZ(200px); /* 与卡背间距加大（原 78px） */
 }
 
 /* 光晕：大面积低强度（作为「光」存在），只此一处 */

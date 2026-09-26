@@ -26,6 +26,8 @@ interface TiltedCardProps {
   imageWidth?: React.CSSProperties['width'];
   scaleOnHover?: number;
   rotateAmplitude?: number;
+  /** 透视距离（px，默认 800）——调大可加大 z 层间距而不放大缩放 */
+  perspective?: number;
   showMobileWarning?: boolean;
   showTooltip?: boolean;
   overlayContent?: React.ReactNode;
@@ -50,6 +52,7 @@ export default function TiltedCard({
   imageWidth = '300px',
   scaleOnHover = 1.1,
   rotateAmplitude = 14,
+  perspective = 800,
   showMobileWarning = false,
   showTooltip = true,
   overlayContent = null,
@@ -111,7 +114,8 @@ export default function TiltedCard({
       className="relative w-full h-full [perspective:800px] flex flex-col items-center justify-center"
       style={{
         height: containerHeight,
-        width: containerWidth
+        width: containerWidth,
+        perspective: `${perspective}px` /* 本仓库改动：可调透视（默认等同原 800px） */
       }}
       onMouseMove={handleMouse}
       onMouseEnter={handleMouseEnter}
