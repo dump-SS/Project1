@@ -205,7 +205,7 @@
   inset: 0;
   display: flex;
   align-items: flex-start; /* 顶部起排（原居中） */
-  padding: 14px 44px 14px 16px; /* 右侧留白加大（Skyer 2026-09-25） */
+  padding: 14px 92px 14px 16px; /* 右侧留白再加大约 3–4 字宽（Skyer 2026-09-25） */
   background: rgba(11, 16, 23, 0.55);
   opacity: 0;
   pointer-events: none;
