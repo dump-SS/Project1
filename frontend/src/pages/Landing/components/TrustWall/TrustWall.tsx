@@ -203,7 +203,7 @@ function TrustCard({
 
       <BorderGlow
         className={styles.cardGlow}
-        backgroundColor="#1B222D" /* 纯色卡面（Skyer 2026-09-25：不要半透明） */
+        backgroundColor="#161D26" /* 静息再深一档（Skyer 2026-09-25） */
         borderRadius={24} /* 圆角加大（Skyer 2026-09-25） */
         glowColor="186 100 50" /* 青蓝 #00E5FF（HSL：186 100% 50%） */
         edgeSensitivity={8} /* 更早触发——光标接近即亮（原 30） */
@@ -232,18 +232,25 @@ function TrustCard({
 
           <p className={styles.cardBrief}>{card.brief}</p>
 
-          {/* 配图区：卡 4 = S5 真对话；卡 1/2/3 = 占位块 + TODO（禁假界面图） */}
+          {/* 展开区：hover 图片 → 图片虚化 + 显示该卡详细说明（Skyer 2026-09-25） */}
           <div className={`${styles.figure} ${isOpen ? styles.figureOpen : ''}`}>
             {/* 0fr 折叠靠这一层零装饰裁剪（子元素自身的 margin/padding 会撑起轨道下限导致漏出） */}
             <div className={styles.figureClip}>
-              {isS5 ? (
-                <S5Preview />
-              ) : (
-                /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
-                <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
-                  <span>界面截图 · 待接入</span>
+              <div className={styles.figureInner}>
+                <div className={styles.figureVisual}>
+                  {isS5 ? (
+                    <S5Preview />
+                  ) : (
+                    /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
+                    <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
+                      <span>界面截图 · 待接入</span>
+                    </div>
+                  )}
                 </div>
-              )}
+                <div className={styles.figureDetail}>
+                  <p>{card.detail}</p>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -111,18 +111,16 @@
 }
 
 .cardOpen {
-  background: #222B38; /* 展开态纯色（略亮一档，Skyer 2026-09-25） */
+  background: #1B222D; /* 展开态 = 原静息色（Skyer 2026-09-25） */
 }
 
-/* 卡内左上：品牌色渐变图标 */
+/* 卡内左上：品牌色渐变图标（无背景底，Skyer 2026-09-25） */
 .cardIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(74, 209, 255, 0.08);
+  align-self: flex-start; /* 去底后不被 flex 拉伸居中（保持左上） */
+  width: fit-content;
   margin-bottom: 2px;
 }
 
@@ -153,7 +151,7 @@
   font-family: var(--lp-font-serif);
   font-size: 14px;
   line-height: 1.8;
-  color: var(--lp-text-2);
+  color: #ffffff; /* 说明文字改白（Skyer 2026-09-25） */
 }
 
 /* ---------- 配图区：hover/click/focus 展开 ---------- */
@@ -178,6 +176,44 @@
 .figureClip {
   overflow: hidden;
   min-height: 0;
+}
+
+/* 展开区内容：图片层 + 详情层（hover 图片虚化并显示详细说明，Skyer 2026-09-25） */
+.figureInner {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.figureVisual {
+  transition: filter 0.35s ease;
+}
+
+.figureInner:hover .figureVisual {
+  filter: blur(6px);
+}
+
+.figureDetail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 16px 18px;
+  background: rgba(11, 16, 23, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.figureDetail p {
+  font-family: var(--lp-font-serif);
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: #ffffff;
+}
+
+.figureInner:hover .figureDetail {
+  opacity: 1;
 }
 
 /* 占位块：等比容器 + 中性块 + TODO（禁假界面图，dev-spec §5.3） */
