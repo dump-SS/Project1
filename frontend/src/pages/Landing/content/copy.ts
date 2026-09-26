@@ -84,9 +84,15 @@ export interface CtaCopy {
   after: string
 }
 
+/** 页脚链接项：母项，可带子项（链接目标仍按占位规则留空、不可点击） */
+export interface FooterLink {
+  name: string
+  children?: readonly string[]
+}
+
 export interface FooterCopy {
   tagline: string
-  links: readonly string[]
+  links: readonly FooterLink[]
   backToTop: string
   copyrightPrefix: string
   copyrightHolder: string

@@ -140,7 +140,12 @@ export const COPY_EN: LandingCopy = {
 
   footer: {
     tagline: 'A study partner that revolves around you.',
-    links: ['Privacy Policy', 'Terms of Service', 'Community & Docs', 'Contact us'],
+    /* 与中文同构：Terms of Service 下挂 Privacy Policy / User Agreement */
+    links: [
+      { name: 'Terms of Service', children: ['Privacy Policy', 'User Agreement'] },
+      { name: 'Community & Docs' },
+      { name: 'Contact us' },
+    ],
     backToTop: 'Back to top',
     copyrightPrefix: '© ',
     copyrightHolder: '未名_Official',

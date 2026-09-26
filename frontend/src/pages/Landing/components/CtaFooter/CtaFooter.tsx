@@ -210,11 +210,22 @@ export default function CtaFooter() {
 
           {/* 链接组：结构留位、内容留空（占位规则——不预先编造链接地址） */}
           <nav className={styles.links} aria-label={c.a11y.footerLinks}>
-            {c.footer.links.map((label) => (
-              /* TODO(上线前)：真实链接地址统一确认后填入（Skyer 占位规则） */
-              <span key={label} className={styles.linkPlaceholder}>
-                {label}
-              </span>
+            {c.footer.links.map((link) => (
+              /* TODO(上线前)：真实链接地址统一确认后填入（Skyer 占位规则）。
+                 母项可带子项（2026-09-27：隐私协议 / 用户协议挂到服务条款下）；
+                 一律 span 不可点击，hover 只做下划线生长 + 文字高亮。 */
+              <div key={link.name} className={styles.linkGroup}>
+                <span className={styles.linkPlaceholder}>{link.name}</span>
+                {link.children?.length ? (
+                  <div className={styles.linkSubList}>
+                    {link.children.map((child) => (
+                      <span key={child} className={`${styles.linkPlaceholder} ${styles.linkSub}`}>
+                        {child}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             ))}
           </nav>
 

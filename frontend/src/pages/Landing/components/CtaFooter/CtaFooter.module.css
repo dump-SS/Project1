@@ -280,21 +280,60 @@
   gap: 12px 42px; /* 拉开间距（Skyer 2026-09-25） */
 }
 
-/* 四个品类母项：**下划线统一长度**（Skyer 2026-09-25）——左端与文字对齐、右端长于文字。
-   故不用 `border-bottom`（长度会随文字长短变化），改为固定等宽盒（96px）+ 绝对定位 ::after
-   画满整盒：文字左对齐 → 下划线左端自然贴文字，右侧余量即「长于文字」。
-   ⚠️ 母项不可点击（占位规则），故 cursor: default 且不加 hover 态。 */
+/* 页脚链接组：母项（可带子项）+ 子项（Skyer 2026-09-27）
+   ① 母项下划线统一长度（左端贴文字、右端出格）；子项字号小一档、缩进一档、下划线也短一档；
+   ② hover：**实线下划线从左生长** + 文字转深色高亮——静息那条虚线是「品类占位」标记，
+      生长条压在它上面，不替换（两者都保留，位置一致）。 */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start; /* 有子项的母项更高，顶部对齐才不错位 */
+  gap: 12px 42px;
+}
+
+.linkGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.linkSubList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+/* 母项：等宽盒（下划线长度统一）；文字左对齐 → 下划线左端自然贴文字 */
 .linkPlaceholder {
   position: relative;
   display: inline-block;
-  width: 96px; /* 统一的下划线长度（最长项「社区与文档」约 70px，仍留出右端余量） */
+  width: 96px;
   padding-block: 4px;
   font-family: var(--lp-font-sans);
   font-size: 14px;
   color: rgba(15, 21, 32, 0.9);
   white-space: nowrap;
   cursor: default;
+  transition: color 0.22s ease;
 }
+/* 子项：小一档、缩进、下划线短一档（同为统一长度） */
+.linkSub {
+  width: 84px;
+  margin-left: 12px;
+  font-size: 13px;
+  color: rgba(15, 21, 32, 0.72);
+}
+
+.linkPlaceholder:hover {
+  color: #0f1520; /* 高亮：转深色（亮区上不能靠变白） */
+}
+.linkSub:hover {
+  color: #0f1520;
+}
+
+/* 静息虚线：品类占位标记（长度 = 盒子宽，故统一） */
 .linkPlaceholder::after {
   content: '';
   position: absolute;
@@ -304,9 +343,23 @@
   border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
 }
 
-/* 返回顶部：GlassSurface 胶囊（Skyer 2026-09-25，原为半透明浅色方块）。
-   底色交给玻璃层，按钮自身透明；overflow:hidden 让玻璃按胶囊裁切；
-   文字/图标各自 position+z-index 压在玻璃层之上（同顶栏 bar 的做法）。 */
+/* hover 生长的实线：从左向右铺满（与顶栏 mega 面板的面板项同一手法） */
+.linkPlaceholder::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  background: #0f1520;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.linkPlaceholder:hover::before {
+  transform: scaleX(1);
+}
+
 .backTop {
   position: relative;
   display: inline-flex;

@@ -141,7 +141,12 @@ export const COPY_ZH: LandingCopy = {
 
   footer: {
     tagline: '围着你转的学习伙伴。',
-    links: ['隐私协议', '服务条款', '社区与文档', '联系我们'],
+    /* 2026-09-27 Skyer：删除独立「隐私协议」，改挂到「服务条款」下（+ 用户协议） */
+    links: [
+      { name: '服务条款', children: ['隐私协议', '用户协议'] },
+      { name: '社区与文档' },
+      { name: '联系我们' },
+    ],
     backToTop: '返回顶部',
     copyrightPrefix: '© ',
     copyrightHolder: '未名_Official',
