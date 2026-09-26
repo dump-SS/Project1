@@ -35,10 +35,11 @@ export const HERO_ACTIONS = {
 /** Hero 草稿跨登录墙的 localStorage key（登录回来那句话还在） */
 export const HERO_DRAFT_KEY = 'epochx.landing.draft'
 
-/** 第二屏 · 三时代（visual-language §7.2，文案已定） */
+/** 第二屏 · 三时代（visual-language §7.2，文案已定）
+ *  ⚠️ sub 为 2026-09-25 Skyer 指示新文案（覆盖 visual-language 原句「一款围绕你的 AI 学习产品」）。 */
 export const EPOCHS_COPY = {
   headline: 'AI 纪元，现围绕你构建。',
-  sub: '一款围绕你的 AI 学习产品',
+  sub: '基于你的进度和反馈，实时进化的 1v1 学习副驾驶，已面向k12学段开放',
   /** 该屏唯一蓝字 */
   highlight: '你',
 } as const

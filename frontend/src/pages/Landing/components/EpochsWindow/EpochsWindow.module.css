@@ -31,11 +31,12 @@
   }
 }
 
-/* ---------- 斜向平行四边形视窗（斜角 ≈ logo X 斜体） ---------- */
+/* ---------- 斜向平行四边形视窗（斜角 ≈ logo X 斜体） ----------
+   2026-09-25 Skyer：基础高 84vh 几乎顶满上下边缘（原 16:9/68vh 移除），
+   延展段由 TSX 内联驱动（宽 +14vw / 高 +12vh 双向扩）。 */
 .window {
   position: relative;
-  aspect-ratio: 16 / 9;
-  max-height: 68vh;
+  height: 84vh;
   /* 斜切 ≈12°（logo X 斜体角）：斜角=时间切片 */
   clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
   overflow: hidden;
@@ -78,9 +79,30 @@
   border-radius: 8px;
 }
 
-/* logo 格：原色（不做 duotone） */
+/* logo 格：原色（不做 duotone）；ColorBends 背景层 + logo 回中放大（Skyer 2026-09-25） */
 .frameLogo {
+  position: relative;
   background: radial-gradient(50% 60% at 50% 55%, rgba(74, 209, 255, 0.08), transparent 75%);
+}
+
+.cbHost {
+  position: absolute;
+  inset: 0;
+}
+
+.cbFallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 70% at 50% 55%, rgba(74, 209, 255, 0.35), transparent 78%),
+    radial-gradient(40% 50% at 62% 40%, rgba(143, 211, 232, 0.25), transparent 80%),
+    var(--lp-bg-deep);
+}
+
+.frameLogo img {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.15s linear; /* 进度驱动，短过渡平滑化 */
 }
 
 /* 光的调度：历史段主光收暗（偏蓝黑，非纯黑——沉蓝感），logo 显现时褪去 */
@@ -89,21 +111,28 @@
   inset: 0;
   background: #0A1220;
   pointer-events: none;
+  z-index: 2;
 }
 
-/* ---------- 右侧文案（已定稿） ---------- */
+/* ---------- 右侧文案（已定稿） ----------
+   2026-09-25 Skyer：标题字号加大加粗、逗号后换行（.headlineLine 两行块） */
 .copy {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 .headline {
   color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
   font-family: var(--lp-font-sans);
-  font-weight: 500;
-  font-size: clamp(24px, 3.2vw, 38px);
-  line-height: 1.4;
+  font-weight: 700; /* 加粗（Skyer 2026-09-25） */
+  font-size: clamp(30px, 4.2vw, 54px);
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.headlineLine {
+  display: block;
 }
 
 .you {
@@ -112,9 +141,10 @@
 
 .sub {
   font-family: var(--lp-font-serif);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.8;
   color: var(--lp-text-2);
+  max-width: 380px;
 }
 
 /* ---------- 静态降级（reduced-motion）：三格并排 + logo 定格 ---------- */
