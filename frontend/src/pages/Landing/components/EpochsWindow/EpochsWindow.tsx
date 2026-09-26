@@ -21,9 +21,9 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 /** 线性映射 */
 const map = (p: number, a: number, b: number) => clamp01((p - a) / (b - a))
 
-/** 斜切卡片向右滑出的触发进度（logo 滑入约 75%）与回滚复位阈值 */
-const CARD_OFF_ON = 0.56
-const CARD_OFF_OFF = 0.46
+/** 斜切卡片向左滑出的触发进度（Skyer 2026-09-25：触发晚一些）与回滚复位阈值 */
+const CARD_OFF_ON = 0.68
+const CARD_OFF_OFF = 0.58
 
 export default function EpochsWindow() {
   const reduced = useReducedMotion()
@@ -77,15 +77,25 @@ export default function EpochsWindow() {
           style={{ transform: `translateX(${-stripP * 66.6667}%)` }}
         >
           <div className={styles.frame}>
-            {/* TODO(素材)：实景图占位——古代书简，横构图 3:2、暗蓝 duotone、商用授权（D6） */}
-            <div className={styles.ph} aria-label="古代书简（实景图占位）">
-              <span>古代书简</span>
+            {/* 实景图：古代书简（Skyer 2026-09-25 提供入页） */}
+            <div className={styles.slide}>
+              <img
+                src="/slides/epoch-bamboo.jpg"
+                alt="古代书简——竹简、毛笔与烛台"
+                className={styles.slideImg}
+              />
+              <div className={styles.slideTint} aria-hidden />
             </div>
           </div>
           <div className={styles.frame}>
-            {/* TODO(素材)：实景图占位——书山题海（建议团队自拍学生真试卷堆）（D6） */}
-            <div className={styles.ph} aria-label="书山题海（实景图占位）">
-              <span>书山题海</span>
+            {/* 实景图：书山题海（Skyer 2026-09-25 提供入页） */}
+            <div className={styles.slide}>
+              <img
+                src="/slides/epoch-papers.jpg"
+                alt="书山题海——堆叠的课本与写满批注的试卷"
+                className={styles.slideImg}
+              />
+              <div className={styles.slideTint} aria-hidden />
             </div>
           </div>
           <div className={`${styles.frame} ${styles.frameLogo}`}>
