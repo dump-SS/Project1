@@ -9,11 +9,11 @@
 }
 
 /* ---------- 上部 CTA（暗区） ----------
-   2026-09-25 Skyer 二次调整：拉到底时——
-   ① 末句在页面最上方、与视口顶的间距略大于顶栏（64px）；
+   2026-09-25 Skyer 调整：拉到底时——
+   ① 末句落在视口顶下方约 79px（略大于顶栏 64px）；
    ② 与上一屏的分割线必须已经滚出视口。
    实现：末句在底部的视口位置 = 视口高 −（末句→CTA 底的内容高 172.4）− 页尾高；
-   故页尾高取 calc(100dvh − 264px)（见 .footer），上留白 120px > 目标间距 92px，
+   故页尾高取 calc(100dvh − 252px)（见 .footer），上留白 120px > 目标间距 79px，
    分割线因此落在视口上沿之上。 */
 .cta {
   padding-block: 120px 30px;
@@ -138,16 +138,16 @@
 
 /* ---------- 下部页尾（亮区：全站唯一「大面积+鲜明+流体渐变」特例） ----------
    2026-09-25 Skyer：动效区左右留空、上两角大圆角；页底 Gradual Blur 渐隐。
-   min-height 的算式与 .cta 配套：拉到底时末句落在视口顶下方约 92px
-   （= 视口高 − 172.4（末句→CTA 底）− 页尾高，见 .cta 注释）；下限 360px
-   保窄屏不至于把末句挤出视口。末句↔输入间距收 10px 后此处同步 −10px，
-   于是输入框 / 卡片上边沿 / 页尾文字一起上提 10px，末句位置不变。 */
+   min-height 的算式与 .cta 配套：拉到底时末句落在视口顶下方约 79px
+   （= 视口高 − 172.4（末句→CTA 底）− 页尾高，见 .cta 注释；改 264→252 即把
+   末句连同其下整簇再上提 12px——Skyer 2026-09-25「末句稍往上挪，视觉不协调」）；
+   下限 360px 保窄屏不至于把末句挤出视口。 */
 .footer {
   position: relative;
   margin-inline: clamp(20px, 3vw, 56px); /* 左右留空 */
   border-radius: 40px 40px 0 0; /* 上两角大圆角 */
-  min-height: max(360px, calc(100vh - 264px));
-  min-height: max(360px, calc(100dvh - 264px));
+  min-height: max(360px, calc(100vh - 252px));
+  min-height: max(360px, calc(100dvh - 252px));
   padding-block: 72px 40px;
   color: #0F1520; /* 亮区上的暗字 */
   /* 注意：不可 overflow:hidden——页底渐隐带要跨出卡片铺满视口宽（见 .blurHost），
@@ -185,8 +185,8 @@
     gap: 16px; /* 与常规档同向收 8px（常规 34→24） */
   }
   .footer {
-    min-height: max(300px, calc(100vh - 250px));
-    min-height: max(300px, calc(100dvh - 250px));
+    min-height: max(300px, calc(100vh - 238px));
+    min-height: max(300px, calc(100dvh - 238px));
     padding-block: 44px 30px;
   }
   .legal {

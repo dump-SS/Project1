@@ -65,7 +65,9 @@ export default function LandingNav() {
 
   /* ---------- 滚动行为：下滑收起、上滑弹出（信任屏劫持区间内禁用） ----------
      2026-09-25 Skyer 调整：Hero 页内（≤100vh）无论滑动速度如何都不收起；
-     玻璃底也只在出 Hero 后出现（Hero 内顶栏无背景不变）。 */
+     玻璃底也只在出 Hero 后出现（Hero 内顶栏无背景不变）；
+     再补：**触底自动弹出**（Skyer 2026-09-25）——滑到页面最底部时顶栏自动出现，
+     免得在页尾没有导航可用（滚动离开底部后行为照旧）。 */
   useEffect(() => {
     const onScroll = () => {
       if (ticking.current) return
@@ -74,11 +76,14 @@ export default function LandingNav() {
         ticking.current = false
         const y = window.scrollY
         const heroEnd = window.innerHeight
+        const vh = window.innerHeight
         setScrolledPastHero(y > heroEnd)
 
+        const doc = document.documentElement
+        const atPageBottom = y + vh >= doc.scrollHeight - 4
         const inHijack = isInHijack(y)
-        if (inHijack || y <= heroEnd) {
-          setHidden(false) // 劫持区间 / Hero 页内：常显
+        if (inHijack || y <= heroEnd || atPageBottom) {
+          setHidden(false) // 劫持区间 / Hero 页内 / 触底：常显
         } else {
           // 上滑弹出更灵敏（Skyer 2026-09-25：阈值 8→3px，轻微上滑即弹出）
           const delta = y - lastY.current
@@ -88,8 +93,12 @@ export default function LandingNav() {
       })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
     onScroll()
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
   }, [])
 
   /* ---------- 页尾进入视口 → 加深遮罩 ---------- */
