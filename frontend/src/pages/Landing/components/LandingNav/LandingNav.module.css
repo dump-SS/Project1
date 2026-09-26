@@ -170,6 +170,89 @@
   padding: 3px 6px;
 }
 
+/* ---------- 右侧组：语言切换 + 登录 ---------- */
+.barRight {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* 语言切换（Skyer 2026-09-25）：hover 展开的独立小下拉，视觉与左侧菜单同族 */
+.lang {
+  position: relative;
+}
+.langBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: var(--lp-text-2);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.langBtn:hover,
+.langBtn:focus-visible,
+.langBtnOn {
+  color: var(--lp-text);
+  background: rgba(27, 34, 45, 0.7);
+  outline: none;
+}
+/* ▽ 指示：CSS 三角（跟随 currentColor），展开时翻上来 */
+.langCaret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.langBtnOn .langCaret {
+  transform: rotate(180deg);
+}
+/* 下拉：贴在按钮正下方、右对齐，深色面 + 发丝描边（与 mega 面板同色系但更小） */
+.langMenu {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 2;
+  min-width: 120px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-hairline);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  animation: lp-panel-fade 0.18s ease;
+}
+.langItem {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  text-align: left;
+  color: var(--lp-text-2);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.langItem:hover,
+.langItem:focus-visible {
+  color: #fff;
+  background: rgba(74, 209, 255, 0.14);
+  outline: none;
+}
+
 /* 登录：白底黑字药丸（2026-09-25 Skyer） */
 .loginBtn {
   display: inline-flex;
@@ -329,6 +412,11 @@
     margin-left: 6px;
     padding: 0 12px;
     font-size: 13.5px;
+  }
+  /* 语言切换：窄屏隐藏（375px 实测：logo 标 + 三菜单 + 语言 + 登录已排不下；
+     全站仅中文，切换在移动端属可省项）。如需保留，改成只显代码（中/EN）而非全名 */
+  .lang {
+    display: none;
   }
   .panelInner {
     flex-direction: column;

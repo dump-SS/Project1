@@ -22,6 +22,10 @@ const PANELS: Record<Exclude<MenuKey, null>, PanelDef | null> = {
 export default function LandingNav() {
   const { status } = useAuth()
   const [openMenu, setOpenMenu] = useState<MenuKey>(null)
+  /** 语言切换（独立小下拉，与左侧 mega 面板无关）：hover 展开 + 自持当前语言状态。
+   *  站内文案暂无 i18n，切换只改按钮标签与选项（占位，将来接 i18n 从这里接出去）。 */
+  const [langOpen, setLangOpen] = useState(false)
+  const [lang, setLang] = useState<'zh' | 'en'>('zh')
   const [scrolledPastHero, setScrolledPastHero] = useState(false)
   const [hidden, setHidden] = useState(false) // 下滑收起 / 上滑弹出
   const [footerInView, setFooterInView] = useState(false)
@@ -116,7 +120,10 @@ export default function LandingNav() {
   useEffect(() => {
     if (!openMenu) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null)
+      if (e.key === 'Escape') {
+        setOpenMenu(null)
+        setLangOpen(false)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -226,15 +233,56 @@ export default function LandingNav() {
             </nav>
           </div>
 
-          {authed ? (
-            <Link to="/study-guide" className={styles.loginBtn}>
-              {NAV_COPY.enterApp}
-            </Link>
-          ) : (
-            <Link to="/login" className={styles.loginBtn}>
-              {NAV_COPY.login}
-            </Link>
-          )}
+          {/* 右侧组：语言切换 + 登录（Skyer 2026-09-25：切在登录左边）。
+              语言下拉是**独立的一套简单逻辑**——自持 open 状态、只 hover 展开、不碰左侧
+              mega 面板的 openMenu/btnOffset/面板渲染那一套。 */}
+          <div className={styles.barRight}>
+            <div
+              className={styles.lang}
+              onMouseEnter={() => setLangOpen(true)}
+              onMouseLeave={() => setLangOpen(false)}
+            >
+              <button
+                type="button"
+                className={`${styles.langBtn} ${langOpen ? styles.langBtnOn : ''}`}
+                aria-haspopup="true"
+                aria-expanded={langOpen}
+                aria-label={NAV_COPY.lang.ariaLabel}
+                onFocus={() => setLangOpen(true)}
+                onClick={() => setLangOpen((v) => !v)}
+              >
+                {lang === 'zh' ? NAV_COPY.lang.zh : NAV_COPY.lang.en}
+                <span className={styles.langCaret} aria-hidden />
+              </button>
+              {langOpen && (
+                <ul className={styles.langMenu}>
+                  {/* 只列非当前项（当前项就是按钮上的那行字） */}
+                  <li>
+                    <button
+                      type="button"
+                      className={styles.langItem}
+                      onClick={() => {
+                        setLang((v) => (v === 'zh' ? 'en' : 'zh'))
+                        setLangOpen(false)
+                      }}
+                    >
+                      {lang === 'zh' ? NAV_COPY.lang.en : NAV_COPY.lang.zh}
+                    </button>
+                  </li>
+                </ul>
+              )}
+            </div>
+
+            {authed ? (
+              <Link to="/study-guide" className={styles.loginBtn}>
+                {NAV_COPY.enterApp}
+              </Link>
+            ) : (
+              <Link to="/login" className={styles.loginBtn}>
+                {NAV_COPY.login}
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* mega 面板：整个顶栏下拉展开（关闭时内容不渲染，避免零高容器里的链接可聚焦）。

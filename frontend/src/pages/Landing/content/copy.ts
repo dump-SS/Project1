@@ -191,4 +191,11 @@ export const NAV_COPY = {
   },
   login: '登录',
   enterApp: '进入产品',
+  /** 语言切换（Skyer 2026-09-25）：目前只切这个按钮自身的状态与选项，
+   *  站内文案尚未做 i18n（全站仅中文）——将来接 i18n 时从这里接出去 */
+  lang: {
+    zh: '简体中文',
+    en: 'ENG',
+    ariaLabel: '切换语言',
+  },
 } as const
