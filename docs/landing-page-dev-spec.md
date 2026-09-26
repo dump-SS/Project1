@@ -221,6 +221,7 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - 实现：React Bits `LogoLoop`（speed 80 / hoverSpeed 30），单元格 `li` 间距 `gap={28}`、单元格宽 142px（节距 170px）——**间距收紧**（Skyer 2026-09-25，原 gap 72 / 宽 168 → 节距 240）。
 - **波浪浮动**：每个单元格 `translateY` ±16px、3.6s `alternate`，逐项 `animation-delay` 0.28s 错相（峰值逐格后移）。⚠️ **振幅与留白必须配套**：`LogoLoop` 根节点是 `overflow-x-hidden`，按 CSS 规范另一轴计算为 `overflow-y: auto` → 裁剪箱即单元格高度，下沉的图标会被裁掉；故根部 `paddingBlock: 26px` 撑大裁剪箱（26 > 16，全周期实测最小余量 10px）。
 - 配文「功能有很多，中心只有你。」，「你」= `#4AD1FF`（小字衬线？— 配文为短句大字按无衬线处理，见字体规则）。
+- **居中补偿**（Skyer 2026-09-25「看起来不居中」）：末字是全角句号「。」，字宽 1em 里右侧约 0.64em 是空白，而 `text-align: center` 按字宽盒子居中 → 可见文字偏左 0.32em（实测字宽 432px / 墨迹右沿 409px / 尾空 23px / 墨迹中心偏左 11.5px）。`.caption` 加 `transform: translateX(0.32em)` 补偿：位移后可见墨迹 508→917、中心 712.5 = 容器中心 712.5。按 em 给可随 `clamp()` 字号缩放，且不影响布局。
 - 降级：静止排列。
 
 验收：循环无接缝、滚动速度"盯着才看得出在动"、reduced-motion 静止、**浮动全周期图标与文字均不被裁切**（实测：32 个单元格 8s 采样，裁剪余量上 29.5px / 下 10px）。

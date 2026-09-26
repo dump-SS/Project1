@@ -17,6 +17,11 @@
   font-size: clamp(24px, 3vw, 36px);
   line-height: 1.4;
   text-align: center;
+  /* 居中补偿（Skyer 2026-09-25：看起来不居中）：末字是全角句号「。」，字宽 1em 里
+     右侧约 0.64em 是空白，而 text-align 按字宽盒子居中 → 可见文字偏左 0.32em。
+     实测：字宽 432px、墨迹右沿 409px（尾空 23px），墨迹中心比盒子中心偏左 11.5px。
+     translateX 按 em 给，随 clamp 字号缩放，且不影响布局 */
+  transform: translateX(0.32em);
 }
 
 .you {
