@@ -117,6 +117,10 @@ React Bits **没有独立 MCP server**，官方路径是 shadcn MCP + registry�
 | Hero 光场候选 | `Waves-TS-TW` | ❌ 未采纳 | 0（纯 Canvas 2D） | 无内置 | 有交互 | 波浪线簇形态偏「科技发布会」，与「光在你前方」的语义不符 |
 | Hero 光场 | **CSS 径向渐变呼吸光场**（自实现） | ✅ **最终方案** | 0（零依赖） | `lp-breathe` 动画由 landing.css 统一静止 | 光晕无触屏依赖；指针视差仅 hover 设备 | 品牌蓝大面积低强度光晕 + 6–8s 呼吸 + 指针轻推 |
 | 装饰类 | `PixelTrail` / `Ballpit` / `MagicRings` / `SplashCursor` | ❌ 不采用 | — | — | — | 均过不了「它在讲什么」检验，且 SplashCursor 与手电语言冲突 |
+| CTA 输入框 | `GlareHover-TS-TW` | ✅ **采纳**（2026-09-25 Skyer 指定）：零依赖，hover 光泽扫过胶囊 | 0（组件 ~1.1 KB） | 无内置 → 仅 hover 触发，无动效即无影响 | 触屏无 hover → 不触发 | 尺寸走组件 `width/height` 属性（内联样式，类里写会被覆盖）；`cursor` 与聚焦态由调用方 module 覆盖 |
+| 页尾页底 | `GradualBlur-TS-TW` | ✅ **采纳**（2026-09-25 Skyer 指定）：零依赖，纯 CSS mask + backdrop-filter 递进模糊 | 0（组件 ~3.6 KB） | 静态无动效 | 纯背景层 | `zIndex` 必须压到文字之下（合规声明不得被虚化）；落在 `.footer` 内，被卡片圆角与 `overflow:hidden` 裁住 |
+| CTA 末句入场 | `FoldText-TS-TW` | ✅ **采纳（本仓移植，去 gsap）**：逐字片折入（`rotateX ±92°` + 透视 + 折痕明暗） | 0（组件 ~4 KB，零新增依赖） | 上游是动画 → 本仓落盘版加 reduced-motion 延迟归零 | 无关（纯文本） | 上游依赖 `gsap@^3`；`package.json` 是共享独占文件且仓库未装 gsap → 用 CSS 关键帧 + 逐片 `animation-delay` 复刻（细节见 §3.3） |
+| CTA 末句颜色 | `GradientText-TS-TW` | ⚠️ **未采用（改用同配方实现）** | 0 | — | — | 上游是「父元素 `background-clip:text`」；**实测该裁剪不作用于 3D 变换的子元素**（变换的字片完全不显形）→ 与 FoldText 无法嵌套。改为在 FoldText 落盘版里按字片实测偏移拼整行渐变（`background-size` = 行宽、`background-position` = −该片偏移），视觉配方与 GradientText 一致（实测量到逐片步进 0 / −36.25 / −67.77 / −102.24px，行宽 475.8px） |
 
 > 实测环境：React 18.3.1 + Vite 5.4.11；体积来自 `npm run build` 产物（gzip）。
 
@@ -126,6 +130,8 @@ React Bits **没有独立 MCP server**，官方路径是 shadcn MCP + registry�
 |---|---|---|
 | `TextType-TS-TW` | ✅ 兼容（含改动） | 无 React 19 API（无 `use()` / ref-as-prop / Actions）；`ref` 经 `createElement` 传给 DOM 元素在 React 18 合法。**落盘改动**：光标闪烁 gsap 补间 → CSS 动画（`.lp-caret`），gsap 依赖整体移除 |
 | `Grainient-TS-TW` | ✅ 兼容（含改动） | 纯 hooks + ogl，无 React 19 API。**落盘改动**：① 新增指针交互（pointermove → ref 缓存 → 渲染循环写 uniform，不触发重渲染，触屏不注册）② 新增 `staticFrame` prop（reduced-motion 静态单帧）；原版工程化（IO 暂停 / visibilitychange 暂停 / ResizeObserver / context 释放）保留 |
+| `FoldText-TS-TW` | ✅ 兼容（含去 gsap 改写） | 无 React 19 API。**落盘改动**：① gsap timeline → CSS 关键帧 + 逐片 `animation-delay`（i × stagger），缓动换 `cubic-bezier(0.22,1,0.36,1)`；② 渐变字改逐片实测偏移拼整行（原因见 §3.2 表）；③ 样式改 CSS Module（上游注入全局 `<style>`）；④ `letter-spacing` 由 −0.04em 改继承（沿用页面 0.01em 口径）；⑤ reduced-motion 下 `animation-delay` 归零（landing.css 只压时长不压延迟） |
+| `GlareHover-TS-TW` / `GradualBlur-TS-TW` | ✅ 兼容（原样落盘，无改动） | 均为纯 React + CSS，零依赖；GlareHover 不注册任何全局监听（只有 `onMouseEnter/Leave`） |
 | three 系（Beams / ColorBends / Dither） | ❌ 不可用 | 依赖 `@react-three/fiber@^9` + `@react-three/drei@^10`，均要求 React 19；降级 r3f v8 需改组件源码，不值得引入 three（>600KB） |
 
 > 已知教训（复验）：DotGrid 拖 GSAP 101KB gzip 的教训在本轮兑现——TextType 原版同样依赖 gsap，已通过 CSS 光标方案移除；全页最终 **0 个动画运行时库**（仅 ogl 44KB raw / 12.9KB gzip，且只随页尾懒加载 chunk）。
@@ -165,7 +171,8 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - 布局：**上光下人**——上部 2/3 光场，底部"地平线"左 logo+slogan、右动作区。
 - slogan 退格：初稿「学习工具围着题转！」→ 删「题」「！」→ 打「你」「。」→ 成稿「学习工具围着你转。」节奏见视觉文档 §7.1（打完停 1s → 退格先快后慢 → 删到「题」前半秒停顿 → 句号落下光标熄灭）。
 - 暗纹 × 手电：学习物件 monoline 线稿（近不可见 `#2A3542`），鼠标扫过照亮显形。**手电机制只在本屏使用**，不推广到卡片/截图。
-- 动作区三级：输入框（主焦点）→ 即刻开始（ghost）→ 桌面端（虚线灰，空位）。
+- 动作区三级：输入框（主焦点）→ 即刻开始（主 CTA）→ 桌面端（虚线灰，空位）。
+- **即刻开始配色（Skyer 2026-09-25 口头指定，覆盖原「品牌色填充」）**：`SpecularButton` tint `#2BA9E0` → `#EAF5FF`（极淡蓝近白，与 CTA 发送键同色、同 `--lp-pale` token），文字仍为深色 `#0B1017`；高光边 `lineColor` 由 `#EAF7FF` 改 `#5CC8EC`（近白底上白线不可见）。
 - 输入框 placeholder「先说一句，你今天怎么样？」；点击跳登录，**草稿带过登录墙**（登录后文本仍在）。
 - 光场：呼吸 6–8s。
 
@@ -220,14 +227,19 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 
 ### 4.8 CTA + 页尾
 
+> 2026-09-25 Skyer 重排本节（口头指定，与本文档原描述出入处按口头为准）：紧凑上移、输入框胶囊化 + Glare Hover + 圆形发送键、两句改衬线、后句渐变 + 折入、页尾动效区左右留空 + 上两角大圆角 + 页底 Gradual Blur。
+
 - **分区线**（Skyer 2026-09-25）：图标海与本节之间一条灰色发丝分割线——1px、`rgba(154,164,176,0.35)`（与顶栏面板竖分割线同色），**通栏**（不套内容栏，作为 `main` 直接子元素铺满视口宽，左右顶到屏幕边缘；实测 1425px = 视口宽），`aria-hidden` 静态无动效。
-- 末句英文：「Nothing, without you.」→ 滑到最底部变为「You're everything.」（翻转与光变亮同一拍）。
-- **布局硬要求**：滑到底时上部（该句 + 输入框）与页尾**互不遮挡**。
+- **紧凑上移**：CTA 去掉原 `min-height: 72vh` 的撑高（改 `padding-block: clamp(48px,7vh,84px) 30px`），高度由内容决定；页尾卡片用 `min-height: clamp(360px,48vh,620px)` 撑住版式 → **拉到底时末句 + 输入框落在页面上部**（实测 1440×900：末句 y≈293、输入框 y≈382，均在视口上半）。
+- **输入框**：与 Hero 同款胶囊（`border-radius: 999px`、高 56px、底 `rgba(27,34,45,0.72)`、描边 `rgba(140,160,180,0.16)`），外层套 `GlareHover`（hover 光泽扫过；实测 overlay `background-position` 由 `-100% -100%` 扫到 `100% 100%`）；宽度 560px（上限 100%）。
+- **圆形发送键**：胶囊右内侧，44px 圆形、`var(--lp-pale)` = `#EAF5FF`（极淡蓝近白）、图标为黑色小纸飞机（`IconSend`，`color: #0B1017`）；点击进登录（与回车同效）。
+- **末句两句英文改衬线**（`--lp-font-serif`）；首句「Nothing, without you.」淡出离场（0.35s，比入场略快以缩短交叉重叠）；**后句「You're everything.」= `FoldText` 逐字折入（18 字片，hinge top，逐片 35ms 延迟）+ 整行渐变字**（`#8FD3E8 → #4AD1FF → #3AA0E8`，去掉原候选里最深一档以保深底可读）。两句盒子严格同位（实测差 18.72px 即首句 −30% 离场位移；行高统一 1.2）。
+- **页尾动效区**：左右留空 `margin-inline: clamp(20px, 3vw, 56px)`、`border-radius: 40px 40px 0 0`（上两角大圆角）、上边缘紧贴输入框（实测间距 31px）、页底 `GradualBlur`（`preset="bottom"`、strength 2.6、height 9rem、divCount 6、curve bezier；实测 6 层 3.76→6.64px 递进）。
 - 页尾：流体渐变 abstract background（**鲜明、有流动感、鼠标交互**）；其上：logo + 一句话简介（暂填「围着你转的学习伙伴。」）+ 链接组（隐私协议 / 服务条款 / 社区与文档 / 联系我们）+ 返回顶部 + 版权行。
-- ⚠️ **合规硬项**：页尾显著标注「**学生团队开发，未经专业法律审核**」。
+- ⚠️ **合规硬项**：页尾显著标注「**学生团队开发，未经专业法律审核**」。GradualBlur 的 `zIndex` 因此必须压在文字之下（只渐隐背景）。
 - ⚠️ **占位规则**：联系方式、协议链接地址、社区与文档入口、备案信息、版权年份——**结构留位、内容留空，不预先编造**。
 
-验收：底部两区不互相遮挡；句子翻转与光效同步；合规声明可见；占位项无编造内容。
+验收：底部两区不互相遮挡；句子翻转与光效同步；合规声明可见且清晰；占位项无编造内容。
 
 ---
 

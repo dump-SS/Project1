@@ -69,6 +69,7 @@ div:where(.landing) :where(span, p, div, a, button, input, textarea, label, sele
   --lp-blue: #4AD1FF;      /* 品牌蓝 · 深底档（只有光晕/唯一焦点/高亮「你」三处出口） */
   --lp-motif: #2A3542;     /* 暗纹线稿 · 静止时近不可见 */
   --lp-scrim: rgba(11, 16, 23, 0.72); /* 亮区上的暗色压层（保对比度 ≥4.5:1） */
+  --lp-pale: #EAF5FF;      /* 极淡蓝（近白）· 主行动填充（Hero 即刻开始 / CTA 发送键）*/
 
   /* 字体时态（visual-language §5）：无衬线=正在说（标题/按钮/导航），衬线=已写下的（对话/小字） */
   --lp-font-serif: 'LP-Serif', 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', serif;

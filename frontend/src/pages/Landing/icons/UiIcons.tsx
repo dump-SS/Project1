@@ -48,3 +48,13 @@ export function IconExternal(p: IconProps) {
     </svg>
   )
 }
+
+/** 发送（小纸飞机，CTA 胶囊输入框右侧发送键） */
+export function IconSend(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M21.5 2.5 2.6 10.4l7.6 3.2 3.2 7.6z" />
+      <path d="M21.5 2.5 10.2 13.6" />
+    </svg>
+  )
+}

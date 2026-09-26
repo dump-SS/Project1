@@ -8,26 +8,27 @@
   background: rgba(154, 164, 176, 0.35);
 }
 
-/* ---------- 上部 CTA（暗区） ---------- */
+/* ---------- 上部 CTA（暗区） ----------
+   2026-09-25 Skyer：紧凑上移——去掉 min-height 撑高，内容靠上；
+   拉到底时末句 + 输入框落在页面上部（页尾卡片高度由 .footer 的 min-height 保证）。 */
 .cta {
-  min-height: 72vh;
-  padding-bottom: 72px; /* 滑到底时输入框与页尾留出呼吸距离（两区互不挤压） */
+  padding-block: clamp(48px, 7vh, 84px) 30px; /* 下留 30px：顶边贴着输入框下面 */
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
 }
 
 .ctaInner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
+  gap: 26px;
 }
 
-/* 末句：英文短句，翻转过渡（两行叠放，交叉淡入） */
+/* 末句：衬线（两句都是，Skyer 2026-09-25）；翻转过渡（两行叠放，交叉淡入） */
 .finalLine {
   position: relative;
-  font-family: var(--lp-font-sans);
+  font-family: var(--lp-font-serif);
   font-weight: 500;
   font-size: clamp(28px, 4.4vw, 52px);
   letter-spacing: 0.01em;
@@ -36,7 +37,9 @@
   text-align: center;
 }
 
-.finalLine span {
+/* 只作用于两句的包裹层——FoldText 内部还有多层 span，不能被子选择器穿透
+   （早前用 `.finalLine span` 会把逐字片变成块级，整句竖排） */
+.finalLine > span {
   display: block;
   transition: opacity 0.6s ease, transform 0.6s ease;
 }
@@ -48,42 +51,95 @@
   transform: translateY(30%);
 }
 
+/* 后句容器：不参与淡入（入场交给 FoldText 逐字折入，否则容器淡入会把折叠盖掉） */
 .lineIn {
-  position: absolute; /* 与首句同位叠放交叉淡入——否则成为文档流第二行，溢出压到输入框 */
+  position: absolute;
   inset: 0;
-  color: var(--lp-blue); /* 翻转句 = 光全开时刻的唯一焦点蓝 */
+  transition: none;
 }
 
+/* 首句淡出（上移离场）：比入场略快，缩短两句交叉重叠的一瞬 */
 .lineOut {
   opacity: 0;
   transform: translateY(-30%);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+/* FoldText 根：整行居中、衬线、行高与首句一致（否则两句基线错开约 3px） */
+.foldLine {
+  font-family: var(--lp-font-serif);
+  line-height: 1.2;
+}
+
+/* 输入胶囊：与 Hero 输入框同款（GlareHover 提供底与描边，input 自身透明）。
+   宽度由 GlareHover 的 width 属性给（内联样式，类里写会被覆盖），这里只管光标与聚焦态。 */
+.inputGlare {
+  cursor: text !important; /* 覆盖 GlareHover 的 cursor-pointer */
+}
+.inputGlare:focus-within {
+  border-color: rgba(74, 209, 255, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.1);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding-right: 6px;
 }
 
 .input {
-  width: min(460px, 100%);
-  height: 52px;
-  padding: 0 20px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px 0 24px;
   font-family: var(--lp-font-sans);
-  font-size: 15px;
+  font-size: 16px;
   color: var(--lp-text);
-  background: rgba(27, 34, 45, 0.72);
-  border: 1px solid var(--lp-hairline);
-  border-radius: 10px;
+  background: none;
+  border: none;
   outline: none;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
-.input::placeholder { color: var(--lp-text-2); }
-.input:focus {
-  border-color: rgba(74, 209, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.10);
+.input::placeholder {
+  color: var(--lp-text-2);
 }
 
-/* ---------- 下部页尾（亮区：全站唯一「大面积+鲜明+流体渐变」特例） ---------- */
+/* 发送键：圆形、极淡蓝（近白）、黑色小纸飞机（Skyer 2026-09-25） */
+.sendBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: #0B1017;
+  background: var(--lp-pale);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+.sendBtn:hover {
+  background: #FFFFFF;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(191, 233, 255, 0.22);
+}
+.sendBtn:focus-visible {
+  outline: 2px solid rgba(74, 209, 255, 0.75);
+  outline-offset: 2px;
+}
+
+/* ---------- 下部页尾（亮区：全站唯一「大面积+鲜明+流体渐变」特例） ----------
+   2026-09-25 Skyer：动效区左右留空、上两角大圆角；页底 Gradual Blur 渐隐。 */
 .footer {
   position: relative;
+  margin-inline: clamp(20px, 3vw, 56px); /* 左右留空 */
+  border-radius: 40px 40px 0 0; /* 上两角大圆角 */
+  min-height: clamp(360px, 48vh, 620px); /* 撑住版式：拉到底时末句在页面上部 */
   padding-block: 72px 40px;
   color: #0F1520; /* 亮区上的暗字 */
-  overflow: hidden;
+  overflow: hidden; /* 渐变与页底渐隐都被圆角/边界裁住 */
 }
 
 .bg {

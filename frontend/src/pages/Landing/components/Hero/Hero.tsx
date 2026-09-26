@@ -257,10 +257,10 @@ export default function Hero() {
                 onClick={goLogin}
                 size="lg"
                 radius={28}
-                tint="#2BA9E0"
+                tint="#EAF5FF" /* 极淡蓝（近白）——与 CTA 发送键同色（Skyer 2026-09-25） */
                 tintOpacity={1}
-                textColor="#0B1017"
-                lineColor="#EAF7FF"
+                textColor="#0B1017" /* 淡底上用深字 */
+                lineColor="#5CC8EC" /* 高光边改青蓝：近白底上白线看不见 */
                 baseColor="#0F1520"
                 intensity={2}
                 thickness={1.3}
