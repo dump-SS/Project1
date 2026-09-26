@@ -1,8 +1,10 @@
-/* 功能屏 ×3（visual-language §7.3–7.5） */
+/* 功能屏 ×3（visual-language §7.3–7.5）
+   2026-09-25 Skyer 编排：section 76vh——当前文字竖向居中时，下一张卡片已露边；
+   容器 landing-wide（文字左靠、卡片右靠放大）。 */
 
 .section {
   position: relative;
-  min-height: 92vh;
+  min-height: 64vh; /* 压矮：当前文字居中时，下一张卡片顶部已探入视口下缘（露边） */
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -61,16 +63,23 @@
   color: var(--lp-text-2);
 }
 
-/* ---------- 右：对话气泡（本屏唯一蓝 = 光晕落在此处） ---------- */
+/* ---------- 右：Tilted Card 对话卡片（放大、右靠；本屏唯一蓝 = 卡面光晕） ---------- */
+.dialogueWrap {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .dialogue {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 28px;
-  border-radius: 16px;
-  background: rgba(27, 34, 45, 0.45);
+  gap: 16px;
+  padding: 34px 36px;
+  border-radius: 18px;
+  background: rgba(27, 34, 45, 0.55);
   border: 1px solid var(--lp-hairline);
+  box-shadow: 0 24px 70px rgba(5, 10, 18, 0.5);
 }
 
 /* 光晕：大面积低强度（作为「光」存在），只此一处 */
@@ -90,14 +99,14 @@
 .bubbleUser {
   align-self: flex-end;
   max-width: 78%;
-  padding: 10px 16px;
+  padding: 12px 18px;
   border-radius: 12px 12px 4px 12px;
   background: rgba(42, 53, 66, 0.55);
 }
 
 .userText {
   font-family: var(--lp-font-sans);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.7;
 }
 
@@ -105,7 +114,7 @@
 .bubbleProduct {
   align-self: flex-start;
   max-width: 92%;
-  padding: 12px 18px;
+  padding: 14px 20px;
   border-radius: 12px 12px 12px 4px;
   background: rgba(16, 22, 30, 0.65);
   border: 1px solid var(--lp-hairline);
@@ -114,7 +123,7 @@
 .productText {
   font-family: var(--lp-font-serif);
   font-weight: 400;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.8;
   color: var(--lp-text);
 }

@@ -1,4 +1,5 @@
 import TextType from '../bits/TextType'
+import TiltedCard from '../bits/TiltedCard'
 import { useInView } from '../../hooks/useInView'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { FEATURE_SCREENS } from '../../content/copy'
@@ -52,7 +53,7 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
       ref={sectionRef}
       aria-label={screen.featureName}
     >
-      <div className={`${styles.inner} landing-wrap`}>
+      <div className={`${styles.inner} landing-wide`}>
         {/* 左：金句大字标题（对话原句，加「」逐字打出）+ 功能名小字 */}
         <div className={styles.left}>
           {reduced ? (
@@ -78,17 +79,30 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
           <p className={styles.featureName}>{screen.featureName}</p>
         </div>
 
-        {/* 右：对话气泡（光晕落在此处 = 本屏唯一蓝） */}
-        <div className={styles.dialogue} aria-label="真实对话">
-          <div className={styles.bubbleUser}>
-            <p className={styles.userText}>{dialogue.user}</p>
-          </div>
-          {dialogue.product.map((line, i) => (
-            <div className={styles.bubbleProduct} key={i}>
-              <p className={styles.productText}>{line}</p>
+      {/* 对话卡片：Tilted Card（2026-09-25 Skyer 指定）——指针 3D 倾斜，气泡为卡面 */}
+      <div className={styles.dialogueWrap}>
+        <TiltedCard
+          containerWidth="100%"
+          containerHeight="auto"
+          imageWidth="auto"
+          imageHeight="auto"
+          rotateAmplitude={10}
+          scaleOnHover={1.02}
+          showMobileWarning={false}
+          showTooltip={false}
+        >
+          <div className={styles.dialogue} aria-label="真实对话">
+            <div className={styles.bubbleUser}>
+              <p className={styles.userText}>{dialogue.user}</p>
             </div>
-          ))}
-        </div>
+            {dialogue.product.map((line, i) => (
+              <div className={styles.bubbleProduct} key={i}>
+                <p className={styles.productText}>{line}</p>
+              </div>
+            ))}
+          </div>
+        </TiltedCard>
+      </div>
       </div>
 
       {/* 底部暗纹：换主题物件（近不可见） */}
