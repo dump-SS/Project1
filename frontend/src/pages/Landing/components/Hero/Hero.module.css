@@ -81,12 +81,19 @@
 }
 
 /* 单列循环带：内容 ×2 拼接，translateY ±50% 无缝循环；
-   偶数列向上（lp-col-up），奇数列向下（lp-col-down）——Skyer 指定错开方向 */
+   偶数列向上（lp-col-up），奇数列向下（lp-col-down）——Skyer 指定错开方向。
+   ⚠️ `align-self: flex-start` 不可删：列是行内 flex 项，默认被 stretch 到
+   .colsWrap 的高度（实测仅 881px），而内容高约 3058px → `translateY(-50%)`
+   只有 −440px，不等于一个周期 1529px → 每轮结束就整体跳一下（Skyer
+   2026-09-25 报「时不时刷新一下」）。按内容高之后 −50% 恰好 = 一个周期。
+   时长同步 80s → 280s：位移从 440px 变成 1529px，若仍取 80s 会快约 3.5 倍，
+   调到 280s 保持原有观感速度（≈5.5px/s）。 */
 .wallCol {
   display: flex;
   flex-direction: column;
   width: max-content;
-  animation: lp-col-up 80s linear infinite;
+  align-self: flex-start;
+  animation: lp-col-up 280s linear infinite;
 }
 
 .colDown {
