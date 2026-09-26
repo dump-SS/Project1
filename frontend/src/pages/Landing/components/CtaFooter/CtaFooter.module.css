@@ -82,9 +82,12 @@
    宽度由 GlareHover 的 width 属性给（内联样式，类里写会被覆盖），这里只管光标与聚焦态。 */
 .inputGlare {
   cursor: text !important; /* 覆盖 GlareHover 的 cursor-pointer */
+  /* 聚焦态描边/外发光要有过渡，与 Hero 输入框一致（Skyer 2026-09-25：点了会硬切）。
+     GlareHover 根节点自身没有 transition 工具类，故在这里补。 */
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 .inputGlare:focus-within {
-  border-color: rgba(74, 209, 255, 0.55) !important;
+  border-color: rgba(74, 209, 255, 0.55) !important; /* 压过组件的内联 borderColor */
   box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.1);
 }
 
