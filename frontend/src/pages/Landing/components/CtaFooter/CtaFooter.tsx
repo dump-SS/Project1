@@ -30,17 +30,23 @@ export default function CtaFooter() {
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [atBottom, setAtBottom] = useState(false) // 句子翻转 + 光变亮（同一拍）
+  /* 页底渐隐带开关：页尾进入视口即启用（Skyer 2026-09-25：
+     滚入的内容要先经过模糊带再浮现，所以带子固定在视口底边、随页尾入场点亮） */
+  const [bandOn, setBandOn] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
 
   /* 接近页尾才拉 Grainient chunk（进入视口前 40%） */
   const [gfxRef, gfxNear] = useInView<HTMLDivElement>('40% 0px', true)
 
-  /* 滑到最底部：句子翻转与光变亮同一个拍子（整页唯一可爆发情绪处） */
+  /* 滑到最底部：句子翻转与光变亮同一个拍子（整页唯一可爆发情绪处）
+     + 页底渐隐带：页尾顶边一进视口就点亮，滚回上面自动熄灭 */
   useEffect(() => {
     const onScroll = () => {
       const reach = window.scrollY + window.innerHeight
       const bottom = document.documentElement.scrollHeight
       setAtBottom(reach >= bottom - 8)
+      const footer = document.getElementById('landing-footer')
+      setBandOn(!!footer && footer.getBoundingClientRect().top < window.innerHeight)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
@@ -204,25 +210,32 @@ export default function CtaFooter() {
         </div>
       </footer>
 
-      {/* 页底渐隐（React Bits GradualBlur）：只渐隐背景——z-index 压在页尾文字之下，
-          合规声明保持清晰（合规硬项不得被虚化）。
-          强度按「能看见」调档（Skyer 2026-09-25 反馈看不到）：exponential + 7 层
-          + 12rem，末层约 96px 模糊。
-          ⚠️ 放在 footer 之外、由 .blurHost 贴**页面宽**（不是 100vw——100vw 比文档宽
-          一个滚动条宽度，会带出横向滚动条）：单纯糊卡片内部的平滑渐变看不出变化，
-          必须让渐隐带覆盖卡片左右边缘与深色页底的硬边才可见。 */}
-      <div className={styles.blurHost} aria-hidden>
+      {/* 页底渐隐（React Bits GradualBlur，Skyer 2026-09-25 二次指定）：
+          **固定在视口底边**（preset page-footer → position: fixed），页尾进入视口时点亮
+          —— 从下方滚进来的内容（卡片顶边、圆角、logo、链接……）先经过这条模糊带再浮现，
+          就是「未滑出来的部分经过模糊效果再出来」。
+          ⚠️ 之前用绝对定位贴在页面最底部是错的：滚入过程中它根本不在屏幕里（所以看不到），
+          而且只糊卡片内部那片平滑渐变＝等于没糊。
+          ⚠️ 性能：这是固定全宽 backdrop-filter，层数/半径直接决定合成成本——实测层数多、
+          半径大时（7 层 / 末层 96px）连预览截图都准备不出来（滚动必然掉帧）。最终取 3 层、
+          上限约 30px、高 7rem，滚动成本可控；reduced-motion 下整条不渲染（动效降级惯例）。
+          z-index 取 0（组件对 page 目标会 +100）——高于页尾内容、不越到顶栏面板之上；
+          合规声明在静止态位于带的 y 区间之上（实测 y 396–421），保持清晰不被虚化。 */}
+      {!reduced && (
         <GradualBlur
-          preset="bottom"
-          strength={6}
-          height="12rem"
-          divCount={7}
+          preset="page-footer"
+          strength={1.9}
+          height="7rem"
+          divCount={3}
           exponential
           curve="bezier"
-          zIndex={1}
-          opacity={1}
+          zIndex={0}
+          style={{
+            opacity: bandOn ? 1 : 0,
+            transition: 'opacity 0.45s ease-out',
+          }}
         />
-      </div>
+      )}
     </>
   )
 }
