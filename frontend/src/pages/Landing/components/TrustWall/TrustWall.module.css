@@ -36,10 +36,12 @@
   width: 100%;
 }
 
-/* 标题 sticky 在左（2026-09-25 Skyer：标题不分行 + 下加小字） */
+/* 标题 sticky 在左（2026-09-25 Skyer：标题不分行 + 下加小字）；
+   初始位置微左移一点点（Skyer 2026-09-25） */
 .titleBlock {
   flex: 0 0 auto;
   max-width: 300px;
+  margin-left: -24px;
 }
 
 .title {
