@@ -83,13 +83,17 @@ export const FEATURE_SCREENS = [
   },
 ] as const
 
-/** 信任屏（visual-language §7.6，标题 Skyer 拍板） */
+/** 信任屏（visual-language §7.6，标题 Skyer 拍板）
+ *  2026-09-25 Skyer 指示：标题下加小字 sub；四卡各配品牌色渐变图标。 */
 export const TRUST_COPY = {
   title: '隐私安全当为先。',
+  /** 标题下小字（Skyer 2026-09-25 指定，逐字使用） */
+  sub: 'EpochX始终致力于保护你的隐私和数据安全',
   cards: [
     {
       id: 'data-local',
       name: '数据不出境',
+      icon: 'lock' as const, // 锁头
       /** 【待确认】按要点（本地模型 / PRD 12.6）最小扩写 */
       brief: '错题与学习记录的整理由本地模型完成，数据不出域。',
       placeholder: true,
@@ -97,6 +101,7 @@ export const TRUST_COPY = {
     {
       id: 'no-judge',
       name: '不评判·不排名',
+      icon: 'bars' as const, // 柱状图
       /** 【待确认】按要点（状态是读数 + 无榜单）最小扩写 */
       brief: '状态是读数，不是评价。没有榜单，也不和别人比。',
       placeholder: true,
@@ -104,6 +109,7 @@ export const TRUST_COPY = {
     {
       id: 'guardian',
       name: '监护人可撤回',
+      icon: 'return' as const, // 回箭头
       /** 【待确认】按要点（授权 + 撤回即删除）最小扩写 */
       brief: '需要监护人授权才能使用；撤回授权，相关数据随之删除。',
       placeholder: true,
@@ -111,6 +117,7 @@ export const TRUST_COPY = {
     {
       id: 'no-decide',
       name: '不替你做决定',
+      icon: 'shield' as const, // 带感叹号盾牌
       /** 【待确认】按要点（S5 对话为证）最小扩写 */
       brief: '重要的动作先列出来，你确认了才会执行。',
       /** 卡 4 配图 = S5 对话（真实素材） */

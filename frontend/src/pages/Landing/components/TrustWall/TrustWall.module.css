@@ -36,9 +36,10 @@
   width: 100%;
 }
 
-/* 标题 sticky 在左 */
+/* 标题 sticky 在左（2026-09-25 Skyer：标题不分行 + 下加小字） */
 .titleBlock {
-  flex: 0 0 220px;
+  flex: 0 0 auto;
+  max-width: 300px;
 }
 
 .title {
@@ -47,6 +48,16 @@
   font-weight: 500;
   font-size: clamp(26px, 3vw, 36px);
   line-height: 1.4;
+  white-space: nowrap; /* 不分行（Skyer 2026-09-25） */
+}
+
+/* 标题下小字（Skyer 指定文案） */
+.sub {
+  margin-top: 12px;
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--lp-text-2);
 }
 
 /* ---------- 卡片轨道 ---------- */
@@ -60,40 +71,54 @@
   gap: 24px;
   will-change: transform;
   padding-left: 8px;
+  align-items: flex-start;
 }
 
-.card {
-  flex: 0 0 min(360px, 78vw);
+/* ---------- 卡片（2026-09-25 Skyer：标题卡外左上 / 卡内图标 / BorderGlow） ---------- */
+.cardCol {
+  flex: 0 0 min(380px, 80vw);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 24px;
-  border-radius: 16px;
-  background: rgba(27, 34, 45, 0.55);
-  border: 1px solid var(--lp-hairline);
-  transition: border-color 0.25s ease, background 0.25s ease;
 }
 
-.card:hover,
-.card:focus-visible,
-.cardOpen {
-  border-color: rgba(154, 164, 176, 0.45);
-  background: rgba(27, 34, 45, 0.8);
-  outline: none;
-}
-
-.cardHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
+/* 卡片标题：卡外左上 */
 .cardName {
   color: var(--lp-text); /* h3 同样中招 global.css 元素规则 */
   font-family: var(--lp-font-sans);
   font-weight: 500;
   font-size: 19px;
+  padding-left: 4px;
+}
+
+/* BorderGlow 外壳：撑满列宽（其内部自带背景/边框/圆角） */
+.cardGlow {
+  width: 100%;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 24px;
+  background: transparent; /* 底/边框由 BorderGlow 承担 */
+  transition: background 0.25s ease;
+}
+
+.cardOpen {
+  background: rgba(27, 34, 45, 0.35);
+}
+
+/* 卡内左上：品牌色渐变图标 */
+.cardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(74, 209, 255, 0.08);
+  margin-bottom: 2px;
 }
 
 .expandBtn {

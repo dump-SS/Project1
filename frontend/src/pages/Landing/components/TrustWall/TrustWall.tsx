@@ -4,27 +4,42 @@ import { useScrollProgress } from '../../hooks/useScrollProgress'
 import { TRUST_COPY } from '../../content/copy'
 import { S5 } from '../../content/dialogues'
 import { IconChevronDown } from '../../icons/UiIcons'
+import { IconLock, IconBars, IconReturn, IconShieldAlert } from '../../icons/TrustIcons'
 import { setHijackRange } from '../../lib/navScrollGuard'
 import styles from './TrustWall.module.css'
 
 // Beams（React Bits，上游 r3f v9 仅 React 19 → 本仓裸 three 移植版）：
 // 隐私安全页背景（2026-09-25 Skyer 指定），three 已在 deps
 const Beams = lazy(() => import('../bits/Beams'))
+// BorderGlow（React Bits，零依赖）：卡片辉光边框（2026-09-25 Skyer 指定）
+import BorderGlow from '../bits/BorderGlow'
 
 /**
- * 信任屏（visual-language §7.6 / dev-spec §4.6）：
- * 横向劫持滚动（sticky 钉住一屏，纵向滚动驱动卡片横移）；
- * 三护栏：底部进度条 / 到底自动释放（sticky 跑道天然满足）/ 触控板横滑代理 + 方向键；
- * 卡片 hover/click/focus 三种触发展开；移动端配图不折叠 + 「展开」按钮；
- * 劫持区间注册给顶栏（区间内禁用收起/弹出）。
+ * 信任屏（2026-09-25 Skyer 定稿）：
+ * 全页完整显示后再劫持横滚（stripP 起步 0.2）；标题不分行 + 下加小字；
+ * 卡片 = BorderGlow 辉光边框，展开由 hover 触发（单开，不连锁），
+ * 标题移到卡外左上，卡内左上为品牌色渐变图标。
+ * 三护栏：底部进度条 / 到底自动释放 / 触控板横滑代理 + 方向键。
  */
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+/** 线性映射 */
+const map = (p: number, a: number, b: number) => clamp01((p - a) / (b - a))
+
+/** 卡片图标映射（依次：锁头 / 柱状图 / 回箭头 / 带感叹号盾牌） */
+const CARD_ICONS = {
+  lock: IconLock,
+  bars: IconBars,
+  return: IconReturn,
+  shield: IconShieldAlert,
+} as const
 
 export default function TrustWall() {
   const reduced = useReducedMotion()
   const [runwayRef, progress] = useScrollProgress<HTMLDivElement>()
   const sectionRef = useRef<HTMLElement>(null)
+  /** 展开的卡片 id（单开，不连锁；hover / focus 触发） */
+  const [openCard, setOpenCard] = useState<string | null>(null)
 
   /* 注册劫持区间给顶栏（sticky 冻结纵向滚动的区间内顶栏常显） */
   useEffect(() => {
@@ -53,7 +68,6 @@ export default function TrustWall() {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         window.scrollBy(0, e.deltaX * 1.3)
       }
-      // 纵向滚轮不动：原生滚动本身驱动劫持，无需接管
     }
     el.addEventListener('wheel', onWheel, { passive: true })
     return () => el.removeEventListener('wheel', onWheel)
@@ -64,6 +78,7 @@ export default function TrustWall() {
     return (
       <section className={styles.staticSection} aria-label="隐私安全">
         <h2 className={styles.title}>{TRUST_COPY.title}</h2>
+        <p className={styles.sub}>{TRUST_COPY.sub}</p>
         <div className={styles.staticGrid}>
           {TRUST_COPY.cards.map((card) => (
             <TrustCard key={card.id} card={card} expanded />
@@ -73,7 +88,8 @@ export default function TrustWall() {
     )
   }
 
-  const stripP = clamp01((progress - 0.05) / 0.75) // 卡片横移进度
+  /* 2026-09-25 Skyer：本页完整显示后再劫持横滚（起步 0.2，原 0.05 过早） */
+  const stripP = map(progress, 0.2, 0.82) // 卡片横移进度
   const trackShift = stripP * 62 // vh 单位的横移量（由卡片总宽决定）
   /* 标题随横移起步淡出：卡片会滑过标题区，标题不让位就会透过半透明卡面露字。
      淡出在卡 1 抵达标题区之前完成（前 25% 横移内），初始「sticky 在左」语义不变。 */
@@ -101,19 +117,26 @@ export default function TrustWall() {
           </div>
         )}
         <div className={`${styles.stage} landing-wrap`}>
-          {/* 标题 sticky 在左 */}
+          {/* 标题 sticky 在左（不分行）+ 标题下小字 */}
           <div className={styles.titleBlock} style={{ opacity: titleOpacity }}>
             <h2 className={styles.title}>{TRUST_COPY.title}</h2>
+            <p className={styles.sub}>{TRUST_COPY.sub}</p>
           </div>
 
-          {/* 卡片轨道：纵向滚动 → 横向位移 */}
-          <div className={styles.viewport}>
+          {/* 卡片轨道：纵向滚动 → 横向位移；hover 出容器即收起（单开） */}
+          <div className={styles.viewport} onMouseLeave={() => setOpenCard(null)}>
             <div
               className={styles.track}
               style={{ transform: `translateX(calc(-${trackShift}vh))` }}
             >
               {TRUST_COPY.cards.map((card) => (
-                <TrustCard key={card.id} card={card} />
+                <TrustCard
+                  key={card.id}
+                  card={card}
+                  open={openCard === card.id}
+                  onOpen={() => setOpenCard(card.id)}
+                  onClose={() => setOpenCard((cur) => (cur === card.id ? null : cur))}
+                />
               ))}
             </div>
           </div>
@@ -133,71 +156,89 @@ export default function TrustWall() {
 function TrustCard({
   card,
   expanded = false,
+  open = false,
+  onOpen,
+  onClose,
 }: {
   card: (typeof TRUST_COPY.cards)[number]
   expanded?: boolean
+  open?: boolean
+  onOpen?: () => void
+  onClose?: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const isS5 = card.id === 'no-decide' // 卡 4：S5 对话（真实素材）
   const interactive = !expanded
-
-  const toggle = () => {
-    if (interactive) setOpen((v) => !v)
-  }
+  const isOpen = open || expanded
+  const Icon = CARD_ICONS[card.icon]
 
   return (
-    <article
-      className={`${styles.card} ${open || expanded ? styles.cardOpen : ''}`}
-      tabIndex={interactive ? 0 : -1}
-      {...(interactive
-        ? {
-            onClick: toggle,
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                toggle()
+    <div className={styles.cardCol}>
+      {/* 卡片标题：移至卡外左上（Skyer 2026-09-25） */}
+      <h3 className={styles.cardName}>{card.name}</h3>
+
+      <BorderGlow
+        className={styles.cardGlow}
+        backgroundColor="rgba(27, 34, 45, 0.55)"
+        borderRadius={16}
+        glowColor="74 209 255" /* 品牌蓝 #4AD1FF */
+        glowRadius={46}
+        glowIntensity={1.1}
+        coneSpread={32}
+        colors={['#4AD1FF', '#1B5DBF', '#8FD3E8']}
+        fillOpacity={0.42}
+      >
+        <article
+          className={`${styles.card} ${isOpen ? styles.cardOpen : ''}`}
+          tabIndex={interactive ? 0 : -1}
+          {...(interactive
+            ? {
+                /* 展开改 hover 触发（Skyer 2026-09-25：不要 click；单开不连锁） */
+                onMouseEnter: onOpen,
+                onMouseLeave: onClose,
+                onFocus: onOpen,
               }
-            },
-            onFocus: () => setOpen(true),
-          }
-        : {})}
-    >
-      <div className={styles.cardHead}>
-        <h3 className={styles.cardName}>{card.name}</h3>
-        {/* 移动端「展开」按钮（配图不折叠，按钮只控制详情文字） */}
-        {interactive && (
-          <button
-            type="button"
-            className={styles.expandBtn}
-            onClick={(e) => {
-              e.stopPropagation()
-              toggle()
-            }}
-            aria-expanded={open}
-          >
-            展开
-            <IconChevronDown size={14} className={open ? styles.chevronUp : ''} />
-          </button>
-        )}
-      </div>
+            : {})}
+        >
+          {/* 卡内左上：品牌色渐变图标（依次：锁头 / 柱状图 / 回箭头 / 盾牌） */}
+          <div className={styles.cardIcon}>
+            <Icon size={28} />
+          </div>
 
-      <p className={styles.cardBrief}>{card.brief}</p>
+          <p className={styles.cardBrief}>{card.brief}</p>
 
-      {/* 配图区：卡 4 = S5 真对话；卡 1/2/3 = 占位块 + TODO（禁假界面图） */}
-      <div className={`${styles.figure} ${open || expanded ? styles.figureOpen : ''}`}>
-        {/* 0fr 折叠靠这一层零装饰裁剪（子元素自身的 margin/padding 会撑起轨道下限导致漏出） */}
-        <div className={styles.figureClip}>
-          {isS5 ? (
-            <S5Preview />
-          ) : (
-            /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
-            <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
-              <span>界面截图 · 待接入</span>
+          {/* 配图区：卡 4 = S5 真对话；卡 1/2/3 = 占位块 + TODO（禁假界面图） */}
+          <div className={`${styles.figure} ${isOpen ? styles.figureOpen : ''}`}>
+            {/* 0fr 折叠靠这一层零装饰裁剪（子元素自身的 margin/padding 会撑起轨道下限导致漏出） */}
+            <div className={styles.figureClip}>
+              {isS5 ? (
+                <S5Preview />
+              ) : (
+                /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
+                <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
+                  <span>界面截图 · 待接入</span>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* 移动端「展开」按钮（配图不折叠，按钮只控制详情文字） */}
+          {interactive && (
+            <button
+              type="button"
+              className={styles.expandBtn}
+              onClick={(e) => {
+                e.stopPropagation()
+                isOpen ? onClose?.() : onOpen?.()
+              }}
+              aria-expanded={isOpen}
+            >
+              展开
+              <IconChevronDown size={14} className={isOpen ? styles.chevronUp : ''} />
+            </button>
           )}
-        </div>
-      </div>
-    </article>
+        </article>
+      </BorderGlow>
+    </div>
   )
 }
 
