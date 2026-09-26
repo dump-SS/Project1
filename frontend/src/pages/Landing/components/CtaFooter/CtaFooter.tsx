@@ -125,9 +125,9 @@ export default function CtaFooter() {
             borderColor="rgba(140, 160, 180, 0.16)"
             borderRadius="999px"
             glareColor="#BFE9FF"
-            glareOpacity={0.22}
-            glareSize={180}
-            transitionDuration={700}
+            glareOpacity={0.12} /* 生硬→柔（0.22 → 0.12，光泽更淡） */
+            glareSize={260} /* 光带更宽更柔（180 → 260） */
+            transitionDuration={420} /* 偏慢→利落（700ms → 420ms） */
             className={styles.inputGlare}
             style={{ cursor: 'text' }}
           >
