@@ -26,7 +26,10 @@
 
 .bar {
   position: relative;
-  z-index: 1;
+  /* z-index 必须高于 .panel（mega 面板同为 z-index 1，且在 DOM 中靠后 → 默认压住整个 .bar 子树，
+     连带把语言下拉挡住）。Skyer 2026-09-25：hover 左侧菜单后移到语言切换，语言下拉不能被面板遮住。
+     顶栏内容与面板在纵向上不重叠，所以抬高 .bar 不会改变面板本身的观感 */
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -234,7 +237,20 @@
   border: 1px solid var(--lp-hairline);
   border-radius: 10px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-  animation: lp-panel-fade 0.18s ease;
+  /* 入场：**从上至下滑出**（Skyer 2026-09-25）——起点在终位上方 10px 处落下。
+     注意与左侧 mega 面板的 lp-panel-fade 方向相反（那是从下往上） */
+  animation: lp-lang-menu-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes lp-lang-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .langItem {
   display: block;
