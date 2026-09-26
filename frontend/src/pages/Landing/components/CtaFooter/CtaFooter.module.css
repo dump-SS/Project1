@@ -289,7 +289,11 @@
   cursor: default;
 }
 
+/* 返回顶部：GlassSurface 胶囊（Skyer 2026-09-25，原为半透明浅色方块）。
+   底色交给玻璃层，按钮自身透明；overflow:hidden 让玻璃按胶囊裁切；
+   文字/图标各自 position+z-index 压在玻璃层之上（同顶栏 bar 的做法）。 */
 .backTop {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -298,14 +302,46 @@
   font-family: var(--lp-font-sans);
   font-size: 14px;
   color: #0F1520;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(15, 21, 32, 0.25);
-  border-radius: 8px;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
   cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.backTopGlass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  overflow: hidden;
+}
+/* GlassSurface 按 prefers-color-scheme 选底色，而本页恒为亮区页脚——强制浅玻璃 */
+.glassPill {
+  background: rgba(255, 255, 255, 0.34) !important;
+  border-radius: 999px !important;
   transition: background 0.25s ease;
 }
+/* reduced-transparency 回退：纯色底（不做磨砂/位移） */
+.backTopSolid {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+}
+.backTopLabel,
+.backTopIcon {
+  position: relative;
+  z-index: 1;
+}
 .backTop:hover {
-  background: rgba(255, 255, 255, 0.85);
+  transform: translateY(-1px);
+}
+.backTop:hover .glassPill {
+  background: rgba(255, 255, 255, 0.5) !important;
+}
+.backTop:focus-visible {
+  outline: 2px solid rgba(74, 209, 255, 0.7);
+  outline-offset: 2px;
 }
 
 /* 版权 + 备案 + 合规声明 */

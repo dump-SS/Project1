@@ -6,6 +6,7 @@ import { IconArrowUp, IconSend } from '../../icons/UiIcons'
 import GlareHover from '../bits/GlareHover'
 import GradualBlur from '../bits/GradualBlur'
 import FoldText from '../bits/FoldText'
+import GlassSurface from '../bits/GlassSurface'
 import styles from './CtaFooter.module.css'
 
 /**
@@ -42,6 +43,15 @@ export default function CtaFooter() {
   const dividerRef = useRef<HTMLDivElement>(null)
   /** 末句：与分割线一起取中点，作为渐隐带的触发位置（Skyer 2026-09-25） */
   const lineRef = useRef<HTMLParagraphElement>(null)
+  /** reduced-transparency：玻璃胶囊退纯色底（dev-spec §6；与顶栏同一处理） */
+  const [reduceTransparency, setReduceTransparency] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)')
+    const on = () => setReduceTransparency(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
   /** 渐隐带宿主（固定高度见 CSS，只切换渲染开关） */
   const bandRef = useRef<HTMLDivElement>(null)
 
@@ -206,14 +216,32 @@ export default function CtaFooter() {
             ))}
           </nav>
 
-          {/* 返回顶部 */}
+          {/* 返回顶部：GlassSurface 胶囊（Skyer 2026-09-25）。
+              玻璃层是绝对定位的兄弟节点，文字/图标必须各自带 position+z-index 才压得住
+              （裸文本节点无法定层，会被玻璃层盖住）。reduced-transparency → 纯色底。 */}
           <button
             type="button"
             className={styles.backTop}
             onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
           >
-            {FOOTER_COPY.backToTop}
-            <IconArrowUp size={15} />
+            <span className={styles.backTopGlass} aria-hidden>
+              {reduceTransparency ? (
+                <span className={styles.backTopSolid} />
+              ) : (
+                <GlassSurface
+                  width="100%"
+                  height="100%"
+                  borderRadius={999}
+                  backgroundOpacity={0.34}
+                  blur={14}
+                  saturation={1.3}
+                  className={styles.glassPill}
+                  style={{ position: 'absolute', inset: 0 }}
+                />
+              )}
+            </span>
+            <span className={styles.backTopLabel}>{FOOTER_COPY.backToTop}</span>
+            <IconArrowUp size={15} className={styles.backTopIcon} />
           </button>
         </div>
 
