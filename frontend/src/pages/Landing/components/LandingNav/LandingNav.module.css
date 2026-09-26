@@ -216,17 +216,21 @@
 .langBtnOn .langCaret {
   transform: rotate(180deg);
 }
-/* 下拉：贴在按钮正下方、右对齐，深色面 + 发丝描边（与 mega 面板同色系但更小） */
+/* 下拉：贴在按钮正下方、右对齐；**宽度与触发按钮一致**（Skyer 2026-09-25），
+   底色透明度也与按钮 hover 背景一致（同为 rgba(27,34,45,0.7)，原为不透明的 --lp-surface）。
+   box-sizing 必须显式写：本仓没引 Tailwind preflight，默认 content-box 会把
+   width:100% 之外再加 12px 内边距 + 2px 描边，反而比按钮宽。 */
 .langMenu {
   position: absolute;
-  top: calc(100% - 2px);
+  top: calc(100% - 2px); /* 与按钮重叠 2px：显隐衔接不留空隙，避免 hover 掉线 */
   right: 0;
   z-index: 2;
-  min-width: 120px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0;
   padding: 6px;
   list-style: none;
-  background: var(--lp-surface);
+  background: rgba(27, 34, 45, 0.7);
   border: 1px solid var(--lp-hairline);
   border-radius: 10px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
