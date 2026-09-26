@@ -134,6 +134,9 @@ export default function Iridescence({
     ro.observe(container)
     resize()
 
+    /* ⚠️ 初始 must be true（fail-safe）：本仓实测 IntersectionObserver 存在漏回调的情况，
+       若初始为 false，漏一次「进入视口」回调就会永远不渲（画布空白 = 背景消失）。
+       初始为 true 则最坏只是离屏时多渲几帧（GPU 白烧），视觉永远不会缺 */
     let isVisible = true
     let isPageVisible = !document.hidden
     let raf = 0

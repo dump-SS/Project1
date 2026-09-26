@@ -360,6 +360,7 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 3. **信任卡折叠态内容泄漏**：`.figure` 的 `0fr` 折叠被子元素自身 margin/padding/边框撑起轨道下限（实测漏出 38px 的 S5 对话切片与占位框虚线顶边）→ 增加零装饰裁剪层 `.figureClip` 作为 grid 直接子元素。
 4. **移动端顶栏菜单折行破碎**（375px 实测）：菜单/登录按钮文字竖排换行 → `white-space: nowrap` + 720px 断点紧凑化（字号/间距收紧）。
 5. **纵向 flex 里 `width: auto` 的图片会被横向拉伸**（踩了两次：Hero logo 与页尾 logo，均实测渲染宽度 ≈ 容器宽）——纵向 flex 容器默认 `align-items: stretch`，交叉轴（宽）被拉满，而 `width: auto` 不构成防御 → 图一律加 `align-self: flex-start`（Hero `.logo`、页尾 `.footerLogo` 已加并留注释）。全页排查脚本：比对每个 `<img>` 的 `rendered 宽高比 / naturalWidth/naturalHeight`，偏离 >2% 即拉伸；当前仅第二屏两张实录图命中，那是 `.slideImg { object-fit: cover }` 的有意裁切，不算拉伸。
+6. **揭示类逻辑不能只押 IntersectionObserver**（2026-09-25「Iridescence 没了」）：页尾虹彩背景原用 `useInView('40% 0px')` 门控渲染，实测该 IO 会**漏回调**，一旦漏掉就渲染 `.bgFallback`（同为淡青淡紫渐变）——观感就是「虹彩变淡/没了」；同一次排查还发现三节叙事屏 `.section` 的未入场态是 `opacity: 0`，漏回调即整屏空白。更极端的是预览环境合成器冻结时 **`requestAnimationFrame` 整段不派发**（实测 rAF 复查一次都没执行）。处置：① 虹彩背景去掉门控、直接挂载，组件内部暂停的 `isVisible` **初始取 true**（漏回调最坏只是多渲几帧，不会空白）；② `useInView` 改成三重保险——IO + scroll/resize 的 rAF 节流复查 + **1s `setInterval` 里同步 `getBoundingClientRect`**（最后一道不依赖任何异步回调，rAF 冻结也生效），命中后整体摘除。实测：叙事屏三节随滚动依次入场、正文不再空白。
 
 ---
 

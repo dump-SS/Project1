@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useInView } from '../../hooks/useInView'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { CTA_COPY, FOOTER_COPY, HERO_ACTIONS, HERO_DRAFT_KEY } from '../../content/copy'
 import { IconArrowUp, IconSend } from '../../icons/UiIcons'
@@ -47,7 +46,6 @@ export default function CtaFooter() {
   const bandRef = useRef<HTMLDivElement>(null)
 
   /* 接近页尾才拉 Grainient chunk（进入视口前 40%） */
-  const [gfxRef, gfxNear] = useInView<HTMLDivElement>('40% 0px', true)
 
   /* 滑到最底部：句子翻转与光变亮同一个拍子（整页唯一可爆发情绪处）
      + 页底渐隐带（Skyer 2026-09-25 四次校准，最终口径）：
@@ -164,22 +162,24 @@ export default function CtaFooter() {
 
       {/* ---------- 下部：页尾（亮区流体渐变特例） ----------
           2026-09-25 Skyer：动效区左右留空 + 上两角大圆角，页底 Gradual Blur 渐隐 */}
-      <footer className={styles.footer} id="landing-footer" ref={gfxRef}>
-        {/* 虹彩背景：鲜明、流动、指针交互（Iridescence 落盘版；2026-09-25 替换 Grainient） */}
+      <footer className={styles.footer} id="landing-footer">
+        {/* 虹彩背景：鲜明、流动、指针交互（Iridescence 落盘版；2026-09-25 替换 Grainient）
+            ⚠️ **不再用 `gfxNear` 门控渲染**（Skyer 2026-09-25「Iridescence 没了」）：
+            该门控依赖 IntersectionObserver，实测出现过不置位的情况，此时渲染的是
+            `.bgFallback`（同为淡青/淡紫渐变），观感就是「虹彩变淡甚至没有」。而门控
+            本来只为「晚点取 chunk」——ogl 早被 Hero 的 Prism 拉过（同一 chunk），
+            且组件自身已有离屏暂停，故直接挂载、由 Suspense 兜住加载瞬间。 */}
         <div className={styles.bg} aria-hidden>
-          {gfxNear && (
-            <Suspense fallback={<div className={styles.bgFallback} />}>
-              <Iridescence
-                color={IRIDESCENCE_COLOR}
-                /* 滑到底「光变亮」与句子翻转同一拍：提速（相位用积分实现，提速不断相位） */
-                speed={atBottom ? 0.85 : 0.32}
-                amplitude={0.12}
-                staticFrame={reduced} /* reduced-motion：只渲染静止一帧 */
-                className={styles.bgCanvas}
-              />
-            </Suspense>
-          )}
-          {(reduced || !gfxNear) && <div className={styles.bgFallback} />}
+          <Suspense fallback={<div className={styles.bgFallback} />}>
+            <Iridescence
+              color={IRIDESCENCE_COLOR}
+              /* 滑到底「光变亮」与句子翻转同一拍：提速（相位用积分实现，提速不断相位） */
+              speed={atBottom ? 0.85 : 0.32}
+              amplitude={0.12}
+              staticFrame={reduced} /* reduced-motion：只渲染静止一帧 */
+              className={styles.bgCanvas}
+            />
+          </Suspense>
           {/* 浅色 scrim：保页尾文字对比度 ≥ 4.5:1（压到刚好够用，尽量让虹彩透出来） */}
           <div className={styles.bgScrim} />
         </div>
