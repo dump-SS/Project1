@@ -47,24 +47,35 @@ export const EPOCHS_COPY = {
 /** 三时代窗内三格顺序：古代书简 → 书山题海 → logo（原色） */
 export const EPOCHS_SLIDES = ['scroll', 'papers', 'logo'] as const
 
-/** 功能屏 ×3（visual-language §7.3–7.5：标题=定稿原句，加「」逐字打出） */
+/** 功能屏 ×3（visual-language §7.3–7.5：标题=定稿原句，加「」逐字打出）
+ *  2026-09-25 Skyer 指示：① 标题入场改 Decrypted Text（滚动到位置触发）；
+ *  ② 首屏标题在「记住了多少，」后换行（titleLines）；
+ *  ③ 功能名小字扩写为面向用户的技术说明段（description，Skyer 提供口径）。 */
 export const FEATURE_SCREENS = [
   {
     id: 'state',
     featureName: '状态读数',
     title: '「坐了多久，和记住了多少，是两回事。」',
+    /** 首屏标题两行断法（Skyer 指定：在「记住了多少，」后换行） */
+    titleLines: ['「坐了多久，和记住了多少，', '是两回事。」'] as const,
+    description:
+      '状态读数由状态引擎按行为轨（任务完成度、正确率、节奏稳定度）与自评轨（专注度、疲劳度、情绪与难度感知）双轨加权计算，窗口随每次记录滚动更新。「坐了多久」是时长，「记住了多少」是掌握度——两者分开计分、互不折算，读数只描述最近一段学习的客观特征，不构成对能力的评价。',
     dialogueId: 'S2' as const,
   },
   {
     id: 'error-book',
     featureName: '错题路标',
     title: '「错过的题，会变成路标。」',
+    description:
+      '每条错题在入库时标注错因与意图两个正交维度：错因（概念不清、计算失误、审题偏差、知识缺口等）用于归因聚合，意图（复习、好题、典型、存疑）决定复习调度。题本据此把错题组织成可检索、可复习的知识索引，并随掌握度变化更新排序，而不是一份不断变长的清单。',
     dialogueId: 'S3' as const,
   },
   {
     id: 'review',
     featureName: '复盘回望',
     title: '「回头的时候，路都在。」',
+    description:
+      '复盘按固定周期聚合同一学科的学习记录与状态快照，统计完成率、趋势走向与波动来源，并与计划、目标建立锚定引用，点击即可跳回原始记录。所有结论只来自你的真实记录与自评数据，不做跨学科合并、不引入任何外部数据；数据不足时如实标注，不生成推测性结论。',
     dialogueId: 'S4' as const,
   },
 ] as const

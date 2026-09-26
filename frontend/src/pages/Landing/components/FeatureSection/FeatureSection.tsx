@@ -1,4 +1,4 @@
-import TextType from '../bits/TextType'
+import DecryptedText from '../bits/DecryptedText'
 import TiltedCard from '../bits/TiltedCard'
 import { useInView } from '../../hooks/useInView'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
@@ -11,30 +11,22 @@ import type { ComponentType, SVGProps } from 'react'
 import styles from './FeatureSection.module.css'
 
 /**
- * 功能屏 ×3（visual-language §7.3–7.5）：
- * 标题 = 该屏对话里产品说过的原句（加「」+ 逐字「写出」）；
- * 证据 = 真对话（1 句用户无衬线 + 2 句产品衬线，只删句不改字）；
- * 每屏蓝色只一处（光晕落在对话上）；底部暗纹换主题物件。
- * hero 是「删词」、这里是「写出」——一删一写构成呼应，参数刻意不同。
+ * 功能屏 ×3（visual-language §7.3–7.5 / Skyer 2026-09-25 调整）：
+ * 标题 = 该屏对话里产品说过的原句（加「」），入场改 Decrypted Text
+ * （滚动到位置由组件内置 IO 触发）；首屏标题按要求在「记住了多少，」后换行；
+ * 功能名小字扩写为面向用户的技术说明段。
+ * 证据 = 真对话 Tilted Card（1 句用户无衬线 + 2 句产品衬线，只删句不改字）；
+ * 每屏蓝色只一处（光晕落在对话卡上）；底部暗纹换主题物件。
  */
 
-/** 每屏编排参数（互不雷同，dev-spec §4.3 验收项） */
+/** 每屏暗纹物件（互不雷同，dev-spec §4.3 验收项） */
 const SCREEN_META: Record<
   string,
-  { motifs: ComponentType<SVGProps<SVGSVGElement> & { size?: number }>[]; typing: { speed: number; initialDelay: number; variable?: { min: number; max: number } } }
+  { motifs: ComponentType<SVGProps<SVGSVGElement> & { size?: number }>[] }
 > = {
-  state: {
-    motifs: [IconStopwatch, IconReportCard],
-    typing: { speed: 90, initialDelay: 300, variable: { min: 60, max: 130 } },
-  },
-  'error-book': {
-    motifs: [IconNotebook, IconFlask],
-    typing: { speed: 140, initialDelay: 150 },
-  },
-  review: {
-    motifs: [IconBook, IconNotebook],
-    typing: { speed: 70, initialDelay: 450, variable: { min: 40, max: 110 } },
-  },
+  state: { motifs: [IconStopwatch, IconReportCard] },
+  'error-book': { motifs: [IconNotebook, IconFlask] },
+  review: { motifs: [IconBook, IconNotebook] },
 }
 
 export default function FeatureSection({ screenId }: { screenId: string }) {
@@ -45,7 +37,8 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
 
   const meta = SCREEN_META[screenId]
   const dialogue = DIALOGUES[screen.dialogueId]
-  const typing = meta.typing
+  /* 标题行：首屏两行断法（Skyer 指定），其余单行 */
+  const titleLines: readonly string[] = (screen as { titleLines?: readonly string[] }).titleLines ?? [screen.title]
 
   return (
     <section
@@ -54,29 +47,30 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
       aria-label={screen.featureName}
     >
       <div className={`${styles.inner} landing-wide`}>
-        {/* 左：金句大字标题（对话原句，加「」逐字打出）+ 功能名小字 */}
+        {/* 左：金句大字标题（对话原句，「」+ Decrypted Text 入场）+ 功能名与说明段 */}
         <div className={styles.left}>
-          {reduced ? (
-            /* reduced-motion：直接显示成稿（dev-spec §6） */
-            <h2 className={styles.title}>{screen.title}</h2>
-          ) : (
-            <h2 className={styles.title}>
-              {inView && (
-                <TextType
-                  text={screen.title}
-                  as="span"
-                  showCursor={false}
-                  typingSpeed={typing.speed}
-                  initialDelay={typing.initialDelay}
-                  variableSpeed={typing.variable}
-                  loop={false}
-                  holdOnComplete
-                  startOnVisible={false}
+          <h2 className={styles.title} aria-label={screen.title}>
+            {titleLines.map((line, i) =>
+              reduced ? (
+                <span key={i} className={styles.titleLine}>{line}</span>
+              ) : (
+                <DecryptedText
+                  key={i}
+                  text={line}
+                  animateOn="view"
+                  sequential
+                  speed={28}
+                  maxIterations={14}
+                  revealDirection="start"
+                  /* parentClassName = 容器级（行块）；className 是字符级，勿在此设 display */
+                  parentClassName={styles.titleLine}
+                  encryptedClassName={styles.titleEncrypted}
                 />
-              )}
-            </h2>
-          )}
+              ),
+            )}
+          </h2>
           <p className={styles.featureName}>{screen.featureName}</p>
+          <p className={styles.description}>{screen.description}</p>
         </div>
 
       {/* 对话卡片：Tilted Card（2026-09-25 Skyer 指定）——3D 倾斜；

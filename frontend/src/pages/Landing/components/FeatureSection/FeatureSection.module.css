@@ -45,7 +45,7 @@
   gap: 18px;
 }
 
-/* 标题：无衬线（正在说） */
+/* 标题：无衬线（正在说）；Decrypted Text 逐行呈现 */
 .title {
   color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
   font-family: var(--lp-font-sans);
@@ -55,12 +55,32 @@
   min-height: 1.45em;
 }
 
+/* 标题行：块级（首屏两行断法） */
+.titleLine {
+  display: block;
+}
+
+/* 解密中的混淆字符：略暗，与明文区分 */
+.titleEncrypted {
+  color: var(--lp-text-2);
+  opacity: 0.75;
+}
+
 /* 功能名小字：衬线（注释时态） */
 .featureName {
   font-family: var(--lp-font-serif);
   font-size: 14px;
   letter-spacing: 0.28em;
   color: var(--lp-text-2);
+}
+
+/* 说明段：面向用户的技术性说明（Skyer 2026-09-25 扩写） */
+.description {
+  font-family: var(--lp-font-serif);
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--lp-text-2);
+  max-width: 46ch;
 }
 
 /* ---------- 右：Tilted Card 对话卡片（纯色卡面 + 前置气泡层）
