@@ -38,8 +38,24 @@ export default function TrustWall() {
   const reduced = useReducedMotion()
   const [runwayRef, progress] = useScrollProgress<HTMLDivElement>()
   const sectionRef = useRef<HTMLElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
   /** 展开的卡片 id（单开，不连锁；hover / focus 触发） */
   const [openCard, setOpenCard] = useState<string | null>(null)
+  /** 横滚最大位移（px）——实测 track 溢出量，保证末卡滚动结束后完整可见 */
+  const [maxShift, setMaxShift] = useState(0)
+
+  useEffect(() => {
+    const measure = () => {
+      const vp = viewportRef.current
+      const tk = trackRef.current
+      if (!vp || !tk) return
+      setMaxShift(Math.max(0, tk.scrollWidth - vp.clientWidth + 24))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
   /* 注册劫持区间给顶栏（sticky 冻结纵向滚动的区间内顶栏常显） */
   useEffect(() => {
@@ -91,7 +107,8 @@ export default function TrustWall() {
   /* 2026-09-25 Skyer：完全显示后再接管——pin 钉住的进度为 innerH/(innerH+total)，
      runway 340vh 时 ≈0.29，取 0.34 起步（再留一拍），0.9 收尾 */
   const stripP = map(progress, 0.34, 0.9) // 卡片横移进度
-  const trackShift = stripP * 62 // vh 单位的横移量（由卡片总宽决定）
+  /** 位移按实测溢出量（px）而非固定 vh——不同视口下末卡都能完整可见 */
+  const trackShiftPx = stripP * maxShift
   /* 标题随卡片滚出界面外（Skyer 2026-09-25：不做遮挡淡化，直接离场） */
   const titleShift = stripP * 70 // vh，略快于卡片离场
 
@@ -127,10 +144,15 @@ export default function TrustWall() {
           </div>
 
           {/* 卡片轨道：纵向滚动 → 横向位移；hover 出容器即收起（单开） */}
-          <div className={styles.viewport} onMouseLeave={() => setOpenCard(null)}>
+          <div
+            className={styles.viewport}
+            ref={viewportRef}
+            onMouseLeave={() => setOpenCard(null)}
+          >
             <div
               className={styles.track}
-              style={{ transform: `translateX(calc(-${trackShift}vh))` }}
+              ref={trackRef}
+              style={{ transform: `translateX(-${trackShiftPx}px)` }}
             >
               {TRUST_COPY.cards.map((card) => (
                 <TrustCard

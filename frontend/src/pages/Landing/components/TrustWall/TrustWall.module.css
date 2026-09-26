@@ -63,6 +63,7 @@
 /* ---------- 卡片轨道 ---------- */
 .viewport {
   flex: 1;
+  min-width: 0; /* flex 子项默认 min-width:auto 会被内容撑开（轨道溢出量测不到，末卡裁切） */
   overflow: visible;
 }
 
@@ -102,6 +103,7 @@
   gap: 12px;
   padding: 22px 24px;
   min-height: 208px; /* 未展开时四卡等高（Skyer 2026-09-25） */
+  border-radius: 22px; /* 展开态的卡面色块也走圆角（避免 hover 后出现直角，Skyer 2026-09-25） */
   background: transparent; /* 底/边框由 BorderGlow 承担 */
   transition: background 0.25s ease;
 }
@@ -237,15 +239,15 @@
   white-space: pre-wrap;
 }
 
-/* ---------- 护栏①：底部进度条 ---------- */
+/* ---------- 护栏①：底部进度条（加粗，Skyer 2026-09-25） ---------- */
 .progressTrack {
   position: absolute;
   bottom: 34px;
   left: 50%;
   transform: translateX(-50%);
   width: min(420px, 64vw);
-  height: 2px;
-  border-radius: 1px;
+  height: 4px;
+  border-radius: 2px;
   background: var(--lp-hairline);
   overflow: hidden;
   z-index: 1; /* 抬到 Beams 光束之上 */

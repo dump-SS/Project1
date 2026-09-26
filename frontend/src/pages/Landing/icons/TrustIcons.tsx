@@ -28,7 +28,16 @@ function Svg({
       aria-hidden
     >
       <defs>
-        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+        {/* userSpaceOnUse：零宽/零高的直线路径（如柱状图的竖线）在
+            objectBoundingBox 下包围盒退化、渐变失效导致整组线不渲染 */}
+        <linearGradient
+          id={gradientId}
+          gradientUnits="userSpaceOnUse"
+          x1="2"
+          y1="2"
+          x2="22"
+          y2="22"
+        >
           <stop offset="0%" stopColor="#8FD3E8" />
           <stop offset="50%" stopColor="#4AD1FF" />
           <stop offset="100%" stopColor="#1B5DBF" />
