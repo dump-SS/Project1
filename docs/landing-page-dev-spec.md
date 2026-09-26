@@ -239,8 +239,8 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - **页尾动效区**：左右留空 `margin-inline: clamp(20px, 3vw, 56px)`、`border-radius: 40px 40px 0 0`（上两角大圆角）、上边缘紧贴输入框（实测间距 31px）、页底 `GradualBlur`。
 - **页底渐隐（GradualBlur）最终口径**（Skyer 2026-09-25 四次校准定型）：
   - **高度固定不变**：宿主 `position: fixed; bottom: 0; height: 30vh`（组件根 `preset="bottom"` + `height="100%"` 绝对铺满，掩膜百分比随宿主缩放）。30vh 的上沿（900 高视口下 y=630）正好落在页脚文字（logo/链接/版权/合规声明）下方 → 静止时文字全清晰，只有卡片下半的空白渐变成软边。
-  - **渲染时机 = 分割线滚进视口**：`dividerRef.getBoundingClientRect().top < window.innerHeight` 即点亮（0.4s 淡入），滚回去自动熄灭——「从分割线滚入屏幕内就开始渲染」。
-  - 实测：分割线 y=598 → opacity 1（已亮）；y=250 → 1；分割线在视口下方（y=912）→ 0；带高恒为 270px、带上沿恒为 630。带内内容（logo/链接/返回顶部）明显发虚，带外（末句/输入框）清晰——对照关闭 `backdrop-filter` 的一帧全清晰。
+  - **渲染时机 = 「分割线与末句的中点」滚进视口**（Skyer 2026-09-25：不要卡在分割线处触发，往下挪到两者之间）：`mid = (分割线.top + 末句.top) / 2`，`mid < window.innerHeight` 即点亮（0.4s 淡入），滚回去自动熄灭。取中点而非写死偏移量，上方留白改了也不会失准（实测触发瞬间 分割线 y≈700、末句 y≈820、mid≈760；早于此 mid≥1108 时为熄灭）。
+  - 实测：`mid 1457 → op 0`；`mid 760 → 0.93`（淡入中）；`mid 551/342/133 → 1`；带高恒为 270px、带上沿恒为 630。带内内容（logo/链接/返回顶部）明显发虚，带外（末句/输入框）清晰——对照关闭 `backdrop-filter` 的一帧全清晰。
   - 更早的两版（绝对定位贴页面底、上沿随分割线伸缩）都已被这版取代：前者滚入时不在屏幕里故不可见，后者与「高度固定」的要求不符。
   - 🐞 **「始终看不到」的真因（2026-09-25 定位，与强度/位置/mask 均无关）**：`GradualBlur` 的渐变层用 Tailwind **`absolute inset-0`** 定尺，而本页只引 `tailwindcss/utilities`、**没引 theme**（见文件头注释）→ `inset-0` 编译为 `calc(var(--spacing) * 0)`，`--spacing` 未定义 → 整条声明被丢弃 → 三层实测都是 **0×0**，`backdrop-filter` 无从作用。对照实验：手写的 `backdrop-filter: blur(24px)` 层（带/不带 mask）都正常糊 ✓，只有组件层是 0×0 ✗。**修法**：`landing.css` 加 `.landing .gradual-blur > div > div { inset: 0 }`。
   - ⚠️ 同类风险：`TiltedCard`（`top-0 left-0`）、`GlassSurface`（`p-2`）也用了主题相关工具类而静默失效——当前视觉无碍，但新增组件务必**只用任意值语法**（`text-[#4AD1FF]` 这类）。

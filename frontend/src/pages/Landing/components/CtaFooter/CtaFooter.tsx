@@ -33,8 +33,10 @@ export default function CtaFooter() {
   /** 页底渐隐带是否渲染：分割线一滚进视口就开（Skyer 2026-09-25 最终口径） */
   const [bandOn, setBandOn] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
-  /** 分割线：渐隐带渲染时机的判据（带子本身高度固定，不随它变） */
+  /** 分割线：渐隐带渲染时机的参照（带子本身高度固定，不随它变） */
   const dividerRef = useRef<HTMLDivElement>(null)
+  /** 末句：与分割线一起取中点，作为渐隐带的触发位置（Skyer 2026-09-25） */
+  const lineRef = useRef<HTMLParagraphElement>(null)
   /** 渐隐带宿主（固定高度见 CSS，只切换渲染开关） */
   const bandRef = useRef<HTMLDivElement>(null)
 
@@ -43,17 +45,22 @@ export default function CtaFooter() {
 
   /* 滑到最底部：句子翻转与光变亮同一个拍子（整页唯一可爆发情绪处）
      + 页底渐隐带（Skyer 2026-09-25 四次校准，最终口径）：
-       **带子高度固定不变**（30vh，见 .blurHost），**分割线一滚进视口就开始渲染**
-       （淡入 0.4s，滚回去自动熄灭）——即「从分割线滚入屏幕内即生效」，不再随分割线
-       伸缩。上沿固定在距视口底 30vh 处，正好落在页脚文字（logo/链接/版权/合规声明）
-       下方，所以静止时文字全部清晰，只有卡片下半的空白渐变是软的。 */
+       **带子高度固定不变**（30vh，见 .blurHost），**触发点取「分割线」与「末句」的中点**
+       （Skyer 2026-09-25：不要卡在分割线处触发，往下挪到两者之间）——中点进入视口即点亮
+       （淡入 0.4s，滚回去自动熄灭）。取中点而非写死偏移量，留白改了也不会失准。
+       上沿固定在距视口底 30vh 处，正好落在页脚文字（logo/链接/版权/合规声明）下方，
+       所以静止时文字全部清晰，只有卡片下半的空白渐变是软的。 */
   useEffect(() => {
     const onScroll = () => {
       const vh = window.innerHeight
       const reach = window.scrollY + vh
       setAtBottom(reach >= document.documentElement.scrollHeight - 8)
       const divider = dividerRef.current
-      setBandOn(!!divider && divider.getBoundingClientRect().top < vh)
+      const line = lineRef.current
+      if (!divider || !line) return
+      const mid =
+        (divider.getBoundingClientRect().top + line.getBoundingClientRect().top) / 2
+      setBandOn(mid < vh)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
@@ -86,7 +93,7 @@ export default function CtaFooter() {
       <section className={styles.cta} aria-label="开始使用" ref={ctaRef}>
         <div className={`${styles.ctaInner} landing-wrap`}>
           {/* 末句：衬线（两句都改）；滑到底翻转——首句淡出、后句「折入」+ 渐变字 */}
-          <p className={styles.finalLine} aria-live="polite">
+          <p className={styles.finalLine} aria-live="polite" ref={lineRef}>
             <span className={atBottom ? styles.lineOut : ''}>{CTA_COPY.before}</span>
             <span
               className={`${styles.lineIn} ${atBottom ? '' : styles.lineHidden}`}
