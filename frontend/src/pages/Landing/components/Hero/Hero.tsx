@@ -257,13 +257,14 @@ export default function Hero() {
                 onClick={goLogin}
                 size="lg"
                 radius={28}
-                tint="#EAF5FF" /* 极淡蓝（近白）——与 CTA 发送键同色（Skyer 2026-09-25） */
+                tint="#EAF5FF" /* 静息：极淡蓝（近白）——与 CTA 发送键同色（Skyer 2026-09-25） */
                 tintOpacity={1}
-                textColor="#0B1017" /* 淡底上用深字 */
-                lineColor="#5CC8EC" /* 高光边改青蓝：近白底上白线看不见 */
+                textColor="#0B1017" /* 淡底/青底都用深字 */
+                lineColor="#EAF7FF" /* 高光改浅色：hover 填充转青后才看得见（2026-09-25） */
                 baseColor="#0F1520"
-                intensity={2}
-                thickness={1.3}
+                intensity={2.6} /* 高光更亮（2 → 2.6） */
+                thickness={1.6} /* 描边更粗（1.3 → 1.6） */
+                shineSize={14} /* 高光弧更宽（默认 10） */
                 className={styles.ctaBtn}
               >
                 {HERO_ACTIONS.primary}

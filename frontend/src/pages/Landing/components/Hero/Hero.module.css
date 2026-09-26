@@ -209,10 +209,21 @@
   box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.10);
 }
 
-/* 即刻开始：Specular Button（品牌色填充，ogl 高光边缘） */
+/* 即刻开始：Specular Button（ogl 高光边缘）。
+   hover 处理（Skyer 2026-09-25：填充改近白后原高光动效不明显，要更明显更鲜艳）：
+   ① 填充由「极淡蓝」转品牌青——`--sb-tint` 被组件**内联**写在按钮上，故必须 !important
+      才压得住（已实测生效）；
+   ② 加品牌青外发光——近白底上这道光比描边高光更抓眼，也与页面其它青色焦点呼应。
+   文字仍是深色 #0B1017，在青底上对比约 9:1；高光描边同步改浅色（见 Hero.tsx props）。 */
 .ctaBtn {
   flex: 1;
   font-family: var(--lp-font-sans) !important;
+  transition: background 220ms ease, box-shadow 260ms ease;
+}
+.ctaBtn:hover,
+.ctaBtn:focus-visible {
+  --sb-tint: #4ad1ff !important;
+  box-shadow: 0 10px 26px rgba(74, 209, 255, 0.34);
 }
 
 /* 即刻开始的 Suspense 兜底（ogl chunk 加载前占位，样式与成品对齐） */
