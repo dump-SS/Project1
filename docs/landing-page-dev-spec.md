@@ -368,7 +368,50 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 
 ---
 
-## 9. 待定与待实测
+## 9. 英文版（i18n）· 2026-09-27
+
+Skyer 决策：**只做落地页**（应用内页面不动）、**全量翻译**（含三屏真对话样本、隐私四卡长文、合规声明）、**英文由我直译并标「待 review」**。
+
+### 9.1 机制
+
+| 项 | 做法 |
+|---|---|
+| 依赖 | **零新增依赖**：`frontend/package.json` 是共享独占文件（AGENTS.md 铁律 3），落地页文案本就集中，故用 `content/i18n.tsx` 的 Context + 字典 |
+| 文案结构 | `content/copy.ts` 只放 **interface + re-export**；`copy.zh.ts` / `copy.en.ts` 两套同形文案。用显式 interface 而非 `typeof COPY_ZH`，保证**漏翻一条即编译不过** |
+| 语言来源 | ① URL `?lang=en\|zh`（可分享，优先）→ ② `localStorage['epochx.landing.locale']` → ③ 默认 zh |
+| 切换副作用 | 写 localStorage + `history.replaceState` 同步地址栏（不留历史记录）+ 设 `<html lang>`（读屏/字体回退/浏览器翻译提示都看它）；首次挂载把解析结果落盘，故走 `?lang=en` 链接进来的人下次访问根地址仍是英文 |
+| 组件消费 | `useCopy()` / `useLocale()` / `useDialogues()`；`LandingLocaleProvider` 挂在 `Landing/index.tsx` |
+| 真对话 | `content/dialogues.ts` 改为 `DIALOGUES_BY_LOCALE`（zh/en 同形），英文逐句对应、不增删句子 |
+
+### 9.2 双语化时必须清掉的「语言硬编码」（都已改）
+
+| 位置 | 原写法 | 现写法 |
+|---|---|---|
+| Hero 加粗段 | `StrongProximity` 写死 label「围着」「你」「转」 | 按当前语言 `strong` + `highlight` 拆三段（high 段为空则不起 VariableProximity） |
+| Hero 蓝字 | `renderWithYou` 用 `indexOf('你')` | `indexOf(highlight)` + 按 `highlight.length` 整段染色（英文 you 是三个字符） |
+| 第二屏标题断行 | 按中文逗号 `indexOf('，')` 拆两行 | 文案显式给 `headlineLines`，不再靠标点 |
+| 第二屏蓝字 | `s[idx]` 单字染色 | 按 `highlight` 整段匹配染色 |
+| 隐私卡占位 | 组件内硬编码「界面截图 · 待接入」 | `trust.placeholderLabel` |
+| 读屏标签 | 组件内硬编码「三时代」「隐私安全」「功能一览」「开始使用」「主导航」「页脚链接」「发送」「真实对话」「EpochX 首页」等 | 统一收进 `a11y.*`（英文版读屏必须念英文） |
+
+### 9.3 英文专属调整（待 review）
+
+- **Hero slogan 字号**：英文句（"Learning tools, built around you."）≈ 中文 11 字的 2 倍宽，沿用中文档 `clamp(30px,4.6vw,56px)` 会在中等宽度折行 → 英文档 `.sloganEn { font-size: clamp(26px,3.5vw,44px) }`（实测 1440×900 下成稿 695px 一行）。
+- **Hero slogan 换词结构**：中文「学习工具，围着**题**转」→「学习工具，围着**你**转」；英文同构 **Learning tools, built around _questions_** → **…_**you**_（`base` = 公共前缀，退格退到 base 再打 strong）。
+- **真对话的翻译披露**：中文角标声明「对话为测试期间产品真实生成」；英文沿用同一句而不说明翻译＝夸大素材来源，故英文角标补 **(translated)**。
+- **不译项**：品牌名 EpochX / EpochX Web、版权持有者「未名_Official」（账号名，保留原写法，故英文页仍有一处中文，属有意）。
+- **CTA 末句**（Nothing, without you. / You're everything.）两种语言一致——本就是英文原句。
+
+### 9.4 待 review 清单（review 时按这个顺序看）
+
+1. `content/copy.en.ts` 全文（约 80 条）——尤其三屏 `featureScreens.description`（技术说明段，信息密度最高）；
+2. `content/dialogues.en.ts` 的三段真对话 + S5 整段（语气、称呼、"你"的译法是否统一用 you）；
+3. §9.3 的四条英文专属调整；
+4. 英文 slogan 的语义（"built around questions" 对应「围着题转」是否达意）。
+
+---
+
+## 10. 待定与待实测
 
 **待实测（✅ 2026-09-25 全部回填完毕）**
 

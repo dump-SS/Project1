@@ -2,8 +2,7 @@ import DecryptedText from '../bits/DecryptedText'
 import TiltedCard from '../bits/TiltedCard'
 import { useInView } from '../../hooks/useInView'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { FEATURE_SCREENS, DIALOGUE_CAPTION } from '../../content/copy'
-import { DIALOGUES } from '../../content/dialogues'
+import { useLocale } from '../../content/i18n'
 import {
   IconStopwatch, IconReportCard, IconNotebook, IconFlask, IconBook,
 } from '../../icons/DarkMotifs'
@@ -31,12 +30,13 @@ const SCREEN_META: Record<
 
 export default function FeatureSection({ screenId }: { screenId: string }) {
   const reduced = useReducedMotion()
-  const screen = FEATURE_SCREENS.find((s) => s.id === screenId)
   const [sectionRef, inView] = useInView<HTMLElement>('0px 0px', true)
+  const { copy: c, dialogues } = useLocale()
+  const screen = c.featureScreens.find((s) => s.id === screenId)
   if (!screen) return null
 
   const meta = SCREEN_META[screenId]
-  const dialogue = DIALOGUES[screen.dialogueId]
+  const dialogue = dialogues[screen.dialogueId]
   /* 标题行：首屏两行断法（Skyer 指定），其余单行 */
   const titleLines: readonly string[] = (screen as { titleLines?: readonly string[] }).titleLines ?? [screen.title]
 
@@ -87,7 +87,7 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
           showMobileWarning={false}
           showTooltip={false}
         >
-          <div className={styles.cardFace} aria-label="真实对话">
+          <div className={styles.cardFace} aria-label={c.a11y.dialogueCard}>
             {/* 主题暗纹：附着在卡内左上角（Skyer 2026-09-25：原在卡外右下，移入卡内） */}
             <div className={styles.cardMotifs} aria-hidden>
               {meta.motifs.map((Icon, i) => (
@@ -105,7 +105,7 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
               ))}
             </div>
             {/* 卡片右下角标：素材来源声明（Skyer 2026-09-25 指定） */}
-            <p className={styles.cardCaption}>{DIALOGUE_CAPTION}</p>
+            <p className={styles.cardCaption}>{c.dialogueCaption}</p>
           </div>
         </TiltedCard>
       </div>

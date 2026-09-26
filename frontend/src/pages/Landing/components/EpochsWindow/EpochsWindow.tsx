@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useScrollProgress } from '../../hooks/useScrollProgress'
-import { EPOCHS_COPY } from '../../content/copy'
+import { useCopy } from '../../content/i18n'
 import { setHijackRange } from '../../lib/navScrollGuard'
 import styles from './EpochsWindow.module.css'
 
@@ -28,6 +28,7 @@ const CARD_OFF_OFF = 0.58
 
 export default function EpochsWindow() {
   const reduced = useReducedMotion()
+  const c = useCopy()
   const [ref, progress] = useScrollProgress<HTMLDivElement>()
   const [cardOff, setCardOff] = useState(false)
 
@@ -71,7 +72,7 @@ export default function EpochsWindow() {
   if (reduced) {
     // 静态降级：三格并排 + logo 定格（无滚动跑道）
     return (
-      <section className={styles.staticSection} aria-label="三时代">
+      <section className={styles.staticSection} aria-label={c.a11y.epochs}>
         <div className={`${styles.staticGrid} landing-wide`}>
           <div className={styles.staticFrame}><span>古代书简</span></div>
           <div className={styles.staticFrame}><span>书山题海</span></div>
@@ -94,7 +95,7 @@ export default function EpochsWindow() {
 
   return (
     <div className={styles.runway} ref={ref}>
-      <section className={styles.pin} aria-label="三时代">
+      <section className={styles.pin} aria-label={c.a11y.epochs}>
         {/* 全屏滑动窗口：三格横移，左侧顶屏幕边缘（Skyer 2026-09-25） */}
         <div
           className={styles.track}
@@ -173,38 +174,35 @@ export default function EpochsWindow() {
 }
 
 function Copy() {
-  const text = EPOCHS_COPY.headline
-  const youIdx = text.indexOf(EPOCHS_COPY.highlight)
-  // 2026-09-25 Skyer：标题在逗号后换行（两行），字号加大加粗；「构建」不折行
-  const commaIdx = text.indexOf('，')
-  const line1 = commaIdx >= 0 ? text.slice(0, commaIdx + 1) : ''
-  const rest = commaIdx >= 0 ? text.slice(commaIdx + 1) : text
+  const c = useCopy()
+  const { headline, headlineLines, sub, highlight } = c.epochs
 
-  const renderYou = (s: string) => {
-    const idx = s.indexOf(EPOCHS_COPY.highlight)
-    if (idx < 0) return <span>{s}</span>
+  /* 高亮片段可能不止一个字（中文「你」一个、英文 you 三个），故按整段匹配
+     ——旧实现写死单字 `s[idx]`，双语下会只染上首字母 */
+  const renderHighlight = (line: string) => {
+    const idx = line.indexOf(highlight)
+    if (idx < 0) return <span>{line}</span>
     return (
       <>
-        <span>{s.slice(0, idx)}</span>
-        <span className={styles.you}>{s[idx]}</span>
-        <span>{s.slice(idx + 1)}</span>
+        <span>{line.slice(0, idx)}</span>
+        <span className={styles.you}>{line.slice(idx, idx + highlight.length)}</span>
+        <span>{line.slice(idx + highlight.length)}</span>
       </>
     )
   }
 
   return (
     <div>
-      <h2 className={styles.headline}>
-        {commaIdx >= 0 && youIdx > commaIdx ? (
-          <>
-            <span className={styles.headlineLine}>{line1}</span>
-            <span className={styles.headlineLine}>{renderYou(rest)}</span>
-          </>
-        ) : (
-          renderYou(text)
-        )}
+      {/* 断行由文案显式给出（headlineLines）——旧实现按中文逗号 indexOf('，') 拆行，
+          英文句子里没有全角逗号，拆行会失效 */}
+      <h2 className={styles.headline} aria-label={headline}>
+        {headlineLines.map((line, i) => (
+          <span key={i} className={styles.headlineLine}>
+            {renderHighlight(line)}
+          </span>
+        ))}
       </h2>
-      <p className={styles.sub}>{EPOCHS_COPY.sub}</p>
+      <p className={styles.sub}>{sub}</p>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { ICON_SEA_COPY } from '../../content/copy'
+import { useCopy } from '../../content/i18n'
 import { SEA_ICONS } from '../../icons/FeatureIcons'
 import { LogoLoop } from '../bits/LogoLoop'
 import styles from './IconSea.module.css'
@@ -12,11 +12,12 @@ import styles from './IconSea.module.css'
  */
 export default function IconSea() {
   const reduced = useReducedMotion()
-  const text = ICON_SEA_COPY.caption
-  const youIdx = text.indexOf(ICON_SEA_COPY.highlight)
+  const c = useCopy()
+  const text = c.iconSea.caption
+  const youIdx = text.indexOf(c.iconSea.highlight)
 
   const logos = SEA_ICONS.map((Icon, i) => {
-    const label = ICON_SEA_COPY.order[i % ICON_SEA_COPY.order.length]
+    const label = c.iconSea.order[i % c.iconSea.order.length]
     return {
       node: (
         <div
@@ -33,7 +34,7 @@ export default function IconSea() {
   })
 
   return (
-    <section className={styles.section} aria-label="功能一览">
+    <section className={styles.section} aria-label={c.a11y.iconSea}>
       <div className={`${styles.head} landing-wrap`}>
         <h2 className={styles.caption}>
           <span>{text.slice(0, youIdx)}</span>
@@ -56,7 +57,7 @@ export default function IconSea() {
           style={{ paddingBlock: 26 }}
           fadeOut
           fadeOutColor="#10161E"
-          ariaLabel={`功能顺序：${ICON_SEA_COPY.order.join('、')}`}
+          ariaLabel={c.iconSea.order.join(' · ')}
         />
       </div>
     </section>

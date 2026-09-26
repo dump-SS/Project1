@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useScrollProgress } from '../../hooks/useScrollProgress'
-import { TRUST_COPY } from '../../content/copy'
-import { S5 } from '../../content/dialogues'
+import { useLocale } from '../../content/i18n'
+import type { TrustCardCopy } from '../../content/copy'
 import { IconChevronDown } from '../../icons/UiIcons'
 import { IconLock, IconBars, IconReturn, IconShieldAlert } from '../../icons/TrustIcons'
 import styles from './TrustWall.module.css'
@@ -35,6 +35,7 @@ const CARD_ICONS = {
 
 export default function TrustWall() {
   const reduced = useReducedMotion()
+  const { copy: c, dialogues } = useLocale()
   const [runwayRef, progress] = useScrollProgress<HTMLDivElement>()
   const sectionRef = useRef<HTMLElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -97,12 +98,19 @@ export default function TrustWall() {
   if (reduced) {
     /* 静态降级：纵向原生滚动，卡片全展开 */
     return (
-      <section className={styles.staticSection} aria-label="隐私安全">
-        <h2 className={styles.title}>{TRUST_COPY.title}</h2>
-        <p className={styles.sub}>{TRUST_COPY.sub}</p>
+      <section className={styles.staticSection} aria-label={c.a11y.trust}>
+        <h2 className={styles.title}>{c.trust.title}</h2>
+        <p className={styles.sub}>{c.trust.sub}</p>
         <div className={styles.staticGrid}>
-          {TRUST_COPY.cards.map((card) => (
-            <TrustCard key={card.id} card={card} expanded />
+          {c.trust.cards.map((card) => (
+            <TrustCard
+              key={card.id}
+              card={card}
+              s5={dialogues.S5}
+              placeholderLabel={c.trust.placeholderLabel}
+              s5Label={c.a11y.realDialogue}
+              expanded
+            />
           ))}
         </div>
       </section>
@@ -119,7 +127,7 @@ export default function TrustWall() {
 
   return (
     <div className={styles.runway} ref={runwayRef}>
-      <section className={styles.pin} ref={sectionRef} aria-label="隐私安全">
+      <section className={styles.pin} ref={sectionRef} aria-label={c.a11y.trust}>
         {/* 背景：Beams 光束（Skyer 2026-09-25；reduced-motion 不挂载，纯深底） */}
         {!reduced && (
           <div className={styles.beamsLayer} aria-hidden>
@@ -144,8 +152,8 @@ export default function TrustWall() {
             className={styles.titleBlock}
             style={{ transform: `translateX(calc(${-titleShift}vh))` }}
           >
-            <h2 className={styles.title}>{TRUST_COPY.title}</h2>
-            <p className={styles.sub}>{TRUST_COPY.sub}</p>
+            <h2 className={styles.title}>{c.trust.title}</h2>
+            <p className={styles.sub}>{c.trust.sub}</p>
           </div>
 
           {/* 卡片轨道：纵向滚动 → 横向位移；hover 出容器即收起（单开） */}
@@ -159,10 +167,13 @@ export default function TrustWall() {
               ref={trackRef}
               style={{ transform: `translateX(-${trackShiftPx}px)` }}
             >
-              {TRUST_COPY.cards.map((card) => (
+              {c.trust.cards.map((card) => (
                 <TrustCard
                   key={card.id}
                   card={card}
+                  s5={dialogues.S5}
+                  placeholderLabel={c.trust.placeholderLabel}
+                  s5Label={c.a11y.realDialogue}
                   open={openCard === card.id}
                   onOpen={() => setOpenCard(card.id)}
                   onClose={() => setOpenCard((cur) => (cur === card.id ? null : cur))}
@@ -185,12 +196,21 @@ export default function TrustWall() {
 
 function TrustCard({
   card,
+  s5,
+  placeholderLabel,
+  s5Label,
   expanded = false,
   open = false,
   onOpen,
   onClose,
 }: {
-  card: (typeof TRUST_COPY.cards)[number]
+  card: TrustCardCopy
+  /** 卡 4 配图素材（S5 真对话；随语言变化，由外层传入） */
+  s5: { user: string; product: string[] }
+  /** 未接入截图时的占位文案（随语言变化） */
+  placeholderLabel: string
+  /** 卡 4 配图的读屏标签 */
+  s5Label: string
   expanded?: boolean
   open?: boolean
   onOpen?: () => void
@@ -244,11 +264,11 @@ function TrustCard({
               <div className={styles.figureInner}>
                 <div className={styles.figureVisual}>
                   {isS5 ? (
-                    <S5Preview />
+                    <S5Preview lines={s5} label={s5Label} />
                   ) : (
                     /* TODO(素材)：M1（X1 壳 + B 真链路）后替换真界面截图（dev-spec §5.3） */
-                    <div className={styles.placeholder} aria-label={`${card.name}（界面截图占位）`}>
-                      <span>界面截图 · 待接入</span>
+                    <div className={styles.placeholder} aria-label={`${card.name} — screenshot placeholder`}>
+                      <span>{placeholderLabel}</span>
                     </div>
                   )}
                 </div>
@@ -281,11 +301,11 @@ function TrustCard({
 }
 
 /* 卡 4 配图：S5 对话（跑批真素材，landing-conversation-samples.md §8） */
-function S5Preview() {
+function S5Preview({ lines, label }: { lines: { user: string; product: string[] }; label: string }) {
   return (
-    <div className={styles.s5} aria-label="真实对话示例">
-      <p className={styles.s5User}>{S5.user}</p>
-      {S5.product.map((line, i) => (
+    <div className={styles.s5} aria-label={label}>
+      <p className={styles.s5User}>{lines.user}</p>
+      {lines.product.map((line, i) => (
         <p key={i} className={styles.s5Product}>
           {line}
         </p>

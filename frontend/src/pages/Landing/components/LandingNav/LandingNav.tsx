@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { NAV_COPY } from '../../content/copy'
+import { useLocale } from '../../content/i18n'
 import { getHijackActive, isInHijack, subscribeHijack } from '../../lib/navScrollGuard'
 import GlassSurface from '../bits/GlassSurface'
 import styles from './LandingNav.module.css'
@@ -13,19 +13,23 @@ interface PanelDef {
   readonly items: ReadonlyArray<{ readonly name: string; readonly href: string }>
 }
 
-const PANELS: Record<Exclude<MenuKey, null>, PanelDef | null> = {
-  product: NAV_COPY.productPanel,
-  pricing: null, // 定价无展开面板，选项后带灰描边「暂无」标签
-  resources: NAV_COPY.resourcesPanel,
-}
+/** 三个菜单的键序（与 c.nav.menus 一一对应；不按标签文本匹配，英文版才不会错位） */
+const MENU_KEYS = ['product', 'pricing', 'resources'] as const
 
 export default function LandingNav() {
   const { status } = useAuth()
+  const { copy: c, locale, toggleLocale } = useLocale()
   const [openMenu, setOpenMenu] = useState<MenuKey>(null)
-  /** 语言切换（独立小下拉，与左侧 mega 面板无关）：hover 展开 + 自持当前语言状态。
-   *  站内文案暂无 i18n，切换只改按钮标签与选项（占位，将来接 i18n 从这里接出去）。 */
+  /** 语言切换（独立小下拉，与左侧 mega 面板无关）：hover 展开。
+   *  open 状态自持；当前语言来自 i18n（localStorage + ?lang=），点选即真切语言。 */
   const [langOpen, setLangOpen] = useState(false)
-  const [lang, setLang] = useState<'zh' | 'en'>('zh')
+
+  /* 面板定义随语言变化，故放组件内 */
+  const panels: Record<Exclude<MenuKey, null>, PanelDef | null> = {
+    product: c.nav.productPanel,
+    pricing: null, // 定价无展开面板，选项后带灰描边「暂无」标签
+    resources: c.nav.resourcesPanel,
+  }
   const [scrolledPastHero, setScrolledPastHero] = useState(false)
   const [hidden, setHidden] = useState(false) // 下滑收起 / 上滑弹出
   const [footerInView, setFooterInView] = useState(false)
@@ -135,7 +139,7 @@ export default function LandingNav() {
   }, [])
 
   const authed = status === 'authenticated'
-  const panel = openMenu ? PANELS[openMenu] : null
+  const panel = openMenu ? panels[openMenu] : null
   // 背景失焦虚化（backdrop-filter + 遮罩）与 reduced-transparency 降级均在 CSS 内处理
 
   return (
@@ -181,7 +185,7 @@ export default function LandingNav() {
         {/* 2026-09-25 Skyer：菜单移到 logo 后面（左侧成组），登录右侧；容器向两边靠 */}
         <div className={`${styles.bar} landing-wide`} ref={barRef}>
           <div className={styles.barLeft}>
-            <Link to="/" className={styles.logo} aria-label="EpochX 首页" onClick={closePanel}>
+            <Link to="/" className={styles.logo} aria-label={c.a11y.homeLink} onClick={closePanel}>
               <img
                 src="/brand/logo-mark-on-dark-trim.png"
                 alt=""
@@ -198,11 +202,9 @@ export default function LandingNav() {
               </span>
             </Link>
 
-            <nav className={styles.menus} aria-label="主导航">
-              {(NAV_COPY.menus as readonly string[]).map((label) => {
-                const key = label === NAV_COPY.menus[0] ? 'product'
-                  : label === NAV_COPY.menus[1] ? 'pricing'
-                  : 'resources'
+            <nav className={styles.menus} aria-label={c.a11y.mainNav}>
+              {(c.nav.menus as readonly string[]).map((label, i) => {
+                const key = MENU_KEYS[i]
                 const isOpen = openMenu === key
                 return (
                   <button
@@ -226,7 +228,7 @@ export default function LandingNav() {
                         {label}
                       </span>
                     </span>
-                    {key === 'pricing' && <span className={styles.naTag}>{NAV_COPY.pricingNa}</span>}
+                    {key === 'pricing' && <span className={styles.naTag}>{c.nav.pricingNa}</span>}
                   </button>
                 )
               })}
@@ -247,11 +249,11 @@ export default function LandingNav() {
                 className={`${styles.langBtn} ${langOpen ? styles.langBtnOn : ''}`}
                 aria-haspopup="true"
                 aria-expanded={langOpen}
-                aria-label={NAV_COPY.lang.ariaLabel}
+                aria-label={c.nav.lang.ariaLabel}
                 onFocus={() => setLangOpen(true)}
                 onClick={() => setLangOpen((v) => !v)}
               >
-                {lang === 'zh' ? NAV_COPY.lang.zh : NAV_COPY.lang.en}
+                {locale === 'zh' ? c.nav.lang.zh : c.nav.lang.en}
                 <span className={styles.langCaret} aria-hidden />
               </button>
               {langOpen && (
@@ -262,11 +264,12 @@ export default function LandingNav() {
                       type="button"
                       className={styles.langItem}
                       onClick={() => {
-                        setLang((v) => (v === 'zh' ? 'en' : 'zh'))
+                        toggleLocale()
                         setLangOpen(false)
                       }}
                     >
-                      {lang === 'zh' ? NAV_COPY.lang.en : NAV_COPY.lang.zh}
+                      {/* 选项列另一种语言：中文版显示 ENG、英文版显示「简体中文」 */}
+                      {locale === 'zh' ? c.nav.lang.en : c.nav.lang.zh}
                     </button>
                   </li>
                 </ul>
@@ -275,11 +278,11 @@ export default function LandingNav() {
 
             {authed ? (
               <Link to="/study-guide" className={styles.loginBtn}>
-                {NAV_COPY.enterApp}
+                {c.nav.enterApp}
               </Link>
             ) : (
               <Link to="/login" className={styles.loginBtn}>
-                {NAV_COPY.login}
+                {c.nav.login}
               </Link>
             )}
           </div>

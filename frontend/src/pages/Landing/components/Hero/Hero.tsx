@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useFlashlight, hasHoverPointer } from '../../hooks/useFlashlight'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useSloganSequence } from '../../hooks/useSloganSequence'
-import { HERO_SLOGAN, HERO_ACTIONS, HERO_DRAFT_KEY } from '../../content/copy'
+import { HERO_DRAFT_KEY } from '../../content/copy'
+import { useCopy, useLocale } from '../../content/i18n'
 import {
   IconReportCard, IconBook, IconNotebook, IconPencil, IconRuler, IconCompass,
   IconTriangle, IconFlask, IconBeaker, IconTestTube, IconGlobe, IconMicroscope,
@@ -21,32 +22,41 @@ const SpecularButton = lazy(() => import('../bits/SpecularButton'))
 const VariableProximity = lazy(() => import('../bits/VariableProximity'))
 
 /** 加粗段的 Variable Proximity 呈现（成稿后启用；reduced/触屏走静态 800 字重）。
- *  蓝「你」夹在两段之间——VP 不支持单字染色，拆两段共用同一 containerRef。 */
-function StrongProximity({ sectionRef }: { sectionRef: RefObject<HTMLElement> }) {
+ *  高亮片段夹在两段之间——VP 不支持局部染色，故按 highlight 把 strong 拆三段。
+ *  ⚠️ 2026-09-27：原先这里写死「围着／你／转」，英文版会把中文粗字混进英文句子；
+ *  改为按当前语言的 strong + highlight 拆分（英文 strong = "you"，首尾段为空则跳过 VP）。 */
+function StrongProximity({
+  sectionRef,
+  strong,
+  highlight,
+}: {
+  sectionRef: RefObject<HTMLElement>
+  strong: string
+  highlight: string
+}) {
   const vpStyle = { fontFamily: '"LP-Sans-Var", "LP-Sans", sans-serif' } as const
+  const idx = strong.indexOf(highlight)
+  const head = idx >= 0 ? strong.slice(0, idx) : strong
+  const mid = idx >= 0 ? highlight : ''
+  const tail = idx >= 0 ? strong.slice(idx + highlight.length) : ''
+  const vp = (label: string) => (
+    <Suspense fallback={null}>
+      <VariableProximity
+        label={label}
+        fromFontVariationSettings="'wght' 500"
+        toFontVariationSettings="'wght' 900"
+        containerRef={sectionRef}
+        radius={320}
+        falloff="gaussian"
+        style={vpStyle}
+      />
+    </Suspense>
+  )
   return (
     <span className={styles.sloganStrong}>
-      <Suspense fallback={null}>
-        <VariableProximity
-          label="围着"
-          fromFontVariationSettings="'wght' 500"
-          toFontVariationSettings="'wght' 900"
-          containerRef={sectionRef}
-          radius={320}
-          falloff="gaussian"
-          style={vpStyle}
-        />
-        <span className={styles.you}>你</span>
-        <VariableProximity
-          label="转"
-          fromFontVariationSettings="'wght' 500"
-          toFontVariationSettings="'wght' 900"
-          containerRef={sectionRef}
-          radius={320}
-          falloff="gaussian"
-          style={vpStyle}
-        />
-      </Suspense>
+      {head ? vp(head) : null}
+      {mid ? <span className={styles.you}>{mid}</span> : null}
+      {tail ? vp(tail) : null}
     </span>
   )
 }
@@ -100,7 +110,9 @@ function MotifColumn({ col }: { col: number }) {
 export default function Hero() {
   const reduced = useReducedMotion()
   const navigate = useNavigate()
-  const { text, youVisible, strongFrom, finished } = useSloganSequence()
+  const c = useCopy()
+  const { locale } = useLocale()
+  const { text, youVisible, strongFrom, finished } = useSloganSequence(c.heroSlogan)
   const sectionRef = useFlashlight<HTMLElement>(!reduced)
   const glowRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
@@ -149,23 +161,25 @@ export default function Hero() {
   const goLogin = () => navigate('/login')
 
   // slogan：「你」高亮为蓝字（蓝字渲染辅助：在给定片段里拆出「你」）
+  /* 高亮片段可能不止一个字（英文 you），故按整段匹配并整段染色 */
   const renderWithYou = (s: string) => {
-    const idx = youVisible ? s.indexOf('你') : -1
+    const hl = c.heroSlogan.highlight
+    const idx = youVisible ? s.indexOf(hl) : -1
     if (idx < 0) return <span>{s}</span>
     return (
       <>
         <span>{s.slice(0, idx)}</span>
-        <span className={styles.you}>{s[idx]}</span>
-        <span>{s.slice(idx + 1)}</span>
+        <span className={styles.you}>{s.slice(idx, idx + hl.length)}</span>
+        <span>{s.slice(idx + hl.length)}</span>
       </>
     )
   }
   // 加粗段（新加的「围着你转」）：从 strongFrom 起、到该段结束为止（句号不加粗）
   const strongStart = strongFrom ?? -1
-  const strongEnd = strongStart >= 0 ? strongStart + HERO_SLOGAN.strong.length : -1
+  const strongEnd = strongStart >= 0 ? strongStart + c.heroSlogan.strong.length : -1
 
   return (
-    <section className={styles.hero} ref={sectionRef} aria-label="EpochX 学习状态智能助手">
+    <section className={styles.hero} ref={sectionRef} aria-label={c.a11y.hero}>
       {/* 光场：Prism 棱镜光锥（懒加载 ogl，alpha 透明合成）；触屏/reduced 不挂载 */}
       {prismOn ? (
         <div className={styles.prismHost} aria-hidden>
@@ -212,12 +226,19 @@ export default function Hero() {
             className={styles.logo}
             height={62}
           />
-          <h1 className={styles.slogan} aria-label={HERO_SLOGAN.final}>
+          <h1
+            className={`${styles.slogan} ${locale === 'en' ? styles.sloganEn : ''}`}
+            aria-label={c.heroSlogan.final}
+          >
             {strongStart >= 0 && text.length > strongStart ? (
               <>
                 <span>{text.slice(0, strongStart)}</span>
                 {finished && !reduced && hasHoverPointer() ? (
-                  <StrongProximity sectionRef={sectionRef} />
+                  <StrongProximity
+                    sectionRef={sectionRef}
+                    strong={c.heroSlogan.strong}
+                    highlight={c.heroSlogan.highlight}
+                  />
                 ) : (
                   <span className={styles.sloganStrong}>
                     {renderWithYou(text.slice(strongStart, strongEnd))}
@@ -248,11 +269,11 @@ export default function Hero() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') goLogin()
             }}
-            placeholder={HERO_ACTIONS.inputPlaceholder}
-            aria-label={HERO_ACTIONS.inputPlaceholder}
+            placeholder={c.heroActions.inputPlaceholder}
+            aria-label={c.heroActions.inputPlaceholder}
           />
           <div className={styles.actionRow}>
-            <Suspense fallback={<span className={styles.ghost}>{HERO_ACTIONS.primary}</span>}>
+            <Suspense fallback={<span className={styles.ghost}>{c.heroActions.primary}</span>}>
               <SpecularButton
                 onClick={goLogin}
                 size="lg"
@@ -267,11 +288,11 @@ export default function Hero() {
                 shineSize={14} /* 高光弧更宽（默认 10） */
                 className={styles.ctaBtn}
               >
-                {HERO_ACTIONS.primary}
+                {c.heroActions.primary}
               </SpecularButton>
             </Suspense>
-            <span className={styles.desktop} aria-disabled="true" title="桌面端尚未推出">
-              {HERO_ACTIONS.desktop}
+            <span className={styles.desktop} aria-disabled="true" title={c.a11y.desktopSoonTitle}>
+              {c.heroActions.desktop}
             </span>
           </div>
         </div>

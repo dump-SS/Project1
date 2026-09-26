@@ -173,6 +173,12 @@
   min-height: 1.3em;
 }
 
+/* 英文档字号（2026-09-27）：同一句英文比中文长得多（"Learning tools, built around you."
+   ≈ 中文 11 字的 2 倍宽），沿用中文档 56px 会在中等宽度折行，故英文单独下调一档 */
+.sloganEn {
+  font-size: clamp(26px, 3.5vw, 44px);
+}
+
 .you {
   color: var(--lp-blue);
 }

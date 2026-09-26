@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { CTA_COPY, FOOTER_COPY, HERO_ACTIONS, HERO_DRAFT_KEY } from '../../content/copy'
+import { HERO_DRAFT_KEY } from '../../content/copy'
+import { useCopy } from '../../content/i18n'
 import { IconArrowUp, IconSend } from '../../icons/UiIcons'
 import GlareHover from '../bits/GlareHover'
 import GradualBlur from '../bits/GradualBlur'
@@ -33,6 +34,7 @@ const IRIDESCENCE_COLOR: [number, number, number] = [0.86, 0.95, 1]
 
 export default function CtaFooter() {
   const reduced = useReducedMotion()
+  const c = useCopy()
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [atBottom, setAtBottom] = useState(false) // 句子翻转 + 光变亮（同一拍）
@@ -104,18 +106,18 @@ export default function CtaFooter() {
       <div className={styles.divider} ref={dividerRef} aria-hidden />
 
       {/* ---------- 上部：末句 + 输入框（暗区，2026-09-25 Skyer 重排：紧凑、上移） ---------- */}
-      <section className={styles.cta} aria-label="开始使用" ref={ctaRef}>
+      <section className={styles.cta} aria-label={c.a11y.cta} ref={ctaRef}>
         <div className={`${styles.ctaInner} landing-wrap`}>
           {/* 末句：衬线（两句都改）；滑到底翻转——首句淡出、后句「折入」+ 渐变字 */}
           <p className={styles.finalLine} aria-live="polite" ref={lineRef}>
-            <span className={atBottom ? styles.lineOut : ''}>{CTA_COPY.before}</span>
+            <span className={atBottom ? styles.lineOut : ''}>{c.cta.before}</span>
             <span
               className={`${styles.lineIn} ${atBottom ? '' : styles.lineHidden}`}
               aria-hidden={!atBottom}
             >
               {atBottom && (
                 <FoldText
-                  text={CTA_COPY.after}
+                  text={c.cta.after}
                   splitBy="char"
                   hinge="top"
                   duration={0.5}
@@ -154,14 +156,14 @@ export default function CtaFooter() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') navigate('/login')
                 }}
-                placeholder={HERO_ACTIONS.inputPlaceholder}
-                aria-label={HERO_ACTIONS.inputPlaceholder}
+                placeholder={c.heroActions.inputPlaceholder}
+                aria-label={c.heroActions.inputPlaceholder}
               />
               <button
                 type="button"
                 className={styles.sendBtn}
                 onClick={() => navigate('/login')}
-                aria-label="发送"
+                aria-label={c.a11y.sendMessage}
               >
                 <IconSend size={17} />
               </button>
@@ -203,12 +205,12 @@ export default function CtaFooter() {
               height={36}
               className={styles.footerLogo}
             />
-            <p className={styles.tagline}>{FOOTER_COPY.tagline}</p>
+            <p className={styles.tagline}>{c.footer.tagline}</p>
           </div>
 
           {/* 链接组：结构留位、内容留空（占位规则——不预先编造链接地址） */}
-          <nav className={styles.links} aria-label="页脚链接">
-            {FOOTER_COPY.links.map((label) => (
+          <nav className={styles.links} aria-label={c.a11y.footerLinks}>
+            {c.footer.links.map((label) => (
               /* TODO(上线前)：真实链接地址统一确认后填入（Skyer 占位规则） */
               <span key={label} className={styles.linkPlaceholder}>
                 {label}
@@ -240,7 +242,7 @@ export default function CtaFooter() {
                 />
               )}
             </span>
-            <span className={styles.backTopLabel}>{FOOTER_COPY.backToTop}</span>
+            <span className={styles.backTopLabel}>{c.footer.backToTop}</span>
             <IconArrowUp size={15} className={styles.backTopIcon} />
           </button>
         </div>
@@ -248,13 +250,13 @@ export default function CtaFooter() {
         {/* 版权行（权利人 + 年份已定：未名_Official 2026）*/}
         <div className={`${styles.legal} landing-wrap`}>
           <p>
-            {FOOTER_COPY.copyrightPrefix}
-            {FOOTER_COPY.copyrightHolder} {FOOTER_COPY.copyrightYear}
+            {c.footer.copyrightPrefix}
+            {c.footer.copyrightHolder} {c.footer.copyrightYear}
           </p>
           {/* TODO(上线前)：ICP/网安备案信息确认后填入 */}
           <p className={styles.blankRow}>&nbsp;</p>
           {/* 合规硬项：显著标注 */}
-          <p className={styles.compliance}>{FOOTER_COPY.compliance}</p>
+          <p className={styles.compliance}>{c.footer.compliance}</p>
         </div>
       </footer>
 
