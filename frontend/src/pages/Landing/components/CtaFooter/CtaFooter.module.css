@@ -270,10 +270,14 @@
 }
 
 /* 链接组：占位 span（虚线样式，地址留空） */
+/* 链接组：四个**品类母项**单行并置（Skyer 2026-09-25：横行并置；母项不可点击，
+   具体子项未定）。窄屏自动折行；仍保留占位样式（虚线）以示「结构留位、内容留空」。
+   ⚠️ 是 `<span>` 不是链接：子项定下来之前不做可点入口（占位规则，见 §4.8）。 */
 .links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, auto));
-  gap: 10px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 28px;
 }
 
 .linkPlaceholder {
