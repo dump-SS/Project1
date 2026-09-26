@@ -84,8 +84,9 @@ export default function LandingNav() {
         if (inHijack || y <= heroEnd) {
           setHidden(false) // 劫持区间 / Hero 页内：常显
         } else {
+          // 上滑弹出更灵敏（Skyer 2026-09-25：阈值 8→3px，轻微上滑即弹出）
           const delta = y - lastY.current
-          if (Math.abs(delta) > 8) setHidden(delta > 0)
+          if (Math.abs(delta) > 3) setHidden(delta > 0)
         }
         lastY.current = y
       })

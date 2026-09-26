@@ -4,7 +4,7 @@
 
 .section {
   position: relative;
-  min-height: 64vh; /* 压矮：当前文字居中时，下一张卡片顶部已探入视口下缘（露边） */
+  min-height: 72vh; /* 三卡间距微增（64→72vh）；当前文字居中时下一卡仍露边 */
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -78,7 +78,7 @@
 .cardFace {
   position: relative;
   width: 100%;
-  min-height: 580px; /* 再长一些——容纳前置气泡层缩放，卡不显空 */
+  min-height: 620px; /* 继续加长（气泡行宽收窄 → 行数增多，卡随之更高） */
   display: flex;
   align-items: center;
   padding: 58px 60px; /* 加大：吸收气泡层 1.14x 透视缩放 */
@@ -139,10 +139,10 @@
   );
 }
 
-/* 用户短句：无衬线（随口输入的） */
+/* 用户短句：无衬线（随口输入的）；行宽收窄 → 增加行数（Skyer 2026-09-25） */
 .bubbleUser {
   align-self: flex-end;
-  max-width: 78%;
+  max-width: 62%;
   padding: 14px 20px;
   border-radius: 14px 14px 4px 14px;
   background: rgba(42, 53, 66, 0.85);
@@ -154,10 +154,10 @@
   line-height: 1.7;
 }
 
-/* 产品回复：衬线（已写下来的），行高 1.8、字重不上 Bold */
+/* 产品回复：衬线（已写下来的）；行宽收窄 → 增加行数（Skyer 2026-09-25） */
 .bubbleProduct {
   align-self: flex-start;
-  max-width: 92%;
+  max-width: 76%;
   padding: 16px 22px;
   border-radius: 14px 14px 14px 4px;
   background: rgba(12, 17, 25, 0.92);
