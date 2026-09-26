@@ -5,7 +5,6 @@ import { TRUST_COPY } from '../../content/copy'
 import { S5 } from '../../content/dialogues'
 import { IconChevronDown } from '../../icons/UiIcons'
 import { IconLock, IconBars, IconReturn, IconShieldAlert } from '../../icons/TrustIcons'
-import { setHijackRange } from '../../lib/navScrollGuard'
 import styles from './TrustWall.module.css'
 
 // Beams（React Bits，上游 r3f v9 仅 React 19 → 本仓裸 three 移植版）：
@@ -57,7 +56,12 @@ export default function TrustWall() {
     return () => window.removeEventListener('resize', measure)
   }, [])
 
-  /* 注册劫持区间给顶栏（sticky 冻结纵向滚动的区间内顶栏常显） */
+  /* 曾在此注册 `trustwall` 顶栏锁定区间（sticky 区间内顶栏常显，早期文档的防抖设计）。
+     2026-09-25 Skyer 取消：顶栏「触底自动弹出」只应发生在尾页，而这条锁定会让顶栏
+     在隐私屏一进入就冒出来（观感等同误触发）。劫持只是把纵向滚动映射成横向位移，
+     并未吃掉纵向滚轮，故顶栏的收起/弹出判断不会抖动，可以照常工作。
+     若日后确需恢复，把下面这段放开、并重新 import { setHijackRange } 即可
+     （navScrollGuard 仍支持按 owner 注册多区间）。
   useEffect(() => {
     if (reduced) return
     const el = runwayRef.current
@@ -74,6 +78,7 @@ export default function TrustWall() {
       setHijackRange('trustwall', null)
     }
   }, [reduced, runwayRef])
+  */
 
   /* 触控板横滑代理：横向增量转纵向滚动（sticky 劫持期间生效） */
   useEffect(() => {
