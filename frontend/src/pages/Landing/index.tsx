@@ -9,7 +9,7 @@ import LandingRoot from './LandingRoot'
 import LandingNav from './components/LandingNav/LandingNav'
 import Hero from './components/Hero/Hero'
 import EpochsWindow from './components/EpochsWindow/EpochsWindow'
-import ThreadsBand from './components/ThreadsBand'
+import ThreadsZone from './components/ThreadsZone'
 import FeatureSection from './components/FeatureSection/FeatureSection'
 import TrustWall from './components/TrustWall/TrustWall'
 import IconSea from './components/IconSea/IconSea'
@@ -25,12 +25,13 @@ export default function LandingPage() {
       <main id="landing-main">
         <Hero />
         <EpochsWindow />
-        {/* 过渡带：Threads 光线（三时代 → 信任屏之间，Skyer 2026-09-25） */}
-        <ThreadsBand />
-        {/* 功能屏 ×3：顺序 = 由近及远（当下 → 事后 → 周期） */}
-        <FeatureSection screenId="state" />
-        <FeatureSection screenId="error-book" />
-        <FeatureSection screenId="review" />
+        {/* 功能屏 ×3（叙事部分）：Threads 光线常驻背景（Skyer 2026-09-25）；
+            顺序 = 由近及远（当下 → 事后 → 周期） */}
+        <ThreadsZone>
+          <FeatureSection screenId="state" />
+          <FeatureSection screenId="error-book" />
+          <FeatureSection screenId="review" />
+        </ThreadsZone>
         <TrustWall />
         <IconSea />
         <CtaFooter />
