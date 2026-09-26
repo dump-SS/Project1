@@ -203,7 +203,7 @@ function TrustCard({
 
       <BorderGlow
         className={styles.cardGlow}
-        backgroundColor="rgba(27, 34, 45, 0.55)"
+        backgroundColor="#1B222D" /* 纯色卡面（Skyer 2026-09-25：不要半透明） */
         borderRadius={24} /* 圆角加大（Skyer 2026-09-25） */
         glowColor="186 100 50" /* 青蓝 #00E5FF（HSL：186 100% 50%） */
         edgeSensitivity={8} /* 更早触发——光标接近即亮（原 30） */
