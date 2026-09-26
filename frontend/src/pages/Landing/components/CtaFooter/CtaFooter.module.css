@@ -151,16 +151,24 @@
      圆角裁剪改由 .bg 自己承担 */
 }
 
-/* 渐隐带宿主：固定在视口底边（高度由 JS 按分割线位置逐帧写，见 TSX），
-   组件根是 absolute（preset bottom）→ 铺满宿主，掩膜百分比随之缩放 */
+/* 页底渐隐带：**高度固定 30vh**（Skyer 2026-09-25 最终口径：高度不变，只改渲染时机），
+   固定在视口底边；组件根是 absolute（preset bottom）→ 铺满宿主，掩膜百分比随宿主缩放。
+   30vh 的上沿正好落在页脚文字（logo/链接/版权/合规声明）下方 → 静止时文字全清晰。
+   渲染时机由 .blurHostOn 控制：分割线一滚进视口开始渲染 */
 .blurHost {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 0;
+  height: 30vh;
+  height: 30dvh;
   z-index: 100;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.blurHostOn {
+  opacity: 1;
 }
 
 /* ---------- 矮窗兜底（2026-09-25）：视口高 < 700px 时三段（末句/胶囊/页尾内容）

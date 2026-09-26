@@ -236,13 +236,14 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - **圆形发送键**：胶囊右内侧，44px 圆形、`var(--lp-pale)` = `#EAF5FF`（极淡蓝近白）、图标为黑色小纸飞机（`IconSend`，`color: #0B1017`）；点击进登录（与回车同效）。
 - **末句两句英文改衬线**（`--lp-font-serif`）；首句「Nothing, without you.」淡出离场（0.35s，比入场略快以缩短交叉重叠）；**后句「You're everything.」= `FoldText` 逐字折入（18 字片，hinge top，逐片 35ms 延迟）+ 整行渐变字**（`#8FD3E8 → #4AD1FF → #3AA0E8`，去掉原候选里最深一档以保深底可读）。两句盒子严格同位（实测差 18.72px 即首句 −30% 离场位移；行高统一 1.2）。
 - **页尾动效区**：左右留空 `margin-inline: clamp(20px, 3vw, 56px)`、`border-radius: 40px 40px 0 0`（上两角大圆角）、上边缘紧贴输入框（实测间距 31px）、页底 `GradualBlur`。
-- **页底渐隐（GradualBlur）——上沿锚在分割线**（Skyer 2026-09-25 三次校准：「我需要从上面的分割线就开始渲染」）：宿主固定在视口底边，高度由滚动处理器逐帧写 DOM（不触发 React 重渲染），三段行为：
-  1. **滚动中**：上沿跟着**分割线**走——分割线还在视口底部时带子很薄，随它上移逐渐长到视口底。实测分割线 y=703 → 带上沿 703；y=180 → 上沿 180（带高 720）。于是刚滚进来的内容一进画面就落在渐变里：分割线处 0 模糊、末句微糊、输入框更糊、卡片与 logo 最糊（截图对照确认），就是「未滑出来的部分经过模糊效果再出来」。
-  2. **停稳 180ms 后**：上沿**收回到合规声明底部之下**（+24px，320ms 缓动）——静止时页脚 logo/链接/版权/合规声明全部清晰，只留卡片下半的柔和渐隐（实测收回到 445 = 合规声明底 421 + 24）。
-  3. 分割线在视口外/下方时带子零高，不打扰上面的屏。
-  - 🐞 **「始终看不到」的真因（2026-09-25 定位，与强度/位置/mask 均无关）**：`GradualBlur` 的渐变层用 Tailwind **`absolute inset-0`** 定尺，而本页只引 `tailwindcss/utilities`、**没引 theme**（见文件头注释）→ `inset-0` 编译为 `calc(var(--spacing) * 0)`，`--spacing` 未定义 → 整条声明被丢弃 → 三层实测都是 **0×0**，`backdrop-filter` 无从作用。对照实验：手写的 `backdrop-filter: blur(24px)` 层（带/不带 mask）都正常糊 ✓，只有组件层是 0×0 ✗。**修法**：`landing.css` 加 `.landing .gradual-blur > div > div { inset: 0 }`。修后层尺寸 1425×H、层值 `blur(3.9px)/blur(14.9px)/blur(30.4px)`。
+- **页底渐隐（GradualBlur）最终口径**（Skyer 2026-09-25 四次校准定型）：
+  - **高度固定不变**：宿主 `position: fixed; bottom: 0; height: 30vh`（组件根 `preset="bottom"` + `height="100%"` 绝对铺满，掩膜百分比随宿主缩放）。30vh 的上沿（900 高视口下 y=630）正好落在页脚文字（logo/链接/版权/合规声明）下方 → 静止时文字全清晰，只有卡片下半的空白渐变成软边。
+  - **渲染时机 = 分割线滚进视口**：`dividerRef.getBoundingClientRect().top < window.innerHeight` 即点亮（0.4s 淡入），滚回去自动熄灭——「从分割线滚入屏幕内就开始渲染」。
+  - 实测：分割线 y=598 → opacity 1（已亮）；y=250 → 1；分割线在视口下方（y=912）→ 0；带高恒为 270px、带上沿恒为 630。带内内容（logo/链接/返回顶部）明显发虚，带外（末句/输入框）清晰——对照关闭 `backdrop-filter` 的一帧全清晰。
+  - 更早的两版（绝对定位贴页面底、上沿随分割线伸缩）都已被这版取代：前者滚入时不在屏幕里故不可见，后者与「高度固定」的要求不符。
+  - 🐞 **「始终看不到」的真因（2026-09-25 定位，与强度/位置/mask 均无关）**：`GradualBlur` 的渐变层用 Tailwind **`absolute inset-0`** 定尺，而本页只引 `tailwindcss/utilities`、**没引 theme**（见文件头注释）→ `inset-0` 编译为 `calc(var(--spacing) * 0)`，`--spacing` 未定义 → 整条声明被丢弃 → 三层实测都是 **0×0**，`backdrop-filter` 无从作用。对照实验：手写的 `backdrop-filter: blur(24px)` 层（带/不带 mask）都正常糊 ✓，只有组件层是 0×0 ✗。**修法**：`landing.css` 加 `.landing .gradual-blur > div > div { inset: 0 }`。
   - ⚠️ 同类风险：`TiltedCard`（`top-0 left-0`）、`GlassSurface`（`p-2`）也用了主题相关工具类而静默失效——当前视觉无碍，但新增组件务必**只用任意值语法**（`text-[#4AD1FF]` 这类）。
-  - ⚠️ **性能**：固定全宽 backdrop-filter 的层数/半径决定合成成本，实测 7 层/末层 96px 时预览连截图都准备不出来（滚动必然掉帧）。现为 3 层 / 上限约 30px；`prefers-reduced-motion` 下整条不渲染。
+  - ⚠️ **性能**：固定全宽 backdrop-filter 的层数/半径决定合成成本，实测 7 层/末层 96px 时预览连截图都准备不出来（滚动必然掉帧）。现为 3 层 / 上限约 30px（`strength 1.9 / divCount 3 / exponential`，层值 `blur(3.9)/blur(14.9)/blur(30.4px)`）；`prefers-reduced-motion` 下整条不渲染。
   - 宿主 `z-index: 100` 压在页尾内容之上、顶栏面板之下。
 - 页尾：流体渐变 abstract background（**鲜明、有流动感、鼠标交互**）；其上：logo + 一句话简介（暂填「围着你转的学习伙伴。」）+ 链接组（隐私协议 / 服务条款 / 社区与文档 / 联系我们）+ 返回顶部 + 版权行。
 - ⚠️ **合规硬项**：页尾显著标注「**学生团队开发，未经专业法律审核**」。GradualBlur 的 `zIndex` 因此必须压在文字之下（只渐隐背景）。
