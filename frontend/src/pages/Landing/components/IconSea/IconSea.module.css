@@ -1,4 +1,6 @@
-/* 图标海屏（visual-language §7.7）：极慢无缝循环 */
+/* 图标海屏（2026-09-25 Skyer 调整）：
+   滚动改由 bits LogoLoop 接管（speed 80 / hoverSpeed 30）；
+   单元格叠加逐个上下浮动（波浪，逐项 animation-delay 错相）。 */
 
 .section {
   padding-block: 120px 96px;
@@ -21,29 +23,23 @@
   color: var(--lp-blue);
 }
 
-/* 滚动海：整宽溢出隐藏 */
+/* 滚动海：整宽溢出隐藏（两侧渐隐由 LogoLoop fadeOut 承担） */
 .sea {
   overflow: hidden;
-  /* 两侧渐隐，让循环边界不生硬 */
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
 
-/* 轨道宽 = 内容两倍，translateX(-50%) 无缝循环 */
-.track {
-  display: flex;
-  width: max-content;
-  gap: 0;
+/* LogoLoop 内部为 ul/li——清掉列表默认标记（否则每项前出现白色圆点） */
+.sea ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.trackAnim {
-  animation: lp-sea-scroll 80s linear infinite;
+.sea li {
+  list-style: none;
 }
 
-.trackAnim:hover {
-  animation-play-state: paused; /* 盯着看的时候停得住 */
-}
-
+/* 单元格：逐个上下浮动（波浪） */
 .cell {
   display: flex;
   flex-direction: column;
@@ -53,6 +49,17 @@
   flex: 0 0 auto;
   color: var(--lp-text-2);
   transition: color 0.3s ease;
+  animation: lp-icon-bob 3.6s ease-in-out infinite alternate;
+}
+
+/* 上下浮动：波浪感来自逐项 animation-delay（见 IconSea.tsx） */
+@keyframes lp-icon-bob {
+  from {
+    transform: translateY(-7px);
+  }
+  to {
+    transform: translateY(7px);
+  }
 }
 
 .cell:hover {
@@ -64,4 +71,11 @@
   font-family: var(--lp-font-serif);
   font-size: 13px;
   letter-spacing: 0.14em;
+}
+
+/* reduced-motion：浮动静止（LogoLoop 速度由调用方置 0） */
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    animation: none;
+  }
 }
