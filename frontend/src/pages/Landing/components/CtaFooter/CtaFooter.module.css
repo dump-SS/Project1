@@ -280,10 +280,10 @@
   gap: 12px 42px; /* 拉开间距（Skyer 2026-09-25） */
 }
 
-/* 页脚链接组：母项（可带子项）+ 子项（Skyer 2026-09-27）
-   ① 母项下划线统一长度（左端贴文字、右端出格）；子项字号小一档、缩进一档、下划线也短一档；
-   ② hover：**实线下划线从左生长** + 文字转深色高亮——静息那条虚线是「品类占位」标记，
-      生长条压在它上面，不替换（两者都保留，位置一致）。 */
+/* 页脚链接组：母项（品类，不可点）+ 子项（Skyer 2026-09-27 二次指定）
+   母项：灰色字、无 hover、无生长线，保留静息虚线作「品类占位」标记（长度统一 = 盒宽）；
+   子项：黑色字、静息**无**下划线、hover 时下划线从左生长、文字左端与母项对齐（不缩进）。
+   子项首项与母项的间距单独拉大（.linkGroup 的 gap）。 */
 .links {
   display: flex;
   flex-wrap: wrap;
@@ -294,18 +294,18 @@
 .linkGroup {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 16px; /* 母项 → 首个子项（Skyer：远一点；原 6px） */
   align-items: flex-start;
 }
 
 .linkSubList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   align-items: flex-start;
 }
 
-/* 母项：等宽盒（下划线长度统一）；文字左对齐 → 下划线左端自然贴文字 */
+/* 共用盒：等宽（下划线长度统一）+ 相对定位（生长线定位基准）+ 文字左对齐 */
 .linkPlaceholder {
   position: relative;
   display: inline-block;
@@ -313,38 +313,33 @@
   padding-block: 4px;
   font-family: var(--lp-font-sans);
   font-size: 14px;
-  color: rgba(15, 21, 32, 0.9);
   white-space: nowrap;
   cursor: default;
-  transition: color 0.22s ease;
-}
-/* 子项：小一档、缩进、下划线短一档（同为统一长度） */
-.linkSub {
-  width: 84px;
-  margin-left: 12px;
-  font-size: 13px;
-  color: rgba(15, 21, 32, 0.72);
 }
 
-.linkPlaceholder:hover {
-  color: #0f1520; /* 高亮：转深色（亮区上不能靠变白） */
+/* 母项：灰色、无 hover 效果；静息虚线 = 品类占位标记 */
+.linkParent {
+  color: rgba(15, 21, 32, 0.55);
 }
-.linkSub:hover {
-  color: #0f1520;
-}
-
-/* 静息虚线：品类占位标记（长度 = 盒子宽，故统一） */
-.linkPlaceholder::after {
+.linkParent::after {
   content: '';
   position: absolute;
   left: 0;
   bottom: 0;
   width: 100%;
-  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
+  border-bottom: 1px dashed rgba(15, 21, 32, 0.3);
 }
 
-/* hover 生长的实线：从左向右铺满（与顶栏 mega 面板的面板项同一手法） */
-.linkPlaceholder::before {
+/* 子项：黑色字、无缩进（与母项文字左对齐）、静息无下划线 */
+.linkSub {
+  width: 84px;
+  font-size: 13px;
+  color: #0f1520;
+}
+
+/* hover 生长的实线：从左向右铺满（与顶栏 mega 面板的面板项同一手法）。
+   只挂在子项上——母项按 Skyer 要求完全无 hover 效果 */
+.linkSub::before {
   content: '';
   position: absolute;
   left: 0;
@@ -356,7 +351,7 @@
   transform-origin: left;
   transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.linkPlaceholder:hover::before {
+.linkSub:hover::before {
   transform: scaleX(1);
 }
 

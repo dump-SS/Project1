@@ -215,7 +215,7 @@ export default function CtaFooter() {
                  母项可带子项（2026-09-27：隐私协议 / 用户协议挂到服务条款下）；
                  一律 span 不可点击，hover 只做下划线生长 + 文字高亮。 */
               <div key={link.name} className={styles.linkGroup}>
-                <span className={styles.linkPlaceholder}>{link.name}</span>
+                <span className={`${styles.linkPlaceholder} ${styles.linkParent}`}>{link.name}</span>
                 {link.children?.length ? (
                   <div className={styles.linkSubList}>
                     {link.children.map((child) => (
