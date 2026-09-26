@@ -62,9 +62,10 @@ export default function EpochsWindow() {
     )
   }
 
-  // 滚动编排：0.08–0.78 窗内横滚（书简→题海→logo 居中）
-  const stripP = map(progress, 0.08, 0.78) // 窗内横滚进度
-  const lightP = map(progress, 0.3, 0.6) // 光回归（logo 入窗即转亮）
+  // 滚动编排：0–0.2 停在书简格（给用户看清古代书简，Skyer 2026-09-25：原起步过早一闪而过）
+  // → 0.2–0.78 窗内横滚（书简→题海→logo 80%）→ progress≥0.68 卡片左滑出
+  const stripP = map(progress, 0.2, 0.78) // 窗内横滚进度
+  const lightP = map(progress, 0.12, 0.5) // 光回归提前（书简格进屏即渐亮，不被遮罩埋掉）
   const dim = cardOff ? 0 : 1 - lightP // 历史段收暗系数（卡片滑出后光全开）
 
   return (
@@ -83,6 +84,7 @@ export default function EpochsWindow() {
                 src="/slides/epoch-bamboo.jpg"
                 alt="古代书简——竹简、毛笔与烛台"
                 className={styles.slideImg}
+                style={{ objectPosition: '72% center' }} /* 卡片斜切外可见区偏右——对准画面右侧内容 */
               />
               <div className={styles.slideTint} aria-hidden />
             </div>
