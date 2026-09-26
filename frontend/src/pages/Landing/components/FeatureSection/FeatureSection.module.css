@@ -63,23 +63,54 @@
   color: var(--lp-text-2);
 }
 
-/* ---------- 右：Tilted Card 对话卡片（放大、右靠；本屏唯一蓝 = 卡面光晕） ---------- */
+/* ---------- 右：Tilted Card 对话卡片（纯色卡面 + 前置气泡层）
+   2026-09-25 Skyer：气泡前置层级（translateZ 随倾角视差）、纯色背景、
+   圆角加大、卡片加长、气泡字放大、整体微调左移；本屏唯一蓝 = 卡面光晕 ---------- */
 .dialogueWrap {
   width: 100%;
   display: flex;
   justify-content: flex-end;
+  padding-right: clamp(0px, 4vw, 72px); /* 卡片微调左移 */
 }
 
-.dialogue {
+/* 卡面：纯色（不透明），preserve-3d 让气泡层 translateZ 生效 */
+.cardFace {
   position: relative;
+  width: 100%;
+  min-height: 480px; /* 加长——卡不显空，气泡间距随之拉开 */
+  display: flex;
+  align-items: center;
+  padding: 40px 42px;
+  border-radius: 24px; /* 圆角加大 */
+  background: #1B222D; /* 纯色（2026-09-25 Skyer：不要半透明） */
+  border: 1px solid var(--lp-hairline);
+  box-shadow: 0 26px 74px rgba(5, 10, 18, 0.55);
+  transform-style: preserve-3d;
+}
+
+/* 光晕：大面积低强度（作为「光」存在），只此一处 */
+.cardFace::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  background: radial-gradient(
+    42% 50% at 55% 45%,
+    rgba(74, 209, 255, 0.12),
+    transparent 72%
+  );
+}
+
+/* 前置气泡层：translateZ 使其浮于卡面之上，随 3D 倾斜产生前后景视差 */
+.bubbleLayer {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 34px 36px;
-  border-radius: 18px;
-  background: rgba(27, 34, 45, 0.55);
-  border: 1px solid var(--lp-hairline);
-  box-shadow: 0 24px 70px rgba(5, 10, 18, 0.5);
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  transform: translateZ(42px);
 }
 
 /* 光晕：大面积低强度（作为「光」存在），只此一处 */
@@ -99,14 +130,14 @@
 .bubbleUser {
   align-self: flex-end;
   max-width: 78%;
-  padding: 12px 18px;
-  border-radius: 12px 12px 4px 12px;
-  background: rgba(42, 53, 66, 0.55);
+  padding: 14px 20px;
+  border-radius: 14px 14px 4px 14px;
+  background: rgba(42, 53, 66, 0.85);
 }
 
 .userText {
   font-family: var(--lp-font-sans);
-  font-size: 16px;
+  font-size: 17.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
   line-height: 1.7;
 }
 
@@ -114,16 +145,16 @@
 .bubbleProduct {
   align-self: flex-start;
   max-width: 92%;
-  padding: 14px 20px;
-  border-radius: 12px 12px 12px 4px;
-  background: rgba(16, 22, 30, 0.65);
+  padding: 16px 22px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(12, 17, 25, 0.92);
   border: 1px solid var(--lp-hairline);
 }
 
 .productText {
   font-family: var(--lp-font-serif);
   font-weight: 400;
-  font-size: 16px;
+  font-size: 17.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
   line-height: 1.8;
   color: var(--lp-text);
 }

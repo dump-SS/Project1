@@ -79,7 +79,8 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
           <p className={styles.featureName}>{screen.featureName}</p>
         </div>
 
-      {/* 对话卡片：Tilted Card（2026-09-25 Skyer 指定）——指针 3D 倾斜，气泡为卡面 */}
+      {/* 对话卡片：Tilted Card（2026-09-25 Skyer 指定）——3D 倾斜；
+          气泡为前置层（translateZ，随倾斜产生前后景视差），卡面为纯色底 */}
       <div className={styles.dialogueWrap}>
         <TiltedCard
           containerWidth="100%"
@@ -91,15 +92,17 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
           showMobileWarning={false}
           showTooltip={false}
         >
-          <div className={styles.dialogue} aria-label="真实对话">
-            <div className={styles.bubbleUser}>
-              <p className={styles.userText}>{dialogue.user}</p>
-            </div>
-            {dialogue.product.map((line, i) => (
-              <div className={styles.bubbleProduct} key={i}>
-                <p className={styles.productText}>{line}</p>
+          <div className={styles.cardFace} aria-label="真实对话">
+            <div className={styles.bubbleLayer}>
+              <div className={styles.bubbleUser}>
+                <p className={styles.userText}>{dialogue.user}</p>
               </div>
-            ))}
+              {dialogue.product.map((line, i) => (
+                <div className={styles.bubbleProduct} key={i}>
+                  <p className={styles.productText}>{line}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </TiltedCard>
       </div>
