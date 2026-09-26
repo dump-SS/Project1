@@ -1,0 +1,35 @@
+/* 三时代 → 隐私安全 过渡带（Threads 光线，2026-09-25 Skyer 指定）：
+   纯背景段（aria-hidden），上下边缘渐隐衔接前后屏的深色。 */
+
+.band {
+  position: relative;
+  height: 70vh;
+  overflow: hidden;
+  background: var(--lp-bg-deep);
+}
+
+/* Threads 的 alpha 画布铺满带体 */
+.band > :first-child {
+  position: absolute;
+  inset: 0;
+}
+
+/* 上下渐隐：与前后屏的深色底无缝衔接 */
+.fadeTop,
+.fadeBottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18%;
+  pointer-events: none;
+}
+
+.fadeTop {
+  top: 0;
+  background: linear-gradient(180deg, var(--lp-bg) 0%, transparent 100%);
+}
+
+.fadeBottom {
+  bottom: 0;
+  background: linear-gradient(0deg, var(--lp-bg) 0%, transparent 100%);
+}
