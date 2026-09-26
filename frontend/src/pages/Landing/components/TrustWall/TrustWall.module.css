@@ -31,7 +31,7 @@
   position: relative;
   z-index: 1;
   display: flex;
-  gap: 48px;
+  gap: 80px; /* 首卡离标题更远（Skyer 2026-09-25） */
   align-items: center;
   width: 100%;
 }
@@ -101,6 +101,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 22px 24px;
+  min-height: 208px; /* 未展开时四卡等高（Skyer 2026-09-25） */
   background: transparent; /* 底/边框由 BorderGlow 承担 */
   transition: background 0.25s ease;
 }

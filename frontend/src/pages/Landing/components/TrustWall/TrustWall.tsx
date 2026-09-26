@@ -88,12 +88,12 @@ export default function TrustWall() {
     )
   }
 
-  /* 2026-09-25 Skyer：本页完整显示后再劫持横滚（起步 0.2，原 0.05 过早） */
-  const stripP = map(progress, 0.2, 0.82) // 卡片横移进度
+  /* 2026-09-25 Skyer：完全显示后再接管——pin 钉住的进度为 innerH/(innerH+total)，
+     runway 340vh 时 ≈0.29，取 0.34 起步（再留一拍），0.9 收尾 */
+  const stripP = map(progress, 0.34, 0.9) // 卡片横移进度
   const trackShift = stripP * 62 // vh 单位的横移量（由卡片总宽决定）
-  /* 标题随横移起步淡出：卡片会滑过标题区，标题不让位就会透过半透明卡面露字。
-     淡出在卡 1 抵达标题区之前完成（前 25% 横移内），初始「sticky 在左」语义不变。 */
-  const titleOpacity = 1 - clamp01(stripP / 0.25)
+  /* 标题随卡片滚出界面外（Skyer 2026-09-25：不做遮挡淡化，直接离场） */
+  const titleShift = stripP * 70 // vh，略快于卡片离场
 
   return (
     <div className={styles.runway} ref={runwayRef}>
@@ -117,8 +117,11 @@ export default function TrustWall() {
           </div>
         )}
         <div className={`${styles.stage} landing-wrap`}>
-          {/* 标题 sticky 在左（不分行）+ 标题下小字 */}
-          <div className={styles.titleBlock} style={{ opacity: titleOpacity }}>
+          {/* 标题：sticky 在左（不分行）+ 标题下小字；随卡片横滚同步滚出界面外 */}
+          <div
+            className={styles.titleBlock}
+            style={{ transform: `translateX(calc(${-titleShift}vh))` }}
+          >
             <h2 className={styles.title}>{TRUST_COPY.title}</h2>
             <p className={styles.sub}>{TRUST_COPY.sub}</p>
           </div>
@@ -179,13 +182,14 @@ function TrustCard({
       <BorderGlow
         className={styles.cardGlow}
         backgroundColor="rgba(27, 34, 45, 0.55)"
-        borderRadius={16}
-        glowColor="74 209 255" /* 品牌蓝 #4AD1FF */
-        glowRadius={46}
-        glowIntensity={1.1}
+        borderRadius={24} /* 圆角加大（Skyer 2026-09-25） */
+        glowColor="186 100 50" /* 青蓝 #00E5FF（HSL：186 100% 50%） */
+        edgeSensitivity={8} /* 更早触发——光标接近即亮（原 30） */
+        glowRadius={100} /* 发光范围加大（原 40） */
+        glowIntensity={1.8} /* 描边强度为主（原 1.0） */
         coneSpread={32}
-        colors={['#4AD1FF', '#1B5DBF', '#8FD3E8']}
-        fillOpacity={0.42}
+        colors={['#00E5FF', '#4AD1FF', '#1B7FD0']} /* 青蓝三色 mesh */
+        fillOpacity={0.15} /* 弱化散射罩面（原 0.42）——突出描边 */
       >
         <article
           className={`${styles.card} ${isOpen ? styles.cardOpen : ''}`}
