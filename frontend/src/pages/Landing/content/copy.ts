@@ -161,8 +161,8 @@ export const FOOTER_COPY = {
   copyrightPrefix: '© ',
   copyrightHolder: '未名_Official',
   copyrightYear: '2026',
-  /** 合规硬项：页尾必须显著标注 */
-  compliance: '学生团队开发，未经专业法律审核',
+  /** 合规硬项：页尾必须显著标注（Skyer 2026-09-25 改文案，见 dev-spec §4.8） */
+  compliance: '学生团队开发，pilot 封测，不代表最终产品形态和品质',
   /** 备案信息占位行（内容留空） */
   icp: '',
 } as const
