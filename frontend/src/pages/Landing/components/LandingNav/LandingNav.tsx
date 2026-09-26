@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { NAV_COPY } from '../../content/copy'
-import { getHijackRange, subscribeHijack } from '../../lib/navScrollGuard'
+import { getHijackActive, isInHijack, subscribeHijack } from '../../lib/navScrollGuard'
 import GlassSurface from '../bits/GlassSurface'
 import styles from './LandingNav.module.css'
 
@@ -46,10 +46,7 @@ export default function LandingNav() {
     return () => window.removeEventListener('resize', measure)
   }, [openMenu])
 
-  const hijackActive = useSyncExternalStore(
-    subscribeHijack,
-    () => getHijackRange() !== null,
-  )
+  const hijackActive = useSyncExternalStore(subscribeHijack, getHijackActive)
 
   /* reduced-transparency：玻璃层退纯色底（GlassSurface 的磨砂语义不适用） */
   const [reduceTransparency, setReduceTransparency] = useState(false)
@@ -79,8 +76,7 @@ export default function LandingNav() {
         const heroEnd = window.innerHeight
         setScrolledPastHero(y > heroEnd)
 
-        const range = getHijackRange()
-        const inHijack = range !== null && y >= range.top && y <= range.bottom
+        const inHijack = isInHijack(y)
         if (inHijack || y <= heroEnd) {
           setHidden(false) // 劫持区间 / Hero 页内：常显
         } else {
@@ -205,7 +201,15 @@ export default function LandingNav() {
                     onFocus={() => setOpenMenu(key as Exclude<MenuKey, null>)}
                     onClick={() => toggleMenu(key as Exclude<MenuKey, null>)}
                   >
-                    {label}
+                    {/* hover 动效（Skyer 2026-09-25）：当前字向上滑出 + 同字由下方滑入。
+                        副本用真 DOM + aria-hidden（::after 的生成内容会被 Chrome 计入可访问名，
+                        读屏会念两遍）；副本绝对定位，不参与布局。 */}
+                    <span className={styles.roll}>
+                      <span className={styles.rollInner}>{label}</span>
+                      <span className={styles.rollDup} aria-hidden="true">
+                        {label}
+                      </span>
+                    </span>
                     {key === 'pricing' && <span className={styles.naTag}>{NAV_COPY.pricingNa}</span>}
                   </button>
                 )

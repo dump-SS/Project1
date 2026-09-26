@@ -132,6 +132,34 @@
   outline: none;
 }
 
+/* ---------- 菜单文字滚动（Skyer 2026-09-25）：hover 时原字向上滑出、同字由下方滑入 ----------
+   .roll 是单行裁剪窗（overflow:hidden），字块整体上移一行即完成换字；
+   副本（.rollDup，aria-hidden）停在裁剪窗下沿，动画中滑入。 */
+.roll {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  line-height: 1.3;
+}
+.rollInner,
+.rollDup {
+  display: block;
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rollDup {
+  position: absolute;
+  left: 0;
+  top: 100%; /* 停在下行——被裁剪窗挡住，动画时滑入 */
+}
+.menuBtn:hover .rollInner,
+.menuBtn:hover .rollDup,
+.menuBtn:focus-visible .rollInner,
+.menuBtn:focus-visible .rollDup,
+.menuBtnOn .rollInner,
+.menuBtnOn .rollDup {
+  transform: translateY(-100%);
+}
+
 /* 「暂无」灰描边标签（不可用=灰，不占蓝色） */
 .naTag {
   font-size: 11px;
@@ -203,6 +231,24 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 展开时格子从上到下依次淡入（Skyer 2026-09-25）：逐项延迟 80ms，
+   面板内容按 openMenu 重挂载 → 每次展开/切换都重播 */
+.panelList > li {
+  opacity: 0;
+  animation: lp-panel-item 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.panelList > li:nth-child(1) { animation-delay: 0.06s; }
+.panelList > li:nth-child(2) { animation-delay: 0.14s; }
+.panelList > li:nth-child(3) { animation-delay: 0.22s; }
+.panelList > li:nth-child(4) { animation-delay: 0.3s; }
+.panelList > li:nth-child(5) { animation-delay: 0.38s; }
+.panelList > li:nth-child(n + 6) { animation-delay: 0.46s; }
+
+@keyframes lp-panel-item {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .panelLink,

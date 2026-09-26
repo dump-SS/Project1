@@ -65,13 +65,13 @@ export default function TrustWall() {
     const register = () => {
       const rect = el.getBoundingClientRect()
       const top = rect.top + window.scrollY
-      setHijackRange({ top, bottom: top + rect.height })
+      setHijackRange('trustwall', { top, bottom: top + rect.height })
     }
     register()
     window.addEventListener('resize', register)
     return () => {
       window.removeEventListener('resize', register)
-      setHijackRange(null)
+      setHijackRange('trustwall', null)
     }
   }, [reduced, runwayRef])
 

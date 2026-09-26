@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useScrollProgress } from '../../hooks/useScrollProgress'
 import { EPOCHS_COPY } from '../../content/copy'
+import { setHijackRange } from '../../lib/navScrollGuard'
 import styles from './EpochsWindow.module.css'
 
 // ColorBends（React Bits，three）：logo 窗背景彩色弯折光带（2026-09-25 Skyer 指定）。
@@ -36,6 +37,29 @@ export default function EpochsWindow() {
     if (progress >= CARD_OFF_ON) setCardOff(true)
     else if (progress < CARD_OFF_OFF) setCardOff(false)
   }, [progress, reduced])
+
+  /* 顶栏锁定区间（Skyer 2026-09-25：锁定延后到与梯形卡片同步收起）：
+     跑道起点 → 梯形卡片收起点（progress = CARD_OFF_ON）。
+     useScrollProgress 的进度 p = (innerH - rect.top) / rect.height
+     → 该进度对应的滚动位置 = 跑道文档顶 - innerH + CARD_OFF_ON × 跑道高。
+     卡片左滑出屏幕的同一刻解除锁定，顶栏恢复下滑收起/上滑弹出。 */
+  useEffect(() => {
+    if (reduced) return
+    const el = ref.current
+    if (!el) return
+    const register = () => {
+      const rect = el.getBoundingClientRect()
+      const top = rect.top + window.scrollY
+      const bottom = top - window.innerHeight + CARD_OFF_ON * rect.height
+      setHijackRange('epochs-lock', { top, bottom: Math.max(top, bottom) })
+    }
+    register()
+    window.addEventListener('resize', register)
+    return () => {
+      window.removeEventListener('resize', register)
+      setHijackRange('epochs-lock', null)
+    }
+  }, [reduced, ref])
 
   /* ColorBends：进度过半才挂载（three chunk 懒加载）；随轨道平移渐显 */
   const cbOn = progress > 0.32
