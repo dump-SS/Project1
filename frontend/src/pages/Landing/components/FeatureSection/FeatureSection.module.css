@@ -73,19 +73,30 @@
   padding-right: clamp(0px, 4vw, 72px); /* 卡片微调左移 */
 }
 
-/* 卡面：纯色（不透明），preserve-3d 让气泡层 translateZ 生效 */
+/* 卡面：金属拉丝背景图（Skyer 2026-09-25 提供，自行裁切入库）+ 暗色 scrim 保可读；
+   preserve-3d 让气泡层 translateZ 生效 */
 .cardFace {
   position: relative;
   width: 100%;
-  min-height: 480px; /* 加长——卡不显空，气泡间距随之拉开 */
+  min-height: 520px; /* 再长一些——卡不显空，气泡间距随之拉开 */
   display: flex;
   align-items: center;
-  padding: 40px 42px;
-  border-radius: 24px; /* 圆角加大 */
-  background: #1B222D; /* 纯色（2026-09-25 Skyer：不要半透明） */
-  border: 1px solid var(--lp-hairline);
-  box-shadow: 0 26px 74px rgba(5, 10, 18, 0.55);
+  padding: 44px 46px;
+  border-radius: 32px; /* 圆角再加大 */
+  background: #1B222D url('/cards/metal-card.jpg') center / cover;
+  border: 1px solid rgba(154, 164, 176, 0.22);
+  box-shadow: 0 30px 84px rgba(5, 10, 18, 0.6);
+  overflow: hidden;
   transform-style: preserve-3d;
+}
+
+/* 暗色 scrim：金属亮带处保气泡对比度（保留金属质感，不用半透明卡面） */
+.cardFace::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(11, 16, 23, 0.32);
 }
 
 /* 光晕：大面积低强度（作为「光」存在），只此一处 */
@@ -94,6 +105,7 @@
   position: absolute;
   inset: -60px;
   pointer-events: none;
+  z-index: 1;
   background: radial-gradient(
     42% 50% at 55% 45%,
     rgba(74, 209, 255, 0.12),
@@ -104,13 +116,13 @@
 /* 前置气泡层：translateZ 使其浮于卡面之上，随 3D 倾斜产生前后景视差 */
 .bubbleLayer {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 20px;
+  gap: 26px; /* 间距加大 */
   width: 100%;
-  transform: translateZ(42px);
+  transform: translateZ(78px); /* 透视增强（原 42px） */
 }
 
 /* 光晕：大面积低强度（作为「光」存在），只此一处 */
@@ -137,7 +149,7 @@
 
 .userText {
   font-family: var(--lp-font-sans);
-  font-size: 17.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
+  font-size: 18.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
   line-height: 1.7;
 }
 
@@ -154,7 +166,7 @@
 .productText {
   font-family: var(--lp-font-serif);
   font-weight: 400;
-  font-size: 17.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
+  font-size: 18.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
   line-height: 1.8;
   color: var(--lp-text);
 }
