@@ -30,6 +30,8 @@ export interface FoldTextProps {
   duration?: number
   /** 逐片延迟（秒） */
   stagger?: number
+  /** 整体起始延迟（秒）：用于让出前一段退场动画的时间 */
+  delay?: number
   perspective?: number
   creaseShading?: number
   fontSize?: string | number
@@ -69,6 +71,7 @@ export default function FoldText({
   hinge = 'top',
   duration = 0.65,
   stagger = 0.045,
+  delay = 0,
   perspective = 700,
   creaseShading = 0.55,
   fontSize = 80,
@@ -128,7 +131,7 @@ export default function FoldText({
         '--fold-ry': `${hingeConfig.rotateY}deg`,
         '--fold-crease': safeCrease,
         '--fold-dur': `${duration}s`,
-        '--fold-delay': `${(i * stagger).toFixed(3)}s`,
+        '--fold-delay': `${(delay + i * stagger).toFixed(3)}s`,
       } as CSSProperties
       if (geo) {
         const off = geo.offsets[i] ?? 0

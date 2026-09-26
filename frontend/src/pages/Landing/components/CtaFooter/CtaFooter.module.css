@@ -9,10 +9,14 @@
 }
 
 /* ---------- 上部 CTA（暗区） ----------
-   2026-09-25 Skyer：紧凑上移——去掉 min-height 撑高，内容靠上；
-   拉到底时末句 + 输入框落在页面上部（页尾卡片高度由 .footer 的 min-height 保证）。 */
+   2026-09-25 Skyer 二次调整：拉到底时——
+   ① 末句在页面最上方、与视口顶的间距略大于顶栏（64px）；
+   ② 与上一屏的分割线必须已经滚出视口。
+   实现：末句在底部的视口位置 = 视口高 −（末句→CTA 底的内容高 182.4）− 页尾高；
+   故页尾高取 calc(100dvh − 274px)（见 .footer），上留白 120px > 目标间距 92px，
+   分割线因此落在视口上沿之上。 */
 .cta {
-  padding-block: clamp(48px, 7vh, 84px) 30px; /* 下留 30px：顶边贴着输入框下面 */
+  padding-block: 120px 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -22,7 +26,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 26px;
+  gap: 34px; /* 末句与输入胶囊的间距（下行字母与胶囊留出余量） */
 }
 
 /* 末句：衬线（两句都是，Skyer 2026-09-25）；翻转过渡（两行叠放，交叉淡入） */
@@ -58,11 +62,11 @@
   transition: none;
 }
 
-/* 首句淡出（上移离场）：比入场略快，缩短两句交叉重叠的一瞬 */
+/* 首句淡出（上移离场）：比入场快，且折入延后 0.2s（见 TSX）——两句几乎不叠 */
 .lineOut {
   opacity: 0;
   transform: translateY(-30%);
-  transition: opacity 0.35s ease, transform 0.35s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 /* FoldText 根：整行居中、衬线、行高与首句一致（否则两句基线错开约 3px） */
@@ -131,21 +135,60 @@
 }
 
 /* ---------- 下部页尾（亮区：全站唯一「大面积+鲜明+流体渐变」特例） ----------
-   2026-09-25 Skyer：动效区左右留空、上两角大圆角；页底 Gradual Blur 渐隐。 */
+   2026-09-25 Skyer：动效区左右留空、上两角大圆角；页底 Gradual Blur 渐隐。
+   min-height 的算式与 .cta 配套：拉到底时末句落在视口顶下方约 92px
+   （= 视口高 − 182.4（末句→CTA 底）− 页尾高，见 .cta 注释）；下限 360px
+   保窄屏不至于把末句挤出视口。 */
 .footer {
   position: relative;
   margin-inline: clamp(20px, 3vw, 56px); /* 左右留空 */
   border-radius: 40px 40px 0 0; /* 上两角大圆角 */
-  min-height: clamp(360px, 48vh, 620px); /* 撑住版式：拉到底时末句在页面上部 */
+  min-height: max(360px, calc(100vh - 274px));
+  min-height: max(360px, calc(100dvh - 274px));
   padding-block: 72px 40px;
   color: #0F1520; /* 亮区上的暗字 */
-  overflow: hidden; /* 渐变与页底渐隐都被圆角/边界裁住 */
+  /* 注意：不可 overflow:hidden——页底渐隐带要跨出卡片铺满视口宽（见 .blurHost），
+     圆角裁剪改由 .bg 自己承担 */
+}
+
+/* 页底渐隐宿主：贴页面宽、贴页面底（footer 之外，避免 100vw 的横向滚动条）；
+   渐隐带因此覆盖卡片左右边缘与深色页底，糊开硬边才看得见 */
+.blurHost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ---------- 矮窗兜底（2026-09-25）：视口高 < 700px 时三段（末句/胶囊/页尾内容）
+   本来挤不下，末句会被顶到视口外。这里压缩页尾留白与末句间距，保证末句仍
+   落在顶栏下方，且分割线仍在视口之上。 */
+@media (max-height: 700px) {
+  .cta {
+    padding-block: 92px 24px;
+  }
+  .ctaInner {
+    gap: 24px;
+  }
+  .footer {
+    min-height: max(300px, calc(100vh - 248px));
+    min-height: max(300px, calc(100dvh - 248px));
+    padding-block: 44px 30px;
+  }
+  .legal {
+    margin-top: 30px;
+  }
 }
 
 .bg {
   position: absolute;
   inset: 0;
   z-index: 0;
+  border-radius: inherit; /* 卡片圆角由这一层承担（.footer 已不再裁剪） */
+  overflow: hidden;
 }
 
 /* 静态兜底（reduced-motion / chunk 未加载）：亮色品牌渐变 */

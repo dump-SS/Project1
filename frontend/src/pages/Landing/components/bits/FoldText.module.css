@@ -48,10 +48,16 @@
   display: block;
 }
 
-/* 字片：折起（rotateX/Y ±92°）→ 落平；逐片延迟见 TSX 内联变量 */
+/* 字片：折起（rotateX/Y ±92°）→ 落平；逐片延迟见 TSX 内联变量。
+   ⚠️ padding-block 不是装饰：衬线字形的墨迹底边落在基线下方，而基线在 1.2 行盒里
+   约在 53.7/62.4 处 → 墨迹底实际到 67.7px，比盒子高 5.3px；字片带 3D 变换 +
+   will-change（独立图层）会把超出的墨迹按自身盒子裁掉（首句是普通块级，溢出不裁，
+   所以只有折入那句看起来「底部被切」）。实测：`padding-block: 8px` 后盒子 78.4px
+   > 墨迹底 67.7px；内边距同时把基线等量下推，父级行盒再把它推回来 → 字形位置不变。 */
 .piece {
   position: relative;
   display: inline-block;
+  padding-block: 8px;
   color: inherit;
   line-height: inherit;
   transform-style: preserve-3d;

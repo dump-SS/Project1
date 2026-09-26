@@ -79,8 +79,9 @@ export default function CtaFooter() {
                   text={CTA_COPY.after}
                   splitBy="char"
                   hinge="top"
-                  duration={0.6}
-                  stagger={0.035}
+                  duration={0.5}
+                  stagger={0.03}
+                  delay={0.2} /* 让首句先淡出，避免两句叠在一起那一瞬 */
                   creaseShading={0.5}
                   fontSize="clamp(28px, 4.4vw, 52px)"
                   fontWeight={500}
@@ -155,18 +156,6 @@ export default function CtaFooter() {
           <div className={styles.bgScrim} />
         </div>
 
-        {/* 页底渐隐（React Bits GradualBlur）：z-index 压在文字之下——只渐隐背景，
-            合规声明等文字保持清晰（合规硬项不得被虚化） */}
-        <GradualBlur
-          preset="bottom"
-          strength={2.6}
-          height="9rem"
-          divCount={6}
-          curve="bezier"
-          zIndex={1}
-          opacity={0.9}
-        />
-
         <div className={`${styles.footerInner} landing-wrap`}>
           {/* 品牌 logo + 一句话简介 */}
           <div className={styles.brandCol}>
@@ -214,6 +203,26 @@ export default function CtaFooter() {
           <p className={styles.compliance}>{FOOTER_COPY.compliance}</p>
         </div>
       </footer>
+
+      {/* 页底渐隐（React Bits GradualBlur）：只渐隐背景——z-index 压在页尾文字之下，
+          合规声明保持清晰（合规硬项不得被虚化）。
+          强度按「能看见」调档（Skyer 2026-09-25 反馈看不到）：exponential + 7 层
+          + 12rem，末层约 96px 模糊。
+          ⚠️ 放在 footer 之外、由 .blurHost 贴**页面宽**（不是 100vw——100vw 比文档宽
+          一个滚动条宽度，会带出横向滚动条）：单纯糊卡片内部的平滑渐变看不出变化，
+          必须让渐隐带覆盖卡片左右边缘与深色页底的硬边才可见。 */}
+      <div className={styles.blurHost} aria-hidden>
+        <GradualBlur
+          preset="bottom"
+          strength={6}
+          height="12rem"
+          divCount={7}
+          exponential
+          curve="bezier"
+          zIndex={1}
+          opacity={1}
+        />
+      </div>
     </>
   )
 }
