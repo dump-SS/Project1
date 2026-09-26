@@ -17,7 +17,19 @@
   gap: 28px;
 }
 
+/* 背景：Beams 光束（2026-09-25 Skyer 指定）；上下轻渐隐衔接前后屏深底 */
+.beamsLayer {
+  position: absolute;
+  inset: 0;
+  opacity: 0.62; /* 氛围背景，不抢卡片 */
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+}
+
 .stage {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 48px;
   align-items: center;
@@ -210,6 +222,7 @@
   border-radius: 1px;
   background: var(--lp-hairline);
   overflow: hidden;
+  z-index: 1; /* 抬到 Beams 光束之上 */
 }
 
 .progressBar {

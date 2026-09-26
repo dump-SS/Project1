@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useScrollProgress } from '../../hooks/useScrollProgress'
 import { TRUST_COPY } from '../../content/copy'
@@ -6,6 +6,10 @@ import { S5 } from '../../content/dialogues'
 import { IconChevronDown } from '../../icons/UiIcons'
 import { setHijackRange } from '../../lib/navScrollGuard'
 import styles from './TrustWall.module.css'
+
+// Beams（React Bits，上游 r3f v9 仅 React 19 → 本仓裸 three 移植版）：
+// 隐私安全页背景（2026-09-25 Skyer 指定），three 已在 deps
+const Beams = lazy(() => import('../bits/Beams'))
 
 /**
  * 信任屏（visual-language §7.6 / dev-spec §4.6）：
@@ -78,6 +82,24 @@ export default function TrustWall() {
   return (
     <div className={styles.runway} ref={runwayRef}>
       <section className={styles.pin} ref={sectionRef} aria-label="隐私安全">
+        {/* 背景：Beams 光束（Skyer 2026-09-25；reduced-motion 不挂载，纯深底） */}
+        {!reduced && (
+          <div className={styles.beamsLayer} aria-hidden>
+            <Suspense fallback={null}>
+              <Beams
+                beamWidth={2}
+                beamHeight={15}
+                beamNumber={12}
+                lightColor="#4AD1FF" /* 品牌蓝光源 */
+                beamColor="#0E1724"
+                backgroundColor="#0B1017"
+                speed={2}
+                noiseIntensity={1.75}
+                scale={0.2}
+              />
+            </Suspense>
+          </div>
+        )}
         <div className={`${styles.stage} landing-wrap`}>
           {/* 标题 sticky 在左 */}
           <div className={styles.titleBlock} style={{ opacity: titleOpacity }}>
