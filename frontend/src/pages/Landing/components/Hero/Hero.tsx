@@ -255,8 +255,8 @@ export default function Hero() {
             <Suspense fallback={<span className={styles.ghost}>{HERO_ACTIONS.primary}</span>}>
               <SpecularButton
                 onClick={goLogin}
-                size="md"
-                radius={24}
+                size="lg"
+                radius={28}
                 tint="#2BA9E0"
                 tintOpacity={1}
                 textColor="#0B1017"

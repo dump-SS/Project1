@@ -175,26 +175,27 @@
   font-weight: 800;
 }
 
-/* ---------- 动作区：输入栏 + 并排按钮行（2026-09-25 Skyer：横向并置、圆角加大） ---------- */
+/* ---------- 动作区：输入栏 + 并排按钮行（2026-09-25 Skyer：放大+加长+左移） ---------- */
 .actions {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
-  width: min(340px, 100%);
+  gap: 14px;
+  width: min(430px, 100%);
+  margin-right: clamp(0px, 3.4vw, 56px); /* 往左靠一点：不贴右缘 */
 }
 
 .actionRow {
   display: flex;
   align-items: stretch;
-  gap: 12px;
+  gap: 14px;
 }
 
 .input {
-  height: 48px;
-  padding: 0 18px;
+  height: 54px;
+  padding: 0 24px;
   font-family: var(--lp-font-sans);
-  font-size: 15px;
+  font-size: 16px;
   color: var(--lp-text);
   background: rgba(27, 34, 45, 0.72);
   border: 1px solid rgba(140, 160, 180, 0.16);
@@ -220,9 +221,9 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  height: 48px;
+  height: 54px;
   font-family: var(--lp-font-sans);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--lp-text);
   text-decoration: none;
@@ -242,10 +243,10 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  height: 48px;
-  padding: 0 8px;
+  height: 54px;
+  padding: 0 10px;
   font-family: var(--lp-font-sans);
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--lp-text-2);
   background: #2A3440;
   border-radius: 999px;
