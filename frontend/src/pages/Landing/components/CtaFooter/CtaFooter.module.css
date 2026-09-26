@@ -277,16 +277,31 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 28px;
+  gap: 12px 42px; /* 拉开间距（Skyer 2026-09-25） */
 }
 
+/* 四个品类母项：**下划线统一长度**（Skyer 2026-09-25）——左端与文字对齐、右端长于文字。
+   故不用 `border-bottom`（长度会随文字长短变化），改为固定等宽盒（96px）+ 绝对定位 ::after
+   画满整盒：文字左对齐 → 下划线左端自然贴文字，右侧余量即「长于文字」。
+   ⚠️ 母项不可点击（占位规则），故 cursor: default 且不加 hover 态。 */
 .linkPlaceholder {
+  position: relative;
+  display: inline-block;
+  width: 96px; /* 统一的下划线长度（最长项「社区与文档」约 70px，仍留出右端余量） */
+  padding-block: 4px;
   font-family: var(--lp-font-sans);
   font-size: 14px;
   color: rgba(15, 21, 32, 0.9);
-  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
-  padding-block: 4px;
+  white-space: nowrap;
   cursor: default;
+}
+.linkPlaceholder::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
 }
 
 /* 返回顶部：GlassSurface 胶囊（Skyer 2026-09-25，原为半透明浅色方块）。
