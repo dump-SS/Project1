@@ -111,8 +111,8 @@ React Bits **没有独立 MCP server**，官方路径是 shadcn MCP + registry�
 | 页尾背景 | `Grainient-TS-TW` | ✅ **采纳** | landing-gfx chunk 12.9 KB（ogl）+ 组件 3.0 KB | 无内置 → 落盘版加 `staticFrame`（静态单帧） | 无指针交互 → 落盘版加 pointer 视差（hover 设备） | lightMode 适配亮区；IO/visibility 暂停为原版自带 |
 | 页尾背景候选 | `Aurora-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 无交互 | 极光带状形态偏「氛围灯」，流体感与页尾「鲜明」要求不符 |
 | 页尾背景候选 | `Balatro-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 有交互 | 像素化旋转质感是 Balatro 扑克游戏符号，与品牌无关 |
-| 页尾背景候选 | `ColorBends-TS-TW` | ❌ 未采纳 | **three 系** | — | — | 依赖 `@react-three/fiber@^9`（仅 React 19），React 18 不兼容 |
-| Hero 光场候选 | `Beams-TS-TW` / `Dither-TS-TW` | ❌ 未采纳 | **three 系** | — | — | 同上，r3f v9 仅 React 19 |
+| 页尾背景候选 | `ColorBends-TS-TW` | ✅ **采纳**（2026-09-25 二次核反转）：实为**裸 three 全屏 shader**（无 r3f，React 18 兼容已验证），此前「r3f v9 仅 React 19」为误判；用于第二屏 logo 窗背景（Skyer 指定） | three ~150KB gzip | 无内置 → 调用方门控（reduced 不挂载） | 无交互依赖 | 挂载于进度 >0.5（logo 临近入窗），随 reveal 完整展出 |
+| Hero 光场候选 | `Beams-TS-TW` / `Dither-TS-TW` | ❌ 未采纳 | **three 系** | — | — | 需逐个复验：若同为裸 three 则技术可行，仍未过「贴品牌」目测（光带形态与 Hero 光场语义不符） |
 | Hero 光场候选 | `Ribbons-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 无交互 | 流动丝带属装饰，过不了「它在讲什么」检验（§4 通用规则） |
 | Hero 光场候选 | `Waves-TS-TW` | ❌ 未采纳 | 0（纯 Canvas 2D） | 无内置 | 有交互 | 波浪线簇形态偏「科技发布会」，与「光在你前方」的语义不符 |
 | Hero 光场 | **CSS 径向渐变呼吸光场**（自实现） | ✅ **最终方案** | 0（零依赖） | `lp-breathe` 动画由 landing.css 统一静止 | 光晕无触屏依赖；指针视差仅 hover 设备 | 品牌蓝大面积低强度光晕 + 6–8s 呼吸 + 指针轻推 |
