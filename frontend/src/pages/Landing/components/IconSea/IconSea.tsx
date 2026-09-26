@@ -48,8 +48,12 @@ export default function IconSea() {
           speed={reduced ? 0 : 80}
           hoverSpeed={reduced ? 0 : 30}
           direction="left"
-          gap={72}
+          gap={28}
           logoHeight={64}
+          /* 纵向留白 = 波浪的行程余量（Skyer 2026-09-25）：LogoLoop 根节点是
+             overflow-x-hidden，按规范另一轴计算为 overflow-y auto → 裁剪箱即
+             单元格高度，浮动下沉的图标会被裁掉。padding 撑大裁剪箱后 ±16px 全程可见 */
+          style={{ paddingBlock: 26 }}
           fadeOut
           fadeOutColor="#10161E"
           ariaLabel={`功能顺序：${ICON_SEA_COPY.order.join('、')}`}

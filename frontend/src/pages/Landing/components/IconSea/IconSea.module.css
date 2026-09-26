@@ -39,26 +39,29 @@
   list-style: none;
 }
 
-/* 单元格：逐个上下浮动（波浪） */
+/* 单元格：逐个上下浮动（波浪）。宽度与 LogoLoop gap 一起收紧间距
+   （Skyer 2026-09-25：缩小图标间距）；浮动行程 ±16px 由 LogoLoop 的
+   paddingBlock 留出余量，下沉时不再被裁剪箱切掉 */
 .cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  width: 168px;
+  width: 142px;
   flex: 0 0 auto;
   color: var(--lp-text-2);
   transition: color 0.3s ease;
   animation: lp-icon-bob 3.6s ease-in-out infinite alternate;
 }
 
-/* 上下浮动：波浪感来自逐项 animation-delay（见 IconSea.tsx） */
+/* 上下浮动：波浪感来自逐项 animation-delay（见 IconSea.tsx）。±16px 需与
+   IconSea.tsx 里的 LogoLoop paddingBlock（26px）配套改，避免超程被裁 */
 @keyframes lp-icon-bob {
   from {
-    transform: translateY(-7px);
+    transform: translateY(-16px);
   }
   to {
-    transform: translateY(7px);
+    transform: translateY(16px);
   }
 }
 
