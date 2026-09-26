@@ -8,6 +8,16 @@
  */
 @import "tailwindcss/utilities";
 
+/* ---------- 补丁：Tailwind 主题相关工具类在本项目里失效（2026-09-25 实测定位） ----------
+   本页只引 utilities 层、没引 theme（见文件头），而 inset-0 / p-* / gap-* / w-4 这类
+   工具类编译产物是 `calc(var(--spacing) * n)`——`--spacing` 未定义 → 整条声明被丢弃。
+   症状示例：React Bits `GradualBlur` 的渐变层用 `absolute inset-0` 定尺，声明失效后
+   三层都是 0×0，`backdrop-filter` 无从作用 ⇒ 页底渐隐「完全看不到」（与强度/位置无关）。
+   这里按组件结构补回尺寸，不外扩到全站（改 --spacing 会连带改动其它组件现状）。 */
+.landing .gradual-blur > div > div {
+  inset: 0;
+}
+
 /* ---------- 字体：子集化自托管（fontTools 按落地页字符集裁剪，见 scripts 同目录说明） ---------- */
 @font-face {
   font-family: 'LP-Serif';

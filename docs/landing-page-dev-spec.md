@@ -237,8 +237,9 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - **末句两句英文改衬线**（`--lp-font-serif`）；首句「Nothing, without you.」淡出离场（0.35s，比入场略快以缩短交叉重叠）；**后句「You're everything.」= `FoldText` 逐字折入（18 字片，hinge top，逐片 35ms 延迟）+ 整行渐变字**（`#8FD3E8 → #4AD1FF → #3AA0E8`，去掉原候选里最深一档以保深底可读）。两句盒子严格同位（实测差 18.72px 即首句 −30% 离场位移；行高统一 1.2）。
 - **页尾动效区**：左右留空 `margin-inline: clamp(20px, 3vw, 56px)`、`border-radius: 40px 40px 0 0`（上两角大圆角）、上边缘紧贴输入框（实测间距 31px）、页底 `GradualBlur`。
 - **页底渐隐（GradualBlur）定位与触发**（Skyer 2026-09-25 二次指定：「未滑出来的部分经过模糊效果再出来」）：**固定在视口底边**（`preset="page-footer"` → `position: fixed`，宽 100%、高 7rem），**页尾顶边一进视口就点亮**（0.45s 淡入；实测 footerTop 1243 → op 0、511 → op 0.68、到底 → op 1），滚回上面自动熄灭——从下方滚进来的内容（卡片顶边、圆角、logo、链接……）先经过这条带子再浮现。
-  - ⚠️ **踩过的坑**：先前用绝对定位贴在页面最底部是错的——滚入过程中那条带子根本不在屏幕里（所以「根本看不到」），而且它只糊卡片内部那片平滑渐变＝等于没糊。
-  - ⚠️ **性能**：固定全宽 `backdrop-filter` 的层数/半径直接决定合成成本，实测 7 层/末层 96px 时预览连截图都准备不出来（滚动必然掉帧）。最终 3 层 / 上限约 30px（`strength 1.9 / height 7rem / exponential`），层值实测 `blur(3.9px) / blur(14.9px) / blur(30.4px)`；`prefers-reduced-motion` 下整条不渲染。
+  - 🐞 **「始终看不到」的真因（2026-09-25 定位）**：`GradualBlur` 的渐变层用 Tailwind **`absolute inset-0`** 定尺，而本页只引 `tailwindcss/utilities`、**没引 theme**（见文件头注释）→ `inset-0` 编译为 `calc(var(--spacing) * 0)`，`--spacing` 未定义 → 整条声明被丢弃 → 三层实测都是 **0×0**，`backdrop-filter` 无从作用。与强度、位置、mask 全无关系（对照实验：手写的 `backdrop-filter: blur(24px)` 层、带/不带 mask 都正常糊）。**修法**：`landing.css` 加 `.landing .gradual-blur > div > div { inset: 0 }`（按组件结构补尺寸，不用全局补 `--spacing`——那会连带改动别的组件现状）。修后实测层尺寸 1425×112，页底带内 logo/链接/按钮明显糊开，对照关闭 backdrop-filter 一帧全清晰。
+  - ⚠️ 同类风险：`TiltedCard`（`top-0 left-0`）、`GlassSurface`（`p-2`）也用了主题相关工具类而静默失效——当前视觉无碍（那几处都有 `w-full/h-full` 兜底或本就无需该属性），但新增组件务必**只用任意值语法**（`text-[#4AD1FF]` 这类）。
+  - ⚠️ **性能**：固定全宽 backdrop-filter 的层数/半径直接决定合成成本，实测 7 层/末层 96px 时预览连截图都准备不出来（滚动必然掉帧）。最终 3 层 / 上限约 30px（`strength 1.9 / height 7rem / exponential`，层值实测 `blur(3.9px) / blur(14.9px) / blur(30.4px)`）；`prefers-reduced-motion` 下整条不渲染。
   - `zIndex={0}`（组件对 page 目标会 +100 → 100）压在页尾内容之上、顶栏面板之下；合规声明在静止态位于带子 y 区间之上（实测 y 396–421，带子自 788 起），保持清晰不被虚化。
 - 页尾：流体渐变 abstract background（**鲜明、有流动感、鼠标交互**）；其上：logo + 一句话简介（暂填「围着你转的学习伙伴。」）+ 链接组（隐私协议 / 服务条款 / 社区与文档 / 联系我们）+ 返回顶部 + 版权行。
 - ⚠️ **合规硬项**：页尾显著标注「**学生团队开发，未经专业法律审核**」。GradualBlur 的 `zIndex` 因此必须压在文字之下（只渐隐背景）。
