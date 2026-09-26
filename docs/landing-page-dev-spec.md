@@ -358,6 +358,7 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 2. **信任屏标题叠压卡片**：卡片横移滑过标题区，55% 半透明卡面透出标题文字 → 标题随横移进度在前 25% 内淡出（「sticky 在左」初始语义不变，淡出让位给卡片；供 Skyer review，如需标题全程可见可改卡片轨道裁切方案）。
 3. **信任卡折叠态内容泄漏**：`.figure` 的 `0fr` 折叠被子元素自身 margin/padding/边框撑起轨道下限（实测漏出 38px 的 S5 对话切片与占位框虚线顶边）→ 增加零装饰裁剪层 `.figureClip` 作为 grid 直接子元素。
 4. **移动端顶栏菜单折行破碎**（375px 实测）：菜单/登录按钮文字竖排换行 → `white-space: nowrap` + 720px 断点紧凑化（字号/间距收紧）。
+5. **纵向 flex 里 `width: auto` 的图片会被横向拉伸**（踩了两次：Hero logo 与页尾 logo，均实测渲染宽度 ≈ 容器宽）——纵向 flex 容器默认 `align-items: stretch`，交叉轴（宽）被拉满，而 `width: auto` 不构成防御 → 图一律加 `align-self: flex-start`（Hero `.logo`、页尾 `.footerLogo` 已加并留注释）。全页排查脚本：比对每个 `<img>` 的 `rendered 宽高比 / naturalWidth/naturalHeight`，偏离 >2% 即拉伸；当前仅第二屏两张实录图命中，那是 `.slideImg { object-fit: cover }` 的有意裁切，不算拉伸。
 
 ---
 
