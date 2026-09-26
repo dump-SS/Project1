@@ -186,7 +186,7 @@
   align-items: center;
   gap: 48px;
   min-height: 150px; /* 不同菜单内容高度一致（Skyer：高度不一致问题） */
-  padding-block: 20px;
+  padding-block: 20px 34px; /* 底部多留呼吸位——下界线不贴最后一项（Skyer 2026-09-25） */
   animation: lp-panel-fade 0.32s ease; /* 切换菜单时内容淡入 */
 }
 
