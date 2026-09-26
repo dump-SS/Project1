@@ -1,0 +1,387 @@
+/* CTA + 页尾（visual-language §7.8）：从夜走到光 */
+
+/* ---------- 图标海 → CTA 的分割线（Skyer 2026-09-25） ----------
+   发丝灰线：颜色取与顶栏面板竖分割线同一支（次文色 35%），1px 静态无动效。
+   通栏——不套内容栏，作为 main 的直接子元素铺满视口宽（左右顶到屏幕边缘）。 */
+.divider {
+  height: 1px;
+  background: rgba(154, 164, 176, 0.35);
+}
+
+/* ---------- 上部 CTA（暗区） ----------
+   2026-09-25 Skyer 调整：拉到底时——
+   ① 末句落在视口顶下方约 71px（顶栏 64px + 一点余量；顶栏触底会自动弹出，
+      故这里的余量要按「顶栏可见」来留）；
+   ② 与上一屏的分割线必须已经滚出视口。
+   算式：末句在底部的视口位置 = 视口高 −（末句→CTA 底的内容高 180.4）− 页尾高；
+   故页尾高取 calc(100dvh − 252px)（见 .footer），上留白 120px > 目标间距 71px，
+   分割线因此落在视口上沿之上。末句自身高度由 .ctaInner 的 gap 直接决定。 */
+.cta {
+  padding-block: 120px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ctaInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 末句 ↔ 输入胶囊：32px（Skyer 2026-09-25：抬高末句、输入框不动——末句位置由这段
+     间距直接决定，加大即抬高末句，其下元素不受影响；衬线下行墨迹溢出约 5px，余量充足） */
+  gap: 32px;
+}
+
+/* 末句：衬线（两句都是，Skyer 2026-09-25）；翻转过渡（两行叠放，交叉淡入） */
+.finalLine {
+  position: relative;
+  font-family: var(--lp-font-serif);
+  font-weight: 500;
+  font-size: clamp(28px, 4.4vw, 52px);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  height: 1.2em;
+  text-align: center;
+}
+
+/* 只作用于两句的包裹层——FoldText 内部还有多层 span，不能被子选择器穿透
+   （早前用 `.finalLine span` 会把逐字片变成块级，整句竖排） */
+.finalLine > span {
+  display: block;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.lineHidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(30%);
+}
+
+/* 后句容器：不参与淡入（入场交给 FoldText 逐字折入，否则容器淡入会把折叠盖掉） */
+.lineIn {
+  position: absolute;
+  inset: 0;
+  transition: none;
+}
+
+/* 首句淡出（上移离场）：比入场快，且折入延后 0.2s（见 TSX）——两句几乎不叠 */
+.lineOut {
+  opacity: 0;
+  transform: translateY(-30%);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+/* FoldText 根：整行居中、衬线、行高与首句一致（否则两句基线错开约 3px） */
+.foldLine {
+  font-family: var(--lp-font-serif);
+  line-height: 1.2;
+}
+
+/* 输入胶囊：与 Hero 输入框同款（GlareHover 提供底与描边，input 自身透明）。
+   宽度由 GlareHover 的 width 属性给（内联样式，类里写会被覆盖），这里只管光标与聚焦态。 */
+.inputGlare {
+  cursor: text !important; /* 覆盖 GlareHover 的 cursor-pointer */
+  /* 聚焦态描边/外发光要有过渡，与 Hero 输入框一致（Skyer 2026-09-25：点了会硬切）。
+     GlareHover 根节点自身没有 transition 工具类，故在这里补。 */
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.inputGlare:focus-within {
+  border-color: rgba(74, 209, 255, 0.55) !important; /* 压过组件的内联 borderColor */
+  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.1);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding-right: 6px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px 0 24px;
+  font-family: var(--lp-font-sans);
+  font-size: 16px;
+  color: var(--lp-text);
+  background: none;
+  border: none;
+  outline: none;
+}
+.input::placeholder {
+  color: var(--lp-text-2);
+}
+
+/* 发送键：圆形、极淡蓝（近白）、黑色小纸飞机（Skyer 2026-09-25） */
+.sendBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: #0B1017;
+  background: var(--lp-pale);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+.sendBtn:hover {
+  background: #FFFFFF;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(191, 233, 255, 0.22);
+}
+.sendBtn:focus-visible {
+  outline: 2px solid rgba(74, 209, 255, 0.75);
+  outline-offset: 2px;
+}
+
+/* ---------- 下部页尾（亮区：全站唯一「大面积+鲜明+流体渐变」特例） ----------
+   2026-09-25 Skyer：动效区左右留空、上两角大圆角；页底 Gradual Blur 渐隐。
+   min-height 的算式与 .cta 配套：拉到底时末句落在视口顶下方约 79px
+   （= 视口高 − 172.4（末句→CTA 底）− 页尾高，见 .cta 注释；改 264→252 即把
+   末句连同其下整簇再上提 12px——Skyer 2026-09-25「末句稍往上挪，视觉不协调」）；
+   下限 360px 保窄屏不至于把末句挤出视口。 */
+.footer {
+  position: relative;
+  margin-inline: clamp(20px, 3vw, 56px); /* 左右留空 */
+  border-radius: 40px 40px 0 0; /* 上两角大圆角 */
+  min-height: max(360px, calc(100vh - 252px));
+  min-height: max(360px, calc(100dvh - 252px));
+  padding-block: 72px 40px;
+  color: #0F1520; /* 亮区上的暗字 */
+  /* 注意：不可 overflow:hidden——页底渐隐带要跨出卡片铺满视口宽（见 .blurHost），
+     圆角裁剪改由 .bg 自己承担 */
+}
+
+/* 页底渐隐带：**高度固定 30vh**（Skyer 2026-09-25 最终口径：高度不变，只改渲染时机），
+   固定在视口底边；组件根是 absolute（preset bottom）→ 铺满宿主，掩膜百分比随宿主缩放。
+   30vh 的上沿正好落在页脚文字（logo/链接/版权/合规声明）下方 → 静止时文字全清晰。
+   渲染时机由 .blurHostOn 控制：分割线一滚进视口开始渲染 */
+.blurHost {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30vh;
+  height: 30dvh;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.blurHostOn {
+  opacity: 1;
+}
+
+/* ---------- 矮窗兜底（2026-09-25）：视口高 < 700px 时三段（末句/胶囊/页尾内容）
+   本来挤不下，末句会被顶到视口外。这里压缩页尾留白与末句间距，保证末句仍
+   落在顶栏下方，且分割线仍在视口之上。 */
+@media (max-height: 700px) {
+  .cta {
+    padding-block: 92px 24px;
+  }
+  .ctaInner {
+    gap: 24px; /* 与常规档同向（常规 32） */
+  }
+  .footer {
+    min-height: max(300px, calc(100vh - 238px));
+    min-height: max(300px, calc(100dvh - 238px));
+    padding-block: 44px 30px;
+  }
+  .legal {
+    margin-top: 30px;
+  }
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit; /* 卡片圆角由这一层承担（.footer 已不再裁剪） */
+  overflow: hidden;
+}
+
+/* 虹彩画布宿主：Iridescence 渲染的是 <div>+<canvas>，需显式铺满 */
+.bgCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 静态兜底（reduced-motion / chunk 未加载）：虹彩的静态近似（淡青 + 淡紫光泽） */
+.bgFallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(55% 75% at 28% 28%, rgba(150, 224, 255, 0.85), transparent 70%),
+    radial-gradient(48% 68% at 76% 62%, rgba(214, 226, 255, 0.7), transparent 72%),
+    radial-gradient(42% 58% at 58% 92%, rgba(180, 244, 240, 0.6), transparent 74%),
+    linear-gradient(160deg, #e8f6ff 0%, #f7fbff 55%, #e9f1ff 100%);
+}
+
+/* scrim：保文字对比度又不把虹彩糊没——比 Grainient 时期更淡（0.55/0.68 → 0.26/0.36），
+   因为 Iridescence 输出本身偏亮（每通道 0.46–1 × 基色）。若后续调基色更暗，需回头加浓 */
+.bgScrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(245, 250, 255, 0.26), rgba(232, 242, 252, 0.36));
+}
+
+.footerInner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 48px;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .footerInner {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+.brandCol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.footerLogo {
+  height: 36px;
+  width: auto;
+  /* .brandCol 是纵向 flex（默认 align-items: stretch），不锁起点会把交叉轴拉满容器宽、
+     图片横向变形（实测渲染 595×36，原图比例下应约 97×36）。与 Hero logo 同一处理。 */
+  align-self: flex-start;
+}
+
+.tagline {
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  line-height: 1.8;
+  color: rgba(15, 21, 32, 0.85);
+}
+
+/* 链接组：占位 span（虚线样式，地址留空） */
+/* 链接组：四个**品类母项**单行并置（Skyer 2026-09-25：横行并置；母项不可点击，
+   具体子项未定）。窄屏自动折行；仍保留占位样式（虚线）以示「结构留位、内容留空」。
+   ⚠️ 是 `<span>` 不是链接：子项定下来之前不做可点入口（占位规则，见 §4.8）。 */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 42px; /* 拉开间距（Skyer 2026-09-25） */
+}
+
+/* 四个品类母项：**下划线统一长度**（Skyer 2026-09-25）——左端与文字对齐、右端长于文字。
+   故不用 `border-bottom`（长度会随文字长短变化），改为固定等宽盒（96px）+ 绝对定位 ::after
+   画满整盒：文字左对齐 → 下划线左端自然贴文字，右侧余量即「长于文字」。
+   ⚠️ 母项不可点击（占位规则），故 cursor: default 且不加 hover 态。 */
+.linkPlaceholder {
+  position: relative;
+  display: inline-block;
+  width: 96px; /* 统一的下划线长度（最长项「社区与文档」约 70px，仍留出右端余量） */
+  padding-block: 4px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: rgba(15, 21, 32, 0.9);
+  white-space: nowrap;
+  cursor: default;
+}
+.linkPlaceholder::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
+}
+
+/* 返回顶部：GlassSurface 胶囊（Skyer 2026-09-25，原为半透明浅色方块）。
+   底色交给玻璃层，按钮自身透明；overflow:hidden 让玻璃按胶囊裁切；
+   文字/图标各自 position+z-index 压在玻璃层之上（同顶栏 bar 的做法）。 */
+.backTop {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: #0F1520;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.backTopGlass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  overflow: hidden;
+}
+/* GlassSurface 按 prefers-color-scheme 选底色，而本页恒为亮区页脚——强制浅玻璃 */
+.glassPill {
+  background: rgba(255, 255, 255, 0.34) !important;
+  border-radius: 999px !important;
+  transition: background 0.25s ease;
+}
+/* reduced-transparency 回退：纯色底（不做磨砂/位移） */
+.backTopSolid {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+}
+.backTopLabel,
+.backTopIcon {
+  position: relative;
+  z-index: 1;
+}
+.backTop:hover {
+  transform: translateY(-1px);
+}
+.backTop:hover .glassPill {
+  background: rgba(255, 255, 255, 0.5) !important;
+}
+.backTop:focus-visible {
+  outline: 2px solid rgba(74, 209, 255, 0.7);
+  outline-offset: 2px;
+}
+
+/* 版权 + 备案 + 合规声明 */
+.legal {
+  position: relative;
+  z-index: 1;
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--lp-font-sans);
+  font-size: 13px;
+  color: rgba(15, 21, 32, 0.82);
+}
+
+/* 备案行占位（内容留空）。注：原 .blank（版权年份虚线下划线）随 2026-09-25
+   版权行落地为「© 未名_Official 2026」一并移除 */
+.blankRow {
+  min-height: 1em;
+}
+
+/* 合规硬项：显著标注（不加透明度，字号提一档） */
+.compliance {
+  font-size: 14px;
+  font-weight: 500;
+  color: #10161E;
+  margin-top: 4px;
+}

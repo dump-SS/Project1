@@ -1,0 +1,322 @@
+/* 信任屏（visual-language §7.6）：横向劫持 + 四卡 */
+
+.runway {
+  height: 340vh;
+  position: relative;
+}
+
+.pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  gap: 28px;
+}
+
+/* 背景：Beams 光束（2026-09-25 Skyer 指定）；上下轻渐隐衔接前后屏深底 */
+.beamsLayer {
+  position: absolute;
+  inset: 0;
+  opacity: 0.62; /* 氛围背景，不抢卡片 */
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 80px; /* 首卡离标题更远（Skyer 2026-09-25） */
+  align-items: center;
+  width: 100%;
+}
+
+/* 标题 sticky 在左（2026-09-25 Skyer：标题不分行 + 下加小字）；
+   初始位置微左移一点点（Skyer 2026-09-25） */
+.titleBlock {
+  flex: 0 0 auto;
+  max-width: 300px;
+  margin-left: -24px;
+}
+
+.title {
+  color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.4;
+  white-space: nowrap; /* 不分行（Skyer 2026-09-25） */
+}
+
+/* 标题下小字（Skyer 指定文案） */
+.sub {
+  margin-top: 12px;
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--lp-text-2);
+}
+
+/* ---------- 卡片轨道 ---------- */
+.viewport {
+  flex: 1;
+  min-width: 0; /* flex 子项默认 min-width:auto 会被内容撑开（轨道溢出量测不到，末卡裁切） */
+  overflow: visible;
+}
+
+.track {
+  display: flex;
+  gap: 24px;
+  will-change: transform;
+  padding-left: 8px;
+  align-items: flex-start;
+}
+
+/* ---------- 卡片（2026-09-25 Skyer：标题卡外左上 / 卡内图标 / BorderGlow） ---------- */
+.cardCol {
+  flex: 0 0 min(380px, 80vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 卡片标题：卡外左上 */
+.cardName {
+  color: var(--lp-text); /* h3 同样中招 global.css 元素规则 */
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: 19px;
+  padding-left: 4px;
+}
+
+/* BorderGlow 外壳：撑满列宽（其内部自带背景/边框/圆角） */
+.cardGlow {
+  width: 100%;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 24px;
+  min-height: 186px; /* 静息高度微收（Skyer 2026-09-25，原 208） */
+  border-radius: 22px; /* 展开态的卡面色块也走圆角（避免 hover 后出现直角，Skyer 2026-09-25） */
+  background: transparent; /* 底/边框由 BorderGlow 承担 */
+  transition: background 0.25s ease;
+}
+
+.cardOpen {
+  background: #1B222D; /* 展开态 = 原静息色（Skyer 2026-09-25） */
+}
+
+/* 卡内左上：品牌色渐变图标（无背景底，Skyer 2026-09-25） */
+.cardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start; /* 去底后不被 flex 拉伸居中（保持左上） */
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.expandBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--lp-font-sans);
+  font-size: 13px;
+  color: var(--lp-text-2);
+  background: none;
+  border: 1px solid var(--lp-hairline);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.chevronUp {
+  transform: rotate(180deg);
+}
+
+/* 桌面端 hover 即展开（按钮冗余但无害）；触屏靠按钮 */
+@media (hover: hover) {
+  .expandBtn { display: none; }
+}
+
+.cardBrief {
+  font-family: var(--lp-font-serif);
+  font-size: 14px;
+  line-height: 1.8;
+  color: #ffffff; /* 说明文字改白（Skyer 2026-09-25） */
+  transition: color 0.3s ease;
+}
+
+/* hover 唤起图片详情时，卡上简要说明变灰（Skyer 2026-09-25） */
+.card:has(.figureInner:hover) .cardBrief {
+  color: var(--lp-text-2);
+}
+
+/* ---------- 配图区：hover/click/focus 展开 ---------- */
+.figure {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.figureOpen {
+  grid-template-rows: 1fr;
+}
+
+.figure > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* 0fr 折叠的裁剪层：必须零 margin/padding/border，否则其盒模型尺寸会把
+   grid 轨道从 0 撑起来（实测漏出 38px 的 S5 对话切片 / 占位框虚线顶边） */
+.figureClip {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* 展开区内容：图片层 + 详情层（hover 图片虚化并显示详细说明，Skyer 2026-09-25） */
+.figureInner {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.figureVisual {
+  transition: filter 0.35s ease;
+}
+
+.figureInner:hover .figureVisual {
+  filter: blur(6px);
+}
+
+/* 详情层：文首落在图片左上，右端距图片右缘留一点空间（不中置，Skyer 2026-09-25） */
+.figureDetail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start; /* 顶部起排（原居中） */
+  padding: 14px 92px 14px 16px; /* 右侧留白再加大约 3–4 字宽（Skyer 2026-09-25） */
+  background: rgba(11, 16, 23, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.figureDetail p {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--lp-font-serif);
+  font-size: 13.5px;
+  line-height: 1.85;
+  text-align: left;
+  color: #ffffff;
+}
+
+.figureInner:hover .figureDetail {
+  opacity: 1;
+}
+
+/* 占位块：等比容器 + 中性块 + TODO（禁假界面图，dev-spec §5.3） */
+.placeholder {
+  margin-top: 8px;
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--lp-font-serif);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--lp-text-2);
+  background:
+    linear-gradient(135deg, rgba(27, 93, 191, 0.14), rgba(11, 16, 23, 0.85));
+  border: 1px dashed var(--lp-hairline);
+  border-radius: 10px;
+}
+
+.cardDetail {
+  margin-top: 10px;
+  font-family: var(--lp-font-serif);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--lp-text-2);
+}
+
+/* ---------- 卡 4：S5 真对话 ---------- */
+.s5 {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(16, 22, 30, 0.7);
+  border: 1px solid var(--lp-hairline);
+}
+
+.s5User {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: 6px 12px;
+  border-radius: 10px 10px 4px 10px;
+  background: rgba(42, 53, 66, 0.6);
+  font-family: var(--lp-font-sans);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.s5Product {
+  align-self: flex-start;
+  max-width: 94%;
+  padding: 8px 12px;
+  border-radius: 10px 10px 10px 4px;
+  background: rgba(27, 34, 45, 0.5);
+  font-family: var(--lp-font-serif);
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+/* ---------- 护栏①：底部进度条（加粗，Skyer 2026-09-25） ---------- */
+.progressTrack {
+  position: absolute;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 64vw);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lp-hairline);
+  overflow: hidden;
+  z-index: 1; /* 抬到 Beams 光束之上 */
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--lp-blue);
+  transition: width 0.1s linear;
+}
+
+/* ---------- 静态降级（reduced-motion） ---------- */
+.staticSection {
+  padding-block: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.staticGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}

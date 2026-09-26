@@ -1,0 +1,227 @@
+/* 功能屏 ×3（visual-language §7.3–7.5）
+   2026-09-25 Skyer 编排：section 76vh——当前文字竖向居中时，下一张卡片已露边；
+   容器 landing-wide（文字左靠、卡片右靠放大）。 */
+
+.section {
+  position: relative;
+  min-height: 72vh; /* 三卡间距微增（64→72vh）；当前文字居中时下一卡仍露边 */
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  /* 屏间切换：进入时淡入上移 */
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sectionIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 920px) {
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .section {
+    min-height: auto;
+    padding-block: 88px;
+  }
+}
+
+/* ---------- 左：金句标题 + 功能名 ---------- */
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 标题：无衬线（正在说）；Decrypted Text 逐行呈现 */
+.title {
+  color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
+  font-family: var(--lp-font-sans);
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 42px);
+  line-height: 1.45;
+  min-height: 1.45em;
+}
+
+/* 标题行：块级（首屏两行断法） */
+.titleLine {
+  display: block;
+}
+
+/* 解密中的混淆字符：略暗，与明文区分 */
+.titleEncrypted {
+  color: var(--lp-text-2);
+  opacity: 0.75;
+}
+
+/* 功能名小字样式已移除（小标题按 Skyer 指示删除；featureName 仅作 section aria-label） */
+
+/* 说明段：面向用户的技术性说明（Skyer 2026-09-25 扩写）；
+   margin-left 补偿「的字形左边距——正文对齐符号墨迹而非字符框（Skyer 指示） */
+.description {
+  font-family: var(--lp-font-serif);
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--lp-text-2);
+  max-width: 46ch;
+  margin-left: 12px; /* 补偿「字形左边距（目测校准：正文与符号墨迹齐平） */
+}
+
+/* 卡内左上角主题暗纹（自卡外右下移入，Skyer 2026-09-25） */
+.cardMotifs {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  color: var(--lp-motif);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cardMotifIcon {
+  transform: rotate(-8deg);
+}
+
+.cardMotifIcon:nth-child(2) {
+  transform: rotate(10deg);
+}
+
+/* 卡右下角标：素材来源声明 */
+.cardCaption {
+  position: absolute;
+  right: 30px;
+  bottom: 22px;
+  font-family: var(--lp-font-sans);
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  color: var(--lp-text-2);
+  opacity: 0.7;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ---------- 右：Tilted Card 对话卡片（纯色卡面 + 前置气泡层）
+   2026-09-25 Skyer：气泡前置层级（translateZ 随倾角视差）、纯色背景、
+   圆角加大、卡片加长、气泡字放大、整体微调左移；本屏唯一蓝 = 卡面光晕 ---------- */
+.dialogueWrap {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: clamp(0px, 4vw, 72px); /* 卡片微调左移 */
+}
+
+/* 卡面：金属拉丝背景图（Skyer 2026-09-25 提供，自行裁切入库）+ 暗色 scrim 保可读；
+   preserve-3d 让气泡层 translateZ 生效 */
+.cardFace {
+  position: relative;
+  width: 100%;
+  min-height: 620px; /* 继续加长（气泡行宽收窄 → 行数增多，卡随之更高） */
+  display: flex;
+  align-items: center;
+  padding: 58px 60px; /* 加大：吸收气泡层 1.14x 透视缩放 */
+  border-radius: 32px; /* 圆角再加大 */
+  background: #1B222D url('/cards/metal-card.jpg') center / cover;
+  border: 1px solid rgba(154, 164, 176, 0.22);
+  box-shadow: 0 30px 84px rgba(5, 10, 18, 0.6);
+  overflow: hidden;
+  transform-style: preserve-3d;
+}
+
+/* 暗色 scrim：金属亮带处保气泡对比度（保留金属质感，不用半透明卡面） */
+.cardFace::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(11, 16, 23, 0.32);
+}
+
+/* 光晕：大面积低强度（作为「光」存在），只此一处 */
+.cardFace::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    42% 50% at 55% 45%,
+    rgba(74, 209, 255, 0.12),
+    transparent 72%
+  );
+}
+
+/* 前置气泡层：translateZ 大间距（200px）+ 大透视（1600）——层间视差显著，
+   缩放仅 1.14x（卡内边距已吸收） */
+.bubbleLayer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px; /* 间距加大 */
+  width: 100%;
+  transform: translateZ(200px); /* 与卡背间距加大（原 78px） */
+}
+
+/* 光晕：大面积低强度（作为「光」存在），只此一处 */
+.dialogue::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  background: radial-gradient(
+    42% 50% at 55% 45%,
+    rgba(74, 209, 255, 0.12),
+    transparent 72%
+  );
+}
+
+/* 用户短句：无衬线（随口输入的）；行宽收窄 → 增加行数（Skyer 2026-09-25） */
+.bubbleUser {
+  align-self: flex-end;
+  max-width: 62%;
+  padding: 14px 20px;
+  border-radius: 14px 14px 4px 14px;
+  background: rgba(42, 53, 66, 0.85);
+}
+
+.userText {
+  font-family: var(--lp-font-sans);
+  font-size: 18.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
+  line-height: 1.7;
+}
+
+/* 产品回复：衬线（已写下来的）；行宽收窄 → 增加行数（Skyer 2026-09-25） */
+.bubbleProduct {
+  align-self: flex-start;
+  max-width: 76%;
+  padding: 16px 22px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(12, 17, 25, 0.92);
+  border: 1px solid var(--lp-hairline);
+}
+
+.productText {
+  font-family: var(--lp-font-serif);
+  font-weight: 400;
+  font-size: 18.5px; /* 放大——卡不显空（Skyer 2026-09-25） */
+  line-height: 1.8;
+  color: var(--lp-text);
+}
+
+/* ---------- 底部暗纹规则已移除：图标移入卡内左上角（.cardMotifs） ---------- */

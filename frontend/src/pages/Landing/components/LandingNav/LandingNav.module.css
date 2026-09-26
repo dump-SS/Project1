@@ -1,0 +1,466 @@
+/* 顶栏（visual-language §7.0）：logo 两态 / mega 面板 / 失焦虚化 / 滚动收起弹出 / 页尾加深 */
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.35s ease, backdrop-filter 0.35s ease;
+}
+
+/* 下滑收起（劫持区间与展开面板时不收起） */
+.navHidden {
+  transform: translateY(-100%);
+}
+
+/* 滚过 hero：logo 全称保持；玻璃底由 GlassSurface 组件层承担（2026-09-25 Skyer 指定），
+   本类仅作为状态标记驱动 logo 两态 */
+.navSolid {
+  /* 玻璃底见 .glassLayer/.glassNav */
+}
+
+/* 页尾（亮区流体渐变）加深：GlassSurface backgroundOpacity 调高，此类仅作状态标记 */
+.navFooter {
+}
+
+.bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+/* ---------- 玻璃底（Glass Surface）与回退 ---------- */
+.glassLayer {
+  position: absolute;
+  inset: 0;
+}
+
+/* GlassSurface 内部按 prefers-color-scheme 选底色，本页恒为夜色——强制暗底；
+   出 Hero 后通栏玻璃条，无圆角 */
+.glassNav {
+  background: rgba(16, 22, 30, 0.38) !important;
+  border-radius: 0 !important;
+}
+
+/* reduced-transparency：纯色底回退（不用磨砂/位移滤镜） */
+.navBgFallback {
+  position: absolute;
+  inset: 0;
+  background: rgba(16, 22, 30, 0.85);
+}
+
+/* 下拉展开：顶栏转纯色（与面板同色连体，2026-09-25 Skyer） */
+.navSolidBg {
+  position: absolute;
+  inset: 0;
+  background: var(--lp-bg);
+}
+
+/* ---------- logo 两态：EX 标 + 全称滑出 ---------- */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.logoMark {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* 全称包裹层：宽度从 0 展开（滚过 hero 后保持） */
+.logoWordWrap {
+  display: block;
+  width: 0;
+  overflow: hidden;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  opacity: 0;
+}
+.navSolid .logoWordWrap,
+.navFooter .logoWordWrap {
+  width: 76px; /* wordmark 417×155 @ h28 ≈ 76px */
+  opacity: 1;
+}
+
+.logoWord {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* ---------- 菜单 ---------- */
+.menus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 2026-09-25 Skyer：菜单移到 logo 后面——左组成组，登录独立靠右 */
+.barLeft {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+}
+
+.menuBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: var(--lp-text);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap; /* 窄屏下按钮文字不得折行（375px 走查发现破碎） */
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.menuBtn:hover,
+.menuBtn:focus-visible,
+.menuBtnOn {
+  background: rgba(27, 34, 45, 0.7);
+  outline: none;
+}
+
+/* ---------- 菜单文字滚动（Skyer 2026-09-25）：hover 时原字向上滑出、同字由下方滑入 ----------
+   .roll 是单行裁剪窗（overflow:hidden），字块整体上移一行即完成换字；
+   副本（.rollDup，aria-hidden）停在裁剪窗下沿，动画中滑入。 */
+.roll {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  line-height: 1.3;
+}
+.rollInner,
+.rollDup {
+  display: block;
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rollDup {
+  position: absolute;
+  left: 0;
+  top: 100%; /* 停在下行——被裁剪窗挡住，动画时滑入 */
+}
+.menuBtn:hover .rollInner,
+.menuBtn:hover .rollDup,
+.menuBtn:focus-visible .rollInner,
+.menuBtn:focus-visible .rollDup,
+.menuBtnOn .rollInner,
+.menuBtnOn .rollDup {
+  transform: translateY(-100%);
+}
+
+/* 「暂无」灰描边标签（不可用=灰，不占蓝色） */
+.naTag {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--lp-text-2);
+  border: 1px solid var(--lp-hairline);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+/* ---------- 右侧组：语言切换 + 登录 ---------- */
+.barRight {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* 语言切换（Skyer 2026-09-25）：hover 展开的独立小下拉，视觉与左侧菜单同族 */
+.lang {
+  position: relative;
+}
+.langBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: var(--lp-text-2);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.langBtn:hover,
+.langBtn:focus-visible,
+.langBtnOn {
+  color: var(--lp-text);
+  background: rgba(27, 34, 45, 0.7);
+  outline: none;
+}
+/* ▽ 指示：CSS 三角（跟随 currentColor），展开时翻上来 */
+.langCaret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.langBtnOn .langCaret {
+  transform: rotate(180deg);
+}
+/* 下拉：贴在按钮正下方、右对齐，深色面 + 发丝描边（与 mega 面板同色系但更小） */
+.langMenu {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 2;
+  min-width: 120px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-hairline);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  animation: lp-panel-fade 0.18s ease;
+}
+.langItem {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  text-align: left;
+  color: var(--lp-text-2);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.langItem:hover,
+.langItem:focus-visible {
+  color: #fff;
+  background: rgba(74, 209, 255, 0.14);
+  outline: none;
+}
+
+/* 登录：白底黑字药丸（2026-09-25 Skyer） */
+.loginBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  margin-left: 12px;
+  padding: 0 22px;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: #0B1017;
+  background: #F7F9FC;
+  text-decoration: none;
+  border: none;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 0.25s ease, transform 0.2s ease;
+}
+.loginBtn:hover {
+  background: #E4EBF4;
+  transform: translateY(-1px);
+}
+/* ---------- mega 面板（2026-09-25 Skyer 重排）：
+   选项竖列（对齐母按钮位置）→ 竖分割线 → 放大加粗纯白 lead（分行） ---------- */
+.panel {
+  position: relative; /* 压过 absolute 的 .navSolidBg（static 会被其盖住内容） */
+  z-index: 1;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  background: var(--lp-bg); /* 下拉展开时与顶栏连体纯色（2026-09-25 Skyer） */
+  border-bottom: 1px solid var(--lp-hairline);
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.panelOpen {
+  max-height: 320px;
+  opacity: 1;
+}
+
+.panelInner {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  min-height: 150px; /* 不同菜单内容高度一致（Skyer：高度不一致问题） */
+  padding-block: 20px 34px; /* 底部多留呼吸位——下界线不贴最后一项（Skyer 2026-09-25） */
+  animation: lp-panel-fade 0.32s ease; /* 切换菜单时内容淡入 */
+}
+
+@keyframes lp-panel-fade {
+  from { opacity: 0; transform: translateY(14px); } /* 从下往上淡入（Skyer 2026-09-25） */
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 选项竖列：纯文字——静止灰、hover 白 + 下划线生长（Skyer：不要按钮感） */
+.panelList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 展开时格子从上到下依次淡入（Skyer 2026-09-25）：逐项延迟 80ms，
+   面板内容按 openMenu 重挂载 → 每次展开/切换都重播 */
+.panelList > li {
+  opacity: 0;
+  animation: lp-panel-item 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.panelList > li:nth-child(1) { animation-delay: 0.06s; }
+.panelList > li:nth-child(2) { animation-delay: 0.14s; }
+.panelList > li:nth-child(3) { animation-delay: 0.22s; }
+.panelList > li:nth-child(4) { animation-delay: 0.3s; }
+.panelList > li:nth-child(5) { animation-delay: 0.38s; }
+.panelList > li:nth-child(n + 6) { animation-delay: 0.46s; }
+
+@keyframes lp-panel-item {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.panelLink,
+.panelLinkPlaceholder {
+  display: inline-block;
+  width: max-content;
+  position: relative;
+  padding: 2px 0;
+  font-family: var(--lp-font-sans);
+  font-size: 15px;
+  color: var(--lp-text-2); /* 静止灰 */
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.panelLink::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 1.5px;
+  width: 100%;
+  background: #fff;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.panelLink:hover,
+.panelLink:focus-visible {
+  color: #fff; /* hover 白 */
+  outline: none;
+}
+.panelLink:hover::after,
+.panelLink:focus-visible::after {
+  transform: scaleX(1); /* 下划线生长 */
+}
+
+/* 占位项（未上线 / 待补）：灰态常驻，无 hover 效果 */
+.panelLinkPlaceholder {
+  cursor: default;
+}
+
+/* 竖分割线 */
+.panelDivider {
+  align-self: stretch;
+  width: 1px;
+  background: rgba(154, 164, 176, 0.35);
+}
+
+/* lead：字号放大、纯白加粗、限宽自然分行（断点落在「下一代」后） */
+.panelLead {
+  margin: 0;
+  font-family: var(--lp-font-sans);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #ffffff;
+  max-width: 200px;
+}
+
+@media (max-width: 720px) {
+  /* 窄屏菜单紧凑化：按钮不折行（375px 实测），间距收紧 */
+  .menus {
+    gap: 0;
+  }
+  .menuBtn {
+    height: 38px;
+    padding: 0 9px;
+    font-size: 13.5px;
+    gap: 5px;
+  }
+  .naTag {
+    padding: 2px 4px;
+  }
+  .loginBtn {
+    height: 36px;
+    margin-left: 6px;
+    padding: 0 12px;
+    font-size: 13.5px;
+  }
+  /* 语言切换：窄屏隐藏（375px 实测：logo 标 + 三菜单 + 语言 + 登录已排不下；
+     全站仅中文，切换在移动端属可省项）。如需保留，改成只显代码（中/EN）而非全名 */
+  .lang {
+    display: none;
+  }
+  .panelInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .panelDivider {
+    display: none;
+  }
+  .panelLead {
+    font-size: 18px;
+  }
+}
+
+/* ---------- 背景失焦遮罩（面板展开时） ---------- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(11, 16, 23, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  /* 虚化：backdrop-filter 8–16px + 半透明遮罩 */
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.scrimOn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 页尾亮区上开面板：遮罩加深 */
+.scrimDeep {
+  background: rgba(11, 16, 23, 0.55);
+}
+
+/* prefers-reduced-transparency：玻璃底组件本身走 .navBgFallback 纯色回退（见 TSX）；
+   面板遮罩同样退纯色 */
+@media (prefers-reduced-transparency: reduce) {
+  .scrim {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(11, 16, 23, 0.6);
+  }
+}

@@ -1,0 +1,276 @@
+/* Hero（visual-language §7.1）：上光下人——上部 2/3 光场，底部地平线左 logo+slogan 右动作区 */
+
+.hero {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+/* ---------- 光场：大面积低强度品牌蓝光晕，呼吸 6–8s ---------- */
+.glow {
+  position: absolute;
+  inset: -10% -20% 30% -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 46% at 50% 34%, rgba(74, 209, 255, 0.16), transparent 70%),
+    radial-gradient(22% 30% at 62% 22%, rgba(74, 209, 255, 0.10), transparent 72%),
+    radial-gradient(50% 60% at 40% 40%, rgba(27, 93, 191, 0.10), transparent 75%);
+  animation: lp-breathe 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Prism 光场宿主（2026-09-25 Skyer 指定）：Prism 自带 alpha 透明合成（无需混合模式），
+   上下 CSS mask 渐隐防止光锥切断在硬边。触屏 / reduced 不挂载。 */
+.prismHost {
+  position: absolute;
+  inset: 2% 0 22% 0;
+  opacity: 0.6;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+}
+
+/* ---------- 暗纹层：成列 drift wall（整墙斜置，相邻列反向滚动） ----------
+   下界收到品牌 logo 上方（2026-09-25 Skyer）；单层墙 + 手电亮度洞（见 .torchHole）。 */
+.motifs {
+  position: absolute;
+  inset: 0 0 28% 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--lp-motif);
+  opacity: 0.55;
+}
+
+/* 手电：跟随指针的亮度洞——backdrop-filter 直接提亮视觉背后的图标（天然对齐）；
+   径向 mask 做软边；变量由 useFlashlight 写在 Hero section 上 */
+.torchHole {
+  position: absolute;
+  left: var(--lp-torch-x, -9999px);
+  top: var(--lp-torch-y, -9999px);
+  width: 540px;
+  height: 540px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  -webkit-backdrop-filter: brightness(2.5) saturate(1.15);
+  backdrop-filter: brightness(2.5) saturate(1.15);
+  -webkit-mask-image: radial-gradient(
+    circle,
+    #000 0%,
+    rgba(0, 0, 0, 0.5) 48%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle,
+    #000 0%,
+    rgba(0, 0, 0, 0.5) 48%,
+    transparent 100%
+  );
+}
+
+/* 列墙容器：整墙斜置，超尺寸裁边（inset 负值补旋转留白），列间均分铺满 */
+.colsWrap {
+  position: absolute;
+  inset: -18%;
+  display: flex;
+  justify-content: space-between;
+  transform: rotate(-12deg);
+}
+
+/* 单列循环带：内容 ×2 拼接，translateY ±50% 无缝循环；
+   偶数列向上（lp-col-up），奇数列向下（lp-col-down）——Skyer 指定错开方向。
+   ⚠️ `align-self: flex-start` 不可删：列是行内 flex 项，默认被 stretch 到
+   .colsWrap 的高度（实测仅 881px），而内容高约 3058px → `translateY(-50%)`
+   只有 −440px，不等于一个周期 1529px → 每轮结束就整体跳一下（Skyer
+   2026-09-25 报「时不时刷新一下」）。按内容高之后 −50% 恰好 = 一个周期。
+   时长同步 80s → 280s：位移从 440px 变成 1529px，若仍取 80s 会快约 3.5 倍，
+   调到 280s 保持原有观感速度（≈5.5px/s）。 */
+.wallCol {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  align-self: flex-start;
+  animation: lp-col-up 280s linear infinite;
+}
+
+.colDown {
+  animation-name: lp-col-down;
+}
+
+@keyframes lp-col-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+@keyframes lp-col-down {
+  from { transform: translateY(-50%); }
+  to { transform: translateY(0); }
+}
+
+/* 单元：margin 收在单元内（含末位），保证半循环高度恰好对齐拷贝边界 */
+.cell {
+  display: block;
+  margin-bottom: 96px;
+}
+
+/* 触屏 / 无精确指针：手电取消，暗纹低辨识度常亮（dev-spec §6） */
+@media (hover: none) {
+  .motifs { opacity: 0.5; }
+}
+
+/* reduced-motion：整墙静止 */
+@media (prefers-reduced-motion: reduce) {
+  .wallCol { animation: none; }
+}
+
+/* ---------- 底部地平线 ---------- */
+.ground {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  padding-bottom: 64px;
+}
+
+@media (max-width: 860px) {
+  .ground {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 28px;
+    padding-bottom: 48px;
+  }
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 紧裁全称 lockup（724×155）——方形原图直接渲染会把内容缩到不可见。
+   尺寸（2026-09-25 Skyer）：视觉上与 slogan 字号一致甚至略大，随视口同缩。 */
+.logo {
+  height: clamp(40px, 4.4vw, 63px);
+  width: auto;
+  /* .left 是纵向 flex（默认 stretch），不锁起点会把交叉轴拉满容器宽、图片横向变形 */
+  align-self: flex-start;
+  opacity: 0.92;
+}
+
+/* slogan：无衬线（正在说）；「你」蓝字 = 本屏动作蓝 */
+/* ⚠️ 显式 color：global.css 的 h1-h5 元素规则会把标题染成旧主题深靛蓝（深底不可见） */
+.slogan {
+  color: var(--lp-text);
+  font-family: var(--lp-font-sans);
+  font-weight: 400; /* 前缀细（2026-09-25 Skyer：学习工具不够细） */
+  font-size: clamp(30px, 4.6vw, 56px);
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  min-height: 1.3em;
+}
+
+.you {
+  color: var(--lp-blue);
+}
+
+/* 新加段「围着你转」加粗（2026-09-25 Skyer）：LP-Sans 800 自托管字重（700 不够粗） */
+.sloganStrong {
+  font-weight: 800;
+}
+
+/* ---------- 动作区：输入栏 + 并排按钮行（2026-09-25 Skyer：放大+加长+左移） ---------- */
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  width: min(430px, 100%);
+  margin-right: clamp(0px, 3.4vw, 56px); /* 往左靠一点：不贴右缘 */
+}
+
+.actionRow {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.input {
+  height: 54px;
+  padding: 0 24px;
+  font-family: var(--lp-font-sans);
+  font-size: 16px;
+  color: var(--lp-text);
+  background: rgba(27, 34, 45, 0.72);
+  border: 1px solid rgba(140, 160, 180, 0.16);
+  border-radius: 999px;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.input::placeholder { color: var(--lp-text-2); }
+.input:focus {
+  border-color: rgba(74, 209, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(74, 209, 255, 0.10);
+}
+
+/* 即刻开始：Specular Button（ogl 高光边缘）。
+   hover 处理（Skyer 2026-09-25：填充改近白后原高光动效不明显，要更明显更鲜艳）：
+   ① 填充由「极淡蓝」转品牌青——`--sb-tint` 被组件**内联**写在按钮上，故必须 !important
+      才压得住（已实测生效）；
+   ② 加品牌青外发光——近白底上这道光比描边高光更抓眼，也与页面其它青色焦点呼应。
+   文字仍是深色 #0B1017，在青底上对比约 9:1；高光描边同步改浅色（见 Hero.tsx props）。 */
+.ctaBtn {
+  flex: 1;
+  font-family: var(--lp-font-sans) !important;
+  transition: background 220ms ease, box-shadow 260ms ease;
+}
+.ctaBtn:hover,
+.ctaBtn:focus-visible {
+  --sb-tint: #4ad1ff !important;
+  box-shadow: 0 10px 26px rgba(74, 209, 255, 0.34);
+}
+
+/* 即刻开始的 Suspense 兜底（ogl chunk 加载前占位，样式与成品对齐） */
+.ghost {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
+  font-family: var(--lp-font-sans);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--lp-text);
+  text-decoration: none;
+  border: 1px solid var(--lp-hairline);
+  border-radius: 999px;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.2s ease;
+}
+.ghost:hover {
+  border-color: rgba(232, 234, 237, 0.4);
+  background: rgba(27, 34, 45, 0.5);
+  transform: translateY(-1px);
+}
+
+/* 桌面端：深灰填充空位（灰=不可用，不占蓝色——visual-language §4） */
+.desktop {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
+  padding: 0 10px;
+  font-family: var(--lp-font-sans);
+  font-size: 14px;
+  color: var(--lp-text-2);
+  background: #2A3440;
+  border-radius: 999px;
+  opacity: 0.85;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* reduced-motion：光场呼吸静止（landing.css 已统一静止动画） */
