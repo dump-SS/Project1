@@ -261,7 +261,8 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - **返回顶部 = GlassSurface 胶囊**（Skyer 2026-09-25，原为半透明浅色方块圆角 8）：玻璃层是绝对定位兄弟节点（`.backTopGlass`，`border-radius: 999px` + `overflow: hidden` 让玻璃按胶囊裁切），文字/图标各自 `position: relative; z-index: 1`——裸文本节点无法定层、会被玻璃盖住；按钮自身透明，底色由玻璃层给（`.glassPill { background: rgba(255,255,255,0.34) !important }`，因 GlassSurface 按 `prefers-color-scheme` 选底色而本页恒为亮区页脚）；hover 提到 0.5 + 上浮 1px；`prefers-reduced-transparency` → `.backTopSolid` 纯色底（与顶栏同一降级口径）。实测按钮 115×40 / radius 999、玻璃层 `backdrop-filter: url(#glass-filter…) saturate(1.3)`、hover 背景 0.34 → 0.5。
 - 链接组 = **四个「品类母项」单行并置**（Skyer 2026-09-25：原 2×2 网格改成横行并置；母项**不可点击**，具体子项未定）：渲染成 `<span>` 而非 `<a>`，保留虚线占位样式以示「结构留位、内容留空」；`.links { display: flex; flex-wrap: wrap; gap: 10px 28px }`（窄屏自动折行）。**下划线与间距**（Skyer 2026-09-25 二次调整：「拉开间距、下划线长度统一、左端与文字对齐、右端长于文字」）：不用 `border-bottom`（长度随文字长短变化），改固定等宽盒 `width: 96px` + 绝对定位 `::after` 画满整盒——文字左对齐，下划线左端自然贴文字、右侧余量就是「长于文字」；`.links` 的 `gap` 由 `10px 28px` 放大到 `12px 42px`。实测四项均 96px 宽、下划线 `width: 96px / left: 0` 全一致，文字宽 57/57/72/57px（即右端分别出格 39/39/24/39px），整组仍单行（组宽 327 → 510px），`clickable: false`。调下划线长度只需改那个 96px。子项定下来后挂下一级入口，母项本身仍不做可点入口。
 - ⚠️ **合规硬项**：页尾显著标注「**学生团队开发，未经专业法律审核**」。GradualBlur 的 `zIndex` 因此必须压在文字之下（只渐隐背景）。
-- ⚠️ **占位规则**：联系方式、协议链接地址、社区与文档入口、备案信息、版权年份——**结构留位、内容留空，不预先编造**。
+- ⚠️ **占位规则**：联系方式、协议链接地址、社区与文档入口、备案信息——**结构留位、内容留空，不预先编造**。
+- ✅ **版权行已落地**（2026-09-25 Skyer 给定）：`© 未名_Official 2026`——`FOOTER_COPY` 增 `copyrightHolder: '未名_Official'` 与 `copyrightYear: '2026'`，原先的虚线下划线占位（`.blank`）随之删除；备案信息行仍按占位规则留空。
 
 验收：底部两区不互相遮挡；句子翻转与光效同步；合规声明可见且清晰；占位项无编造内容。
 

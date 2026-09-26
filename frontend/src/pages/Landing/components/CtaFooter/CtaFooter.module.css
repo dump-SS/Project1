@@ -372,12 +372,8 @@
   color: rgba(15, 21, 32, 0.82);
 }
 
-.blank {
-  display: inline-block;
-  min-width: 64px;
-  border-bottom: 1px dashed rgba(15, 21, 32, 0.35);
-}
-
+/* 备案行占位（内容留空）。注：原 .blank（版权年份虚线下划线）随 2026-09-25
+   版权行落地为「© 未名_Official 2026」一并移除 */
 .blankRow {
   min-height: 1em;
 }

@@ -157,8 +157,10 @@ export const FOOTER_COPY = {
   /** 链接组：链接地址全部留空（占位 span，虚线样式） */
   links: ['隐私协议', '服务条款', '社区与文档', '联系我们'] as const,
   backToTop: '返回顶部',
-  /** 版权行：年份留空 */
+  /** 版权行：权利人 + 年份（2026-09-25 Skyer 给定，此处占位结束） */
   copyrightPrefix: '© ',
+  copyrightHolder: '未名_Official',
+  copyrightYear: '2026',
   /** 合规硬项：页尾必须显著标注 */
   compliance: '学生团队开发，未经专业法律审核',
   /** 备案信息占位行（内容留空） */

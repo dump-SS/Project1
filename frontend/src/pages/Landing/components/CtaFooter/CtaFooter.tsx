@@ -245,13 +245,11 @@ export default function CtaFooter() {
           </button>
         </div>
 
-        {/* 版权行（年份留空）+ 备案占位行 */}
+        {/* 版权行（权利人 + 年份已定：未名_Official 2026）*/}
         <div className={`${styles.legal} landing-wrap`}>
           <p>
             {FOOTER_COPY.copyrightPrefix}
-            {/* TODO(上线前)：版权年份确认后填入 */}
-            <span className={styles.blank} />
-            {' '}EpochX
+            {FOOTER_COPY.copyrightHolder} {FOOTER_COPY.copyrightYear}
           </p>
           {/* TODO(上线前)：ICP/网安备案信息确认后填入 */}
           <p className={styles.blankRow}>&nbsp;</p>
