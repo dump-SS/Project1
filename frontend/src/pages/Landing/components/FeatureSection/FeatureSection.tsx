@@ -2,7 +2,7 @@ import DecryptedText from '../bits/DecryptedText'
 import TiltedCard from '../bits/TiltedCard'
 import { useInView } from '../../hooks/useInView'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { FEATURE_SCREENS } from '../../content/copy'
+import { FEATURE_SCREENS, DIALOGUE_CAPTION } from '../../content/copy'
 import { DIALOGUES } from '../../content/dialogues'
 import {
   IconStopwatch, IconReportCard, IconNotebook, IconFlask, IconBook,
@@ -59,8 +59,8 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
                   text={line}
                   animateOn="view"
                   sequential
-                  speed={28}
-                  maxIterations={14}
+                  speed={60} /* 入场放慢（Skyer 2026-09-25） */
+                  maxIterations={20}
                   revealDirection="start"
                   /* parentClassName = 容器级（行块）；className 是字符级，勿在此设 display */
                   parentClassName={styles.titleLine}
@@ -69,7 +69,7 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
               ),
             )}
           </h2>
-          <p className={styles.featureName}>{screen.featureName}</p>
+          {/* 小标题（状态读数等）按 Skyer 2026-09-25 指示删除；仅保留说明段 */}
           <p className={styles.description}>{screen.description}</p>
         </div>
 
@@ -88,6 +88,12 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
           showTooltip={false}
         >
           <div className={styles.cardFace} aria-label="真实对话">
+            {/* 主题暗纹：附着在卡内左上角（Skyer 2026-09-25：原在卡外右下，移入卡内） */}
+            <div className={styles.cardMotifs} aria-hidden>
+              {meta.motifs.map((Icon, i) => (
+                <Icon key={i} size={i === 0 ? 26 : 32} className={styles.cardMotifIcon} />
+              ))}
+            </div>
             <div className={styles.bubbleLayer}>
               <div className={styles.bubbleUser}>
                 <p className={styles.userText}>{dialogue.user}</p>
@@ -98,16 +104,11 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
                 </div>
               ))}
             </div>
+            {/* 卡片右下角标：素材来源声明（Skyer 2026-09-25 指定） */}
+            <p className={styles.cardCaption}>{DIALOGUE_CAPTION}</p>
           </div>
         </TiltedCard>
       </div>
-      </div>
-
-      {/* 底部暗纹：换主题物件（近不可见） */}
-      <div className={styles.motifStrip} aria-hidden>
-        {meta.motifs.map((Icon, i) => (
-          <Icon key={i} size={i === 0 ? 44 : 56} className={styles.motifIcon} />
-        ))}
       </div>
     </section>
   )

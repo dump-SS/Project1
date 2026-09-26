@@ -47,6 +47,9 @@ export const EPOCHS_COPY = {
 /** 三时代窗内三格顺序：古代书简 → 书山题海 → logo（原色） */
 export const EPOCHS_SLIDES = ['scroll', 'papers', 'logo'] as const
 
+/** 对话卡片角标（Skyer 2026-09-25 指定：测试期素材来源声明） */
+export const DIALOGUE_CAPTION = '对话为测试期间产品真实生成'
+
 /** 功能屏 ×3（visual-language §7.3–7.5：标题=定稿原句，加「」逐字打出）
  *  2026-09-25 Skyer 指示：① 标题入场改 Decrypted Text（滚动到位置触发）；
  *  ② 首屏标题在「记住了多少，」后换行（titleLines）；

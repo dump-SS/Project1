@@ -66,21 +66,53 @@
   opacity: 0.75;
 }
 
-/* 功能名小字：衬线（注释时态） */
-.featureName {
-  font-family: var(--lp-font-serif);
-  font-size: 14px;
-  letter-spacing: 0.28em;
-  color: var(--lp-text-2);
-}
+/* 功能名小字样式已移除（小标题按 Skyer 指示删除；featureName 仅作 section aria-label） */
 
-/* 说明段：面向用户的技术性说明（Skyer 2026-09-25 扩写） */
+/* 说明段：面向用户的技术性说明（Skyer 2026-09-25 扩写）；
+   margin-left 补偿「的字形左边距——正文对齐符号墨迹而非字符框（Skyer 指示） */
 .description {
   font-family: var(--lp-font-serif);
   font-size: 15px;
   line-height: 1.9;
   color: var(--lp-text-2);
   max-width: 46ch;
+  margin-left: 12px; /* 补偿「字形左边距（目测校准：正文与符号墨迹齐平） */
+}
+
+/* 卡内左上角主题暗纹（自卡外右下移入，Skyer 2026-09-25） */
+.cardMotifs {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  color: var(--lp-motif);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cardMotifIcon {
+  transform: rotate(-8deg);
+}
+
+.cardMotifIcon:nth-child(2) {
+  transform: rotate(10deg);
+}
+
+/* 卡右下角标：素材来源声明 */
+.cardCaption {
+  position: absolute;
+  right: 30px;
+  bottom: 22px;
+  font-family: var(--lp-font-sans);
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  color: var(--lp-text-2);
+  opacity: 0.7;
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* ---------- 右：Tilted Card 对话卡片（纯色卡面 + 前置气泡层）
@@ -192,23 +224,4 @@
   color: var(--lp-text);
 }
 
-/* ---------- 底部暗纹（近不可见，#2A3542 档） ---------- */
-.motifStrip {
-  position: absolute;
-  bottom: 28px;
-  right: 6%;
-  display: flex;
-  align-items: flex-end;
-  gap: 36px;
-  color: var(--lp-motif);
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.motifIcon {
-  transform: rotate(-8deg);
-}
-
-.motifIcon:nth-child(2) {
-  transform: rotate(10deg);
-}
+/* ---------- 底部暗纹规则已移除：图标移入卡内左上角（.cardMotifs） ---------- */
