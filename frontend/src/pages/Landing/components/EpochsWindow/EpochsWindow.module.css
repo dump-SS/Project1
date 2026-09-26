@@ -32,8 +32,9 @@
 }
 
 /* ---------- 斜向平行四边形视窗（斜角 ≈ logo X 斜体） ----------
-   2026-09-25 Skyer：基础高 84vh 几乎顶满上下边缘（原 16:9/68vh 移除），
-   延展段由 TSX 内联驱动（宽 +14vw / 高 +12vh 双向扩）。 */
+   2026-09-25 Skyer 定稿：高 84vh（几乎顶满上下边缘）；窗口尺寸不随滚动实时改变——
+   logo 滑入 80% 触发 .final 固定时序动效（CSS 过渡一次性播完）：
+   平行四边形展平为全屏矩形、logo 回中放大、ColorBends 完整揭幕。 */
 .window {
   position: relative;
   height: 84vh;
@@ -41,7 +42,19 @@
   clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
   overflow: hidden;
   background: var(--lp-bg-deep);
-  transition: none; /* 由滚动进度直接驱动 */
+  transition:
+    width 1.1s cubic-bezier(0.7, 0, 0.2, 1),
+    height 1.1s cubic-bezier(0.7, 0, 0.2, 1),
+    clip-path 1.1s cubic-bezier(0.7, 0, 0.2, 1),
+    transform 1.1s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+/* 固定动效终态：全屏矩形（不再是平行四边形） */
+.final .window {
+  width: 100vw;
+  height: 100vh;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  transform: none;
 }
 
 /* 窗内横滚轨道：三格各占一窗宽 */
@@ -85,9 +98,15 @@
   background: radial-gradient(50% 60% at 50% 55%, rgba(74, 209, 255, 0.08), transparent 75%);
 }
 
+/* ColorBends 画布：固定全屏尺寸居中放置——窗口展平只是「揭幕」，
+   画布永不 resize（此前随滚动 resize 是视觉卡顿的根源） */
 .cbHost {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100vw;
+  height: 100vh;
 }
 
 .cbFallback {
@@ -102,7 +121,12 @@
 .frameLogo img {
   position: relative;
   z-index: 1;
-  transition: transform 0.15s linear; /* 进度驱动，短过渡平滑化 */
+  transition: transform 1.1s cubic-bezier(0.7, 0, 0.2, 1); /* 与窗口固定动效同节奏 */
+}
+
+/* 固定动效终态：logo 回中（flex center 天然）并放大 */
+.final .frameLogo img {
+  transform: scale(1.5);
 }
 
 /* 光的调度：历史段主光收暗（偏蓝黑，非纯黑——沉蓝感），logo 显现时褪去 */
@@ -133,6 +157,7 @@
 
 .headlineLine {
   display: block;
+  white-space: nowrap; /* 「构建」不折行（Skyer 2026-09-25） */
 }
 
 .you {
@@ -141,10 +166,19 @@
 
 .sub {
   font-family: var(--lp-font-serif);
-  font-size: 16px;
+  font-size: 17.5px; /* 稍大一点（Skyer 2026-09-25） */
   line-height: 1.8;
   color: var(--lp-text-2);
-  max-width: 380px;
+  max-width: 420px;
+}
+
+/* 固定动效触发后：文案淡出让位 */
+.final .copy {
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.copy {
+  transition: opacity 0.7s ease;
 }
 
 /* ---------- 静态降级（reduced-motion）：三格并排 + logo 定格 ---------- */
