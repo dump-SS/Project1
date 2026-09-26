@@ -13,17 +13,23 @@ import styles from './CtaFooter.module.css'
  * CTA + 页尾（visual-language §7.8）：
  * - 末句英文滑到底翻转：Nothing, without you. → You're everything.（与光变亮同一拍）；
  * - 页尾 = 全站唯一「大面积 + 鲜明 + 流体渐变」特例区（无正文要读，放开强度）；
- * - Grainient 懒加载（接近视口才取 landing-gfx chunk）；reduced-motion → 静态渐变兜底；
+ * - 背景 = Iridescence（2026-09-25 Skyer 指定，替换原 Grainient）：懒加载（接近视口才取
+ *   landing-gfx chunk）；reduced-motion → 静态帧 + 静态渐变兜底；
  * - 占位规则：链接地址/备案/版权年份——结构留位、内容留空，不预先编造；
  * - 合规硬项：「学生团队开发，未经专业法律审核」显著标注。
  */
 
 // 重依赖（ogl）只随本组件的动态 chunk 加载，首屏不取
-const Grainient = lazy(() => import('../bits/Grainient'))
+const Iridescence = lazy(() => import('../bits/Iridescence'))
 
 /** 末句渐变（Skyer 2026-09-25：后一句用 bits Gradient Text 的配色）：
  *  为保深底可读，去掉最深的 #1B5DBF 一档，留住亮青 → 品牌蓝 */
 const FINAL_LINE_GRADIENT = ['#8FD3E8', '#4AD1FF', '#3AA0E8'] as const
+
+/** Iridescence 基色（乘在 shader 输出上的 0–1 分量）：
+ *  带一点蓝品牌倾向的亮色——全白会偏「彩虹纸」，压蓝后仍是虹彩但落在品牌色域；
+ *  乘完每通道仍在 0.46–1，配合 .bgScrim 保深色文字对比度。 */
+const IRIDESCENCE_COLOR: [number, number, number] = [0.86, 0.95, 1]
 
 export default function CtaFooter() {
   const reduced = useReducedMotion()
@@ -159,25 +165,22 @@ export default function CtaFooter() {
       {/* ---------- 下部：页尾（亮区流体渐变特例） ----------
           2026-09-25 Skyer：动效区左右留空 + 上两角大圆角，页底 Gradual Blur 渐隐 */}
       <footer className={styles.footer} id="landing-footer" ref={gfxRef}>
-        {/* 流体渐变背景：鲜明、流动、指针交互（Grainient 落盘版） */}
+        {/* 虹彩背景：鲜明、流动、指针交互（Iridescence 落盘版；2026-09-25 替换 Grainient） */}
         <div className={styles.bg} aria-hidden>
-          {gfxNear && !reduced && (
+          {gfxNear && (
             <Suspense fallback={<div className={styles.bgFallback} />}>
-              <Grainient
-                lightMode
-                color1="#4AD1FF"
-                color2="#1B5DBF"
-                color3="#8FD3E8"
-                timeSpeed={atBottom ? 0.55 : 0.22}
-                zoom={atBottom ? 1.06 : 0.92} /* 光变亮与句子翻转同一拍 */
-                contrast={1.25}
-                grainAmount={0.06}
-                warpSpeed={atBottom ? 3.4 : 2.0}
+              <Iridescence
+                color={IRIDESCENCE_COLOR}
+                /* 滑到底「光变亮」与句子翻转同一拍：提速（相位用积分实现，提速不断相位） */
+                speed={atBottom ? 0.85 : 0.32}
+                amplitude={0.12}
+                staticFrame={reduced} /* reduced-motion：只渲染静止一帧 */
+                className={styles.bgCanvas}
               />
             </Suspense>
           )}
           {(reduced || !gfxNear) && <div className={styles.bgFallback} />}
-          {/* 暗色 scrim：保页尾文字对比度 ≥ 4.5:1（页尾加深遮罩，不切文字颜色） */}
+          {/* 浅色 scrim：保页尾文字对比度 ≥ 4.5:1（压到刚好够用，尽量让虹彩透出来） */}
           <div className={styles.bgScrim} />
         </div>
 

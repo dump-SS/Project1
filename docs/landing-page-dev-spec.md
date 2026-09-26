@@ -108,7 +108,8 @@ React Bits **没有独立 MCP server**，官方路径是 shadcn MCP + registry�
 | 位置 | 组件 | 结论 | 体积（gzip） | reduced-motion | 触屏 | 备注 |
 |---|---|---|---|---|---|---|
 | Hero slogan | `TextType-TS-TW` | ✅ **采纳**（功能屏「写出」模式底座） | ~2 KB（去 gsap 后） | 无内置 → 调用方门控：reduced 时直显成稿 | 无关（纯文本） | 落盘改动见 §3.3；Hero 退格因需精确编排（删指定字+停顿）另写了时间线引擎 `useSloganSequence`，与 TextType 构成一删一写 |
-| 页尾背景 | `Grainient-TS-TW` | ✅ **采纳** | landing-gfx chunk 12.9 KB（ogl）+ 组件 3.0 KB | 无内置 → 落盘版加 `staticFrame`（静态单帧） | 无指针交互 → 落盘版加 pointer 视差（hover 设备） | lightMode 适配亮区；IO/visibility 暂停为原版自带 |
+| 页尾背景 | `Iridescence-TS-TW` | ✅ **采纳**（2026-09-25 Skyer 指定，**替换原 Grainient**） | 组件 3.27 KB（1.55 KB gzip）；ogl 复用 landing-gfx chunk，无新增依赖 | 无内置 → 落盘版加 `staticFrame`（静态单帧） | 指针推移图案（`mouseReact`），落盘版只在 hover 设备注册监听 | 亮色虹彩；离屏/切后台暂停为落盘版新增（上游无条件常驻 rAF） |
+| 页尾背景（已弃用） | `Grainient-TS-TW` | ⛔ **被 Iridescence 取代**（文件保留未引用，不再进产物） | — | 落盘版有 `staticFrame` | 落盘版有 pointer 视差 | 若日后要回退，把 CtaFooter 的 lazy import 与 props 换回即可 |
 | 页尾背景候选 | `Aurora-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 无交互 | 极光带状形态偏「氛围灯」，流体感与页尾「鲜明」要求不符 |
 | 页尾背景候选 | `Balatro-TS-TW` | ❌ 未采纳 | ogl ~12 KB | 无内置 | 有交互 | 像素化旋转质感是 Balatro 扑克游戏符号，与品牌无关 |
 | 页尾背景候选 | `ColorBends-TS-TW` | ✅ **采纳**（2026-09-25 二次核反转）：实为**裸 three 全屏 shader**（无 r3f，React 18 兼容已验证），此前「r3f v9 仅 React 19」为误判；用于第二屏 logo 窗背景（Skyer 指定） | three ~150KB gzip | 无内置 → 调用方门控（reduced 不挂载） | 无交互依赖 | 挂载于进度 >0.5（logo 临近入窗），随 reveal 完整展出 |
@@ -129,7 +130,8 @@ React Bits **没有独立 MCP server**，官方路径是 shadcn MCP + registry�
 | 组件 | 结论 | 详情 |
 |---|---|---|
 | `TextType-TS-TW` | ✅ 兼容（含改动） | 无 React 19 API（无 `use()` / ref-as-prop / Actions）；`ref` 经 `createElement` 传给 DOM 元素在 React 18 合法。**落盘改动**：光标闪烁 gsap 补间 → CSS 动画（`.lp-caret`），gsap 依赖整体移除 |
-| `Grainient-TS-TW` | ✅ 兼容（含改动） | 纯 hooks + ogl，无 React 19 API。**落盘改动**：① 新增指针交互（pointermove → ref 缓存 → 渲染循环写 uniform，不触发重渲染，触屏不注册）② 新增 `staticFrame` prop（reduced-motion 静态单帧）；原版工程化（IO 暂停 / visibilitychange 暂停 / ResizeObserver / context 释放）保留 |
+| `Iridescence-TS-TW` | ✅ 兼容（含工程化改动） | 纯 hooks + ogl，无 React 19 API。**落盘改动（shader 与算法原样）**：① 新增 `staticFrame`（reduced-motion 只渲一帧）；② 新增 IntersectionObserver + `visibilitychange` 暂停（上游无条件常驻 rAF，页尾在首屏外时会一直烧 GPU）；③ resize 改 ResizeObserver 观察容器，并把渲染分辨率上限压到 1920（片元 8 次循环，成本随像素数线性）；④ props → uniforms 原地同步、不重建上下文（上游把 color/speed/amplitude 放进 effect deps，改一个值就销毁重建并重置时间）；⑤ 指针监听只在 hover 设备注册；⑥ **速度用积分实现**（`uTime += dt × speed`，shader 里 `uSpeed` 恒 1）——直接改 `uSpeed` 会让相位 = 时间 × 速度在改值瞬间跳变，积分写法下可在底页「光变亮」时平滑提速 |
+| `Grainient-TS-TW` | ⛔ 已弃用（被 Iridescence 取代） | 纯 hooks + ogl，无 React 19 API；落盘改动为指针交互 + `staticFrame`。文件保留在 `bits/` 但不再被引用（不进产物） |
 | `FoldText-TS-TW` | ✅ 兼容（含去 gsap 改写） | 无 React 19 API。**落盘改动**：① gsap timeline → CSS 关键帧 + 逐片 `animation-delay`（i × stagger + 可选整体 `delay`），缓动换 `cubic-bezier(0.22,1,0.36,1)`；② 渐变字改逐片实测偏移拼整行（原因见 §3.2 表）；③ 样式改 CSS Module（上游注入全局 `<style>`）；④ `letter-spacing` 由 −0.04em 改继承（沿用页面 0.01em 口径）；⑤ reduced-motion 下 `animation-delay` 归零（landing.css 只压时长不压延迟）；⑥ **字片加 `padding-block: 8px` 防墨迹被自身图层裁掉**（见 §3.2 表该行备注） |
 | `GlareHover-TS-TW` / `GradualBlur-TS-TW` | ✅ 兼容（原样落盘，无改动） | 均为纯 React + CSS，零依赖；GlareHover 不注册任何全局监听（只有 `onMouseEnter/Leave`） |
 | three 系（Beams / ColorBends / Dither） | ❌ 不可用 | 依赖 `@react-three/fiber@^9` + `@react-three/drei@^10`，均要求 React 19；降级 r3f v8 需改组件源码，不值得引入 three（>600KB） |
@@ -255,7 +257,7 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
   - ⚠️ 同类风险：`TiltedCard`（`top-0 left-0`）、`GlassSurface`（`p-2`）也用了主题相关工具类而静默失效——当前视觉无碍，但新增组件务必**只用任意值语法**（`text-[#4AD1FF]` 这类）。
   - ⚠️ **性能**：固定全宽 backdrop-filter 的层数/半径决定合成成本，实测 7 层/末层 96px 时预览连截图都准备不出来（滚动必然掉帧）。现为 3 层 / 上限约 30px（`strength 1.9 / divCount 3 / exponential`，层值 `blur(3.9)/blur(14.9)/blur(30.4px)`）；`prefers-reduced-motion` 下整条不渲染。
   - 宿主 `z-index: 100` 压在页尾内容之上、顶栏面板之下。
-- 页尾：流体渐变 abstract background（**鲜明、有流动感、鼠标交互**）；其上：logo + 一句话简介（暂填「围着你转的学习伙伴。」）+ 链接组（隐私协议 / 服务条款 / 社区与文档 / 联系我们）+ 返回顶部 + 版权行。
+- 页尾背景 = **`Iridescence`**（2026-09-25 Skyer 指定，替换原 Grainient）：亮色虹彩、有流动感、指针推移图案。落盘参数：基色 `[0.86, 0.95, 1]`（带蓝品牌倾向的亮色；全白会偏「彩虹纸」）、`amplitude 0.12`、`speed` 底页提速 `0.32 → 0.85`（与末句翻转同一拍，即原「光变亮」）；`staticFrame={reduced}` 走静态帧。配套：`.bgScrim` 由 `0.55/0.68` 降到 **`0.26/0.36`**（Iridescence 输出本身偏亮，scrim 只为兜文字对比度，压太浓会把虹彩糊没）；`.bgFallback` 改成虹彩的静态近似（淡青 + 淡紫 + 淡薄荷三层径向）。构成：logo + 一句话简介（暂填「围着你转的学习伙伴。」）+ 链接组（隐私协议 / 服务条款 / 社区与文档 / 联系我们）+ 返回顶部 + 版权行。
 - ⚠️ **合规硬项**：页尾显著标注「**学生团队开发，未经专业法律审核**」。GradualBlur 的 `zIndex` 因此必须压在文字之下（只渐隐背景）。
 - ⚠️ **占位规则**：联系方式、协议链接地址、社区与文档入口、备案信息、版权年份——**结构留位、内容留空，不预先编造**。
 
