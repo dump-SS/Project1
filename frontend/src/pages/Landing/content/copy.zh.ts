@@ -144,8 +144,8 @@ export const COPY_ZH: LandingCopy = {
     /* 2026-09-27 Skyer：删除独立「隐私协议」，改挂到「服务条款」下（+ 用户协议） */
     links: [
       { name: '服务条款', children: ['隐私协议', '用户协议'] },
-      { name: '社区与文档' },
-      { name: '联系我们' },
+      { name: '社区与文档', children: ['文档', '常见问题', '新闻', '更新日志'] },
+      { name: '联系我们', children: ['意见反馈', '官方群聊', '关于我们'] },
     ],
     backToTop: '返回顶部',
     copyrightPrefix: '© ',
