@@ -18,25 +18,90 @@ from __future__ import annotations
 import logging
 import uuid
 
+from config import settings
+
 logger = logging.getLogger(__name__)
 
-__all__ = ["record_usage", "FEATURE_TIERS"]
+__all__ = ["record_usage", "compute_cost", "resolve_pricing", "FEATURE_TIERS"]
 
 # 合法功能档位（openapi UsageFeatureTier）。chat=用户主动有感；embedded=系统自动无感；
 # advanced=高级稀有调用；multimodal=文件解析。新增档位属契约变更。
 FEATURE_TIERS = {"chat", "embedded", "advanced", "multimodal"}
 
 # 内部计价表：模型名 → (输入元/1M tokens, 输出元/1M tokens)。
-# pilot 不收费，cost 只是为定价留的数据口径（数值成本，非对用户计费）；
-# 具体单价为**占位口径**，上线定价评估前由运营核定后补登模型行。
-# 未登记模型走 FALLBACK_PRICING，保证「每次真实调用都有成本数值」可追溯。
+# pilot 不收费，cost 只是为定价留的数据口径（数值成本，非对用户计费）。
+#
+# 单价是**运营口径**，所以这里刻意留空——不写死任何"看起来像真的"的占位单价。
+# 未登记模型走 FALLBACK_PRICING，保证「每次真实调用都有成本数值」可追溯，
+# 同时用 resolve_pricing(..., is_fallback) 把「这是兜底价」这件事显式暴露出来。
+#
+# 运营核定后有两条路（都不用改这里的代码）：
+# 1. 环境变量 USAGE_MODEL_PRICING="Step-3.5-Flash=2.0,8.0;gpt-4o=1.5,6.0"（推荐）
+# 2. 直接改 MODEL_PRICING 字典
 MODEL_PRICING: dict[str, tuple[float, float]] = {}
 FALLBACK_PRICING: tuple[float, float] = (2.0, 8.0)
+
+_warned_models: set[str] = set()
+_parsed_spec_cache: tuple[str, dict[str, tuple[float, float]]] | None = None
+
+
+def _parse_pricing_spec(spec: str) -> dict[str, tuple[float, float]]:
+    """解析 "model=in,out;model2=in,out"，跳过格式错误的条目而不整体失败。
+
+    结果按 spec 字符串缓存——错误条目的告警只报一次，不在每次调用时刷屏。
+    """
+    global _parsed_spec_cache
+    if _parsed_spec_cache is not None and _parsed_spec_cache[0] == spec:
+        return _parsed_spec_cache[1]
+
+    table: dict[str, tuple[float, float]] = {}
+    for chunk in (spec or "").split(";"):
+        item = chunk.strip()
+        if not item or "=" not in item:
+            continue
+        name, _, pair = item.partition("=")
+        name = name.strip()
+        if not name:
+            continue
+        parts = [p.strip() for p in pair.split(",")]
+        if len(parts) != 2:
+            logger.warning("[usage_ledger] 计价项格式错误（应为 in,out），已忽略：%r", item)
+            continue
+        try:
+            table[name] = (float(parts[0]), float(parts[1]))
+        except ValueError:
+            logger.warning("[usage_ledger] 计价项单价非数字，已忽略：%r", item)
+    _parsed_spec_cache = (spec, table)
+    return table
+
+
+def resolve_pricing(model: str) -> tuple[float, float, bool]:
+    """返回 (输入单价, 输出单价, 是否兜底价)。
+
+    优先级：环境变量 USAGE_MODEL_PRICING > 代码内 MODEL_PRICING > FALLBACK_PRICING。
+    走兜底价时按模型名去重告警一次，避免刷屏。
+    """
+    spec = getattr(settings, "usage_model_pricing", "")
+    if spec:
+        env_table = _parse_pricing_spec(spec)
+        if model in env_table:
+            return env_table[model][0], env_table[model][1], False
+    if model in MODEL_PRICING:
+        price_in, price_out = MODEL_PRICING[model]
+        return price_in, price_out, False
+
+    if model and model not in _warned_models:
+        _warned_models.add(model)
+        logger.warning(
+            "[usage_ledger] 模型 %s 未登记计价，按兜底单价 %s 计入（运营核定后设 USAGE_MODEL_PRICING）",
+            model, FALLBACK_PRICING,
+        )
+    return FALLBACK_PRICING[0], FALLBACK_PRICING[1], True
 
 
 def compute_cost(model: str, tokens_in: int, tokens_out: int) -> float:
     """按内部计价表算数值成本；未登记模型走兜底单价。"""
-    price_in, price_out = MODEL_PRICING.get(model, FALLBACK_PRICING)
+    price_in, price_out, _ = resolve_pricing(model)
     return round(tokens_in / 1e6 * price_in + tokens_out / 1e6 * price_out, 6)
 
 

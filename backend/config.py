@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
 
+    # --- 计量计价（#9 / D38）---
+    # 格式："模型名=输入元,输出元;模型名2=输入元,输出元"，单位均为 **元 / 1M tokens**。
+    # 留空则全部走 FALLBACK_PRICING。运营核定单价后**只改环境变量、不用改代码**。
+    # 刻意不在代码里写死任何真实单价：单价是运营口径，编一个占位数会把
+    # 「数值成本」变成看起来可信的假数据。
+    usage_model_pricing: str = ""
+
     # --- 板块二：embedding 开关（ADR：local/cloud/off，默认 off 走 name_fuzzy 降级）---
     # api = 第三方 OpenAI 兼容 /v1/embeddings（2026-08-25 决策：允许适当出域，预留自有服务器接入位）
     kb_embed_mode: str = "off"

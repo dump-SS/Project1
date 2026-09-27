@@ -175,3 +175,54 @@ def test_usage_route_month_filter_and_totals():
     # month 格式非法 → 400 VALIDATION_FAILED
     r = client.get("/api/v1/me/usage", params={"month": "2020/01"}, headers={"X-User-ID": "u_route1"})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 计价表（2026-09-27）：单价属运营口径，刻意不预置占位数字
+# ---------------------------------------------------------------------------
+
+
+def test_pricing_defaults_to_fallback_and_flags_it(monkeypatch):
+    """""未登记单价"必须被显式标记出来，不能看起来像真实计价。"""
+    import usage_ledger
+
+    monkeypatch.setattr(usage_ledger.settings, "usage_model_pricing", "")
+    price_in, price_out, is_fallback = usage_ledger.resolve_pricing("never-registered-model")
+    assert is_fallback is True
+    assert (price_in, price_out) == usage_ledger.FALLBACK_PRICING
+
+
+def test_pricing_from_env_spec(monkeypatch):
+    import usage_ledger
+
+    monkeypatch.setattr(
+        usage_ledger.settings, "usage_model_pricing", "m-a=1.5,6.0;m-b=2.5,10.0"
+    )
+    assert usage_ledger.resolve_pricing("m-a") == (1.5, 6.0, False)
+    assert usage_ledger.resolve_pricing("m-b") == (2.5, 10.0, False)
+
+
+def test_pricing_env_overrides_inline_table(monkeypatch):
+    import usage_ledger
+
+    monkeypatch.setitem(usage_ledger.MODEL_PRICING, "m-c", (3.0, 9.0))
+    monkeypatch.setattr(usage_ledger.settings, "usage_model_pricing", "m-c=1.0,2.0")
+    assert usage_ledger.resolve_pricing("m-c") == (1.0, 2.0, False)
+
+
+def test_pricing_malformed_entries_skipped_not_fatal(monkeypatch):
+    import usage_ledger
+
+    spec = "good=1,2;bad=1;worse=x,y;=4,5;also-good=3,4"
+    monkeypatch.setattr(usage_ledger.settings, "usage_model_pricing", spec)
+    table = usage_ledger._parse_pricing_spec(spec)
+    assert table == {"good": (1.0, 2.0), "also-good": (3.0, 4.0)}
+
+
+def test_compute_cost_uses_resolved_pricing(monkeypatch):
+    import usage_ledger
+
+    monkeypatch.setattr(usage_ledger.settings, "usage_model_pricing", "m-d=1.0,4.0")
+    # 1M in + 1M out = 1.0 + 4.0
+    assert usage_ledger.compute_cost("m-d", 1_000_000, 1_000_000) == 5.0
+    assert usage_ledger.compute_cost("m-d", 1000, 500) == 0.003
