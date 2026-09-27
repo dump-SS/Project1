@@ -19,35 +19,42 @@ type Ev = { text: string; gapMs: number; you?: boolean; strong?: boolean }
 
 /** 退格的节奏（先快后慢，中途停半秒）：从 initial 末尾逐字退到 base */
 const DEL = { fast: 90, pause: 500, slow: 200 }
-/** 打字节奏：首帧 600ms，其后逐字 130ms；新加段稍慢（200–220ms） */
-const TYPE = { first: 600, char: 130, strong: 205 }
+/** 打字节奏：首帧 600ms，其后逐字 130ms；新加段稍慢（约 205ms）。
+ *  2026-09-27 双语适配：英文初稿 35 字符、新加段 16 字符，沿用中文节奏会拖到 8s+，
+ *  故按长度自降速率（短句仍用原节奏，中文那套观感不变）。 */
+const TYPE = { first: 600, char: 130, strong: 205, charLong: 70, strongLong: 110 }
+const LONG = 16 // 超过这个字符数就算长句
 
 function buildTimeline(s: SloganCopy): Ev[] {
   const evs: Ev[] = []
   const { base, initial, final, strong, highlight } = s
 
   // ① 逐字打出初稿
+  const charGap = initial.length > LONG ? TYPE.charLong : TYPE.char
   for (let i = 1; i <= initial.length; i++) {
-    evs.push({ text: initial.slice(0, i), gapMs: i === 1 ? TYPE.first : TYPE.char })
+    evs.push({ text: initial.slice(0, i), gapMs: i === 1 ? TYPE.first : charGap })
   }
   // ② 打完停 1s
   evs.push({ text: initial, gapMs: 1000 })
 
-  // ③ 退格：末尾两字快退 → 停半秒 → 其余慢退，退到 base 为止
+  // ③ 退格：末端两段快退 → 停半秒 → 其余慢退，退到 base 为止。
+  //    长尾（英文 "built around questions" 23 字符）逐字退要 5s，故分成 ≤6 步
   const delCount = Math.max(0, initial.length - base.length)
-  for (let k = 0; k < delCount; k++) {
-    const text = initial.slice(0, initial.length - k - 1)
-    const firstTwo = k < 2
-    const gapMs = firstTwo ? DEL.fast : k === 2 ? DEL.pause : DEL.slow
-    evs.push({ text, gapMs })
+  const steps = Math.min(delCount, 6)
+  const per = Math.max(1, Math.ceil(delCount / steps))
+  for (let k = 1; k <= steps; k++) {
+    const cut = Math.min(delCount, k * per)
+    const gapMs = k <= 2 ? DEL.fast : k === 3 ? DEL.pause : DEL.slow
+    evs.push({ text: initial.slice(0, initial.length - cut), gapMs })
   }
 
   // ④ 打新加段（加粗；highlight 打全那一刻起为蓝）
+  const strongGap = strong.length > LONG ? TYPE.strongLong : TYPE.strong
   for (let i = 1; i <= strong.length; i++) {
     const typed = strong.slice(0, i)
     evs.push({
       text: base + typed,
-      gapMs: i === strong.length ? 300 : TYPE.strong,
+      gapMs: i === strong.length ? 300 : strongGap,
       strong: true,
       you: typed.includes(highlight),
     })

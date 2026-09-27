@@ -35,7 +35,7 @@ const CARD_ICONS = {
 
 export default function TrustWall() {
   const reduced = useReducedMotion()
-  const { copy: c, dialogues } = useLocale()
+  const { copy: c, dialogues, locale } = useLocale()
   const [runwayRef, progress] = useScrollProgress<HTMLDivElement>()
   const sectionRef = useRef<HTMLElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -149,7 +149,7 @@ export default function TrustWall() {
         <div className={`${styles.stage} landing-wrap`}>
           {/* 标题：sticky 在左（不分行）+ 标题下小字；随卡片横滚同步滚出界面外 */}
           <div
-            className={styles.titleBlock}
+            className={`${styles.titleBlock} ${locale === 'en' ? styles.titleBlockEn : ''}`}
             style={{ transform: `translateX(calc(${-titleShift}vh))` }}
           >
             <h2 className={styles.title}>{c.trust.title}</h2>

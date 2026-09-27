@@ -402,6 +402,21 @@ Skyer 决策：**只做落地页**（应用内页面不动）、**全量翻译**
 - **不译项**：品牌名 EpochX / EpochX Web、版权持有者「未名_Official」（账号名，保留原写法，故英文页仍有一处中文，属有意）。
 - **CTA 末句**（Nothing, without you. / You're everything.）两种语言一致——本就是英文原句。
 
+### 9.3b 英文版第二轮调整（Skyer 2026-09-27 逐条指出）
+
+| 问题 | 根因 | 处理 |
+|---|---|---|
+| Hero slogan "built around" 没有中文那套加粗效果 | 英文 `strong` 原先只写 `you`，首尾段为空 → 不起 VariableProximity，而中文 `strong` = 「围着你转」整段加粗 | 英文 `strong` 改为整段 `built around you`（`base` 收到 `Learning tools, `），与中文同构；时间线按长度自降速率（初稿 >16 字符用 70ms/字、新段用 110ms，退格分 ≤6 步），否则英文要跑 8s+ |
+| 顶栏面板说明文字折行不符直觉 | `maxWidth: 200px` 是按中文断点（「下一代」后）定的 | 新增 `.panelLeadEn { max-width: 330px }` → 实测断成 "Explore the next-generation" / "product built around you"（299 / 269px） |
+| 第二屏标题两行行距、说明间距、整体位置 | 英文两行都是长句，1.3 行距显散；`gap:0`（Copy 中间还有一层 div，写 gap 不生效）；块偏右 | `.cardInnerEn`：`margin-left: -40px`（x 86 → 46）、行距 1.12、**`.cardInnerEn .sub { margin-top: 34px }`**（不能写 gap） |
+| 叙事屏首屏说明太长 | 初译照搬了中文信息量 | 英文说明压到约 260 字符（保留「双轨/分开计分/不是能力评价」三个要点） |
+| 三个标题折行乱、字号偏大 | 42px 下每行实测 690–800px > 栏宽 666px → 被折成三行、断点难看 | 英文档 `.titleEn { font-size: clamp(20px,2.2vw,30px) }` + 文案显式给 `titleLines`（按英文语法断：`“How long you sat, and how much` / `you remember —` / `two different things.”` 等） |
+| 隐私页标题/说明「显示不全」 | `.title` 是 `white-space: nowrap`，英文整句 479px 装不进 300px 的标题块 → 尾巴伸到卡片下面被压住 | `.titleBlockEn { max-width: 500px; margin-left: -48px }`。⚠️ 别用「加宽多少就左移多少」——实测会把句首推出屏幕（x=-21） |
+| 图标墙标题 "you" 只蓝了 y | 高亮渲染写死 `s[idx]` 单字符 | 按 `highlight.length` 整段染色（同 Hero/EpochsWindow 的处理） |
+| 页脚 "Community & Docs" 下划线不够长 | 盒宽（即下划线长度）沿用中文 96/84px，而英文标签最宽 130px | 盒宽改 CSS 变量，英文档 `.linksEn { --link-w: 148px; --link-sub-w: 128px }` → 实测 12 个标签全部不再溢出 |
+
+> 预览环境备注：全屏截图在首屏底部会出现编码性模糊假象——把页面上所有 `filter/backdrop-filter` 关掉、并隐藏全部 canvas 后依旧存在，故与代码无关，排查时别被带偏。
+
 ### 9.4 待 review 清单（review 时按这个顺序看）
 
 1. `content/copy.en.ts` 全文（约 80 条）——尤其三屏 `featureScreens.description`（技术说明段，信息密度最高）；

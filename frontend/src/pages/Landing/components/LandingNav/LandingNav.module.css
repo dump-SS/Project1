@@ -412,6 +412,11 @@
   color: #ffffff;
   max-width: 200px;
 }
+/* 英文 lead 行宽（2026-09-27）：中文那句按 200px 断在「下一代」后；英文照搬会在
+   "product" 前后乱断 → 加宽到 330px，行 1 = Explore the next-generation、行 2 = product built around you */
+.panelLeadEn {
+  max-width: 330px;
+}
 
 @media (max-width: 720px) {
   /* 窄屏菜单紧凑化：按钮不折行（375px 实测），间距收紧 */

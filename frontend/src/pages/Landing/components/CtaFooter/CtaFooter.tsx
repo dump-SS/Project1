@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { HERO_DRAFT_KEY } from '../../content/copy'
-import { useCopy } from '../../content/i18n'
+import { useCopy, useLocale } from '../../content/i18n'
 import { IconArrowUp, IconSend } from '../../icons/UiIcons'
 import GlareHover from '../bits/GlareHover'
 import GradualBlur from '../bits/GradualBlur'
@@ -35,6 +35,7 @@ const IRIDESCENCE_COLOR: [number, number, number] = [0.86, 0.95, 1]
 export default function CtaFooter() {
   const reduced = useReducedMotion()
   const c = useCopy()
+  const { locale } = useLocale()
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [atBottom, setAtBottom] = useState(false) // 句子翻转 + 光变亮（同一拍）
@@ -209,7 +210,10 @@ export default function CtaFooter() {
           </div>
 
           {/* 链接组：结构留位、内容留空（占位规则——不预先编造链接地址） */}
-          <nav className={styles.links} aria-label={c.a11y.footerLinks}>
+          <nav
+            className={`${styles.links} ${locale === 'en' ? styles.linksEn : ''}`}
+            aria-label={c.a11y.footerLinks}
+          >
             {c.footer.links.map((link) => (
               /* TODO(上线前)：真实链接地址统一确认后填入（Skyer 占位规则）。
                  母项可带子项（2026-09-27：隐私协议 / 用户协议挂到服务条款下）；

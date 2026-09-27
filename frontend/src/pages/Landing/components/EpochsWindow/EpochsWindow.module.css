@@ -110,6 +110,23 @@
   max-width: 480px;
 }
 
+/* 英文档（2026-09-27 Skyer）：
+   ① 标题两行行距拉近（1.3 → 1.12）：英文两行都是长句，1.3 显得散；
+   ② 说明与标题的间距拉开（原 gap 18px，标题两行占满后几乎贴住）；
+   ③ 整体左移：加宽 max-width 但右缘不动（卡片位置不变），文字块左移约 40px。 */
+.cardInnerEn {
+  max-width: 560px;
+  margin-left: -40px; /* 整体左移（原 x=86 → 46） */
+}
+.cardInnerEn .headline {
+  line-height: 1.12; /* 两行行距拉近（原 1.3） */
+}
+/* ⚠️ 间距要挂在 .sub 上：Copy 结构是 cardInner > div > (h2 + p)，
+   中间那层 div 不是 flex/grid，写 gap 不生效（实测 gap 仍为 0） */
+.cardInnerEn .sub {
+  margin-top: 34px;
+}
+
 /* 光的调度：历史段主光收暗（沉蓝）→ 卡片滑出后光全开 */
 .lightVeil {
   position: absolute;

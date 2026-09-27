@@ -289,6 +289,15 @@
   flex-wrap: wrap;
   align-items: flex-start; /* 有子项的母项更高，顶部对齐才不错位 */
   gap: 12px 42px;
+  /* 盒宽即下划线长度（统一）：中文档 96 / 84；英文档在 .linksEn 里加大
+     —— 实测英文标签最宽 "Community & Docs" 130px、"Official group chat" 117px，
+     沿用中文档会「下划线短于文字」（Skyer 2026-09-27 指出） */
+  --link-w: 96px;
+  --link-sub-w: 84px;
+}
+.linksEn {
+  --link-w: 148px;
+  --link-sub-w: 128px;
 }
 
 .linkGroup {
@@ -309,7 +318,7 @@
 .linkPlaceholder {
   position: relative;
   display: inline-block;
-  width: 96px;
+  width: var(--link-w);
   padding-block: 4px;
   font-family: var(--lp-font-sans);
   font-size: 14px;
@@ -332,7 +341,7 @@
 
 /* 子项：黑色字、无缩进（与母项文字左对齐）、静息无下划线 */
 .linkSub {
-  width: 84px;
+  width: var(--link-sub-w);
   font-size: 13px;
   color: #0f1520;
 }

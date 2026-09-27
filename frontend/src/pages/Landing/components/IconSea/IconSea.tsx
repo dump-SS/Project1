@@ -14,7 +14,8 @@ export default function IconSea() {
   const reduced = useReducedMotion()
   const c = useCopy()
   const text = c.iconSea.caption
-  const youIdx = text.indexOf(c.iconSea.highlight)
+  const hl = c.iconSea.highlight
+  const youIdx = text.indexOf(hl)
 
   const logos = SEA_ICONS.map((Icon, i) => {
     const label = c.iconSea.order[i % c.iconSea.order.length]
@@ -38,8 +39,9 @@ export default function IconSea() {
       <div className={`${styles.head} landing-wrap`}>
         <h2 className={styles.caption}>
           <span>{text.slice(0, youIdx)}</span>
-          <span className={styles.you}>{text[youIdx]}</span>
-          <span>{text.slice(youIdx + 1)}</span>
+          {/* 高亮按整段染色：英文 highlight = you（三字符），原写法 s[idx] 只染一个字母 */}
+          <span className={styles.you}>{text.slice(youIdx, youIdx + hl.length)}</span>
+          <span>{text.slice(youIdx + hl.length)}</span>
         </h2>
       </div>
 

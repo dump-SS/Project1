@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useScrollProgress } from '../../hooks/useScrollProgress'
-import { useCopy } from '../../content/i18n'
+import { useCopy, useLocale } from '../../content/i18n'
 import { setHijackRange } from '../../lib/navScrollGuard'
 import styles from './EpochsWindow.module.css'
 
@@ -29,6 +29,7 @@ const CARD_OFF_OFF = 0.58
 export default function EpochsWindow() {
   const reduced = useReducedMotion()
   const c = useCopy()
+  const { locale } = useLocale()
   const [ref, progress] = useScrollProgress<HTMLDivElement>()
   const [cardOff, setCardOff] = useState(false)
 
@@ -157,7 +158,7 @@ export default function EpochsWindow() {
         {/* 左侧斜切卡片：直角梯形（右缘斜切、左缘顶屏幕边缘），承载文字；
             logo 滑入约 75% 后整卡向右滑出屏幕（Skyer 2026-09-25） */}
         <div className={`${styles.card} ${cardOff ? styles.cardOff : ''}`}>
-          <div className={styles.cardInner}>
+          <div className={`${styles.cardInner} ${locale === 'en' ? styles.cardInnerEn : ''}`}>
             <Copy />
           </div>
         </div>

@@ -31,7 +31,7 @@ const SCREEN_META: Record<
 export default function FeatureSection({ screenId }: { screenId: string }) {
   const reduced = useReducedMotion()
   const [sectionRef, inView] = useInView<HTMLElement>('0px 0px', true)
-  const { copy: c, dialogues } = useLocale()
+  const { copy: c, dialogues, locale } = useLocale()
   const screen = c.featureScreens.find((s) => s.id === screenId)
   if (!screen) return null
 
@@ -49,7 +49,10 @@ export default function FeatureSection({ screenId }: { screenId: string }) {
       <div className={`${styles.inner} landing-wide`}>
         {/* 左：金句大字标题（对话原句，「」+ Decrypted Text 入场）+ 功能名与说明段 */}
         <div className={styles.left}>
-          <h2 className={styles.title} aria-label={screen.title}>
+          <h2
+            className={`${styles.title} ${locale === 'en' ? styles.titleEn : ''}`}
+            aria-label={screen.title}
+          >
             {titleLines.map((line, i) =>
               reduced ? (
                 <span key={i} className={styles.titleLine}>{line}</span>

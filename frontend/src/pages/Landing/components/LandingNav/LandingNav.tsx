@@ -309,7 +309,9 @@ export default function LandingNav() {
                 ))}
               </ul>
               <span className={styles.panelDivider} aria-hidden />
-              <p className={styles.panelLead}>{panel.lead}</p>
+              <p className={`${styles.panelLead} ${locale === 'en' ? styles.panelLeadEn : ''}`}>
+                {panel.lead}
+              </p>
             </div>
           )}
         </div>

@@ -44,6 +44,15 @@
   margin-left: -24px;
 }
 
+/* 英文档（2026-09-27）：标题是 `white-space: nowrap` 的整句，中文 max-width 300px 装不下
+   （实测英文句 479px）→ 尾巴溢出到卡片下面、看着「显示不全」。
+   修法：给足宽度（500px）+ 额外左移（margin -24 → -48）。
+   ⚠️ 别用「加宽多少就左移多少」：那会把文字起点推出屏幕（实测 x=-21，句首看不见）。 */
+.titleBlockEn {
+  max-width: 500px;
+  margin-left: -48px;
+}
+
 .title {
   color: var(--lp-text); /* 显式覆盖 global.css h2 元素规则的旧主题色 */
   font-family: var(--lp-font-sans);

@@ -33,10 +33,13 @@ export const COPY_EN: LandingCopy = {
   /** Hero slogan：同样的「退格换词」结构——Learning tools, built around questions →
    *  Learning tools, built around you.（base 为公共前缀，strong = you 加粗，句点后落） */
   heroSlogan: {
-    base: 'Learning tools, built around ',
+    /* base = 公共前缀（退格退到这里）；strong = 新加段（加粗 = 中文「围着你转」的对应物）——
+       2026-09-27 Skyer：原先 strong 只写 you，导致 "built around" 拿不到中文那套加粗/字重效果；
+       现改为整段 "built around you" 加粗，其中 you 为蓝。 */
+    base: 'Learning tools, ',
     initial: 'Learning tools, built around questions',
     final: 'Learning tools, built around you.',
-    strong: 'you',
+    strong: 'built around you',
     highlight: 'you',
   },
 
@@ -60,15 +63,18 @@ export const COPY_EN: LandingCopy = {
       id: 'state',
       featureName: 'State readout',
       title: '“How long you sat, and how much you remember — two different things.”',
-      titleLines: ['“How long you sat, and how much', 'you remember — two different things.”'],
+      /* 英文断行（2026-09-27）：原断点落在 "how much | you remember"（拆散了词组）且每行超栏宽，
+         现按语法断成三行，并整体缩字号（.titleEn） */
+      titleLines: ['“How long you sat, and how much', 'you remember —', 'two different things.”'],
       description:
-        'The state readout is computed by a state engine that weighs two tracks: a behavioural track (tasks completed, accuracy, rhythm stability) and a self-reported track (focus, fatigue, mood, perceived difficulty). The window rolls forward with every entry. “How long you sat” is time on task; “how much you remember” is mastery — they are scored separately and never converted into one another. The readout only describes objective features of your recent studying; it is not a judgement of your ability.',
+        'The state readout combines a behavioural track (tasks done, accuracy, rhythm) with a self-reported track (focus, fatigue, mood, perceived difficulty), and rolls forward with every entry. Time on task and mastery are scored separately — never converted into one another. It describes your recent studying; it is not a verdict on your ability.',
       dialogueId: 'S2',
     },
     {
       id: 'error-book',
       featureName: 'Mistake signposts',
       title: '“The questions you missed become signposts.”',
+      titleLines: ['“The questions you missed', 'become signposts.”'],
       description:
         'Every mistake is tagged on two independent axes when it is filed: cause (unclear concept, calculation slip, misreading the question, knowledge gap…) used for grouping, and intent (to review, a good problem, a classic, uncertain) which drives the review schedule. The book turns your mistakes into a searchable, reviewable index of knowledge, re-ordered as mastery changes — rather than a list that only grows longer.',
       dialogueId: 'S3',
@@ -77,6 +83,7 @@ export const COPY_EN: LandingCopy = {
       id: 'review',
       featureName: 'Review lookback',
       title: '“When you look back, the path is still there.”',
+      titleLines: ['“When you look back,', 'the path is still there.”'],
       description:
         'Review gathers study records and state snapshots for one subject on a fixed cycle, and reports completion rate, direction of trend and where the swings came from — anchored to your plans and goals, so a click takes you back to the original record. Every conclusion comes only from your own records and self-reported data: no cross-subject merging, no outside data, and where there is not enough data it says so instead of guessing.',
       dialogueId: 'S4',
