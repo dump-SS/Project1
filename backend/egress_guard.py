@@ -24,6 +24,9 @@ __all__ = [
     "EgressViolation",
     "Guard",
     "EGRESS_BLOCKED_FIELD_NAMES",
+    "EMBED_SRC_KB",
+    "EMBED_SRC_USER",
+    "assert_embed_source_offdomain_allowed",
 ]
 
 logger = logging.getLogger(__name__)
@@ -87,6 +90,46 @@ EGRESS_BLOCKED_FIELD_NAMES: frozenset[str] = frozenset({
 
 class EgressViolation(Exception):
     """越权出域：knowledge_raw 序列化或 knowledge_aggregated 白名单外字段。"""
+
+
+# ---------------------------------------------------------------------------
+# embedding 侧的数据来源标记
+#
+# 为什么要单独一套：上面的 Guard 拦的是**dict payload**（LLM 调用），靠字段名识别知识原文。
+# embedding 调用送出去的是**一整条裸文本**，没有字段名可扫，所以必须由调用方在调用点
+# 显式声明「这条文本是什么来源」，再在这里做一次判定。
+#
+# 与知识库/错题那对既定决策对应（AGENTS.md 铁律 6）：
+# - 知识库内容（编者提供、公开）→ 允许走外部 embedding API（既定决策）
+# - 用户内容（错题原文 / 作答 / 学习记录）→ **永不出域**，只能用本地模型
+# ---------------------------------------------------------------------------
+EMBED_SRC_KB = "kb"
+EMBED_SRC_USER = "user"
+
+# 允许走外部 embedding API 的来源白名单。**用户内容不在其中，且不可通过配置放开。**
+EMBED_OFFDOMAIN_ALLOWED_SOURCES: frozenset[str] = frozenset({EMBED_SRC_KB})
+
+
+def assert_embed_source_offdomain_allowed(source: str) -> None:
+    """准备把文本发给**外部** embedding API 前的最后一道闸。
+
+    与 :meth:`Guard.check` 同为「默认拒绝」：未声明的来源一律当作越权处理，
+    不放行到 api 模式。
+
+    Raises:
+        EgressViolation: 来源未声明，或属于禁止出域的用户内容。
+    """
+    if source not in (EMBED_SRC_KB, EMBED_SRC_USER):
+        logger.error("[EGRESS] 未声明合法 embedding 来源：%r", source)
+        raise EgressViolation(f"未声明合法 embedding 来源：{source!r}")
+    if source not in EMBED_OFFDOMAIN_ALLOWED_SOURCES:
+        logger.error(
+            "[EGRESS] 来源 %s 禁止出域到外部 embedding API（错题原文/作答/学习记录永不出域）",
+            source,
+        )
+        raise EgressViolation(
+            f"embedding 来源 {source!r} 禁止出域：用户内容只能用本地模型"
+        )
 
 
 class Guard:

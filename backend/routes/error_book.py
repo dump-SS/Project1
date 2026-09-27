@@ -185,33 +185,36 @@ def create_error(
 def _async_embed_error(error_id: str) -> None:
     """后台任务：对错题原文做 embedding 并写 kb_embeddings 引用 + 向量索引。
 
-    embed off / 失败均静默降级——录入已成功，匹配走 name_fuzzy，不阻断。
+    **强制本地模型**（source=EMBED_SRC_USER）——错题原文永不出域（PRD 12.6）。
+    本地模型不可用即静默降级（宁缺毋滥、不造数，D34）：录入已成功，匹配走
+    name_fuzzy，不阻断。绝不用 KB_EMBED_MODE=api 把错题原文发出去。
     """
     from database import SessionLocal
-    from embedding_service import embed_text, embed_mode
+    from embedding_service import EMBED_SRC_USER, embed_mode_for, embed_text
     from models.knowledge import EmbeddingRef as EmbedRef
 
     db = SessionLocal()
     try:
-        if embed_mode() == "off":
+        mode = embed_mode_for(EMBED_SRC_USER)
+        if mode == "off":
             return
         row = db.get(ErrorRecordORM, error_id)
         if row is None:
             return
-        vec = embed_text(row.raw_text)
+        vec = embed_text(row.raw_text, source=EMBED_SRC_USER)
         if vec is None:
             return
         ref_id = _gen("ve")
         db.add(EmbedRef(
             vector_id=ref_id, ref_type="error", ref_id=error_id,
-            model=embed_mode(), dim=len(vec),
+            model=mode, dim=len(vec),
         ))
         row.vector_id = ref_id
         db.commit()
         # 向量本体入本地 FAISS 索引（引用表不含向量，落盘才能检索）
         from vector_store import add as vector_add
 
-        vector_add(vec, ref_id, "error", error_id, embed_mode(), len(vec))
+        vector_add(vec, ref_id, "error", error_id, mode, len(vec))
     except Exception as e:  # noqa: BLE001
         logger.warning("[ERROR_BOOK] 异步 embedding 失败: %s", e)
     finally:

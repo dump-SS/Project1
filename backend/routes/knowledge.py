@@ -347,21 +347,23 @@ def _retrieve_error_points(error_id: str) -> list[dict]:
         logger.info("[ERROR_PARSE] 知识库检索不可用（%s），走通用兜底", type(e).__name__)
 
     # 路径 2：向量召回（T8）
+    # ⚠️ 这里查的是**错题原文**（error_id），属用户内容 → 强制本地模型、永不出域
+    # （PRD 12.6 / AGENTS.md 铁律 6）。上面路径 1 的知识库检索走外部 API 才是允许的。
     try:
-        from embedding_service import embed_mode, embed_text
+        from embedding_service import EMBED_SRC_USER, embed_mode_for, embed_text
         from vector_store import search as vector_search
         from models.knowledge import ErrorPoint as ErrorPointORM
         from models.knowledge import ErrorRecord as ErrorRecordORM
         from models.knowledge import KnowledgePoint as KnowledgePointORM
 
-        if embed_mode() not in ("local", "api"):
+        if embed_mode_for(EMBED_SRC_USER) not in ("local", "api"):
             return list(merged.values())[:5]
         db = SessionLocal()
         try:
             row = db.get(ErrorRecordORM, error_id)
             if row is None or not row.raw_text or not row.raw_text.strip():
                 return list(merged.values())[:5]
-            vec = embed_text(row.raw_text)
+            vec = embed_text(row.raw_text, source=EMBED_SRC_USER)
             if vec is None:
                 return list(merged.values())[:5]
             hits = vector_search(vec, top_k=5)

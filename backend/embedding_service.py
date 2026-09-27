@@ -1,6 +1,15 @@
 """embedding 服务封装（PRD 12.2.3 / ADR 选型：本地 bge-small-zh-v1.5，2026-08-25 起支持第三方 API）。
 
-关键设计（降级永远可用）：
+**合规双链路（AGENTS.md 铁律 6 / PRD 12.6，两条不许混）**：
+
+- 知识库内容（编者提供、公开）→ ``source=EMBED_SRC_KB``，允许走外部 embedding API（既定决策）。
+- 用户内容（错题原文 / 作答 / 学习记录）→ ``source=EMBED_SRC_USER``，**强制本地模型，永不出域**。
+  这条不提供配置开关：``KB_EMBED_MODE=api`` 不会让用户内容跟着出域。
+  本地模型不可用时**宁缺毋滥、不向量**（返回 ``None``，调用方降级 name_fuzzy），
+  不用零向量或报错冒充——沿用 D34「转译不出就缺省、不造数」。
+
+降级永远可用：
+
 - embed_mode 由 config 控制：local / api / off（cloud 为历史占位，视为未知模式降级）
 - 默认 off：不加载大模型、不发出域请求，知识点匹配走 name_fuzzy 降级
 - local：延迟 import sentence-transformers（不装也能 import 本模块）
@@ -17,21 +26,51 @@ import urllib.error
 import urllib.request
 
 from config import settings
+from egress_guard import (
+    EMBED_SRC_KB,
+    EMBED_SRC_USER,
+    EgressViolation,
+    assert_embed_source_offdomain_allowed,
+)
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["embed_text", "embed_mode", "MODEL_NAME", "EMBED_DIM"]
+__all__ = [
+    "embed_text",
+    "embed_mode",
+    "embed_mode_for",
+    "MODEL_NAME",
+    "EMBED_DIM",
+    "EMBED_SRC_KB",
+    "EMBED_SRC_USER",
+]
 
 MODEL_NAME = "BAAI/bge-small-zh-v1.5"
 EMBED_DIM = 512  # bge-small-zh-v1.5 默认输出维度（仅 local 模式使用；api 模式以返回长度为准）
 
 
 def embed_mode() -> str:
-    """当前 embedding 模式，来自 settings（默认 off）。"""
+    """当前 embedding 模式，来自 settings（默认 off）。知识库链路用这个。"""
     return getattr(settings, "kb_embed_mode", "off")
 
 
+def embed_mode_for(source: str) -> str:
+    """给定数据来源，实际生效的 embedding 模式。
+
+    用户内容**永远**是 local——不看 ``KB_EMBED_MODE``。配置成 api/off 时这里返回
+    ``local``，调用方据此判断「本条到底会不会走向量」，并把**实际使用的模式**写进
+    ``kb_embeddings.model``（别把全局配置值当成实际模式记，那会记错）。
+    """
+    if source == EMBED_SRC_USER:
+        return "local"
+    return embed_mode()
+
+
 _model = None
+
+# 「用户内容不随配置出域」这条提示按进程去重：live 配置常驻 KB_EMBED_MODE=api，
+# 不去重的话每条错题都会重复刷同一句。
+_warned_user_scope: set[str] = set()
 
 
 def _get_model():
@@ -84,13 +123,40 @@ def _embed_api(text: str) -> list[float] | None:
     return None
 
 
-def embed_text(text: str) -> list[float] | None:
-    """文本 → 向量。失败/模式 off 返回 None（调用方降级）。"""
-    mode = embed_mode()
+def embed_text(text: str, *, source: str = EMBED_SRC_KB) -> list[float] | None:
+    """文本 → 向量。失败/模式 off 返回 None（调用方降级）。
+
+    Args:
+        text: 待向量化文本。
+        source: 数据来源。``EMBED_SRC_KB``=知识库内容（允许出域）；
+            ``EMBED_SRC_USER``=用户内容（错题原文/作答/学习记录），
+            **强制本地模型、永不出域**。
+            传用户内容时必须显式传 ``EMBED_SRC_USER``——缺省会按知识库处理并可能出域。
+
+    用户内容走 local 而 local 不可用时返回 None——**宁缺毋滥、不造数**（D34）。
+    """
+    mode = embed_mode_for(source)
+
+    if source == EMBED_SRC_USER and embed_mode() == "api" and "user" not in _warned_user_scope:
+        _warned_user_scope.add("user")
+        logger.warning(
+            "[EMBED] 用户内容（错题/学习记录）不随 KB_EMBED_MODE 出域，本条强制走本地模型"
+        )
+
     if mode == "off":
         return None
     if not text or not text.strip():
         return None
+
+    if mode == "api":
+        try:
+            assert_embed_source_offdomain_allowed(source)
+        except EgressViolation:
+            # 兜底：source 与 mode 组合非法（例如有人给用户内容硬塞了 api 模式）时
+            # 绝不放行，退回 local；local 再失败就返回 None。
+            logger.error("[EMBED] 出域判定未通过，退回本地模型")
+            mode = "local"
+
     try:
         if mode == "api":
             return _embed_api(text.strip())

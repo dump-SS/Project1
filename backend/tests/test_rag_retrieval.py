@@ -4,6 +4,10 @@
 - 路径 1：错题已绑定知识点（kb_error_points）
 - 路径 2（T8 新增）：错题原文向量召回——mock embed_text/vector_search，
   覆盖 point 类型 ref、error 类型 ref、embedding off、向量失败降级 四态。
+
+⚠️ 合规（PRD 12.6 / AGENTS.md 铁律 6）：本链路处理的是**错题原文**，属用户内容，
+**只能走本地模型、永不出域**。所以这里的成功路径 mock 的是 `local` 而**不是** `api`——
+2026-09-27 之前这些用例 mock 的是 `api`，等于把「错题出域」固化成了预期行为，已翻转。
 """
 from __future__ import annotations
 
@@ -12,6 +16,18 @@ import pytest
 from database import SessionLocal
 from models.knowledge import ErrorPoint, ErrorRecord, KnowledgePoint
 from routes.knowledge import _retrieve_error_points
+
+
+def _local_mode(monkeypatch, result: list[float] | None = [0.1, 0.2]) -> None:
+    """把错题召回 mock 成「本地模型可用，产出 result」。
+
+    同时把 KB_EMBED_MODE 拨成 api——**正是这个组合曾经导致错题出域**，
+    用来证明本链路现在也不会走 api。
+    """
+    monkeypatch.setattr("config.settings.kb_embed_mode", "api")
+    monkeypatch.setattr("embedding_service.embed_mode", lambda: "api")
+    monkeypatch.setattr("embedding_service.embed_mode_for", lambda source: "local")
+    monkeypatch.setattr("embedding_service.embed_text", lambda text, source=None: result)
 
 
 def _seed(monkeypatch, subject: str = "SX") -> str:
@@ -40,7 +56,7 @@ def _seed(monkeypatch, subject: str = "SX") -> str:
 def test_linked_points_path_without_embedding(monkeypatch):
     """embedding off：只走路径 1（已绑定知识点）。"""
     _seed(monkeypatch)
-    monkeypatch.setattr("embedding_service.embed_mode", lambda: "off")
+    monkeypatch.setattr("embedding_service.embed_mode_for", lambda source: "off")
     out = _retrieve_error_points("err_t8")
     names = {p["name"] for p in out}
     assert "函数单调性" in names
@@ -50,8 +66,7 @@ def test_linked_points_path_without_embedding(monkeypatch):
 def test_vector_recall_point_ref(monkeypatch):
     """向量库命中 point 类型 ref → 直接取知识点，与绑定并集。"""
     _seed(monkeypatch)
-    monkeypatch.setattr("embedding_service.embed_mode", lambda: "api")
-    monkeypatch.setattr("embedding_service.embed_text", lambda text: [0.1, 0.2])
+    _local_mode(monkeypatch)
     monkeypatch.setattr(
         "vector_store.search",
         lambda vec, top_k=5, subject=None: [("kp_unbound", 0.9)],
@@ -77,8 +92,7 @@ def test_vector_recall_error_ref(monkeypatch):
     finally:
         db.close()
 
-    monkeypatch.setattr("embedding_service.embed_mode", lambda: "api")
-    monkeypatch.setattr("embedding_service.embed_text", lambda text: [0.1, 0.2])
+    _local_mode(monkeypatch)
     monkeypatch.setattr(
         "vector_store.search",
         lambda vec, top_k=5, subject=None: [("err_similar", 0.85)],
@@ -92,8 +106,7 @@ def test_vector_recall_error_ref(monkeypatch):
 def test_vector_recall_failure_falls_back(monkeypatch):
     """向量召回失败（embed_text None）→ 静默降级，仅返回路径 1 结果，不报错。"""
     _seed(monkeypatch)
-    monkeypatch.setattr("embedding_service.embed_mode", lambda: "api")
-    monkeypatch.setattr("embedding_service.embed_text", lambda text: None)
+    _local_mode(monkeypatch, result=None)
     out = _retrieve_error_points("err_t8")
     names = {p["name"] for p in out}
     assert names == {"函数单调性"}
@@ -112,8 +125,7 @@ def test_vector_recall_cross_subject_filtered(monkeypatch):
     finally:
         db.close()
 
-    monkeypatch.setattr("embedding_service.embed_mode", lambda: "api")
-    monkeypatch.setattr("embedding_service.embed_text", lambda text: [0.1, 0.2])
+    _local_mode(monkeypatch)
     monkeypatch.setattr(
         "vector_store.search",
         lambda vec, top_k=5, subject=None: [("kp_en", 0.99), ("kp_bound", 0.8)],
@@ -122,3 +134,38 @@ def test_vector_recall_cross_subject_filtered(monkeypatch):
     names = {p["name"] for p in out}
     assert "时态辨析" not in names  # 跨学科被过滤
     assert "函数单调性" in names
+
+
+def test_error_text_never_leaves_domain(monkeypatch):
+    """🔴 出域红线：`KB_EMBED_MODE=api` 时，错题召回仍**不得**调用外部 API。
+
+    直接把 `embedding_service._embed_api` 换成炸弹——被调用即测试失败。
+    """
+    _seed(monkeypatch)
+    monkeypatch.setattr("config.settings.kb_embed_mode", "api")
+    monkeypatch.setattr("config.settings.embed_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr("config.settings.embed_api_key", "leak-me")
+    monkeypatch.setattr("config.settings.embed_model", "embedding-3")
+    monkeypatch.setattr(
+        "embedding_service._embed_api",
+        lambda text: pytest.fail("错题原文被发往外部 embedding API"),
+    )
+    # 本地模型也没装 → 应宁缺毋滥返回 None，只走路径 1
+    out = _retrieve_error_points("err_t8")
+    assert {p["name"] for p in out} == {"函数单调性"}
+
+
+def test_error_text_declares_user_scope(monkeypatch):
+    """错题召回必须显式声明 `source=EMBED_SRC_USER`（缺省会按知识库处理并可能出域）。"""
+    _seed(monkeypatch)
+    seen: list[str] = []
+
+    def _capture(text, source=None):
+        seen.append(source)
+        return None
+
+    monkeypatch.setattr("config.settings.kb_embed_mode", "api")
+    monkeypatch.setattr("embedding_service.embed_mode_for", lambda source: "local")
+    monkeypatch.setattr("embedding_service.embed_text", _capture)
+    _retrieve_error_points("err_t8")
+    assert seen == ["user"]
