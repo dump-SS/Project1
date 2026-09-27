@@ -324,11 +324,17 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 
 | 项 | 实测 | 说明 |
 |---|---|---|
-| **主包** | 664 KB gzip（`index-*.js`） | antd 为主的既有体量；**落地页未向主包新增任何依赖**（gsap 已剔除，ogl 只进 gfx chunk） |
-| **落地页路由 chunk** | 11.9 KB gzip（32.2 KB raw） | `React.lazy` 独立分包，首屏产品页不加载 |
-| **landing-gfx chunk（ogl）** | **12.8 KB gzip**（44.4 KB raw） | 仅页尾 Grainient 接近视口（`40% 0px` rootMargin）才动态 import；`manualChunks` 强制 gsap/ogl 与主包分离 |
-| **Grainient 组件 chunk** | 3.0 KB gzip | 随 gfx chunk 一起懒加载 |
-| **动画运行时库** | **0 个** | gsap 已从 TextType 移除（改 CSS 光标）；Hero 光场为纯 CSS 径向渐变呼吸（零依赖） |
+> **⭐ 2026-09-27 终版构建复核**（`npm run build` 通过，25.05s / 4632 modules）：后续实现中 ColorBends 与 Beams 采用裸 three 落盘移植，**landing-gfx chunk 从 12.8 → 175.8 KB gzip**（ogl 12.9 + three ~150）；Hero 光场由纯 CSS 呼吸改为 Prism（three）。主包 664 → **667.4 KB gzip**（+3 KB 来自并入 main 的 C 板块代码，与落地页无关）。下表保留 2026-09-25 走查口径作历史，终版数字见新增表。
+
+| 项 | 2026-09-27 终版实测 | 说明 |
+|---|---|---|
+| **主包** | 667.4 KB gzip（`index-Diq_UQmr.js`） | 落地页未向主包新增任何依赖；增量来自 main 并入的 C 板块代码 |
+| **落地页路由 chunk** | 34.05 KB gzip（91 KB raw） | `React.lazy` 独立分包，产品内页面不加载 |
+| **landing-gfx chunk** | **175.8 KB gzip**（653.6 KB raw，ogl + three） | `manualChunks` 强制分离；背景组件接近视口才动态 import |
+| **组件 chunk** | Iridescence 1.55 / Prism 3.21 / ColorBends 2.75 / Beams 3.39 / Threads 2.31 / VariableProximity 1.24（gzip KB） | 各自独立懒加载 |
+| **动画编排库** | **0 个**（gsap / framer-motion 均未引入；`motion` 已装但仅 VariableProximity 使用） | three 仅作 WebGL 渲染（背景），非动画编排；TextType 用 CSS 光标 |
+| **字体（子集自托管）** | NotoSerifSC-lp.woff2 85 KB + NotoSansSC-lp 400/500 各 66 KB（工具链加 700 后全量重生成） | `font-display: swap`，零外部字体请求 |
+| **LCP < 2.5s（4G 模拟）** | ⏳ 待真机校准 | 结构前提已满足（重依赖与字体均不阻塞首绘） |
 | **字体（子集自托管）** | NotoSerifSC-lp.woff2 85 KB + NotoSansSC-lp 400/500 各 66 KB，`font-display: swap` | 落地页元素全部走 `LP-Serif`/`LP-Sans` 本地字体，**零外部字体请求**（实测 network 仅 1 个外部请求 = `index.html` 既有的 Google Fonts CDN link，产品内页面全局依赖，非落地页发起；其按需化留待产品内页面后续处理） |
 | **LCP < 2.5s（4G 模拟）** | ⏳ 待真机校准 | 构建产物已满足结构前提（首屏 JS = 主包 + 路由 chunk，重依赖与字体均不阻塞渲染；字体 swap 不挡首绘）。真机 LCP 数值需 DevTools 4G 节流实测后补录 |
 
@@ -343,7 +349,8 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
   （实测：初稿「学习工具围着题转！|」打字态与成稿「围着你转。」截图、localStorage `epochx.landing.draft` 写入 + 刷新恢复、桌面端 disabled 虚线）
 - [x] 第二屏：三时代一屏内、视窗扩大动效、光收暗与回归
   （实测：斜切视窗、logo 段定格、sticky 跑道到底自动释放进入图标海）
-- [x] 功能屏 ×3：标题为对话原句、只删句未改字、每屏一处蓝、打字机参数不雷同
+- [x] 功能屏 ×3：标题带「」逐字打出、只删句未改字、每屏一处蓝、打字机参数不雷同
+  ⚠️ **出处更正（2026-09-27）**：S3「错过的题，会变成路标。」与 S4「回头的时候，路都在。」**并非对话原句**——出自 visual-language §7.3–7.5 初版六屏表，跑批原文中无逐字出处（仅 S2 为原句变体）。copy.zh.ts 头注已标【待确认】，待 Skyer 定夺：换真原句（如 S3「连着错同一个地方，恰恰说明不是粗心。」）或承认其为品牌创作句
   （实测：三句标题均带「」逐字打出，峰值态清晰；滚动切换低谷态为正常屏间过渡）
 - [x] 信任屏：四卡、hover/click/focus 三种触发、横滚三护栏、配图来源正确（1 真 3 占位）
   （实测：click/focus 展开断言、底部进度条随推进、sticky 跑道到底自动释放、卡 4 = S5 真对话完整呈现。⚠️ 卡 3 按 §5.3 更正为占位，原「2 真 2 占位」口径随之修正）
