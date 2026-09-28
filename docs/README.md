@@ -37,6 +37,8 @@
 | `landing-conversation-samples.md` | 落地页真对话素材（S1–S5 跑批，GLM-5.3-Flash）+ Chat prompt 基线体检记录与三条修正发现 | 2026-09-25 新增；S6 危机转介按决定不跑；配图/文案可直接取用 |
 | `docs-site-structure.md` | **公开文档站结构**（`/docs` 的 7 章 38 页骨架 / 页面模板 / status 三态规则 / 价格与计费措辞硬约束 / 致家长内容骨架） | 2026-09-29 新建。**团队内部文档不对外**——页面正文写在 `frontend/src/pages/Docs/content/`，与内部 `docs/` 严格分离 |
 | `refactor-c-handoff-to-x0.md` | **C → X0 变更单**：`self_report` 软字段可空化 + 记录来源字段（D20/D34/D49） | 2026-09-25 新增；**已实现并验证，待 X0 评审合入** |
+| `refactor-d-knowledge-ref-protocol.md` | **知识引用协议**（D 产出 → F/B/E 消费）：`{pointId, subjectCode, name, mastery?}` | 2026-09-29 新增；**文本已冻结**，消费方按此开发不必等实现 |
+| `refactor-d-handoff-to-x0.md` | **D → X0 变更单**：搜题/讲解 paths 待补、搜题出域口径与难度覆写字段**待拍板**、mastery 口径变更影响 | 2026-09-29 新增；题本两维度已实现，其余待评审 |
 
 ## 三、已归档（`archive/` · 历史留痕，勿据此安排工作）
 
