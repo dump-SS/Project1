@@ -170,7 +170,7 @@ updated: 2026-09-29
 - **页面内容**：`frontend/src/pages/Docs/content/<section>/<slug>.md`（与落地页 `pages/Landing/content/` 对称）
 - **路由**：`/docs`（索引）+ `/docs/:section/:slug`；落地页「资源」菜单三个链接（文档 / 更新日志 / 隐私政策）指向对应页
 - **排序**：由 frontmatter `order` 字段控制，**不用文件名编号**——以后中间插新页不用全量重命名
-- **渲染**：`react-markdown` 已在依赖中；视觉走 visual-language §8 产品内基础层（纸感 + hairline + 语义 token + 长文衬线），**无大光、无 WebGL**
+- **渲染**：`react-markdown` 已在依赖中；视觉走 visual-language §8 产品内基础层（纸感 + hairline + 语义 token + 长文衬线），**无大光、无 WebGL**；**度量与排版细节见 §8.4 文档页视觉定档**（圆角 / 间距 / 字号 / 行宽 / 提示卡 / 侧栏 / 深色 / 可复用组件）
 
 ## 13. 维护规则
 
