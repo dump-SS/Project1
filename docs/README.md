@@ -35,6 +35,7 @@
 | `desktop-timing-assessment.md` | 桌面端前移到 beta 的影响评估与建议（**决策前置材料，尚未拍板**） | 2026-09-22 新增，非契约、非行动依据 |
 | `ref-ai-ide-landing-notes.md` | 外部调研：AI 编程工具落地页参考（Qoder/Trae/Antigravity——信任卖点 / 代际修辞 / 用户墙；落地页「信任屏」的依据） | 2026-09-25 新增，非契约、非行动依据 |
 | `landing-conversation-samples.md` | 落地页真对话素材（S1–S5 跑批，GLM-5.3-Flash）+ Chat prompt 基线体检记录与三条修正发现 | 2026-09-25 新增；S6 危机转介按决定不跑；配图/文案可直接取用 |
+| `docs-site-structure.md` | **公开文档站结构**（`/docs` 的 7 章 38 页骨架 / 页面模板 / status 三态规则 / 价格与计费措辞硬约束 / 致家长内容骨架） | 2026-09-29 新建。**团队内部文档不对外**——页面正文写在 `frontend/src/pages/Docs/content/`，与内部 `docs/` 严格分离 |
 | `refactor-c-handoff-to-x0.md` | **C → X0 变更单**：`self_report` 软字段可空化 + 记录来源字段（D20/D34/D49） | 2026-09-25 新增；**已实现并验证，待 X0 评审合入** |
 
 ## 三、已归档（`archive/` · 历史留痕，勿据此安排工作）
