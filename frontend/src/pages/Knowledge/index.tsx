@@ -8,12 +8,16 @@
  * 旧的 KNOWLEDGE_TREE 假树（与真 API 并存的演示数据）已随本次重构删除——
  * 假树会让人误以为「库里有这些点」，是掌握度与检索口径漂移的根源。
  *
- * 尚未接线的两项（搜题/讲解归档、难度个人覆写）按「宁缺毋滥、不造数」（D34）
+ * 尚未接线的仅剩难度个人覆写一项（契约字段待 X0 落地），按「宁缺毋滥、不造数」（D34）
  * 显示明确空态，而不是造占位数据。
+ *
+ * 出域提示的责任在前端（2026-09-30 拍板第 ③ 条）：用户能否关闭题面外发，
+ * 页面必须如实说清楚，否则开关形同虚设。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal, theme as antdTheme } from 'antd';
+import ReactMarkdown from 'react-markdown';
 import KnowledgeGraphView from './Graph';
 import {
   fetchKnowledgeSubjects,
@@ -25,6 +29,20 @@ import {
   type KnowledgeSubject,
 } from '@/services/knowledgeV2';
 import { fetchSubjectMastery, fetchPointMastery } from '@/services/mastery';
+import { getSettings } from '@/services/settings';
+import {
+  createSearchArchive,
+  listSearchArchives,
+  createExplanation,
+  listExplanations,
+  SEARCH_MODE_HINT,
+  SEARCH_MODE_LABEL,
+  type Explanation,
+  type ExplanationMode,
+  type KnowledgeRef,
+  type SearchArchive,
+  type SearchMode,
+} from '@/services/search';
 import {
   fetchErrorBook,
   reviewErrorRecord,
@@ -70,6 +88,21 @@ export default function Knowledge() {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const [graphOpen, setGraphOpen] = useState(false);
+
+  /* ---------------- 搜题（D24 三态）+ 讲解（D52 两态） ---------------- */
+  const [searchText, setSearchText] = useState('');
+  // 三态默认直给；后端会记住上次选择，这里只管本次点击
+  const [searchMode, setSearchMode] = useState<SearchMode>('direct');
+  const [searching2, setSearching2] = useState(false);
+  const [archives, setArchives] = useState<SearchArchive[]>([]);
+  const [activeArchive, setActiveArchive] = useState<SearchArchive | null>(null);
+
+  const [explanations, setExplanations] = useState<Explanation[]>([]);
+  const [activeExplanation, setActiveExplanation] = useState<Explanation | null>(null);
+  const [explaining, setExplaining] = useState(false);
+
+  // 题面外发开关（默认关）：关闭时搜题只按知识点给通用解法
+  const [egressOn, setEgressOn] = useState(false);
 
   const masteryTone = useCallback(
     (m: number): string => {
@@ -178,6 +211,75 @@ export default function Knowledge() {
   useEffect(() => {
     reloadBook();
   }, [reloadBook]);
+
+  /* ---------------- 出域开关（如实展示，别让开关形同虚设） ---------------- */
+  useEffect(() => {
+    let cancelled = false;
+    getSettings()
+      .then((s) => {
+        if (!cancelled) setEgressOn(Boolean(s.knowledgeAiEgressEnabled));
+      })
+      .catch(() => {
+        if (!cancelled) setEgressOn(false); // 读不到按关闭显示，不虚报
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ---------------- 搜题归档 + 讲解归档 ---------------- */
+  const reloadArchives = useCallback(() => {
+    Promise.all([
+      listSearchArchives({
+        subject: subjectCode === 'ALL' ? undefined : subjectCode,
+        limit: 20,
+      }).catch(() => ({ items: [] }) as never),
+      listExplanations({ limit: 20 }).catch(() => ({ items: [] }) as never),
+    ]).then(([a, e]) => {
+      setArchives(a.items ?? []);
+      setExplanations(e.items ?? []);
+    });
+  }, [subjectCode]);
+
+  useEffect(() => {
+    reloadArchives();
+  }, [reloadArchives]);
+
+  const submitSearch = useCallback(async () => {
+    const text = searchText.trim();
+    if (!text) return;
+    setSearching2(true);
+    try {
+      const item = await createSearchArchive({
+        subject: subjectCode === 'ALL' ? undefined : subjectCode,
+        rawText: text,
+        mode: searchMode,
+      });
+      setActiveArchive(item);
+      setSearchText('');
+      reloadArchives();
+    } finally {
+      setSearching2(false);
+    }
+  }, [searchText, searchMode, subjectCode, reloadArchives]);
+
+  const askExplanation = useCallback(
+    async (mode: ExplanationMode) => {
+      setExplaining(true);
+      try {
+        const item = await createExplanation({
+          pointId: selected?.pointId ?? null,
+          subject: selected?.subjectCode,
+          mode,
+        });
+        setActiveExplanation(item);
+        reloadArchives();
+      } finally {
+        setExplaining(false);
+      }
+    },
+    [selected, reloadArchives],
+  );
 
   /* ---------------- 全科检索 ---------------- */
   const runSearch = useCallback(async () => {
@@ -432,6 +534,43 @@ export default function Knowledge() {
                   </p>
                 </div>
 
+                {/* ⑥ 讲解（D52）：回顾取原文 + 重新讲，两者并存，不互相顶掉 */}
+                <div className="kb-detail-block">
+                  <div className="kb-detail-label">讲解</div>
+                  <div className="kb-detail-actions">
+                    <button
+                      type="button"
+                      className="kb-btn-ghost"
+                      disabled={explaining}
+                      onClick={() => void askExplanation('original')}
+                    >
+                      回顾上次讲法
+                    </button>
+                    <button
+                      type="button"
+                      className="kb-btn-primary"
+                      disabled={explaining}
+                      onClick={() => void askExplanation('regenerated')}
+                    >
+                      重新讲一遍
+                    </button>
+                  </div>
+                  {activeExplanation &&
+                  activeExplanation.pointId === selected.pointId ? (
+                    <div className="kb-md">
+                      <div className="kb-md-flag">
+                        {activeExplanation.isCurated ? '精品样例' : '本次生成'} ·{' '}
+                        {activeExplanation.mode === 'original' ? '回顾原文' : '重新生成'}
+                      </div>
+                      <ReactMarkdown>{activeExplanation.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="kb-detail-faint">
+                      重生成保证不了一致性，讲解的价值恰恰在「上次那个讲法」——所以两条都留着。
+                    </p>
+                  )}
+                </div>
+
                 <div className="kb-detail-actions">
                   <button
                     type="button"
@@ -458,6 +597,16 @@ export default function Knowledge() {
               只有意图、无错因的是 star 题——照样复习，但不计入掌握度
             </span>
           </header>
+
+          {/*
+            错因不是必填（只填意图也能收进来当 star 题），但**不填就不进掌握度**。
+            这句必须摆在明面上：用户录了题却看不到掌握度变化，第一反应是「这功能坏了」，
+            而不是「我少填了一项」。
+          */}
+          <p className="kb-detail-faint">
+            错因不必填，但<strong>填上错因，这条才会计入掌握度和薄弱点</strong>
+            ；只填意图的是 star 题，照样进复习队列。
+          </p>
 
           <div className="kb-filter-row">
             <span className="kb-detail-label">错因</span>
@@ -574,15 +723,145 @@ export default function Knowledge() {
           )}
         </section>
 
-        {/* ⑤ 搜题 + 讲解归档：接口待 X0 契约（§3.8.4），先给明确空态，不造占位数据 */}
+        {/* ⑤ 搜题（D24 三态）+ 讲解归档（D52）：搜题与讲解两条链路分别归档，不合并 */}
         <section className="kb-section glass">
           <header className="kb-section-header">
             <h2 className="kb-section-title">搜题 / 讲解归档</h2>
+            <span className="kb-detail-faint">
+              搜题是「解一道题」，讲解是「讲透一个概念」，两条链路分开存
+            </span>
           </header>
+
+          {/* 三态切换：可切换且被后端记忆（下次不传 mode 就沿用这次） */}
+          <div className="kb-filter-row">
+            <span className="kb-detail-label">解题方式</span>
+            <div className="kb-chips">
+              {(Object.keys(SEARCH_MODE_LABEL) as SearchMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={`kb-chip${searchMode === m ? ' kb-chip-active' : ''}`}
+                  onClick={() => setSearchMode(m)}
+                  title={SEARCH_MODE_HINT[m]}
+                >
+                  {SEARCH_MODE_LABEL[m]}
+                </button>
+              ))}
+            </div>
+            <span className="kb-detail-faint">{SEARCH_MODE_HINT[searchMode]}</span>
+          </div>
+
+          <div className="kb-search-row">
+            <textarea
+              className="kb-input kb-input-area"
+              value={searchText}
+              placeholder="粘贴或输入题目（当场输入的题面才算你主动发起）"
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+            <button
+              type="button"
+              className="kb-btn-primary"
+              onClick={() => void submitSearch()}
+              disabled={searching2 || !searchText.trim()}
+            >
+              {searching2 ? '生成中…' : '搜题'}
+            </button>
+          </div>
+
+          {/* 出域开关如实告知：关闭时题面不出域，只按知识点给通用解法 */}
           <p className="kb-detail-faint">
-            归档能力需 search_archives / explanations 两个接口，已提 X0 契约变更单；
-            接口落地前此处不展示任何占位条目（宁缺毋滥，D34）。
+            {egressOn
+              ? '题面外发已开启：直给态会把题面发给 AI 解题（每次点击即一次授权，不做后台预生成）。'
+              : '题面外发已关闭：不会把题面发给 AI，直给态只按关联知识点给通用解法。可在设置里开启。'}
           </p>
+
+          {activeArchive && (
+            <div className="kb-md">
+              <div className="kb-md-flag">
+                {SEARCH_MODE_LABEL[(activeArchive.mode ?? 'direct') as SearchMode]} ·{' '}
+                {activeArchive.createdAt.slice(0, 16).replace('T', ' ')}
+              </div>
+              <ReactMarkdown>{activeArchive.solution ?? ''}</ReactMarkdown>
+
+              {/* D24：三态结尾统一输出知识点卡（冻结的四字段协议） */}
+              {activeArchive.pointIds.length > 0 && (
+                <div className="kb-ref-cards">
+                  <div className="kb-detail-label">关联知识点</div>
+                  <div className="kb-chips">
+                    {activeArchive.pointIds.map((ref) => (
+                      <button
+                        key={ref.pointId ?? ref.name}
+                        type="button"
+                        className="kb-chip"
+                        onClick={() => ref.pointId && void openPoint(ref.pointId)}
+                      >
+                        {ref.name}
+                        <span className="kb-match-meta">
+                          {ref.mastery === null
+                            ? '掌握度积累中'
+                            : ` ${Math.round(ref.mastery * 100)}%`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {archives.length === 0 && explanations.length === 0 ? (
+            <p className="kb-detail-faint">还没有归档</p>
+          ) : (
+            <ul className="kb-book-list">
+              {archives.map((a) => (
+                <li key={a.archiveId} className="kb-book-item">
+                  <div className="kb-book-main">
+                    <div className="kb-book-text">{a.rawText}</div>
+                    <div className="kb-book-tags">
+                      <span className="kb-tag">
+                        {SEARCH_MODE_LABEL[(a.mode ?? 'direct') as SearchMode]}
+                      </span>
+                      {a.pointIds.map((r: KnowledgeRef) => (
+                        <span key={r.pointId ?? r.name} className="kb-tag">
+                          {r.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="kb-btn-ghost"
+                    onClick={() => setActiveArchive(a)}
+                  >
+                    查看解答
+                  </button>
+                </li>
+              ))}
+              {explanations.map((e) => (
+                <li key={e.explanationId} className="kb-book-item">
+                  <div className="kb-book-main">
+                    <div className="kb-book-text">{e.content.slice(0, 80)}…</div>
+                    <div className="kb-book-tags">
+                      {/* 精品样例与动态生成必须肉眼可分 */}
+                      <span className={`kb-tag${e.isCurated ? ' kb-tag-curated' : ''}`}>
+                        {e.isCurated ? '精品样例' : '动态生成'}
+                      </span>
+                      <span className="kb-tag">
+                        {e.mode === 'original' ? '回顾原文' : '重新生成'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="kb-btn-ghost"
+                    onClick={() => setActiveExplanation(e)}
+                  >
+                    查看讲解
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
 

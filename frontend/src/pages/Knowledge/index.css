@@ -429,6 +429,74 @@
   color: var(--primary);
 }
 
+/* ---------- 搜题 / 讲解（D24 / D52） ---------- */
+
+/* 题面输入：多行，题面通常比知识点名长得多 */
+.kb-input-area {
+  min-height: 76px;
+  resize: vertical;
+  padding: 10px 12px;
+  line-height: 1.6;
+}
+
+/* LLM 产出的 Markdown 正文（搜题解答 / 讲解） */
+.kb-md {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--ink);
+}
+
+.kb-md > :first-child {
+  margin-top: 0;
+}
+
+.kb-md > :last-child {
+  margin-bottom: 0;
+}
+
+.kb-md h3 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+}
+
+.kb-md table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.kb-md th,
+.kb-md td {
+  border: 1px solid var(--hairline);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+/* 正文来源标记：精品样例 vs 动态生成、三态、时间 */
+.kb-md-flag {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+}
+
+/* D24 三态结尾统一输出的知识点卡片 */
+.kb-ref-cards {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* 精品样例标记：与「动态生成」必须肉眼可分（D52） */
+.kb-tag-curated {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 /* 响应式：窄屏折叠为单列 */
 @media (max-width: 900px) {
   .kb-layout {
