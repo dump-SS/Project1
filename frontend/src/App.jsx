@@ -31,25 +31,44 @@ import CommunityComparePage from './pages/Community/Compare.tsx'
 // 官网落地页：路由级代码分割（dev-spec §2.3），不套 AppShell / RequireAuth。
 const LandingPage = lazy(() => import('./pages/Landing/index.tsx'))
 
+// 公开文档站：同样不套 AppShell / RequireAuth（公开内容，不该要登录），
+// 同样路由级代码分割。Docs 自行导出 DocsIndex / DocArticle 两个入口。
+const DocsRoutes = lazy(() => import('./pages/Docs/index.tsx'))
+
 export default function App() {
   const location = useLocation()
   // 落地页跳过全局开屏动画与自定义光标（旧液态玻璃语言 + 光标会干扰手电视效），
   // CloudTransition 只在主题切换时触发，落地页无切换入口，自然不出现。
+  // 文档站同理：/docs 是阅读界面，开屏动画与自定义光标只增加干扰。
   const isLanding = location.pathname === '/'
+  const isDocs = location.pathname.startsWith('/docs')
 
   return (
     <div className="app-shell">
       <ThemeProvider>
         <AuthProvider>
-          {!isLanding && <LaunchScreen />}
-          {!isLanding && <CustomCursor />}
+        {!isLanding && !isDocs && <LaunchScreen />}
+        {!isLanding && !isDocs && <CustomCursor />}
           <CloudTransition />
           <Routes>
           <Route
             path="/"
             element={
+              /* 落地页两主题下都是固定深底（landing.css --lp-bg 同值），fallback 保持深色才无缝 */
               <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#10161E' }} />}>
                 <LandingPage />
+              </Suspense>
+            }
+          />
+          {/* 公开文档站：/docs 索引 + /docs/:section/:slug。
+              落点见 docs/docs-site-structure.md §12。落地页「资源」菜单
+              的 文档 / 更新日志 / 隐私政策 三个链接指向这里。 */}
+          <Route
+            path="/docs/*"
+            element={
+              /* 文档页跟随主题：fallback 用语义 token（index.html 引导脚本保证首帧前 data-theme 已就位） */
+              <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)' }} />}>
+                <DocsRoutes />
               </Suspense>
             }
           />

@@ -168,10 +168,12 @@ export const COPY_ZH: LandingCopy = {
     resourcesPanel: {
       lead: '你需要的一切，在此获得最新动态和保持联系',
       items: [
-        { name: '文档', href: '' },
+        // 文档站落点见 docs/docs-site-structure.md §12；
+        // 三个链接指向对应内容页，「媒体」暂无去处（不预先编造）
+        { name: '文档', href: '/docs' },
         { name: '媒体', href: '' },
-        { name: '更新日志', href: '' },
-        { name: '隐私政策', href: '' },
+        { name: '更新日志', href: '/docs/reference/changelog' },
+        { name: '隐私政策', href: '/docs/reference/privacy-policy' },
       ],
     },
     login: '登录',

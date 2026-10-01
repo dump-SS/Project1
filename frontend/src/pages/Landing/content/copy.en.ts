@@ -174,10 +174,11 @@ export const COPY_EN: LandingCopy = {
     resourcesPanel: {
       lead: 'Everything you need — latest updates, and a way to reach us',
       items: [
-        { name: 'Docs', href: '' },
+        // 与中文版同落点：/docs 及其内容页
+        { name: 'Docs', href: '/docs' },
         { name: 'Media', href: '' },
-        { name: 'Changelog', href: '' },
-        { name: 'Privacy Policy', href: '' },
+        { name: 'Changelog', href: '/docs/reference/changelog' },
+        { name: 'Privacy Policy', href: '/docs/reference/privacy-policy' },
       ],
     },
     login: 'Log in',
