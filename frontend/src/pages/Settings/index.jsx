@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ConfigProvider, Switch } from 'antd'
 import { getSettings, updateSettings } from '@/services/settings'
 import { isNetworkError, apiGet, apiPost } from '@/services/http'
 import { fetchCommunityConsent, putCommunityConsent } from '@/services/communityApi'
+import { getMe } from '@/services/user'
+import { useAuth } from '@/context/AuthContext.jsx'
+import GuardianAuthorizationPanel from '@/components/GuardianAuthorizationPanel'
 import GovernancePanel from './GovernancePanel' // G 板块：用量 / 奖章 / 报错常驻入口
 import { antdThemeToken } from '@/styles/theme'
 import styles from './index.module.css'
+
+/**
+ * 设置（D42 瘦身口径：只留「账号与资料」+「授权与隐私」两个子页）。
+ *
+ * - 授权与隐私（A 板块 / D41）：AI 三开关 + #29b 提升体验开关 + 匿名群体参照 + 监护人授权；
+ * - 账号与资料：邮箱与建档入口，以及既有面板（AI 调权面板按 D42 归 E 板块 M4 下线，暂留）。
+ *
+ * 子页状态走 `?tab=privacy`（可深链）：建档流程、群体参照被拦时都能直接把用户送到这里。
+ */
 
 const SWITCH_ITEMS = [
   {
@@ -26,17 +39,29 @@ const SWITCH_ITEMS = [
     description:
       '开启后，学科知识复盘可调用云端 AI 生成（仅发送经过 EgressGuard 白名单校验的结构化特征，错题原文/作答/答案永不上传）。关闭后知识复盘使用本地规则模板（PRD 12.6）。',
   },
+  {
+    key: 'experienceImprovementEnabled',
+    title: '将个人数据用于提升体验',
+    description:
+      '开启后，你的学习数据可能被用于改进 EpochX 的体验（#29b）。默认关闭：未开启时，个人数据不进入任何产品改进用途；你可以随时关闭。',
+  },
 ]
 
+const EMPTY_VALUES = {
+  aiWeightTuningEnabled: true,
+  sendTextToAI: false,
+  knowledgeAiEgressEnabled: false,
+  experienceImprovementEnabled: false,
+}
+
 export default function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') === 'privacy' ? 'privacy' : 'account'
+
   const [loading, setLoading] = useState(true)
   const [savingKey, setSavingKey] = useState(null)
   const [error, setError] = useState('')
-  const [values, setValues] = useState({
-    aiWeightTuningEnabled: true,
-    sendTextToAI: false,
-    knowledgeAiEgressEnabled: false,
-  })
+  const [values, setValues] = useState(EMPTY_VALUES)
 
   useEffect(() => {
     let cancelled = false
@@ -49,6 +74,7 @@ export default function SettingsPage() {
           aiWeightTuningEnabled: data.aiWeightTuningEnabled,
           sendTextToAI: data.sendTextToAI,
           knowledgeAiEgressEnabled: data.knowledgeAiEgressEnabled ?? false,
+          experienceImprovementEnabled: data.experienceImprovementEnabled ?? false,
         })
       })
       .catch((err) => {
@@ -76,6 +102,7 @@ export default function SettingsPage() {
         aiWeightTuningEnabled: data.aiWeightTuningEnabled,
         sendTextToAI: data.sendTextToAI,
         knowledgeAiEgressEnabled: data.knowledgeAiEgressEnabled ?? false,
+        experienceImprovementEnabled: data.experienceImprovementEnabled ?? false,
       })
     } catch (err) {
       setError(
@@ -95,33 +122,72 @@ export default function SettingsPage() {
           <h1 className={styles.title}>设置</h1>
           <p className={styles.subtitle}>你的数据边界由你决定</p>
 
-          <section className={styles.card}>
-            {SWITCH_ITEMS.map((item) => (
-              <div className={styles.item} key={item.key}>
-                <div className={styles.itemBody}>
-                  <h2 className={styles.itemTitle}>{item.title}</h2>
-                  <p className={styles.itemDesc}>{item.description}</p>
-                </div>
-                <div className={styles.switchWrap}>
-                  <Switch
-                    checked={values[item.key]}
-                    loading={savingKey === item.key}
-                    disabled={loading}
-                    onChange={(checked) => handleToggle(item.key, checked)}
-                  />
-                </div>
-              </div>
-            ))}
+          {/* 子页切换（D42：账号与资料 / 授权与隐私） */}
+          <div className={styles.tabs} role="tablist" aria-label="设置分类">
+            <button
+              role="tab"
+              aria-selected={tab === 'account'}
+              className={`${styles.tab} ${tab === 'account' ? styles.tabActive : ''}`}
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              账号与资料
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === 'privacy'}
+              className={`${styles.tab} ${tab === 'privacy' ? styles.tabActive : ''}`}
+              onClick={() => setSearchParams({ tab: 'privacy' }, { replace: true })}
+            >
+              授权与隐私
+            </button>
+          </div>
 
-            {loading ? <p className={styles.hint}>设置加载中…</p> : null}
-            {error ? <p className={styles.error}>{error}</p> : null}
-          </section>
+          {tab === 'privacy' && (
+            <>
+              <section className={styles.card}>
+                <p className={styles.sectionHint}>
+                  以下开关决定你的数据被怎么用。默认都取最保守的一侧，随时可以改回来。
+                </p>
 
-          <CommunityConsentPanel />
+                {SWITCH_ITEMS.map((item) => (
+                  <div className={styles.item} key={item.key}>
+                    <div className={styles.itemBody}>
+                      <h2 className={styles.itemTitle}>
+                        {item.title}
+                        {item.key === 'experienceImprovementEnabled' && (
+                          <span className={styles.defaultTag}>默认关闭</span>
+                        )}
+                      </h2>
+                      <p className={styles.itemDesc}>{item.description}</p>
+                    </div>
+                    <div className={styles.switchWrap}>
+                      <Switch
+                        checked={values[item.key]}
+                        loading={savingKey === item.key}
+                        disabled={loading}
+                        onChange={(checked) => handleToggle(item.key, checked)}
+                      />
+                    </div>
+                  </div>
+                ))}
 
-          <WeightPanel />
+                {loading ? <p className={styles.hint}>设置加载中…</p> : null}
+                {error ? <p className={styles.error}>{error}</p> : null}
+              </section>
 
-          <GovernancePanel />
+              <CommunityConsentPanel />
+
+              <GuardianAuthorizationPanel />
+            </>
+          )}
+
+          {tab === 'account' && (
+            <>
+              <AccountPanel />
+              <WeightPanel />
+              <GovernancePanel />
+            </>
+          )}
         </div>
       </main>
     </ConfigProvider>
@@ -129,13 +195,52 @@ export default function SettingsPage() {
 }
 
 
-// ===== 匿名群体参照授权面板（板块三 M4，决策 v1.7 §4.10） =====
+// ===== 账号与资料 =====
+
+function AccountPanel() {
+  const { user } = useAuth()
+  const [profile, setProfile] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getMe()
+      .then((d) => { if (!cancelled) setProfile(d) })
+      .catch(() => { /* 资料读不到不影响设置页其它部分 */ })
+    return () => { cancelled = true }
+  }, [])
+
+  return (
+    <section className={styles.card}>
+      <div className={styles.item}>
+        <div className={styles.itemBody}>
+          <h2 className={styles.itemTitle}>账号邮箱</h2>
+          <p className={styles.itemDesc}>{user?.email ?? '（未登录）'}</p>
+        </div>
+      </div>
+      <div className={styles.item}>
+        <div className={styles.itemBody}>
+          <h2 className={styles.itemTitle}>资料建档</h2>
+          <p className={styles.itemDesc}>
+            {profile
+              ? `学段 ${profile.stage === 'junior' ? '初中' : '高中'} · 年级 ${profile.grade || '—'} · 出生年份 ${profile.birthYear ?? '未填写'}`
+              : '读取中…'}
+          </p>
+        </div>
+        <Link className={styles.inlineBtn} to="/profile-setup">去修改</Link>
+      </div>
+    </section>
+  )
+}
+
+
+// ===== 匿名群体参照授权面板（板块三 M4，决策 v1.7 §4.10 + D41 授权前置） =====
 
 function CommunityConsentPanel() {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [needGuardian, setNeedGuardian] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,11 +254,18 @@ function CommunityConsentPanel() {
   const toggle = async (checked) => {
     setSaving(true);
     setErr('');
+    setNeedGuardian(false);
     try {
       const d = await putCommunityConsent(checked, checked ? true : undefined);
       setEnabled(d.enabled);
     } catch (e) {
-      setErr(isNetworkError(e) ? '服务暂不可用，请稍后再试' : (e?.message ?? '保存失败'));
+      // D41：未授权 / 授权失效时后端返回 403，把用户引到本页下方的「监护人授权」卡片
+      if (e?.code === 'GUARDIAN_AUTHORIZATION_REQUIRED' || e?.code === 'GUARDIAN_AUTHORIZATION_EXPIRED') {
+        setNeedGuardian(true);
+        setErr(e.message || '需要先完成监护人授权');
+      } else {
+        setErr(isNetworkError(e) ? '服务暂不可用，请稍后再试' : (e?.message ?? '保存失败'));
+      }
     } finally {
       setSaving(false);
     }
@@ -181,12 +293,19 @@ function CommunityConsentPanel() {
           />
         </div>
       </div>
-      {err ? <p className={styles.error}>{err}</p> : null}
+      {err ? (
+        <p className={styles.error}>
+          {err}
+          {needGuardian ? ' 请先在下方「监护人授权」完成确认后再开启。' : ''}
+        </p>
+      ) : null}
     </section>
   );
 }
 
 // ===== AI 调权面板（PRD 5.2 / 6.5） =====
+// ⚠️ D42 已定：引擎权重调参**移出用户产品**（去处见目标态 §4.7.2），下线归 E 板块 M4。
+// 本面板保留至 E 下线；它不在 A 板块的「授权与隐私」子页里。
 
 function WeightPanel() {
   const [data, setData] = useState(null);

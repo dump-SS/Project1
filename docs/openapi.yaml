@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.7.1
+  version: 1.8.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -34,6 +34,21 @@ info:
       **不再兜底共享账号** `u_10237`。因此游客的「试用」**不走后端接口**——纯前端本地状态，
       不落库、不串号；登录/注册成功后试用数据直接清空（D1/D43）。A 板块落地时在此口径上叠加，
       **不得新增任何「游客可写」的接口**。
+
+    **v1.8.0（重构 M1 · A 板块：身份、入口与合规）**——纯增量，无字段改名、无枚举取值变更：
+    - **邀请码注册（#50）**：`RegisterRequest` 新增必填 `inviteCode`（pilot 一码一用，注册成功后
+      回写 `invite_codes.used_by` / `used_at` 供溯源）；新增错误码 `INVITE_CODE_INVALID`（422）、
+      `INVITE_CODE_USED`（409）。生成走后台脚本 `scripts/gen_invite_codes.py`，不做用户侧管理接口。
+    - **激活式建档（D40）与低龄强制门槛（D41）**：`User` / `UserProfilePut` / `UserProfilePatch`
+      新增 `birthYear`（可选，四位年份）。传了且推算**未满 14 周岁**时，`PUT /me` 允许资料落库，
+      但 `onboardingCompleted` 保持 false，直至监护人授权 `active` —— 前端据此进入监护人授权步骤。
+    - **#29b「将个人数据用于提升体验」**：`Settings` / `SettingsUpdate` 新增
+      `experienceImprovementEnabled`，**默认 false（opt-in）**。
+    - **监护人确认结果页**：`GET /guardian-authorization/confirm` 在 `Accept: text/html` 时返回
+      自包含 HTML 结果页（监护人直接在浏览器打开邮件里的链接）；JSON 客户端语义不变。
+    - **群体参照开启前校验授权（D41）**：`PUT /me/community-consent` **开启**（enabled=true）时
+      要求监护人授权 `active`：无记录/待确认 → 403 `GUARDIAN_AUTHORIZATION_REQUIRED`，
+      已失效 → 403 `GUARDIAN_AUTHORIZATION_EXPIRED`；**撤回（enabled=false）不受限制**。
 
 servers:
   - url: /api/v1
@@ -200,7 +215,10 @@ paths:
     post:
       tags: [鉴权会话]
       operationId: register
-      summary: 注册（验证码 + 密码，成功后不自动登录）
+      summary: 注册（邀请码 + 验证码 + 密码，成功后不自动登录）
+      description: |
+        pilot 期为邀请码制（#50）：`inviteCode` 必填且一码一用。
+        错误码：`INVITE_CODE_INVALID`（码不存在）/ `INVITE_CODE_USED`（码已被使用）/ `CODE_INVALID`（邮箱验证码）。
       security: []
       requestBody:
         required: true
@@ -213,6 +231,7 @@ paths:
               code: '123456'
               password: Abc12345
               confirmPassword: Abc12345
+              inviteCode: EPX-7F3K-2M9Q
       responses:
         '200':
           description: 注册成功，请前往登录
@@ -223,18 +242,46 @@ paths:
               example:
                 ok: true
         '400':
-          $ref: '#/components/responses/ValidationFailed'
-        '409':
-          description: 邮箱已注册
+          description: 参数缺失或取值越界（含邮箱验证码错误 CODE_INVALID）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
                 error:
-                  code: EMAIL_ALREADY_REGISTERED
-                  message: 该邮箱已注册，请直接登录
-                  field: email
+                  code: CODE_INVALID
+                  message: 验证码错误
+                  field: code
+        '409':
+          description: 邮箱已注册，或邀请码已被使用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                emailTaken:
+                  value:
+                    error:
+                      code: EMAIL_ALREADY_REGISTERED
+                      message: 该邮箱已注册，请直接登录
+                      field: email
+                inviteUsed:
+                  value:
+                    error:
+                      code: INVITE_CODE_USED
+                      message: 该邀请码已被使用，请换一个
+                      field: inviteCode
+        '422':
+          description: 邀请码无效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INVITE_CODE_INVALID
+                  message: 邀请码无效，请确认后重试
+                  field: inviteCode
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -461,7 +508,11 @@ paths:
       tags: [用户与设置]
       operationId: putMe
       summary: 初始化用户资料（幂等建档，字段全必填）
-      description: 新用户 onboarding 的全量建档语义。
+      description: |
+        新用户 onboarding 的全量建档语义（D40 激活式建档）。
+        低龄强制门槛（D41）：传入 `birthYear` 且推算**未满 14 周岁**时，资料照常落库，
+        但 `onboardingCompleted` 保持 false，直到监护人授权 `active`（前端据此进入授权步骤，
+        授权完成后重新调用本接口即置 true）。
       requestBody:
         required: true
         content:
@@ -472,9 +523,10 @@ paths:
               stage: senior
               grade: 高二
               subjects: [SX, YY, WL]
+              birthYear: 2010
       responses:
         '200':
-          description: 建档后的用户对象
+          description: 建档后的用户对象（低龄未授权时 onboardingCompleted=false）
           content:
             application/json:
               schema:
@@ -484,6 +536,7 @@ paths:
                 stage: senior
                 grade: 高二
                 subjects: [SX, YY, WL]
+                birthYear: 2010
                 guardianAuthorization:
                   status: active
                   expiresAt: '2026-09-10T00:00:00+08:00'
@@ -553,6 +606,8 @@ paths:
               example:
                 aiWeightTuningEnabled: true
                 sendTextToAI: false
+                knowledgeAiEgressEnabled: false
+                experienceImprovementEnabled: false
                 updatedAt: '2026-08-16T09:12:00+08:00'
         '500':
           $ref: '#/components/responses/InternalServerError'
@@ -636,6 +691,11 @@ paths:
       tags: [用户与设置]
       operationId: confirmGuardianAuthorization
       summary: 监护人点击链接确认授权（无需登录）
+      description: |
+        监护人在邮件里点开的是一次性确认链接，**用浏览器直接打开**（`Accept: text/html`）时
+        返回一个自包含的 HTML 结果页（确认成功 / 链接无效或已使用 / 授权已失效），不需要登录、
+        不依赖前端产物；接口客户端（`Accept: application/json`，如前端 fetch 与自动化测试）
+        仍收到 `{ ok: boolean }`，语义不变。
       security: []
       parameters:
         - name: token
@@ -646,7 +706,21 @@ paths:
             type: string
       responses:
         '200':
-          description: 授权确认成功
+          description: 授权确认结果（浏览器打开时为 HTML 结果页）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    description: true=本次确认生效；false=token 无效或已使用
+                example:
+                  ok: true
+            text/html:
+              schema:
+                type: string
         '500':
           $ref: '#/components/responses/InternalServerError'
         '400':
@@ -2991,7 +3065,10 @@ paths:
       description: |
         enabled=true 为显式开启（一次性授权后由服务端抽取 job 按授权状态自动纳入当周数据，
         即「每周自动参与」，§4.7 决议）；enabled=false 为撤回：按匿名参与 ID 物理删除全部
-        历史特征行，延迟批量重算（≤24h）后退出聚合池（§4.5）。监护人授权失效时写接口 403。
+        历史特征行，延迟批量重算（≤24h）后退出聚合池（§4.5）。
+        **D41 授权前置**：开启（enabled=true）要求监护人授权已 `active`——未授权/待确认返回
+        403 `GUARDIAN_AUTHORIZATION_REQUIRED`（前端引导至「设置 → 授权与隐私」），已失效返回
+        403 `GUARDIAN_AUTHORIZATION_EXPIRED`；**撤回（enabled=false）不受授权状态限制**。
       requestBody:
         required: true
         content:
@@ -3010,7 +3087,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
-          $ref: '#/components/responses/GuardianAuthorizationExpired'
+          description: 监护人授权未生效（D41）：未授权/待确认 → REQUIRED；已失效 → EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                required:
+                  value:
+                    error:
+                      code: GUARDIAN_AUTHORIZATION_REQUIRED
+                      message: 开启匿名群体参照需要先完成监护人授权，请前往「设置 → 授权与隐私」
+                expired:
+                  value:
+                    error:
+                      code: GUARDIAN_AUTHORIZATION_EXPIRED
+                      message: 监护人授权已过期，请重新确认后继续使用
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -3281,6 +3373,16 @@ components:
             error:
               code: GUARDIAN_AUTHORIZATION_EXPIRED
               message: 监护人授权已过期，请重新确认后继续使用
+    GuardianAuthorizationRequired:
+      description: 该操作要求监护人授权已生效（D41：未授权/待确认时阻断，前端引导至「设置 → 授权与隐私」）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: GUARDIAN_AUTHORIZATION_REQUIRED
+              message: 该功能需要先完成监护人授权，请前往「设置 → 授权与隐私」确认授权状态
     StateConflict:
       description: 当前资源状态不允许该操作（同日计划已存在 / 会话已在运行 / 被引用不可删）
       content:
@@ -3436,8 +3538,8 @@ components:
           description: 邮箱地址
     RegisterRequest:
       type: object
-      description: 注册请求
-      required: [email, code, password, confirmPassword]
+      description: 注册请求（pilot 期为邀请码制：#50 一码一用）
+      required: [email, code, password, confirmPassword, inviteCode]
       properties:
         email:
           type: string
@@ -3454,6 +3556,13 @@ components:
         confirmPassword:
           type: string
           description: 需与 password 一致
+        inviteCode:
+          type: string
+          minLength: 4
+          maxLength: 32
+          description: >-
+            pilot 邀请码（#50，一码一用）。注册成功后写入 `invite_codes.used_by`（稳定 userId）
+            与 `used_at`，供溯源；同一码二次使用返回 409 INVITE_CODE_USED。
     LoginByCodeRequest:
       type: object
       description: 邮箱验证码登录 / 校验重置码请求
@@ -3617,6 +3726,15 @@ components:
           description: 学科列表
           items:
             $ref: '#/components/schemas/Subject'
+        birthYear:
+          type: integer
+          nullable: true
+          minimum: 1900
+          maximum: 2100
+          description: >-
+            出生年份（激活式建档采集，D40）。用于判定「未满 14 周岁」（D41）：
+            未满 14 岁的用户必须完成监护人授权（guardianAuthorization.status=active）
+            才能置 onboardingCompleted=true。历史/未采集数据为 null。
         guardianAuthorization:
           type: object
           description: 监护人授权状态
@@ -3635,7 +3753,7 @@ components:
           description: 是否已完成建档引导
     UserProfilePut:
       type: object
-      description: 幂等建档请求体，字段全必填
+      description: 幂等建档请求体。stage / grade / subjects 必填；birthYear 由激活式建档流程采集（D40）
       required: [stage, grade, subjects]
       properties:
         stage:
@@ -3650,6 +3768,14 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/Subject'
+        birthYear:
+          type: integer
+          nullable: true
+          minimum: 1900
+          maximum: 2100
+          description: >-
+            出生年份（4 位）。传了且推算未满 14 周岁时，建档响应 onboardingCompleted 保持 false，
+            直至监护人授权生效（D41 强制门槛）。
     UserProfilePatch:
       type: object
       description: 局部更新请求体，字段全可选
@@ -3666,10 +3792,16 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/Subject'
+        birthYear:
+          type: integer
+          nullable: true
+          minimum: 1900
+          maximum: 2100
+          description: 出生年份（4 位）；改小到未满 14 岁且授权未生效时，onboardingCompleted 会被重置为 false
     Settings:
       type: object
       description: 用户设置。权重数值（α、β 及各子权重）不通过任何用户侧接口暴露（PRD 5.2）
-      required: [aiWeightTuningEnabled, sendTextToAI, knowledgeAiEgressEnabled, updatedAt]
+      required: [aiWeightTuningEnabled, sendTextToAI, knowledgeAiEgressEnabled, experienceImprovementEnabled, updatedAt]
       properties:
         aiWeightTuningEnabled:
           type: boolean
@@ -3680,6 +3812,11 @@ components:
         knowledgeAiEgressEnabled:
           type: boolean
           description: 是否允许知识复盘 AI 出域（PRD 12.6），默认 false；关闭时知识复盘走本地规则模板
+        experienceImprovementEnabled:
+          type: boolean
+          description: >-
+            「将个人数据用于提升体验」（#29b）。**默认 false（opt-in）**：未显式开启时，
+            个人数据不进入任何产品改进用途。
         updatedAt:
           type: string
           format: date-time
@@ -3698,6 +3835,9 @@ components:
         knowledgeAiEgressEnabled:
           type: boolean
           description: 默认 false；开启后知识复盘可用云端 LLM（经 EgressGuard 白名单）
+        experienceImprovementEnabled:
+          type: boolean
+          description: 默认 false（opt-in）；「将个人数据用于提升体验」（#29b），关闭时不进入产品改进用途
     GuardianAuthorizationRequest:
       type: object
       description: 监护人邮箱与手机号二选一必填

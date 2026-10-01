@@ -41,6 +41,7 @@ def _build_user_response(db: Session, user_id: str) -> User:
             stage="senior",  # 默认值，建档时覆盖
             grade="",
             subjects=["other"],
+            birthYear=None,
             guardianAuthorization=GuardianAuthorizationInfo(status="pending"),
             onboardingCompleted=False,
         )
@@ -60,6 +61,7 @@ def _build_user_response(db: Session, user_id: str) -> User:
         stage=user_row.stage,
         grade=user_row.grade,
         subjects=user_row.subjects or [],
+        birthYear=user_row.birth_year,
         guardianAuthorization=guardian_info,
         onboardingCompleted=user_row.onboarding_completed,
     )

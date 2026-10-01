@@ -3,7 +3,7 @@ EpochX API — FastAPI 入口
 
 现状：
   1. ORM + Alembic 迁移（schema 唯一真相源是 alembic，非 create_all）
-  2. 20 个 router / 84 operations 全部接真实实现，按 docs/openapi.yaml v1.7.1
+  2. 20 个 router / 84 operations 全部接真实实现，按 docs/openapi.yaml v1.8.0
   3. state_engine / mastery_engine / ai_suggestion 均已接线，无 mock 残留
      （MockProvider 只在 tests 与 LLM_PROVIDER=mock 时启用）
   4. 前端静态托管在本文件末尾，默认指向 frontend/dist（构建产物）

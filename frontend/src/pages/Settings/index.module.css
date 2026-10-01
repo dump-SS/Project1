@@ -274,3 +274,73 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* ===== 子页切换与「授权与隐私」增量（D41/D42） ===== */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 4px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  background: var(--lg-fill, rgba(255, 255, 255, 0.6));
+  width: fit-content;
+}
+
+.tab {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  color: var(--ink-soft, #4b5563);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tab:hover {
+  color: var(--primary-deep, #1a56c4);
+}
+
+.tabActive {
+  background: var(--primary-soft, rgba(31, 111, 235, 0.1));
+  color: var(--primary-deep, #1a56c4);
+  font-weight: 600;
+}
+
+.sectionHint {
+  margin: 0 0 14px;
+  font-family: var(--font-sans, inherit);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-muted, #8a94a6);
+}
+
+.defaultTag {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-muted, #8a94a6);
+  vertical-align: middle;
+}
+
+.inlineBtn {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.14));
+  border-radius: 8px;
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  color: var(--ink-soft, #4b5563);
+  text-decoration: none;
+}
+
+.inlineBtn:hover {
+  background: var(--primary-soft, rgba(31, 111, 235, 0.08));
+  color: var(--primary-deep, #1a56c4);
+}

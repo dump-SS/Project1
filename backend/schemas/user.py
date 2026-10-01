@@ -33,6 +33,7 @@ class User(BaseModel):
                 "stage": "senior",
                 "grade": "高二",
                 "subjects": ["SX", "YY", "WL"],
+                "birthYear": 2010,
                 "guardianAuthorization": {
                     "status": "active",
                     "expiresAt": "2026-09-10T00:00:00+08:00",
@@ -46,6 +47,11 @@ class User(BaseModel):
     stage: Stage
     grade: str = Field(..., description='年级，如「初二」「高二」')
     subjects: list[Subject] = Field(..., min_length=1, max_length=9, description="学科列表")
+    birth_year: int | None = Field(
+        None,
+        alias="birthYear",
+        description="出生年份（激活式建档采集，D40）；历史数据为 null",
+    )
     guardian_authorization: GuardianAuthorizationInfo = Field(
         ..., alias="guardianAuthorization", description="监护人授权状态"
     )
@@ -53,7 +59,7 @@ class User(BaseModel):
 
 
 class UserProfilePut(BaseModel):
-    """幂等建档请求体，字段全必填。"""
+    """幂等建档请求体。stage / grade / subjects 必填；birthYear 由激活式建档采集（可空）。"""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -61,6 +67,7 @@ class UserProfilePut(BaseModel):
                 "stage": "senior",
                 "grade": "高二",
                 "subjects": ["SX", "YY", "WL"],
+                "birthYear": 2010,
             }
         }
     )
@@ -68,14 +75,26 @@ class UserProfilePut(BaseModel):
     stage: Stage
     grade: str = Field(..., description='年级，如「初二」「高二」')
     subjects: list[Subject] = Field(..., min_length=1, max_length=9)
+    birth_year: int | None = Field(
+        None,
+        alias="birthYear",
+        ge=1900,
+        le=2100,
+        description="出生年份（4 位）；未满 14 岁且授权未生效时 onboardingCompleted 保持 false（D41）",
+    )
 
 
 class UserProfilePatch(BaseModel):
     """局部更新请求体，字段全可选。"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     stage: Stage | None = None
     grade: str | None = None
     subjects: list[Subject] | None = Field(None, min_length=1, max_length=9)
+    birth_year: int | None = Field(
+        None, alias="birthYear", ge=1900, le=2100, description="出生年份（4 位）"
+    )
 
 
 class Settings(BaseModel):
@@ -87,6 +106,8 @@ class Settings(BaseModel):
             "example": {
                 "aiWeightTuningEnabled": True,
                 "sendTextToAI": False,
+                "knowledgeAiEgressEnabled": False,
+                "experienceImprovementEnabled": False,
                 "updatedAt": "2026-08-16T09:12:00+08:00",
             }
         },
@@ -96,6 +117,11 @@ class Settings(BaseModel):
     send_text_to_ai: bool = Field(..., alias="sendTextToAI", description="默认 false")
     knowledge_ai_egress_enabled: bool = Field(
         False, alias="knowledgeAiEgressEnabled", description="默认 false：知识复盘 AI 出域开关（PRD 12.6）"
+    )
+    experience_improvement_enabled: bool = Field(
+        False,
+        alias="experienceImprovementEnabled",
+        description="默认 false（opt-in）：将个人数据用于提升体验（#29b）",
     )
     updated_at: datetime = Field(..., alias="updatedAt")
 
@@ -111,6 +137,9 @@ class SettingsUpdate(BaseModel):
     ai_weight_tuning_enabled: bool | None = Field(None, alias="aiWeightTuningEnabled")
     send_text_to_ai: bool | None = Field(None, alias="sendTextToAI")
     knowledge_ai_egress_enabled: bool | None = Field(None, alias="knowledgeAiEgressEnabled")
+    experience_improvement_enabled: bool | None = Field(
+        None, alias="experienceImprovementEnabled", description="默认 false（opt-in，#29b）"
+    )
 
     @model_validator(mode="after")
     def _at_least_one(self) -> "SettingsUpdate":
@@ -118,8 +147,12 @@ class SettingsUpdate(BaseModel):
             self.ai_weight_tuning_enabled is None
             and self.send_text_to_ai is None
             and self.knowledge_ai_egress_enabled is None
+            and self.experience_improvement_enabled is None
         ):
-            raise ValueError("至少传一项（aiWeightTuningEnabled / sendTextToAI / knowledgeAiEgressEnabled）")
+            raise ValueError(
+                "至少传一项（aiWeightTuningEnabled / sendTextToAI / knowledgeAiEgressEnabled / "
+                "experienceImprovementEnabled）"
+            )
         return self
 
 

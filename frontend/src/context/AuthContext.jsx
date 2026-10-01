@@ -7,14 +7,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getCurrentUser, logout as logoutRequest } from '../services/authApi.js'
 import { AUTH_EXPIRED_EVENT } from '../services/http'
+import { clearGuestSession, enterGuestMode, isGuestMode } from '../services/guestSession'
 
 const AuthContext = createContext(null)
 
 // 'checking'：正在校验（避免守卫在结果出来前误判为未登录）
 // 'authenticated' / 'anonymous'：校验结果
+//
+// 游客态（D1/D43）**叠加**在这套登录态之上，不改 401 机制：
+// - isGuest=true 表示「允许以游客身份试用」（纯前端本地状态，见 services/guestSession.ts）
+// - 校验出真实登录态（authenticated）时立即清空游客试用数据（"登录即清空"）
 export function AuthProvider({ children }) {
   const [status, setStatus] = useState('checking')
   const [user, setUser] = useState(null)
+  const [isGuest, setIsGuest] = useState(() => isGuestMode())
 
   const refresh = useCallback(async () => {
     setStatus('checking')
@@ -22,6 +28,9 @@ export function AuthProvider({ children }) {
       const data = await getCurrentUser()
       setUser(data?.user ?? null)
       setStatus('authenticated')
+      // 登录/注册成功 → 试用数据直接清空（不迁移，D1/D43 口径）
+      clearGuestSession()
+      setIsGuest(false)
     } catch {
       // /auth/me 401 时 authApi 的 request() 会 throw，这里统一按未登录处理，
       // 不区分具体错误码——校验登录态不需要向用户展示这层细节
@@ -33,6 +42,18 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  /** 以游客身份进入（注册页「暂不登录，先试试看」/ 身份区切换）。 */
+  const enterGuest = useCallback(() => {
+    enterGuestMode()
+    setIsGuest(true)
+  }, [])
+
+  /** 退出游客态：清空全部试用数据（刷新也会清，这里用于主动退出/转登录）。 */
+  const exitGuest = useCallback(() => {
+    clearGuestSession()
+    setIsGuest(false)
+  }, [])
 
   // 会话在页面停留期间过期时，业务接口会返回 401 UNAUTHENTICATED，
   // http.ts 的 throwIfNotOk 随即广播该事件。这里把登录态置回 anonymous，
@@ -57,10 +78,15 @@ export function AuthProvider({ children }) {
       // 留在「已登录」状态会让用户卡在需要鉴权的页面里出不去
       setUser(null)
       setStatus('anonymous')
+      clearGuestSession()
+      setIsGuest(false)
     }
   }, [])
 
-  const value = useMemo(() => ({ status, user, refresh, logout }), [status, user, refresh, logout])
+  const value = useMemo(
+    () => ({ status, user, isGuest, refresh, logout, enterGuest, exitGuest }),
+    [status, user, isGuest, refresh, logout, enterGuest, exitGuest],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
