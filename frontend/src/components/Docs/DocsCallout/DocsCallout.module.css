@@ -1,0 +1,78 @@
+/* DocsCallout · §8.4.3：左侧 3px 细条 + 小圆点，**不做整块底色** */
+
+.callout {
+  margin: var(--sp-4) 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border-hairline);
+  border-left-width: 3px;
+  border-radius: var(--r-card);
+  background: var(--surface-card);
+}
+
+.toneNote {
+  border-left-color: var(--state-teal);
+}
+.toneCaution {
+  border-left-color: var(--state-amber);
+}
+.toneWarn {
+  border-left-color: var(--state-coral);
+}
+
+/* 标题：衬线小字 + 语义色圆点（要看的信号），无衬线/深色是 §8.4.3 的默认做法，
+   这里用「圆点 + 标题」形式承载语义色，避免整块染色。 */
+.title {
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+
+.toneNote .title::before {
+  background: var(--state-teal);
+}
+.toneCaution .title::before {
+  background: var(--state-amber);
+}
+.toneWarn .title::before {
+  background: var(--state-coral);
+}
+
+/* 说明文字：衬线（已写下来的，§5） */
+.body {
+  font-family: var(--font-prose);
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+.body > :first-child {
+  margin-top: 0;
+}
+.body > :last-child {
+  margin-bottom: 0;
+}
+
+.body code {
+  font-family: var(--font-code);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: var(--r-control);
+  background: var(--bg-page);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+}

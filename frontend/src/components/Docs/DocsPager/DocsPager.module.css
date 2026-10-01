@@ -1,0 +1,61 @@
+/* DocsPager · 线性翻页（侧栏之外的等价路径，§9.1） */
+
+.pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  background: var(--surface-card);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.item:hover {
+  border-color: var(--border-hairline-strong);
+  background: var(--bg-page);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.next {
+  text-align: right;
+}
+
+/* 方向词：衬线小字 = 注释层级 */
+.dir {
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-title);
+  color: var(--text-tertiary);
+}
+
+/* 页标题：无衬线 = 正在发生（§5） */
+.title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-body);
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+}
+
+@media (max-width: 600px) {
+  .pager {
+    grid-template-columns: 1fr;
+  }
+  .next {
+    text-align: left;
+  }
+}
