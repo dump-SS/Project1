@@ -56,12 +56,18 @@ def upgrade() -> None:
     # 重建时的 INSERT 会带上真实值，不再有 NULL 可写。
     with op.batch_alter_table('settings', schema=None) as batch_op:
         # #29b：先带默认值落值（存量行 = 关闭）
+        #
+        # ⚠️ 必须用 `sa.false()` 而不是 `sa.text('0')`：Postgres **拒绝**给 BOOLEAN 列
+        #    配 `DEFAULT 0`（default expression is of type integer），
+        #    而 SQLite 动态类型照单全收。`sa.false()` 由方言各自编译——
+        #    SQLite 出 `0`、Postgres 出 `false`——这是唯一可移植的写法。
+        #    （2026-10-01 在 Neon 上实际触发过：`psycopg2.errors.DatatypeMismatch`）
         batch_op.add_column(
             sa.Column(
                 'experience_improvement_enabled',
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text('0'),
+                server_default=sa.false(),
             )
         )
 

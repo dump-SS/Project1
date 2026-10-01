@@ -199,3 +199,43 @@ def test_repeated_upgrade_is_idempotent(db_at_head: pathlib.Path):
         assert c.execute("select count(*) from settings").fetchone()[0] == 1
     finally:
         c.close()
+
+
+# ---------- 跨方言：默认值渲染（Postgres 特有缺陷，SQLite 测不出）----------
+
+
+def test_boolean_server_default_is_dialect_portable():
+    """🔴 BOOLEAN 列的 server_default 必须用 `sa.false()`，不能用 `sa.text('0')`。
+
+    Postgres **拒绝**给 BOOLEAN 列配 `DEFAULT 0`：
+        psycopg2.errors.DatatypeMismatch: column "experience_improvement_enabled"
+        is of type boolean but default expression is of type integer
+    SQLite 动态类型照单全收 → 只在 SQLite 上验是**测不出来的**。
+
+    2026-10-01 在 Neon 生产升级时实际触发过此错误（已回滚干净，因为 PG 有事务型 DDL）。
+    本用例直接断言两种方言下的渲染结果，把这条差异钉在测试里。
+    """
+    import sqlalchemy as sa
+
+    sqlite_dialect = sa.create_engine("sqlite://").dialect
+    pg_dialect = sa.create_engine("postgresql://").dialect
+
+    ok = sa.Column("x", sa.Boolean(), nullable=False, server_default=sa.false())
+    assert str(ok.server_default.arg.compile(dialect=sqlite_dialect)).strip() == "0"
+    assert str(ok.server_default.arg.compile(dialect=pg_dialect)).strip() == "false"
+
+    # 反证：sa.text('0') 在两种方言下都渲染成 0 —— 这就是 PG 报错的原因
+    bad = sa.text("0")
+    assert str(bad.compile(dialect=sqlite_dialect)).strip() == "0"
+    assert str(bad.compile(dialect=pg_dialect)).strip() == "0"
+
+
+def test_migration_uses_portable_boolean_default():
+    """直接检查迁移源码不含 `sa.text('0')` 这类非可移植默认值。"""
+    import re
+
+    src = (
+        BACKEND / "alembic/versions/a91f4c2d7e03_a_identity_birthyear_improvement.py"
+    ).read_text(encoding="utf-8")
+    offenders = re.findall(r"server_default\s*=\s*sa\.text\(", src)
+    assert not offenders, "迁移里出现 sa.text() 形式的 server_default，Postgres 会拒绝"
