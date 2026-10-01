@@ -144,15 +144,24 @@ frontend/src/
 `frontend/public/` 下的文件由 Vite 原样伺服在站点根路径，不参与打包也不加 hash，任何页面都能直接用绝对路径引用，
 不需要 `import`：
 
-| 文件 | 引用方式 | 说明 |
-|---|---|---|
-| `frontend/public/bg-sky.jpg` | `/bg-sky.jpg` | 天空背景图，1280×960 / 40 KB，色调与主题色板一致 |
-| `frontend/public/brand/logo-mark-on-light.png` | `/brand/logo-mark-on-light.png` | 品牌图标（仅 EX 标记），黑色墨色，用在浅色背景上 |
-| `frontend/public/brand/logo-mark-on-dark.png` | `/brand/logo-mark-on-dark.png` | 品牌图标（仅 EX 标记），白色墨色，用在深色背景上 |
-| `frontend/public/brand/logo-full-on-light.png` | `/brand/logo-full-on-light.png` | 品牌全称版（EX 标记 + EpochX 文字），黑色墨色，用在浅色背景上 |
-| `frontend/public/brand/logo-full-on-dark.png` | `/brand/logo-full-on-dark.png` | 品牌全称版（EX 标记 + EpochX 文字），白色墨色，用在深色背景上 |
+| 文件 | 尺寸 | 引用方式 | 说明 |
+|---|---|---|---|
+| `frontend/public/bg-sky.jpg` | 1280×960 / 40 KB | `/bg-sky.jpg` | 天空背景图，色调与主题色板一致 |
+| **方版原图**（1000×1000 · 真透明 · 带留白） | | | |
+| `frontend/public/brand/logo-mark-on-light.png` | 1000×1000 / 13 KB | `/brand/logo-mark-on-light.png` | 品牌图标（仅 EX 标记），黑色墨色，用在浅色背景上 |
+| `frontend/public/brand/logo-mark-on-dark.png` | 1000×1000 / 15 KB | `/brand/logo-mark-on-dark.png` | 品牌图标（仅 EX 标记），白色墨色，用在深色背景上 |
+| `frontend/public/brand/logo-full-on-light.png` | 1000×1000 / 23 KB | `/brand/logo-full-on-light.png` | 品牌全称版（EX 标记 + EpochX 文字），黑色墨色，用在浅色背景上 |
+| `frontend/public/brand/logo-full-on-dark.png` | 1000×1000 / 21 KB | `/brand/logo-full-on-dark.png` | 品牌全称版（EX 标记 + EpochX 文字），白色墨色，用在深色背景上 |
+| **trim 版**（裁到墨迹边界 · 高度统一 155px · 无留白） | | | |
+| `frontend/public/brand/logo-full-on-light-trim.png` | 724×155 / 16 KB | `/brand/logo-full-on-light-trim.png` | 全称版 trim，浅色底。**文档站顶栏在用** |
+| `frontend/public/brand/logo-full-on-dark-trim.png` | 724×155 / 17 KB | `/brand/logo-full-on-dark-trim.png` | 全称版 trim，深色底。**文档站顶栏在用** |
+| `frontend/public/brand/logo-mark-on-light-trim.png` | 274×155 / 6 KB | `/brand/logo-mark-on-light-trim.png` | 标记版 trim，浅色底 |
+| `frontend/public/brand/logo-mark-on-dark-trim.png` | 274×155 / 6 KB | `/brand/logo-mark-on-dark-trim.png` | 标记版 trim，深色底 |
+| `frontend/public/brand/logo-wordmark-on-dark.png` | 417×155 / 9 KB | `/brand/logo-wordmark-on-dark.png` | 纯文字版（无 EX 标记），深色底 |
+| `frontend/public/brand/logo-full-black.png` | 764×195 / 12 KB | `/brand/logo-full-black.png` | 全称版纯黑版，不分底色 |
 
-品牌四图均为 1000×1000、真透明背景（PNG RGBA），可以直接叠加在任何底色上，不会出现白边。
+**方版 vs trim 版怎么选**：方版是 1000×1000 的方形画布、四周留白，适合需要靠留白撑开视觉重量的场合（大 logo、居中展示）；trim 版裁到墨迹边界、高度统一 155px，适合**按高度控制尺寸**的场合（顶栏、导航条、内联排版）——方版按高度缩放会因为留白而显得偏小。两者都是真透明背景（PNG RGBA），可叠加在任何底色上，不会出现白边。
+
 命名规则是「用在什么背景上」而不是「墨色是什么颜色」——避免「白版」到底指白色文字还是白色背景的歧义。
 选错一律会在浅色背景上看到几乎隐形的白字，或在深色背景上看到几乎隐形的黑字，遇到「logo 好像没显示」先检查是不是拿反了。
 

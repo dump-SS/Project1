@@ -3,6 +3,10 @@ dist/
 *.tsbuildinfo
 .vite/
 
+# vite 把 vite.config.ts 编译成临时 .mjs 供自身加载；进程被中断时会留下
+# vite.config.ts.timestamp-<ms>-<hash>.mjs 残渣（不在 .vite/ 目录里）。
+vite.config.ts.timestamp-*.mjs
+
 .env
 .env.local
 .env.*.local

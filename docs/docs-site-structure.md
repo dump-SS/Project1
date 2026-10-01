@@ -39,7 +39,7 @@
 | 1 | 产品介绍 | ✅ | EpochX 是什么、为谁做的、能做什么 | 落地页内容的**文档版**：朴素、无动效、不吹 |
 | 2 | **致家长** | ✅ | 给家长的说明与承诺 | **特殊文档**，见 §9 |
 | 3 | 快速入门 | ✅ | 一页走完：注册 → 建档 → 第一次记录 → 看状态 | 面向"我想马上用起来"的人 |
-| 4 | 注册与邀请码 | ✅ | 邀请码注册（一码一用）与登录 | |
+| 4 | 注册与邀请码 | ✅ | 邮箱验证码注册与登录 | 标题保留「邀请码」不动，但**正文只写邮箱验证码注册**（这部分真能用：`send-register-code` / `register` / `login-password` / `login-email-code`）。`openapi.yaml:5648` 明写「pilot 期不提供用户产品侧的邀请码管理接口」，邀请码注册排在 **M1（未开工）**（`refactor-development-plan.md:92`），故**邀请码一个字不提**，等 M1 落地再补 |
 | 5 | 首次建档 | ✅ | 年龄、学科、目标等建档步骤 | |
 | 6 | 监护人授权 | ✅ | 未满 14 岁的授权流程（操作层面） | 与「致家长」互链不重复 |
 | 7 | 界面导览 | ⏳ | 各页面入口说明 | **重构中**，等 X1 壳落地后写 |
@@ -79,7 +79,7 @@
 |---|---|---|---|---|
 | 1 | 个人资料 | ✅ | 资料与偏好 | |
 | 2 | 通知与邮件 | ⏳ | 通知设置 | **状态待确认**（后端有 SMTP，前端是否有设置项需核实） |
-| 3 | 注销与删除 | ✅ | 注销、数据删除 | 与「撤回即删除」互链 |
+| 3 | 注销与删除 | ⏳ | 注销、数据删除 | **2026-09-28 由 ✅ 改为 ⏳**：契约 64 个 path 里无账号注销、无数据删除接口（只有 `POST /auth/logout`，那是退出登录）；`refactor-implementation-notes.md` 的「注册/登录/改邮箱/注销 全链路通过」仍是未勾选项。按 §0 规则 2「写了就是谎」，降为 building 不写步骤 |
 
 ## 6. 第 5 章 · 价格与计费
 
@@ -187,5 +187,112 @@ updated: 2026-09-29
 1. 「通知与邮件」页的真实状态（前端是否有通知设置）待核实
 2. 「常见问题」四类内容等 pilot 后按真实提问填充
 3. 隐私政策 / 服务条款属 #29a 上线前补项
-4. 文档页是否做搜索：pilot 阶段可省，或客户端模糊匹配，不上索引
+4. ~~文档页是否做搜索~~ → **已落地（2026-09-29）**：顶栏搜索框，客户端子串匹配（§17），不上索引服务
 5. 文档页落地顺序（骨架先上 / 内容分批填）由 Skyer 定
+
+---
+
+## 15. 落地记录（2026-09-28）
+
+**结论：骨架 7 章 38 页全部上线，`/docs` + `/docs/:section/:slug` 可访问。**
+
+| 项 | 结果 |
+|---|---|
+| 内容 | `frontend/src/pages/Docs/content/<section>/<slug>.md` 共 **38** 个文件 |
+| status 分布 | `implemented` **24** / `building` **5** / `placeholder` **9** |
+| 排序 | frontmatter `order` 生效，用 10/20/30 间隔值（`registry.ts` 读 `import.meta.glob`，运行期无 fs/无后端/无索引服务） |
+| 校验 | 逐项核对章节数 / 标题 / order / status 与本表一致；`owner` 字段 0 处；跨页链接死链 **0** |
+| 依赖 | **零新增**。`react-markdown` 为既有依赖，Docs 走路由级代码分割（独立 chunk ≈ 77 KB） |
+| 构建 | `npm run typecheck` 与 `npm run build` 均通过 |
+
+**实现落点**
+
+- `frontend/src/pages/Docs/registry.ts` —— 内容登记表（glob + frontmatter 解析 + 排序 + 标题抽取）
+- `frontend/src/pages/Docs/index.tsx` —— 页面外壳（`DocsRoutes` / `DocsIndex` / `DocArticle`）
+- `frontend/src/components/Docs/` —— **可复用组件**（§8.4.6）：`DocsSidebar` / `DocsProse` / `DocsCallout` / `DocsCard` / `DocsToc` / `DocsPager`。放在 `components/` 而非 Docs 页内，**这一步做了，文档页就不只是文档，而是重构的视觉垫脚石**。
+
+**三处需要 Skyer 复核的决策**
+
+1. **「注册与邀请码」正文只写邮箱注册，不提邀请码**（见 §2 第 4 行）。标题未动。若认为标题应改，等你定。
+2. **「注销与删除」由 ✅ 降为 ⏳**（见 §5 第 3 行）。契约无接口，按规则 2 降级。
+3. **`掌握度` 一词与 §6.2 内部术语禁令有张力** —— §6.2 把「掌握度」列为内部术语，但 §3 章本就有「知识库与掌握度」这个页名，且掌握度确实是用户可见的概念（节点由暗到亮）。当前处理：**保留页名与正文用词**（页名以本骨架为准），但在正文中避免使用「画像 / 归因 / 状态画像」这三个纯内部词。**这条需要你裁决**：若坚持 §6.2 严格执行，页名要改。
+
+**共享文件改动（3 处，待 Skyer 收口）**
+
+| 文件 | 改动 | 原因 |
+|---|---|---|
+| `src/App.jsx` | +lazy import、+`isDocs`、+`/docs/*` 一条路由、LaunchScreen/CustomCursor 跳过 `/docs` | 不注册路由则 `/docs` 不可访问。diff 约 12 行，与 Landing 现有写法同构 |
+| `src/styles/tokens.css` | 新增**语义 token 层**（§3 八项 + 蓝色三出口 + 状态色）与**度量层**（§8.4.1） | §3 的语义 token 此前**全站不存在**；§8.1 第 1 条要求「颜色只走语义 token，不写色值」。唯一覆盖：`--bg-page` 原为天空渐变，实测**全站无人引用**，按 §3 改为实色底纸 |
+| `src/pages/Landing/content/copy.zh.ts` / `copy.en.ts` | 「资源」菜单 文档 / 更新日志 / 隐私政策 三个 href 指向对应页；「媒体」保持空 | §12 路由落点要求 |
+
+**未做（明确不做，不是遗漏）**
+
+- **未预置任何价格数字、未编造订阅方案、未填联系方式 / 协议链接 / 备案**（§0 规则 + §6.1 + §13 规则 4）
+- **未给 `building` 页写步骤**（§11：写了就是谎）
+- 价格与计费两页仅保留 §6.1 硬约束要求的**那一句**（价格=「pilot 封测期间免费，正式版定价方案待公布」；计费=「封测期间不涉及账单与支付」），与落地页顶栏「定价 = 暂无」严格一致
+
+> ⚠️ **本节已被后续修订覆盖**（2026-09-29，见 §16 / §17）：站内搜索**已做**
+> （`registry.searchPages`，客户端子串匹配），§14 待定项 4 随之关闭。
+> 「未做搜索」一条已从上方「未做」清单移除——它只在本节首次落地时成立。
+
+---
+
+## 16. 可见性审计与修复（2026-09-29）
+
+**结论：两主题（day / night）渲染、度量（§8.4.1）、状态标识、死链全部复核通过；修 4 类问题，留 2 项待定。**
+
+审计方式：内置浏览器实测 `/docs` 索引、文章页、`building`/`placeholder` 页、404、移动端抽屉，日/夜两主题各走一遍。
+
+**已修（照既有规范，无设计新增）**
+
+| 项 | 问题 | 处理 |
+|---|---|---|
+| 侧栏跟随 | `DocsSidebar` 是 `static`，右侧 TOC 是 `sticky`——长文滚到页底只剩侧栏尾巴，导航消失 | 改为 `sticky; top: 0; height: 100dvh`，与 TOC 行为对齐（`DocsSidebar.module.css`） |
+| 代码块底 | §8.4.2 要求 pre / 行内码「极淡底」，但正文直接落在底纸上，若用 `--bg-page` 就与页面同色，只剩 hairline 勾边 | 新增语义 token `--code-bg`（日 `#f0efeb` / 夜 `#151d27`），`DocsProse` 改引它。**当前 38 篇内容里零代码块、零行内码**，故此项为规范兜底、页面暂不可见（`DocsProse` 将来复用时生效） |
+| hook 顺序 | `DocArticle` 的 `useMemo` 写在 `if (!page) return` **之后**——同一实例从正常页切到 404 时 hook 数量变化，React 抛错白屏（历史记录前进/后退可触发） | 全部 hook 提到早退之前；实测「文章页 → 站内切 404」不再报错，404 卡片正常渲染 |
+| 页签标题 | `index.html` 写死 `<title>EpochX</title>`，全站无一处改 `document.title`，38 篇共用一个标题 | 索引页 `EpochX 文档`；文章页 `<页名> · EpochX 文档`；404 `页面不存在 · EpochX 文档` |
+| 移动端抽屉 | ①「目录」钮 z-index 50 高于抽屉 40，开抽屉后压住列表项；② 抽屉开着时背景仍在滚 | ①开启时隐藏按钮；②`body.style.overflow` 锁定并在关闭/卸载时还原 |
+| 首载闪色 | `App.jsx` 里 `/docs` 的 Suspense fallback 写死 `background: '#10161E'`，日间用户首次打开文档站会先闪一下深色 | **两步根治**：①`index.html` 加首帧前引导脚本，按 `localStorage` 手选 → 系统偏好设好 `data-theme`（逻辑与 `ThemeContext.getInitialTheme` 一致）——顺带治掉了夜色用户全站首帧先闪日色的老问题；②fallback 改 `var(--bg-page)`，两主题第一帧都解析对。**落地页 fallback 保持 `#10161E` 不动**：落地页两主题都是固定深底（`landing.css --lp-bg` 同值），深色 fallback 才是无缝 |
+
+**待定（需 Skyer 拍板，未做）**
+
+1. ~~**站内返回入口**~~ → **已由 §17 顶栏解决**（logo → 官网，索引钮 → `/docs`）。
+
+**本轮共享文件改动**：`src/styles/tokens.css` 仅**新增** `--code-bg` 一对（未改任何既有 token 值）；`src/App.jsx` 改 1 行（`/docs` fallback 色 → `var(--bg-page)`，落地页 fallback 注明保持原因）；`index.html` 加 10 行引导脚本（`<head>` 内同步执行，先于首帧）。
+
+---
+
+## 17. 顶栏、搜索、主题切换、复制页面（2026-09-29 Skyer 指定）
+
+**结论：四件事全部落地并实测通过——加顶栏（logo 全称 + 索引钮 + 居中搜索 + 右上主题切换）、文章页标题行最右侧复制按钮（下拉：复制为 Markdown / 以 Markdown 格式查看；位置与 hover 反馈 2026-09-30 按 Skyer 意见调整）。**
+
+**新增组件（照 §8.4.6 放 `components/Docs/`，产品内将来复用）**
+
+| 组件 | 职责 |
+|---|---|
+| `DocsTopbar` | 顶栏壳 + 站内搜索 + 主题切换。sticky 顶部，底纸同色只靠底部 hairline 分层；z-index 30（低于移动端抽屉 40 / 遮罩 35） |
+| `DocsCopyMenu` | 分体钮（复制｜下箭头）+ 下拉菜单 + Markdown 查看弹层。默认动作＝复制当前页 Markdown；弹层展示原始源文（等宽 + `--code-bg` 底、按屏宽折行），Esc / 点遮罩 / 关闭钮均可关。**位置：文章页标题行最右侧**（2026-09-30 Skyer 调整，原定标题左侧）；**hover：整组只描边转品牌青，悬停哪个钮哪个文字变暗一档**（copy: primary→secondary，箭头: secondary→tertiary，2026-09-30 二次调整：不做整组联动）；**菜单入场从上滑出 + 渐入**（0.16s，每次打开重放），开启时下箭头翻向上、收起复位 |
+| `DocsToc`（改造） | **滚动跟随 scroll-spy（2026-10-01 Skyer）**：`DocArticle` 挂 scroll 监听（直呼不套 rAF），视口 96px 处作阅读线，最后一个越过它的标题＝当前小节；TOC 里该项用蓝墨水左细条 + 文字转蓝标出（与侧栏当前项同款，§8.4.4/§4），带 `aria-current="location"`。96 必须大于锚点落点（scroll-margin-top 72），否则点目录跳转后那一节不亮。不做 rAF 节流的原因：十来个标题的 rect 读取开销可忽略，而 rAF 在冻结合成器环境会饿死（落地页已踩过一次） |
+
+**决策与实现口径**
+
+1. **logo 全称版**：用 `/brand/logo-full-on-{light,dark}-trim.png`（724×155），按 `[data-theme]` 用 CSS 切显隐（同 tokens 的深色跟随方式），点击回官网 `/`；「索引」钮紧贴搜索框左侧，回 `/docs` 目录页。
+2. **搜索＝§14 待定项 4 的「客户端匹配」方案落地**：`registry.searchPages` 对 38 篇标题 + 正文做子串匹配（空白分词、AND 语义、标题命中优先展示、正文命中带上下文摘要），不引依赖、不上索引服务。摘要走「剥 markdown 记号后的纯文本」（按页缓存），不会露出 `**` `##` `[]()`。命中词在结果里只抬字重不着色（§8.1 不靠色块）。键盘 ↑↓ 选结果、Enter 跳转、Esc 收起、点外部收起。
+3. **主题切换**：直接用全局 `useTheme().toggleTheme`（文档站在 ThemeProvider 内），不另起一套；切主题会带出全局云层过渡（CloudTransition 是全站主题切换仪式，未对文档站豁免）。主题手选结果由 ThemeProvider 持久化到 localStorage，与 index.html 引导脚本（§16）闭环。
+4. **复制页面**：默认动作与「复制为 Markdown」都写 `page.body`（registry 的原始 markdown，不含 frontmatter）；剪贴板优先 `navigator.clipboard`，非安全上下文（http 部署）降级 `execCommand`。反馈只说事实（「已复制」/「复制失败」）。
+5. **布局连锁改动**：`tokens.css` 度量层新增 `--docs-topbar-h: 56px`；`.shell` 改纵向两段（顶栏 + bodyRow）；侧栏 sticky `top` 改 56、高度改 `calc(100dvh - 56px)`；TOC sticky `top` 改 56+24；正文锚点 `scroll-margin-top` 同步避开顶栏。
+
+**实测中修掉的三个自伤**
+
+| 问题 | 修法 |
+|---|---|
+| 日间顶栏出**双 logo 叠影**：`.brand img { display:block }`（特异性 0,1,1）压过 `.logoDark { display:none }`（0,1,0），暗版日间藏不住 | 显隐只写在 `.logoLight/.logoDark` 两个类里，`.brand img` 不再写 display |
+| 窄屏 logo **溢出压住「索引」钮**：侧翼 `.side { min-width: 0 }` 被压得比内容窄，`flex:none` 的 logo 溢出侧翼 | 侧翼去掉 `min-width:0`（min-content 兜底），收缩压力全给搜索框 |
+| 移动端**抽屉不满高**（844 视口只有 788）：桌面 sticky 的 `height: calc(100dvh - 56px)` 泄进媒体查询 | 媒体查询里 `height: auto`，`inset: 0 auto 0 0` 恢复满高 |
+
+**侧栏微调（2026-10-01 Skyer）**：分组标题字号 13→12px（注释层级再压一档）；当前项字重 500→700（选中项在列表里要立得住）。字体栈已含 Noto Sans SC 700，无需加载体重。
+
+**共享文件改动（本轮）**：`tokens.css` 新增 `--docs-topbar-h` 一个度量 token；`App.jsx` / `index.html` 未再动。
+
+**已知环境限制（非代码问题）**：本机内置浏览器长会话后点击/键盘事件投递会失效（window 捕获层 0 事件），最后两枚 Link（logo / 索引）只能做到 href 属性级验证——但二者是标准 react-router `Link`，与全站 40+ 处已验证可用的链接同一机制；搜索、复制、弹层、主题切换、抽屉均已实测通过。
+
