@@ -6,6 +6,11 @@
  *   折叠按钮在边栏底部。主题切换、用户邮箱、退出按钮也在底部。
  * - 移动:底部固定 6 Tab + "我的"抽屉(不变)。
  *
+ * 游客态(D1/D43,2026-09-30 增补):
+ * - 身份区显示「游客 ?」,点开即登录/注册入口(常驻,任何页面都能转登录,不弹确认);
+ * - 除「导学 / 计时」两页外的导航项对游客**标灰**(AI 能力与用户数据页都需要登录),
+ *   点击不跳转、改为展开登录入口。
+ *
  * 折叠状态持久化到 localStorage(key: epochx-sidebar-collapsed)。
  * 路由路径与页面本身不变,仅调整导航呈现结构。
  */
@@ -170,24 +175,27 @@ const Icon = ({ name, size = 18 }) => {
 }
 
 // 主导航:6 项高频业务页 + 学科组(板块二,origin/main 合并引入)
+// guestBlocked: 游客态下不可用（AI 能力 / 用户数据页）——只有计划与计时对游客开放
+// （D1「游客可试用非 AI 功能」；两页自身在游客态下走本地数据、不落库）
 const PRIMARY_NAV = [
   { to: '/study-guide', label: '导学', icon: 'study' },
   { to: '/study-timer', label: '计时', icon: 'timer' },
-  { to: '/personal-data', label: '数据', icon: 'data' },
-  { to: '/summary-review', label: '复盘', icon: 'review' },
-  { to: '/recommendations', label: '建议', icon: 'suggest' },
-  { to: '/goals', label: '目标', icon: 'goal' },
-  { to: '/knowledge', label: '学科', icon: 'knowledge' },
-  { to: '/error-book', label: '错题', icon: 'errorBook' },
-  { to: '/chat', label: 'AI辅导', icon: 'chat' },
-  { to: '/community/upload', label: '群体', icon: 'community' },
+  { to: '/personal-data', label: '数据', icon: 'data', guestBlocked: true },
+  { to: '/summary-review', label: '复盘', icon: 'review', guestBlocked: true },
+  { to: '/recommendations', label: '建议', icon: 'suggest', guestBlocked: true },
+  { to: '/goals', label: '目标', icon: 'goal', guestBlocked: true },
+  { to: '/knowledge', label: '学科', icon: 'knowledge', guestBlocked: true },
+  { to: '/error-book', label: '错题', icon: 'errorBook', guestBlocked: true },
+  { to: '/chat', label: 'AI辅导', icon: 'chat', guestBlocked: true },
+  { to: '/community/upload', label: '群体', icon: 'community', guestBlocked: true },
 ]
 
-// 「我的」下拉:3 个低频页
+// 「我的」下拉:2 个低频页。
+// ⚠️ 「监护人授权」不再单列——D41 把它归位到「设置 → 授权与隐私」子页
+// （另一处入口在激活式建档流程里，低龄门槛会强制走到）。旧路由 /guardian-auth 仍可直达。
 const ME_NAV = [
   { to: '/settings', label: '设置', icon: 'settings' },
   { to: '/profile-setup', label: '资料建档', icon: 'profile' },
-  { to: '/guardian-auth', label: '监护人授权', icon: 'shield' },
 ]
 
 const STORAGE_KEY = 'epochx-sidebar-collapsed'
@@ -197,12 +205,14 @@ function isMeActive(pathname) {
 }
 
 export default function AppShell() {
-  const { user, logout } = useAuth()
+  const { user, logout, isGuest } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   // 移动端「我的」抽屉是否展开
   const [meOpen, setMeOpen] = useState(false)
+  // 桌面端游客面板（点「游客 ?」展开登录/注册入口）是否展开
+  const [guestPanelOpen, setGuestPanelOpen] = useState(false)
   // 桌面端边栏是否折叠
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -213,6 +223,13 @@ export default function AppShell() {
   })
 
   const meActive = isMeActive(location.pathname)
+
+  // 游客态下「不可用项」统一走这里：不跳转，改为展开登录入口（D43 不弹确认）
+  const handleLockedNav = (e) => {
+    e.preventDefault()
+    setGuestPanelOpen(true)
+    setMeOpen(true)
+  }
 
   // 持久化折叠状态
   useEffect(() => {
@@ -241,39 +258,62 @@ export default function AppShell() {
 
         {/* 主导航 */}
         <nav className={styles.nav} aria-label="主导航">
-          {PRIMARY_NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
-              }
-              title={collapsed ? item.label : undefined}
-            >
-              <span className={styles.navIcon}>
-                <Icon name={item.icon} />
-              </span>
-              {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
-            </NavLink>
-          ))}
+          {PRIMARY_NAV.map((item) => {
+            const locked = isGuest && item.guestBlocked
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={locked ? handleLockedNav : undefined}
+                className={({ isActive }) =>
+                  [
+                    styles.navLink,
+                    isActive && !locked ? styles.navLinkActive : '',
+                    locked ? styles.navLinkLocked : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
+                }
+                title={locked ? '游客试用不可用，登录后开启' : collapsed ? item.label : undefined}
+                aria-disabled={locked || undefined}
+              >
+                <span className={styles.navIcon}>
+                  <Icon name={item.icon} />
+                </span>
+                {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+                {!collapsed && locked && <span className={styles.navLock}>需登录</span>}
+              </NavLink>
+            )
+          })}
 
           {/* 「我的」分组 */}
           <div className={styles.navDivider} />
-          {ME_NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
-              }
-              title={collapsed ? item.label : undefined}
-            >
-              <span className={styles.navIcon}>
-                <Icon name={item.icon} />
-              </span>
-              {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
-            </NavLink>
-          ))}
+          {ME_NAV.map((item) => {
+            const locked = isGuest
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={locked ? handleLockedNav : undefined}
+                className={({ isActive }) =>
+                  [
+                    styles.navLink,
+                    isActive && !locked ? styles.navLinkActive : '',
+                    locked ? styles.navLinkLocked : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
+                }
+                title={locked ? '游客试用不可用，登录后开启' : collapsed ? item.label : undefined}
+                aria-disabled={locked || undefined}
+              >
+                <span className={styles.navIcon}>
+                  <Icon name={item.icon} />
+                </span>
+                {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+              </NavLink>
+            )
+          })}
         </nav>
 
         {/* 底部操作区 */}
@@ -301,25 +341,64 @@ export default function AppShell() {
             {!collapsed && <span className={styles.footerLabel}>{theme === 'day' ? '日间' : '夜间'}</span>}
           </button>
 
-          {/* 用户邮箱(仅展开时显示) */}
-          {!collapsed && user?.email && (
+          {/* 身份区：游客态显示「游客 ?」（点开即登录/注册入口，D43 常驻出口）；
+              登录态显示邮箱。 */}
+          {!collapsed && (isGuest ? (
+            <button
+              type="button"
+              className={styles.guestBadge}
+              onClick={() => setGuestPanelOpen((v) => !v)}
+              aria-expanded={guestPanelOpen}
+              title="当前为游客试用：不保存数据、不能使用 AI 功能"
+            >
+              游客 <span className={styles.guestQ}>?</span>
+            </button>
+          ) : user?.email ? (
             <div className={styles.userEmail} title={user.email}>
               {user.email}
             </div>
+          ) : null)}
+
+          {/* 游客面板：登录 / 注册入口（不弹确认，清爽切换，D43） */}
+          {isGuest && guestPanelOpen && (
+            <div className={styles.guestPanel} role="dialog" aria-label="转登录或注册">
+              <p className={styles.guestPanelTitle}>当前为游客试用</p>
+              <p className={styles.guestPanelHint}>
+                不保存任何数据、不能使用 AI 功能。登录后试用数据会清空。
+              </p>
+              <div className={styles.guestPanelActions}>
+                <button
+                  type="button"
+                  className={styles.guestActionPrimary}
+                  onClick={() => { setGuestPanelOpen(false); navigate('/login') }}
+                >
+                  登录
+                </button>
+                <button
+                  type="button"
+                  className={styles.guestAction}
+                  onClick={() => { setGuestPanelOpen(false); navigate('/register') }}
+                >
+                  注册
+                </button>
+              </div>
+            </div>
           )}
 
-          {/* 退出登录 */}
-          <button
-            type="button"
-            className={styles.footerButton}
-            onClick={logout}
-            title={collapsed ? '退出登录' : undefined}
-          >
-            <span className={styles.footerIcon}>
-              <Icon name="logout" />
-            </span>
-            {!collapsed && <span className={styles.footerLabel}>退出</span>}
-          </button>
+          {/* 退出登录：仅登录态显示（游客用上面的「登录 / 注册」出口） */}
+          {!isGuest && (
+            <button
+              type="button"
+              className={styles.footerButton}
+              onClick={logout}
+              title={collapsed ? '退出登录' : undefined}
+            >
+              <span className={styles.footerIcon}>
+                <Icon name="logout" />
+              </span>
+              {!collapsed && <span className={styles.footerLabel}>退出</span>}
+            </button>
+          )}
 
           {/* 折叠按钮 */}
           <button
@@ -344,20 +423,26 @@ export default function AppShell() {
 
       {/* ===== 移动端:底部 Tab ===== */}
       <nav className={styles.tabbar} aria-label="底部导航">
-        {PRIMARY_NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `${styles.tab} ${isActive ? styles.tabActive : ''}`
-            }
-          >
-            <span className={styles.tabIcon}>
-              <Icon name={item.icon} />
-            </span>
-            <span className={styles.tabLabel}>{item.label}</span>
-          </NavLink>
-        ))}
+        {PRIMARY_NAV.map((item) => {
+          const locked = isGuest && item.guestBlocked
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={locked ? handleLockedNav : undefined}
+              className={({ isActive }) =>
+                `${styles.tab} ${isActive && !locked ? styles.tabActive : ''} ${locked ? styles.tabLocked : ''}`
+              }
+              title={locked ? '游客试用不可用，登录后开启' : undefined}
+              aria-disabled={locked || undefined}
+            >
+              <span className={styles.tabIcon}>
+                <Icon name={item.icon} />
+              </span>
+              <span className={styles.tabLabel}>{item.label}</span>
+            </NavLink>
+          )
+        })}
         <button
           type="button"
           className={`${styles.tab} ${meActive ? styles.tabActive : ''}`}
@@ -376,22 +461,40 @@ export default function AppShell() {
         <>
           <div className={styles.sheetMask} onClick={() => setMeOpen(false)} aria-hidden="true" />
           <div className={styles.sheet} role="menu">
-            {ME_NAV.map((it) => (
-              <NavLink
-                key={it.to}
-                to={it.to}
-                role="menuitem"
-                className={({ isActive }) =>
-                  isActive ? `${styles.sheetItem} ${styles.sheetItemActive}` : styles.sheetItem
-                }
-                onClick={() => setMeOpen(false)}
-              >
-                <span className={styles.sheetIcon}>
-                  <Icon name={it.icon} />
-                </span>
-                {it.label}
-              </NavLink>
-            ))}
+            {isGuest && (
+              <div className={styles.sheetGuest}>
+                <p className={styles.sheetGuestTitle}>当前为游客试用</p>
+                <p className={styles.sheetGuestHint}>不保存数据、不能使用 AI 功能。</p>
+                <div className={styles.sheetGuestActions}>
+                  <NavLink className={styles.sheetGuestPrimary} to="/login" onClick={() => setMeOpen(false)}>
+                    登录
+                  </NavLink>
+                  <NavLink className={styles.sheetGuestSecondary} to="/register" onClick={() => setMeOpen(false)}>
+                    注册
+                  </NavLink>
+                </div>
+              </div>
+            )}
+            {ME_NAV.map((it) => {
+              const locked = isGuest
+              return (
+                <NavLink
+                  key={it.to}
+                  to={it.to}
+                  role="menuitem"
+                  onClick={() => setMeOpen(false)}
+                  className={({ isActive }) =>
+                    `${styles.sheetItem} ${isActive ? styles.sheetItemActive : ''} ${locked ? styles.sheetItemLocked : ''}`
+                  }
+                  aria-disabled={locked || undefined}
+                >
+                  <span className={styles.sheetIcon}>
+                    <Icon name={it.icon} />
+                  </span>
+                  {it.label}
+                </NavLink>
+              )
+            })}
             <button type="button" className={styles.sheetItem} onClick={toggleTheme}>
               <span className={styles.sheetIcon}>
                 {theme === 'day' ? (
@@ -407,12 +510,14 @@ export default function AppShell() {
               </span>
               {theme === 'day' ? '切换到夜间' : '切换到日间'}
             </button>
-            <button type="button" className={styles.sheetItem} onClick={logout}>
-              <span className={styles.sheetIcon}>
-                <Icon name="logout" />
-              </span>
-              退出登录
-            </button>
+            {!isGuest && (
+              <button type="button" className={styles.sheetItem} onClick={logout}>
+                <span className={styles.sheetIcon}>
+                  <Icon name="logout" />
+                </span>
+                退出登录
+              </button>
+            )}
           </div>
         </>
       )}

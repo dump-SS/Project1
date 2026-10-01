@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import styles from './index.module.css'
+import GuestTimer from './GuestTimer'
 import { subjectLabels } from '@/styles/theme'
+import { useAuth } from '@/context/AuthContext.jsx'
 import { getRecommendation, updateLearningRecord } from '@/services/learningRecord'
 import { putRecommendationFeedback } from '@/services/feedback'
 import { getPlanByDate, getPlanById, localDateString } from '@/services/plans'
@@ -302,6 +304,19 @@ function RecommendationPanel({ recommendation, onOk, onRestart }) {
 }
 
 export default function StudyTimerPage() {
+  const { isGuest } = useAuth()
+
+  // 游客态（D1/D43）：计时改为**纯本地**，不落库、不通接口。
+  // 正版路径（服务端会话 + 心跳 + 原子收尾）一条都不该被游客触发，
+  // 所以直接分流到一个自包含组件，而不是在下面的状态机里打补丁。
+  if (isGuest) {
+    return <GuestTimer />
+  }
+
+  return <AuthedStudyTimer />
+}
+
+function AuthedStudyTimer() {
   const FALLBACK_TASK = '今日学习（待编辑）'
 
   const [searchParams] = useSearchParams()

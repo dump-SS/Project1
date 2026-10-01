@@ -76,37 +76,45 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-          {/* 以下四条业务路由收在 RequireAuth 之下：未登录访问会被弹回 /login，
-              登录成功后会带回原本想去的地址（见 RequireAuth 与 LoginPage）。
-              AppShell 是四条路由共用的顶部导航条，登录/注册/找回密码页不套它。 */}
-          <Route element={<RequireAuth />}>
+          {/* 业务路由分两层（D1/D43 游客态只**叠加**守卫，不重写 401 机制）：
+              · 外层 RequireAuth allowGuest：登录用户与游客都可进；
+                但只有「非 AI 核心闭环」的导学 / 计时两页对游客真正开放（见各页自身），
+                其余页面在内层仍要求登录，AI 入口由 AppShell 对游客标灰。
+              · 内层 RequireAuth：其余业务页必须登录。
+              登录成功后会带回原本想去的地址（见 RequireAuth 与 LoginPage）。 */}
+          <Route element={<RequireAuth allowGuest />}>
             <Route element={<AppShell />}>
-              <Route path="/personal-data" element={<PersonalDataPage />} />
-              <Route path="/study-timer" element={<StudyTimerPage />} />
+              {/* 游客可试用（非 AI 功能）：计划为规则引擎、计时为本地计时不落库 */}
               <Route path="/study-guide" element={<StudyGuide />} />
               <Route path="/study-plan" element={<Navigate to="/study-guide" replace />} />
-              <Route path="/goals" element={<Goals />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/summary-review" element={<SummaryReviewPage />} />
-              <Route path="/recommendations" element={<RecommendationsPage />} />
-              <Route path="/profile-setup" element={<ProfileSetupPage />} />
-              <Route path="/guardian-auth" element={<GuardianAuthPage />} />
-              <Route path="/knowledge" element={<KnowledgePage />} />
-              <Route path="/error-book" element={<ErrorBookPage />} />
-              <Route path="/chat" element={<ChatPage />} />
-          <Route path="/community" element={<Navigate to="/community/upload" replace />} />
-          <Route
-            path="/community/upload"
-            element={
-              <CommunityDemoBadge><CommunityUploadPage /></CommunityDemoBadge>
-            }
-          />
-          <Route
-            path="/community/compare"
-            element={
-              <CommunityDemoBadge><CommunityComparePage /></CommunityDemoBadge>
-            }
-          />
+              <Route path="/study-timer" element={<StudyTimerPage />} />
+
+              {/* 其余业务页：必须登录 */}
+              <Route element={<RequireAuth />}>
+                <Route path="/personal-data" element={<PersonalDataPage />} />
+                <Route path="/goals" element={<Goals />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/summary-review" element={<SummaryReviewPage />} />
+                <Route path="/recommendations" element={<RecommendationsPage />} />
+                <Route path="/profile-setup" element={<ProfileSetupPage />} />
+                <Route path="/guardian-auth" element={<GuardianAuthPage />} />
+                <Route path="/knowledge" element={<KnowledgePage />} />
+                <Route path="/error-book" element={<ErrorBookPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/community" element={<Navigate to="/community/upload" replace />} />
+                <Route
+                  path="/community/upload"
+                  element={
+                    <CommunityDemoBadge><CommunityUploadPage /></CommunityDemoBadge>
+                  }
+                />
+                <Route
+                  path="/community/compare"
+                  element={
+                    <CommunityDemoBadge><CommunityComparePage /></CommunityDemoBadge>
+                  }
+                />
+              </Route>
             </Route>
           </Route>
 

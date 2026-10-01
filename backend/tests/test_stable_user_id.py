@@ -13,6 +13,8 @@
 """
 from __future__ import annotations
 
+import uuid
+
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 
@@ -35,6 +37,17 @@ def _register_via_api(monkeypatch, email: str) -> None:
     monkeypatch.setattr("routes.auth.verify_code", lambda *a, **k: (True, ""))
     monkeypatch.setattr("routes.auth.consume_code", lambda *a, **k: None)
 
+    # 邀请码制（#50）：每次注册需要一个新的可用码，直接落库一个（生成脚本见 scripts/gen_invite_codes.py）
+    from models.invite import InviteCode
+
+    invite = "EPX-T" + uuid.uuid4().hex[:8].upper()
+    db = SessionLocal()
+    try:
+        db.add(InviteCode(code=invite))
+        db.commit()
+    finally:
+        db.close()
+
     r = client.post(
         "/api/v1/auth/register",
         json={
@@ -42,6 +55,7 @@ def _register_via_api(monkeypatch, email: str) -> None:
             "code": "123456",
             "password": PASSWORD,
             "confirmPassword": PASSWORD,
+            "inviteCode": invite,
         },
     )
     assert r.status_code == 201, r.text

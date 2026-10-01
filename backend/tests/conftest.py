@@ -116,6 +116,16 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("exams")}
         if "duration_minutes" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # A 板块 M1（2026-09-30）：users 新增 birth_year（D40/D41 低龄门槛）、
+    # settings 新增 experience_improvement_enabled（#29b）。老库缺列会让建档/设置直接报错。
+    if insp.has_table("users"):
+        cols = {c["name"] for c in insp.get_columns("users")}
+        if "birth_year" not in cols:
+            Base.metadata.drop_all(bind=engine)
+    if insp.has_table("settings"):
+        cols = {c["name"] for c in insp.get_columns("settings")}
+        if "experience_improvement_enabled" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

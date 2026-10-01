@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, String, func
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -46,6 +46,9 @@ class User(Base):
     stage: Mapped[str] = mapped_column(String(16), nullable=False)  # junior / senior
     grade: Mapped[str] = mapped_column(String(32), nullable=False)  # 自由文本，如 "高二"
     subjects: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    # 出生年份（D40 激活式建档采集）：判定「未满 14 周岁」（D41 监护人授权强制门槛）用。
+    # 可空——历史数据/未走激活流程的账号没有该信息，判定按「缺失不拦截」处理（routes/user.py）。
+    birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -70,6 +73,11 @@ class Settings(Base):
     # 板块三：匿名聚合授权（默认关闭 + 每周自动参与选项，§4.7 决议）
     community_consent_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     community_auto_participate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # #29b：「将个人数据用于提升体验」——默认关闭（opt-in）。
+    # 未显式开启时，个人数据不进入任何产品改进用途（承载页：设置 → 授权与隐私）。
+    experience_improvement_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
