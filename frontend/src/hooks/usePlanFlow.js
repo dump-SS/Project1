@@ -64,6 +64,9 @@ export function usePlanFlow() {
       planDate: localDateString(),
       availableMinutes: minutesNum,
       regenerate: hasExistingPlan || undefined,
+      // 仅游客态使用：后端忽略这两个额外字段（游客不调规则引擎，就地成型）
+      subject: opts.subject,
+      topic: opts.topic ?? (taskValue || undefined),
     });
     const first = created.tasks?.[0];
     const rec = first
@@ -74,21 +77,21 @@ export function usePlanFlow() {
     setHasGenerated(true);
     setHasExistingPlan(true);
     return { rec, plan: created };
-  }, [minutes, hasExistingPlan]);
+  }, [minutes, hasExistingPlan, taskValue]);
 
   /**
    * 「进入」回调：
    * - 未生成：先生成（失败/缺分钟都拦截，不放行）
    * - 已生成：返回 true，放行 EnterButton 跳转
    */
-  const handleEnter = useCallback(async () => {
+  const handleEnter = useCallback(async (opts = {}) => {
     if (hasGenerated) return true;
     if (!MINUTES_VALIDATOR(minutes)) {
       setSubmitError('请先填写 10-600 的可用学习分钟数');
       return false;
     }
     try {
-      await generate();
+      await generate(opts);
       return false; // 生成成功后留在页面，让用户能完成/调整任务
     } catch (err) {
       setSubmitError(

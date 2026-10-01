@@ -32,3 +32,19 @@ export const CheckIcon = (props) => (
     <polyline points="20 6 9 17 4 12" />
   </svg>
 )
+
+// 邀请码（#50）：票据轮廓 + 中缝虚线
+export const TicketIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6z" />
+    <path d="M13 5v14" strokeDasharray="2 3" />
+  </svg>
+)
+
+// 出生年份 / 年龄（D40）：日历
+export const CalendarIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M8 3v4M16 3v4M3 11h18" />
+  </svg>
+)

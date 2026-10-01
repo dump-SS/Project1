@@ -75,12 +75,18 @@ export interface GenerationStatus {
 export interface Settings {
   aiWeightTuningEnabled: boolean;
   sendTextToAI: boolean;
+  /** 知识复盘 AI 出域（PRD 12.6），默认 false */
+  knowledgeAiEgressEnabled?: boolean;
+  /** 「将个人数据用于提升体验」（#29b），默认 false（opt-in） */
+  experienceImprovementEnabled?: boolean;
   updatedAt: string;
 }
 
 export interface SettingsUpdate {
   aiWeightTuningEnabled?: boolean;
   sendTextToAI?: boolean;
+  knowledgeAiEgressEnabled?: boolean;
+  experienceImprovementEnabled?: boolean;
 }
 
 /* ---------- 学习记录 ---------- */
@@ -420,16 +426,22 @@ export interface User {
   stage: Stage;
   grade: string;
   subjects: Subject[];
+  /**
+   * 出生年份（激活式建档采集，D40）。
+   * 未满 14 岁时必须监护人授权 active 才能 onboardingCompleted=true（D41）。
+   */
+  birthYear?: number | null;
   guardianAuthorization: GuardianAuthorization;
   /** 是否已完成建档引导 */
   onboardingCompleted: boolean;
 }
 
-/** 幂等建档请求体，字段全必填（openapi.yaml UserProfilePut） */
+/** 幂等建档请求体（openapi.yaml UserProfilePut）：stage/grade/subjects 必填，birthYear 由激活式建档采集 */
 export interface UserProfilePut {
   stage: Stage;
   grade: string;
   subjects: Subject[];
+  birthYear?: number | null;
 }
 
 /** 局部更新请求体，字段全可选（openapi.yaml UserProfilePatch） */
@@ -437,6 +449,7 @@ export interface UserProfilePatch {
   stage?: Stage;
   grade?: string;
   subjects?: Subject[];
+  birthYear?: number | null;
 }
 
 /** 监护人授权请求体：邮箱/手机号二选一必填（openapi.yaml GuardianAuthorizationRequest） */

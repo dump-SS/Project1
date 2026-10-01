@@ -381,3 +381,181 @@
     background: var(--lg-fill-solid);
   }
 }
+
+/* ===== 游客态（D1 / D43）：标灰的导航项 + 身份区出口 ===== */
+
+/* 不可用项：降透明度 + 禁用光标（仍可点击——点击会展开登录入口，不弹确认） */
+.navLinkLocked {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.navLinkLocked:hover {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.tabLocked {
+  opacity: 0.42;
+}
+
+/* 「需登录」小标签：一眼看出为什么点不动 */
+.navLock {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink-muted, #8a94a6);
+  white-space: nowrap;
+}
+
+/* 身份区「游客 ?」徽标 */
+.guestBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin: 2px 0 4px;
+  padding: 4px 10px;
+  border: 1px dashed var(--lg-stroke-soft, rgba(0, 0, 0, 0.18));
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background var(--t-base) var(--ease-air), color var(--t-base) var(--ease-air);
+}
+
+.guestBadge:hover {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+
+.guestQ {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* 游客面板：登录 / 注册入口 */
+.guestPanel {
+  margin: 4px 0 8px;
+  padding: 10px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  background: var(--lg-fill, rgba(255, 255, 255, 0.7));
+  text-align: left;
+}
+
+.guestPanelTitle {
+  margin: 0 0 4px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.guestPanelHint {
+  margin: 0 0 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-muted, #8a94a6);
+}
+
+.guestPanelActions {
+  display: flex;
+  gap: 6px;
+}
+
+.guestActionPrimary,
+.guestAction {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--t-base) var(--ease-air), color var(--t-base) var(--ease-air);
+}
+
+.guestActionPrimary {
+  border: 1px solid var(--primary, #1f6feb);
+  background: var(--primary, #1f6feb);
+  color: #fff;
+}
+
+.guestAction {
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.14));
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.guestAction:hover {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+
+/* 移动端抽屉：游客提示块 + 锁定的「我的」项 */
+.sheetGuest {
+  margin: 4px 8px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--lg-fill, rgba(255, 255, 255, 0.7));
+}
+
+.sheetGuestTitle {
+  margin: 0 0 2px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sheetGuestHint {
+  margin: 0 0 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink-muted, #8a94a6);
+}
+
+.sheetGuestActions {
+  display: flex;
+  gap: 8px;
+}
+
+.sheetGuestPrimary,
+.sheetGuestSecondary {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.sheetGuestPrimary {
+  background: var(--primary, #1f6feb);
+  color: #fff;
+}
+
+.sheetGuestSecondary {
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.14));
+  color: var(--ink-soft);
+}
+
+.sheetItemLocked {
+  opacity: 0.42;
+}

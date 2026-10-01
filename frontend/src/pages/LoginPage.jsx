@@ -17,7 +17,7 @@ import {
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { refresh } = useAuth()
+  const { refresh, enterGuest } = useAuth()
   const [mode, setMode] = useState('code')
 
   // 公共字段
@@ -110,6 +110,12 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  /* ---------- 游客试用（D1）：不登录先看看，随时可转登录 ---------- */
+  function handleTryAsGuest() {
+    enterGuest()
+    navigate('/study-guide')
   }
 
   return (
@@ -205,6 +211,11 @@ export default function LoginPage() {
             还没有账号？
             <Link className="link" to="/register">立即注册</Link>
           </div>
+
+          {/* 游客试用（D1）：登录页也保留出口，不想注册可以先看看 */}
+          <button type="button" className="btn-guest" onClick={handleTryAsGuest}>
+            暂不登录，先试试看
+          </button>
         </div>
       </div>
     </div>
