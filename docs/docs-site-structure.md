@@ -39,7 +39,7 @@
 | 1 | 产品介绍 | ✅ | EpochX 是什么、为谁做的、能做什么 | 落地页内容的**文档版**：朴素、无动效、不吹 |
 | 2 | **致家长** | ✅ | 给家长的说明与承诺 | **特殊文档**，见 §9 |
 | 3 | 快速入门 | ✅ | 一页走完：注册 → 建档 → 第一次记录 → 看状态 | 面向"我想马上用起来"的人 |
-| 4 | 注册与邀请码 | ✅ | 邮箱验证码注册与登录 | 标题保留「邀请码」不动，但**正文只写邮箱验证码注册**（这部分真能用：`send-register-code` / `register` / `login-password` / `login-email-code`）。`openapi.yaml:5648` 明写「pilot 期不提供用户产品侧的邀请码管理接口」，邀请码注册排在 **M1（未开工）**（`refactor-development-plan.md:92`），故**邀请码一个字不提**，等 M1 落地再补 |
+| 4 | 注册与邀请码 | ✅ | **邀请码注册（一码一用，必填）与登录** | **2026-09-30 A 板块 M1 已落地**（PR #46）：邀请码进 `POST /auth/register` 必填校验，一码一用（`409 INVITE_CODE_USED`），格式/存在性校验 `422 INVITE_CODE_INVALID`，大小写与首尾空格规范化，注册失败不占用（回写 `used_by` 稳定 userId + `used_at`）。契约 v1.7.1 → **v1.8.0**。正文已按实现重写 |
 | 5 | 首次建档 | ✅ | 年龄、学科、目标等建档步骤 | |
 | 6 | 监护人授权 | ✅ | 未满 14 岁的授权流程（操作层面） | 与「致家长」互链不重复 |
 | 7 | 界面导览 | ⏳ | 各页面入口说明 | **重构中**，等 X1 壳落地后写 |
@@ -234,6 +234,48 @@ updated: 2026-09-29
 > ⚠️ **本节已被后续修订覆盖**（2026-09-29，见 §16 / §17）：站内搜索**已做**
 > （`registry.searchPages`，客户端子串匹配），§14 待定项 4 随之关闭。
 > 「未做搜索」一条已从上方「未做」清单移除——它只在本节首次落地时成立。
+
+---
+
+## 15·五、A 板块 M1 合并后的文档内容回写（2026-10-01）
+
+合并 PR #46（A 板块 M1，`ff5c375` / `d6bb8d7`）时发现：**该 PR 推翻了文档里 6 条断言**，全部按实现重写，未留旧口径。
+
+| 页 | 原写法 | 现写法（依据） |
+|---|---|---|
+| `getting-started/sign-up` | 「当前注册流程**不需要填邀请码**」「邀请码一个字不提」 | 邀请码**必填**、一码一用、大小写/空格容错、注册失败不占用。`POST /auth/register` + `tests/test_invite_register.py` |
+| `getting-started/profile-setup` | 建档填**年龄段 + 学科 + 目标** | 建档填**学段 + 年级 + 学科 + 出生年份（可空）**；目标移至「目标」页。`UserProfilePut.required = [stage, grade, subjects]` |
+| `getting-started/guardian-authorization` | 未提判定依据、未提确认结果页 | 判定改为**出生年份**、取保守侧（`当前年 - 出生年 <= 14` 视为可能未满）；**持续判定**（撤销授权后回到未完成）；监护人**邮箱或手机号二选一**；**确认结果页**（`Accept: text/html` 返回自包含 HTML，JSON 客户端语义不变）。`routes/user.py::_is_under_14`、`tests/test_guardian_threshold.py`、`tests/test_guardian_confirm_page.py` |
+| `getting-started/quick-start` | 「开始之前」未列邀请码；建档写「年龄段」 | 补邀请码为前置条件；建档改四步 |
+| `getting-started/for-parents` | 「收集年龄段」 | 改「收集出生年份」，并写明**只收年份不收完整生日**的理由与**判定持续** |
+| `getting-started/introduction` | 未提访客 | 新增「可以先不注册」：访客可试用计划与计时，**数据只存当前页面、刷新或登录即清空、不写入不串号**、**AI 功能标灰**。`services/guestSession.ts`（`epochx:guest-mode` sessionStorage） |
+| `account/profile` | 「年龄段不能改」 | 改「出生年份可改，**改完重新判定门槛**」；新增「**将个人数据用于提升体验**」开关（`experienceImprovementEnabled`，**默认 false / opt-in**） |
+| `reference/changelog` | 止于 2026-09-29 | 新增 **2026-09-30** 条目，逐条对应 A 板块 M1 的用户可见变化 |
+
+**契约版本**：v1.7.1 → **v1.8.0**（64 paths / 174 schemas 不变）。
+
+**⚠️ 顺带发现一处阻塞级缺陷（属 X0，非文档站）**
+
+新迁移 **`a91f4c2d7e03`（A 板块 M1 · 出生年份 + #29b 开关）在非空库上必然失败**。受控复现（临时库，未碰开发库）：
+
+```
+[空库]   settings 0 行 -> upgrade head 成功
+[非空库] settings 1 行 -> upgrade head 失败
+         sqlite3.IntegrityError: NOT NULL constraint failed:
+         _alembic_tmp_settings.experience_improvement_enabled
+```
+
+根因：迁移第 40–48 行在**同一个** `batch_alter_table` 里先加 `NOT NULL` 列（带 `server_default='0'`）、
+紧接着 `alter_column(server_default=None)`。SQLite 的 batch 模式是「建临时表 → `INSERT INTO tmp SELECT ...`
+（**该 INSERT 不含新列**）→ 删旧表 → 改名」。`server_default` 已被摘掉、新列又不在 INSERT 列表里，
+于是存量行拿到 `NULL` → 违反 NOT NULL。**空库时 `INSERT` 插入 0 行、不触发约束，所以能过。**
+
+- 因此**「空库 `upgrade head` 通过」这道验收门抓不到它**，与之前「本地库落后一迁移」「pytest 抓不到」同属一类陷阱。
+- 失败后 `data.db` 会停在**半迁移态**：SQLite DDL 非事务，`users.birth_year` 已落、版本号未前进，
+  重跑会再撞 `duplicate column`。恢复办法是从备份还原。
+- **影响面待确认**：Neon 上若已 `settings` 行，同样会失败。
+- **归属 X0**（铁律 2：Alembic 只有 X0 能写）。修法有取舍（在本迁移内修正 vs 另起修正版本），
+  且已合入 main、可能已被应用，**不宜由文档站这边擅自改**——已在提交说明里上报。
 
 ---
 
