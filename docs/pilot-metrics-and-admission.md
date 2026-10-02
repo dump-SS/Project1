@@ -82,7 +82,12 @@
 1. **功能完备**：重构 M0–M6 全部验收门通过；四档清单中「pilot 必做」项 100% 完成（`refactor-development-plan.md` §5）。
 2. **质量稳定**：**pilot 正式放号之日起**连续 4 周后端 5xx 率 ≤ 1%；全量 pytest + 契约测试 + egress CI 持续绿。
    - **5xx 率口径（v1.0 锁定）**：分母仅统计 API 请求（`/api/v1/**`），**排除 4xx**（客户端行为，与服务稳定性无关）、**排除 `/health`**（被刷会稀释分母）、排除静态资源。
-   - **数据来源**：`analytics_events` 中 `category=ai_quality` / `eventType=http_5xx` 的事件（落点方案 A，见 §5 第 1 项）。其中 `user_id="system"` 表示**系统级事件**（登录接口等无登录态请求——这类恰恰是重点），**不参与任何用户维度指标**；本条的分母是请求数，不依赖 user_id 维度。
+   - **数据来源（v1.0 补）**：`analytics_events` 中 `category=ai_quality` 的两类事件——
+     `eventType=http_5xx`（**分子**，5xx 逐条实时落）与 `eventType=http_request_total`（**分母**，进程内累计后定时 flush 的汇总行，`payload.count` 为该周期请求数）。
+     5xx 率 = 两类事件相除，**同表、同口径、全部可从 SQL 读出**。
+   - **分母口径**：仅计入 `/api/v1/**` 的 API 请求（4xx 与 5xx **都计入**分母），排除 `/health`、排除静态资源。进程内累计依赖**单进程单端口 uvicorn**（当前部署形态，见 `README.md`）；⚠️ 若将来上多 worker / 多实例，进程内计数会低估分母，届时需换共享存储。
+   - **⚠️ 为什么不用访问日志**（2026-10-02 裁定）：`epochx.request` 的 INFO 行仅在 uvicorn 启动时有 handler（项目无 `basicConfig`，实测 effective level 为 WARNING），且**不落库**、会轮转、进程重启即断——撑不起「连续 4 周」的验收门。
+   - **⚠️ 也不每请求写一行**：`analytics_events` 是结构化事件表（`category` 仅三个枚举），塞满请求流水会污染其语义。
    - **⚠️ 前置（已列入 pilot 一期必做）**：项目当前**无任何 5xx 监控设施**（仅 `routes/health.py` 健康端点，无 Prometheus/Sentry/日志聚合）。**此项未销项前本条无法验证**——见 §5。
 3. **核心指标达标**：§1.1 中**激活率 ≥ 70%、首日闭环完成率 ≥ 40%** 达到阈值；**次周留存为观察项，不作判定**（通知能力就位后再定线）；§1.5 合规红线零违反。
    - ⚠️ **样本量说明**：n=50 时激活率 70% 的 95% 置信区间约 ±12.7pp，次周留存 25% 约 ±12.2pp——**统计上与低得多的值区分不开**。故 pilot 二期（n=50）阶段 §1.1 各项**作趋势观察，不作硬判定**；硬判定留到 n ≥ 100，或改用区间判定（连续两期低于 55% 才判不达标）。
@@ -138,7 +143,7 @@
 
 | # | 前置                                                                                                             | 卡住什么                                    | 归属            | 状态    |
 | - | -------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------- | ----- |
-| 1 | **5xx 计数落地**（FastAPI 中间件 + 复用 `governance_service.track_event` 落 `analytics_events`：**`category=ai_quality`** / `eventType=http_5xx`；⚠️ 契约枚举只有 `chat_interaction`/`ai_quality`/`profile_trace`，**没有 `quality`**，用错会被 `track_event` 静默丢弃；**不引入 Prometheus/Sentry、不写迁移**）<br>**落点方案 A（Skyer 2026-10-02 拍板）**：登录态填真实 `user_id`；无登录态（登录接口等）填固定值 `"system"`，约定该值事件不参与任何用户维度指标 | §2.2「连续 4 周 5xx ≤ 1%」**完全无法验证**         | G             | ⬜ 未开始 |
+| 1 | **5xx 计数落地（分子 + 分母）**（FastAPI 中间件 + 复用 `governance_service.track_event` 落 `analytics_events`：**`category=ai_quality`**；`eventType=http_5xx` 逐条实时落（分子）+ `eventType=http_request_total` 进程内累计后定时 flush（分母）；⚠️ 契约枚举只有 `chat_interaction`/`ai_quality`/`profile_trace`，**没有 `quality`**，用错会被 `track_event` 静默丢弃；**不引入 Prometheus/Sentry、不写迁移**）<br>**落点方案 A（Skyer 2026-10-02 拍板）**：登录态填真实 `user_id`；无登录态（登录接口等）填固定值 `"system"`，约定该值事件不参与任何用户维度指标<br>**分母方案（2026-10-02 裁定）**：既不读访问日志（不落库/会轮转/重启断档），也不每请求写一行（污染结构化事件表语义） | §2.2「连续 4 周 5xx ≤ 1%」**完全无法验证**         | G             | 🟡 进行中（`feat/5xx-tracking` 分母待补） |
 | 2 | **前端埋点接线**（`POST /analytics/events` 后端已通，前端**零调用**）                                                            | §1.2 卡片点击率/意图纠正率、§1.3 画像两项、§2.1 首次会话中断率 | G（接口）+ B（调用点） | ⬜ 未开始 |
 | 3 | **`routes/chat.py` 真链路**（当前 Chat 页是 `setTimeout + 关键词匹配` 的前端 mock，main 上 22 个 router 无 chat）                   | 全部 Chat 类指标；报错率因无 `message_id` 可填而不可算   | B             | ⬜ 未开始 |
 | 4 | **C 板块前端完成**（后端地基已并入 main，前端壳与受限 Chat 未做）                                                                      | §1.1 首日闭环完成率                            | C             | ⬜ 未开始 |
