@@ -18,7 +18,8 @@
 | `refactor-decision-mapping.md` | D1–D59 全量映射（零孤儿验收索引） | 四件套 ④ |
 | `refactor-implementation-notes.md` | 执行细节（计量/上传/治理/稳定 ID 等） | 与目标态配套 |
 | `landing-page-dev-spec.md` | **落地页开发实施文档**（技术基线 / 动效引入与实测回填 / 逐屏规格 / 素材与占位 / 降级矩阵 / 性能终版数字 / 验收走查） | 2026-09-25 新建、2026-09-27 实现完成并走查（1440×900 + 375×720）；**视觉与文案的真源是 `visual-language.md`，本文只写实现**。⚠️ 此行曾在本分支合并 main 时被冲突解决误删，2026-09-27 恢复 |
-| `pilot-metrics-and-admission.md` | pilot 核心指标口径 + pilot→beta 准入标准（#53） | G 板块基线；指标全部可从埋点/usage_ledger 读出，阈值待拍板 |
+| `pilot-metrics-and-admission.md` | pilot 核心指标口径 + pilot→beta 准入标准（#53） | G 板块基线；指标全部可从埋点/usage_ledger 读出。**待拍板项的建议值见 `pilot-threshold-proposal.md`；§2.2 的 5xx 监控前置未就位，该验收门目前无法验证** |
+| `pilot-threshold-proposal.md` | **#53 阈值建议稿**（13 项待拍板项的建议值 + 样本量判定力分析 + 指标可读性前置清单） | 2026-10-02 新建。**不是基线**：7 项可直接拍、3 项建议改口径、3 项前置未就位不能拍。拍板后回填基线升 v1.0 |
 | `refactor-2026-09-feature-ia-logic.md` | 现状基线（功能清单/IA/技术债） | 与勘误对照读 |
 | `refactor-baseline-recheck-2026-09-18.md` | 现状勘误（10 条已过时 / 7 条仍准确 / 新发现） | 以 HEAD 实测为准 |
 | `../PRD-学习状态智能助手.md` | 板块一/二需求基线 + 合规红线 §12 | 新形态以目标态为准（文首有定位说明） |
