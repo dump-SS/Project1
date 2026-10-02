@@ -34,9 +34,10 @@ export default function DocsProse({ body, page, actions }: DocsProseProps) {
       h1: ({ children }) => <h1 id={headingId(textOf(children))}>{children}</h1>,
       h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
       h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
-      // 外链一律新窗口打开并断开 opener；站内 /docs 链接交给浏览器处理
+      // 外链一律新窗口打开并断开 opener；站内 /docs 链接与同页锚点交给浏览器处理
       a: ({ href, children }) => {
-        const isInternal = !href || href.startsWith('/')
+        // 同页锚点（# 开头）必须走内部分支：否则会被当外链在新标签打开，点了跳空
+        const isInternal = !href || href.startsWith('/') || href.startsWith('#')
         if (isInternal) return <a href={href}>{children}</a>
         return (
           <a href={href} target="_blank" rel="noopener noreferrer">
