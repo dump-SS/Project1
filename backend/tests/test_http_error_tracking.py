@@ -14,6 +14,14 @@
 8. 中间件的身份归属与 `current_user` 同源（都走 `routes.deps.resolve_user_id`）
 9. `category` 必须是契约枚举内的值（写错会被 `track_event` **静默丢弃**）
 
+分母（`http_request_total`，X0 2026-10-02 第二轮裁定后）：
+10. 4xx 不进分母、只记进 `count4xx` 供诊断；2xx 进分母
+11. 到阈值 flush，且 flush 后计数归零
+12. 汇总行一律 `user_id="system"`、payload 键集钉死、不含任何请求信息（连 path 都没有）
+13. 真起两个子进程：重启后计数归零
+14. 混合流量下分母 = 窗口内请求数 − 4xx
+15. 脏数据护栏：`payload_json` 非法 JSON 不得打断整条率查询
+
 做法说明：探针路由**插在路由表最前面**——`main.py` 末尾有一条 SPA catch-all
 （`/{full_path:path}`），追加到末尾的路由永远匹配不到。用完即摘，不污染 app。
 """
@@ -28,11 +36,11 @@ import pytest
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 import http_error_tracking
 from config import settings
-from database import SessionLocal
+from database import SessionLocal, engine
 from governance_service import ANALYTICS_CATEGORIES
 from http_error_tracking import (
     EVENT_TYPE_HTTP_5XX,
@@ -319,20 +327,26 @@ def test_should_track_path(path, expected):
 
 # ========== 分母（http_request_total）：X0 2026-10-02 裁定的第三个方案 ==========
 
-# ---------- 10. 分母计入 4xx（本次修的核心：此前完全没有分母概念） ----------
+# ---------- 10. 4xx：不进分子，也不进分母，只留诊断 ----------
 
-def test_4xx_request_counts_toward_denominator(probe_routes, monkeypatch):
-    """4xx 不进分子，但**要进分母**（X0 裁定）。"""
+def test_4xx_excluded_from_denominator_but_kept_for_diagnostics(probe_routes, monkeypatch):
+    """4xx 既不进分子、**也不进分母**（§2.2 + X0 2026-10-02 第二轮裁定）；
+    但要记进 `count4xx` 供诊断（4xx 飙升 = 客户端乱打或鉴权出问题）。
+
+    口径反复过一次：第一轮裁定说「4xx 也计」，与 §2.2 基线「排除 4xx」互斥；
+    第二轮 X0 定夺取基线口径——理由是 pilot 期 token 过期会成片产生 401，
+    计入会把基准率稀释掉、实质放宽门槛。
+    """
     monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 1)
 
     r = client.post("/api/v1/analytics/events", json={"category": "not_a_category"})
     assert 400 <= r.status_code < 500
 
     totals = _total_events()
-    assert sorted(p["count"] for _uid, p in totals) == [0, 1]  # 基线 + 本次
-    batch = [p for _uid, p in totals if p["count"] == 1][0]
-    assert batch["count4xx"] == 1
-    assert _events() == []  # 4xx 不进分子
+    assert sorted(p["count"] for _uid, p in totals) == [0, 0]  # 基线 + 本次，分母都是 0
+    batch = [p for _uid, p in totals if p["count4xx"] == 1][0]
+    assert batch["count"] == 0  # 4xx 不进分母
+    assert _events() == []  # 4xx 也不进分子
 
 
 def test_2xx_request_counts_toward_denominator(probe_routes, monkeypatch):
@@ -457,4 +471,67 @@ def test_counter_resets_on_process_restart(tmp_path):
         assert [payload["count"] for _uid, payload in run] == [0, 5]
         assert all(uid == SYSTEM_USER_ID for uid, _payload in run)
         assert [payload["count4xx"] for _uid, payload in run] == [0, 0]
+
+
+# ---------- 14. 混合流量：分母 = 窗口内请求数 − 4xx ----------
+
+def test_denominator_is_window_requests_minus_4xx(probe_routes, monkeypatch):
+    """一次窗口里混 2 个 2xx + 2 个 4xx → 分母 2、count4xx 2（4xx 被减掉）。"""
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 4)
+
+    for _ in range(2):
+        r = client.get("/api/v1/me", headers={"X-User-ID": "u_probe_mix"})
+        assert r.status_code == 200
+    for _ in range(2):
+        r = client.post("/api/v1/analytics/events", json={"category": "not_a_category"})
+        assert 400 <= r.status_code < 500
+
+    batch = [p for _uid, p in _total_events() if p["count4xx"] == 2]
+    assert len(batch) == 1
+    assert batch[0]["count"] == 2  # 4 个请求 − 2 个 4xx
+    assert http_error_tracking._COUNTER.total == 0
+
+
+# ---------- 15. 脏数据护栏：非法 JSON 不能打断整条查询 ----------
+
+def test_rate_sql_survives_malformed_payload(probe_routes, monkeypatch):
+    """`payload_json` 是 Text 列，裸 `json_extract` 遇到**非法 JSON 会直接抛错、打断整条查询**
+    （NULL 反而安全）。SQL 里的 `json_valid` 护栏必须让脏数据按 0 计。
+
+    X0 2026-10-02 点名要覆盖这条（Neon 版同样要覆盖）。
+    """
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 1)
+    client.get("/api/v1/me", headers={"X-User-ID": "u_probe_dirty"})
+
+    db = SessionLocal()
+    try:
+        # 一条合法 5xx（让分子非 0，这样分母被算错就会露出来）
+        db.add(
+            AnalyticsEvent(
+                id="ae_probe_5xx",
+                user_id="u_probe_dirty",
+                category="ai_quality",
+                event_type=EVENT_TYPE_HTTP_5XX,
+                payload_json=json.dumps({"path": "/api/v1/me"}),
+            )
+        )
+        # 一条脏分母行：payload 不是合法 JSON
+        db.add(
+            AnalyticsEvent(
+                id="ae_probe_dirty",
+                user_id=SYSTEM_USER_ID,
+                category="ai_quality",
+                event_type=EVENT_TYPE_HTTP_REQUEST_TOTAL,
+                payload_json="{这不是合法 JSON",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    with engine.connect() as conn:
+        value = conn.execute(text(http_error_tracking.FIVE_XX_RATE_SQL)).scalar()
+
+    # 分母 = 基线 0 + 本次 1 + 脏行按 0 计 = 1；分子 1 → 100.0%
+    assert value == 100.0
 

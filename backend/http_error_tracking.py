@@ -26,13 +26,16 @@ pilot→beta 准入标准第 2 条要求「正式放号之日起连续 4 周后�
 （那里也注明「多实例部署需换共享存储」）。**若将来上多 worker / 多实例，本分母会低估**，
 届时需换共享存储（Redis 或计数表）。
 
-口径（基线 v1.0 已锁定）
-------------------------
+口径（基线 v1.0 已锁定；4xx 归属由 X0 2026-10-02 第二轮裁定确认）
+------------------------------------------------------------------
 - 统计范围：仅 `/api/v1/**` 的 API 请求
 - 排除：`/health` 探活（被刷会稀释分母）、静态资源请求
-- 分子只记 5xx；**4xx 不计入分子**
-- 分母（`http_request_total` 的 `count`）：**本实现按 X0 裁定把 4xx 也计入**
-  ——⚠️ 这与 §2.2 基线「排除 4xx」**互相矛盾**，见下「待 X0 确认」
+- 分子只记 5xx
+- **4xx 排除在分母外**——4xx 是客户端行为（未登录 / token 过期 / 参数非法 / 游客态拦截），
+  不是服务端故障；pilot 期游客态与 `epochx:auth-expired` 刚落地，token 过期会成片产生 401，
+  计入会**稀释基准率、实质放宽门槛**（§2.2 原文即「排除 4xx」）
+- 于是：`count` = 分母（统计范围内请求数 **− 4xx**），正式率 SQL 直接 `SUM($.count)`；
+  `count4xx` **仅供诊断**，不参与分母
 
 落点方案 A（Skyer 2026-10-02 拍板）
 -----------------------------------
@@ -41,23 +44,28 @@ pilot→beta 准入标准第 2 条要求「正式放号之日起连续 4 周后�
 并约定 `user_id == "system"` 的事件**不参与任何用户维度指标**。
 这样不必新建表、不必写 Alembic 迁移、不必改契约。
 
-⚠️ 三处与裁定原文的偏离（都已在交付说明里点出，请 X0 复核）
-----------------------------------------------------------
-1. **分母汇总行一律 `user_id="system"`、`userScoped=false`**，不按「当前请求的登录态」填真实 id。
-   理由：一条汇总跨多个用户，归属到任何单个用户都是错的；且「到点 flush」可能发生在任意请求上，
-   没有唯一用户可归属。这也与 §2.2「system 事件不参与用户维度指标」一致。
-2. **定时 flush 实现为「每次计入分母的请求时检查是否到点」**（opportunistic），
-   而非后台定时任务。理由：`main.py` 只允许加一行 `add_middleware`，挂不上 lifespan；
-   且 TestClient 下每个请求一个事件循环，后台任务会被销毁。
-   行为等价于「阈值 / 到点取先到者」，**差异只在静默期**（见下方「已知取舍」）。
-3. **payload 多存一个 `count4xx`**。裁定说「4xx 也计入分母」，而 §2.2 说「排除 4xx」——
-   两个口径互斥。多存一个整数就能**两种口径都算得出来**（严格口径 = `count - count4xx`），
-   不必再跑一轮。裁定的 SQL 只读 `$.count`，不受影响。
+已裁定的设计取舍（X0 2026-10-02 第二轮**全部接受**，勿再改回）
+------------------------------------------------------------
+1. **汇总行一律 `user_id="system"`、`userScoped=false`**，不按「当前请求的登录态」填真实 id。
+   一条汇总跨多个用户，归属到任何单个用户都是错的；「到点 flush」也可能发生在任意请求上。
+2. **定时 flush 实现为「每次计入分母的请求时检查是否到点」**（opportunistic），非后台定时任务。
+   `main.py` 只允许加一行 `add_middleware`，挂不上 lifespan；TestClient 下每个请求一个事件循环，
+   后台任务会被销毁。行为等价于「阈值 / 到点取先到者」，差异只在静默期。
+3. **`count4xx` 保留，但仅供诊断**，不参与分母。
 
-已知取舍
---------
+SQL 只留 SQLite 版
+------------------
+Postgres 版**尚未在 PG 上实测过**（本机无 Docker / 无 PG 实例），X0 裁定：本分支不合并 PG 常量，
+单独挂 pilot 一期任务，在 Neon 分支跑通实测后再入库（见 `pilot-metrics-and-admission.md` §5）。
+在此之前**不要**把任何未在 PG 上跑过的 SQL 塞进本文件——`a91f4c2d7e03` 那次就是
+「PG 特有缺陷 SQLite 100% 测不出来」。PG 版文本见回执 `.workbuddy/tmp/reply-5xx-denominator.md`
+与 commit `b82d837`。
+
+已知取舍（X0 已确认**接受，不加 lifespan 钩子**）
+------------------------------------------------
 - **进程退出时未 flush 的余数会丢**（`main.py` 挂不上 shutdown 钩子）。方向上保守：
-  分母偏小 → 率偏高 → 门槛更严，不会漏放。
+  分母偏小 → 率偏高 → 门槛更严，不会漏放。pilot 期流量小，丢的余数远小于一个 flush 阈值，
+  为它去动 `main.py` 不划算。
 - 静默期结束后，计数要等下一次请求才 flush（窗口被拉长）。对「率」无影响，只影响时间切片粒度。
 
 硬约束
@@ -122,7 +130,10 @@ class _RequestCounter:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        # 本窗口统计范围内的请求数（**含 4xx**）：只用来驱动 flush 节奏，
+        # 不直接当分母——否则纯 4xx 流量会永远凑不满阈值、永不 flush。
         self.total = 0
+        # 本窗口 4xx 数：**仅供诊断**（4xx 飙升 = 客户端乱打或鉴权出问题），不参与分母。
         self.count_4xx = 0
         self.window_started_at: float | None = None
         self.baseline_emitted = False
@@ -140,6 +151,8 @@ class _RequestCounter:
 
         批次是 `(count, count4xx, windowMinutes)`，且**已从计数器里取走并归零**——
         这样 flush 期间（含 await 写库）进来的新请求会自然落到下一个窗口，不丢不重。
+
+        其中 `count` **已经是分母**（= 本窗口请求数 − 4xx，§2.2 口径），不是「总请求数」。
         """
         now = time.time()
         with self._lock:
@@ -161,7 +174,7 @@ class _RequestCounter:
                 return need_baseline, None
 
             batch = (
-                self.total,
+                self.total - self.count_4xx,  # 分母：排除 4xx
                 self.count_4xx,
                 (now - self.window_started_at) / 60.0,
             )
@@ -221,8 +234,10 @@ def _flush_total(count: int, count_4xx: int, window_minutes: float) -> None:
     """
     try:
         payload = {
+            # count = **分母**（已排除 4xx，§2.2）。正式率 SQL 直接 SUM($.count)，不必再减。
             "count": count,
-            "count4xx": count_4xx,  # 让 §2.2「排除 4xx」的严格口径也能算（= count - count4xx）
+            # count4xx 仅供诊断（4xx 飙升 = 客户端乱打或鉴权出问题），**不参与分母**。
+            "count4xx": count_4xx,
             "windowMinutes": round(window_minutes, 2),
             "userScoped": False,
         }
@@ -290,24 +305,18 @@ GROUP  BY day
 ORDER  BY day;
 """
 
-FIVE_XX_COUNT_SQL_PG = """
--- 分子：/api/v1/** 的 5xx 事件，按天（Postgres / Neon 用这条）
-SELECT (occurred_at AT TIME ZONE 'UTC')::date                   AS day,
-       COUNT(*)                                                 AS err_5xx,
-       COUNT(*) FILTER (WHERE user_id = 'system')                AS err_5xx_anonymous
-FROM   analytics_events
-WHERE  category = 'ai_quality'
-  AND  event_type = 'http_5xx'
-GROUP  BY day
-ORDER  BY day;
-"""
-
 FIVE_XX_RATE_SQL = """
--- 5xx 率（近 28 天）：分子分母同表同口径。分母 = http_request_total 的 count 之和。
+-- 5xx 率（近 28 天）：分子分母同表同口径。分母 = http_request_total 的 count 之和
+-- （count 已排除 4xx，见模块 docstring 口径）。
 -- SQLite（本地开发库 backend/data.db）
+--
+-- json_valid 是护栏：payload_json 是 Text 列，json_extract 遇到**非法 JSON 会直接抛错、
+-- 把整条查询打断**（NULL 反而安全，返回 NULL）。加护栏后脏数据按 0 计 —— 分母偏小、
+-- 率偏高，方向上保守。X0 2026-10-02 点名要覆盖这一条。
 SELECT
   ROUND(100.0 * SUM(CASE WHEN event_type = 'http_5xx' THEN 1 ELSE 0 END)
         / NULLIF(SUM(CASE WHEN event_type = 'http_request_total'
+                                AND json_valid(payload_json)
                          THEN CAST(json_extract(payload_json, '$.count') AS INTEGER)
                          ELSE 0 END), 0), 3) AS rate_pct
 FROM analytics_events
@@ -316,44 +325,12 @@ WHERE category = 'ai_quality'
   AND created_at >= datetime('now', '-28 days');
 """
 
-FIVE_XX_RATE_SQL_PG = """
--- 5xx 率（近 28 天）—— Postgres / Neon（目标环境）
-SELECT
-  ROUND(100.0 * COUNT(*) FILTER (WHERE event_type = 'http_5xx')
-        / NULLIF(SUM(CASE WHEN event_type = 'http_request_total'
-                          THEN (payload_json::jsonb ->> 'count')::int ELSE 0 END), 0), 3)
-        AS rate_pct
-FROM analytics_events
-WHERE category = 'ai_quality'
-  AND event_type IN ('http_5xx', 'http_request_total')
-  AND created_at >= now() - interval '28 days';
-"""
+# ⚠️ Postgres 版**刻意不在本分支**：它尚未在真 PG 上跑过（本机无 Docker、无 PG 实例、
+# .env 指向 SQLite），留着就是颗雷——`a91f4c2d7e03` 那次正是「PG 特有缺陷 SQLite 100% 测不出来」。
+# X0 裁定：单独挂 pilot 一期任务，在 Neon 分支跑通实测后再入库（见
+# `pilot-metrics-and-admission.md` §5）。PG 版 SQL 文本见
+# `.workbuddy/tmp/reply-5xx-denominator.md` 与 commit `b82d837`。
+# Neon 版验证时请顺手覆盖：payload_json 为 NULL 或**非法 JSON** 时应安全返回 0 而非报错
+# （PG 用 `payload_json::jsonb ->> 'count'`，同样的炸法；PG 无 json_valid，需用 CASE 判空 +
+#  另想办法挡非法 JSON，例如 `jsonb_typeof` 或先校验再转）。
 
-FIVE_XX_RATE_SQL_STRICT = """
--- §2.2 严格口径（分母排除 4xx）：与上面唯一差别是分母减掉 count4xx。
--- ⚠️ 仅在 X0 裁定「分母排除 4xx」时使用；裁定若维持「4xx 也计」，用 FIVE_XX_RATE_SQL。
-SELECT
-  ROUND(100.0 * SUM(CASE WHEN event_type = 'http_5xx' THEN 1 ELSE 0 END)
-        / NULLIF(SUM(CASE WHEN event_type = 'http_request_total'
-                         THEN CAST(json_extract(payload_json, '$.count') AS INTEGER)
-                              - CAST(json_extract(payload_json, '$.count4xx') AS INTEGER)
-                         ELSE 0 END), 0), 3) AS rate_pct
-FROM analytics_events
-WHERE category = 'ai_quality'
-  AND event_type IN ('http_5xx', 'http_request_total')
-  AND created_at >= datetime('now', '-28 days');
-"""
-
-FIVE_XX_RATE_SQL_STRICT_PG = """
--- §2.2 严格口径（分母排除 4xx）—— Postgres / Neon
-SELECT
-  ROUND(100.0 * COUNT(*) FILTER (WHERE event_type = 'http_5xx')
-        / NULLIF(SUM(CASE WHEN event_type = 'http_request_total'
-                          THEN (payload_json::jsonb ->> 'count')::int
-                               - (payload_json::jsonb ->> 'count4xx')::int
-                          ELSE 0 END), 0), 3) AS rate_pct
-FROM analytics_events
-WHERE category = 'ai_quality'
-  AND event_type IN ('http_5xx', 'http_request_total')
-  AND created_at >= now() - interval '28 days';
-"""
