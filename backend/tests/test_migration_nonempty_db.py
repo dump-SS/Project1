@@ -1,4 +1,4 @@
-"""Alembic 迁移的**空库 + 非空库双向**回归护栏（AGENTS.md §〇 授权要求）。
+﻿"""Alembic 迁移的**空库 + 非空库双向**回归护栏（AGENTS.md §〇 授权要求）。
 
 为什么需要这个文件：`a91f4c2d7e03` 曾把 `add_column(NOT NULL)` 与
 `alter_column(server_default=None)` 放在**同一个** `batch_alter_table` 里，
@@ -36,8 +36,26 @@ if not PY.exists():  # 非本机布局（CI / Linux）退回当前解释器
 
     PY = pathlib.Path(sys.executable)
 
-HEAD = "a91f4c2d7e03"
+# 目标版本写死 a91f4c2d7e03（它才是被测对象），但 head 动态取——
+# 写死 head 的话每加一个迁移本文件就会红一次，那是测试设计缺陷而非回归。
+TARGET = "a91f4c2d7e03"
 PREV = "c7a1f2e4d9b3"
+
+
+def _head() -> str:
+    """从 `alembic heads` 读当前 head（升一级都没到 head 的用例另用 TARGET 断言）。"""
+    import os
+    import re
+
+    env = dict(os.environ)
+    env["DATABASE_URL"] = "sqlite://"
+    r = subprocess.run(
+        [str(PY), "-m", "alembic", "heads"],
+        cwd=BACKEND, env=env, capture_output=True, text=True,
+    )
+    m = re.search(r"([0-9a-f]{8,})\s+\(head\)", r.stdout)
+    assert m, f"无法解析 alembic heads：{(r.stdout + r.stderr)[-300:]}"
+    return m.group(1)
 
 
 def _alembic(db: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
@@ -121,7 +139,8 @@ def test_upgrade_head_on_nonempty_db(db_at_prev: pathlib.Path):
     _seed_nonempty(db_at_prev)
     r = _alembic(db_at_prev, "upgrade", "head")
     assert r.returncode == 0, f"非空库 upgrade head 失败：{(r.stderr or r.stdout)[-400:]}"
-    assert _version(db_at_prev) == HEAD
+    # 既要过被测的那一格，也要确认真的到 head（head 会随新迁移前移）
+    assert _version(db_at_prev) == _head()
 
 
 def test_upgrade_preserves_existing_settings_values(db_at_prev: pathlib.Path):
@@ -239,3 +258,41 @@ def test_migration_uses_portable_boolean_default():
     ).read_text(encoding="utf-8")
     offenders = re.findall(r"server_default\s*=\s*sa\.text\(", src)
     assert not offenders, "迁移里出现 sa.text() 形式的 server_default，Postgres 会拒绝"
+
+
+# ---------- 冗余 UNIQUE 约束（kb_point_mastery · b7d2e4f1a609）----------
+
+
+def test_orm_does_not_redeclare_redundant_unique():
+    """🔴 ORM 不得再声明与主键同列的 `uq_user_point`。
+
+    主键已是 `(user_id, point_id)`，那个 UNIQUE 纯冗余；而它正是 `alembic check`
+    在 Postgres 上永远不干净的根因（PG 会把与 PK 重复的 UNIQUE 静默丢弃）。
+    谁把它加回来，本用例就红。
+    """
+    from models.knowledge import PointMastery
+
+    assert PointMastery.__table__.primary_key is not None
+    pk_cols = [c.name for c in sorted(PointMastery.__table__.primary_key.columns, key=lambda c: c.name)]
+    assert pk_cols == ["point_id", "user_id"], f"主键列变了：{pk_cols}"
+    named_uq = {
+        (uc.name, tuple(c.name for c in uc.columns))
+        for uc in PointMastery.__table__.constraints
+        if uc.__class__.__name__ == "UniqueConstraint"
+    }
+    assert named_uq == set(), f"ORM 仍声明了 UniqueConstraint：{named_uq}"
+
+
+def test_redundant_constraint_migration_is_dialect_guarded():
+    """该迁移**必须**按方言分支。
+
+    在 PostgreSQL 上名为 `uq_user_point` 的约束**就是主键本身**（实测 contype='p'），
+    无条件 `DROP CONSTRAINT uq_user_point` 等于删主键。故必须存在 PG 守卫分支。
+    """
+    src = (
+        BACKEND / "alembic/versions/b7d2e4f1a609_drop_redundant_uq_user_point.py"
+    ).read_text(encoding="utf-8")
+    assert "postgresql" in src, "迁移里找不到 postgresql 守卫 —— 会在 PG 上误删主键"
+    # 守卫必须出现在 upgrade 路径上（不只 downgrade）
+    upgrade_body = src.split("def upgrade", 1)[1].split("def downgrade", 1)[0]
+    assert "_is_postgres()" in upgrade_body, "upgrade() 没有方言守卫"
