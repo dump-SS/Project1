@@ -137,7 +137,7 @@
 
 | # | 前置                                                                                                             | 卡住什么                                    | 归属            | 状态    |
 | - | -------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------- | ----- |
-| 1 | **5xx 计数落地**（FastAPI 中间件计数 + 落 `analytics_events`：**`category=ai_quality`** / `eventType=http_5xx`；⚠️ 契约枚举只有 `chat_interaction`/`ai_quality`/`profile_trace`，**没有 `quality`**，用错会被 `track_event` 静默丢弃；**不引入 Prometheus/Sentry**） | §2.2「连续 4 周 5xx ≤ 1%」**完全无法验证**         | G             | ⬜ 未开始 |
+| 1 | **5xx 计数落地**（FastAPI 中间件 + 复用 `governance_service.track_event` 落 `analytics_events`：**`category=ai_quality`** / `eventType=http_5xx`；⚠️ 契约枚举只有 `chat_interaction`/`ai_quality`/`profile_trace`，**没有 `quality`**，用错会被 `track_event` 静默丢弃；**不引入 Prometheus/Sentry、不写迁移**）<br>**落点方案 A（Skyer 2026-10-02 拍板）**：登录态填真实 `user_id`；无登录态（登录接口等）填固定值 `"system"`，约定该值事件不参与任何用户维度指标 | §2.2「连续 4 周 5xx ≤ 1%」**完全无法验证**         | G             | ⬜ 未开始 |
 | 2 | **前端埋点接线**（`POST /analytics/events` 后端已通，前端**零调用**）                                                            | §1.2 卡片点击率/意图纠正率、§1.3 画像两项、§2.1 首次会话中断率 | G（接口）+ B（调用点） | ⬜ 未开始 |
 | 3 | **`routes/chat.py` 真链路**（当前 Chat 页是 `setTimeout + 关键词匹配` 的前端 mock，main 上 22 个 router 无 chat）                   | 全部 Chat 类指标；报错率因无 `message_id` 可填而不可算   | B             | ⬜ 未开始 |
 | 4 | **C 板块前端完成**（后端地基已并入 main，前端壳与受限 Chat 未做）                                                                      | §1.1 首日闭环完成率                            | C             | ⬜ 未开始 |
