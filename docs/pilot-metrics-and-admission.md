@@ -82,9 +82,10 @@
 1. **功能完备**：重构 M0–M6 全部验收门通过；四档清单中「pilot 必做」项 100% 完成（`refactor-development-plan.md` §5）。
 2. **质量稳定**：**pilot 正式放号之日起**连续 4 周后端 5xx 率 ≤ 1%；全量 pytest + 契约测试 + egress CI 持续绿。
    - **5xx 率口径（v1.0 锁定）**：分母仅统计 API 请求（`/api/v1/**`），**排除 4xx**（客户端行为，与服务稳定性无关）、**排除 `/health`**（被刷会稀释分母）、排除静态资源。
-   - **数据来源（v1.0 补）**：`analytics_events` 中 `category=ai_quality` 的两类事件——
-     `eventType=http_5xx`（**分子**，5xx 逐条实时落）与 `eventType=http_request_total`（**分母**，进程内累计后定时 flush 的汇总行，`payload.count` 为该周期请求数）。
-     5xx 率 = 两类事件相除，**同表、同口径、全部可从 SQL 读出**。
+   - **数据来源（v1.0 补 · 2026-10-03 措辞对齐实现）**：`analytics_events` 中 `category=ai_quality` 的两类事件——
+     `eventType=http_5xx`（**分子**，5xx 逐条实时落）与 `eventType=http_request_total`（**分母**，进程内累计后定时 flush 的汇总行）。
+     **5xx 率 = 分子数 ÷ `SUM(payload.count)`**，`payload.count` **即分母本身**（= 该周期请求数 **− 4xx**，实现侧已按 §2.2 口径在累计时扣除 4xx）；4xx 的原始计数另存于 `payload.count4xx`，**仅供运营诊断，不作分母**。
+     同表、同口径、全部可从 SQL 读出。常量：`FIVE_XX_RATE_SQL`（SQLite）/ `_PG`（Postgres，**待 Neon 实测**）。
    - **分母口径**：仅计入 `/api/v1/**` 的 API 请求，**排除 4xx**、排除 `/health`、排除静态资源。进程内累计依赖**单进程单端口 uvicorn**（当前部署形态，见 `README.md`）；⚠️ 若将来上多 worker / 多实例，进程内计数会低估分母，届时需换共享存储。
    - **⚠️ 为什么 4xx 不计入分母**（2026-10-02 裁定，此处曾与 X0 裁定冲突，已统一）：本指标衡量的是**服务端故障率**，4xx 属客户端行为（未登录、token 过期、参数非法、游客态拦截、越权被拒），不是服务端出错。且 pilot 期 4xx 规模**特别不可控**——游客态与 `epochx:auth-expired` 广播机制刚落地（A 板块 M1），token 过期会产生成片 401。**计入 4xx 会稀释基准率**：按 1000 请求含 400 个 401 估算，排除后率 0.833% / 计入则 0.500%，门槛实质放宽近一半。`payload.count4xx` 字段仍落库，但**仅供运营诊断**（4xx 飙升 = 客户端在乱打或鉴权出问题），不作分母。
    - **⚠️ 为什么不用访问日志**（2026-10-02 裁定）：`epochx.request` 的 INFO 行仅在 uvicorn 启动时有 handler（项目无 `basicConfig`，实测 effective level 为 WARNING），且**不落库**、会轮转、进程重启即断——撑不起「连续 4 周」的验收门。
@@ -150,8 +151,7 @@
 | 3 | **`routes/chat.py` 真链路**（当前 Chat 页是 `setTimeout + 关键词匹配` 的前端 mock，main 上 22 个 router 无 chat）                   | 全部 Chat 类指标；报错率因无 `message_id` 可填而不可算   | B             | ⬜ 未开始 |
 | 4 | **C 板块前端完成**（后端地基已并入 main，前端壳与受限 Chat 未做）                                                                      | §1.1 首日闭环完成率                            | C             | ⬜ 未开始 |
 | 5 | **危机响应评审机制**（固定脚本 5 场景试跑 + 记录表，判定 5/5）                                                                         | §1.5 危机响应触发正确率 100%                     | G             | ⬜ 未开始 |
-| 6 | **通知能力状态确认**（站内通知 / 邮件提醒是否可用）                                                                                     | 次周留存重新定线的前置                           | 待定           | ⬜ 未确认 |
-| 6 | **5xx 率 SQL 的 Neon/Postgres 版实测**（SQLite 版已实测：真 app 造数 100 次 → 率 5.263% 与手算一致；PG 版因本机无 PG 未验）⚠️ 已知风险：`payload_json::jsonb` 遇**非法 JSON 会直接抛错中断查询**（`http_request_total` 的行必为合法 JSON，但若有人手工插脏数据就会炸）——Neon 版验证时须覆盖「payload 为 NULL/非法时安全返回 0」 | §2.2 的 5xx 率最终要在 Neon 上判（目标环境是 Neon，非 SQLite） | G | ⬜ 未开始 |
+| 6 | **5xx 率 SQL 的 Neon/Postgres 版实测**（SQLite 版已实测：真 app 造数 100 次 → 率与手算一致；PG 版因本机无 PG 未验）⚠️ 已知风险：`payload_json` 为非法 JSON 时 `::jsonb` 转换会**直接抛错中断整个查询**（`http_request_total` 的行必为合法 JSON，但若有人手工插脏数据就会炸）——**已由实现侧加 `json_valid` 护栏规避**，Neon 版验证时仍须覆盖「payload 为 NULL/非法时安全返回 0」 | §2.2 的 5xx 率最终要在 Neon 上判（目标环境是 Neon，非 SQLite） | G | ⬜ 未开始 |
 | 7 | **通知能力状态确认**（站内通知 / 邮件提醒是否可用）                                                                                  | 次周留存重新定线的前置                             | 待定            | ⬜ 未确认 |
 
 > 说明：第 1 项是 Skyer 于 2026-10-02 拍板**明确列入 pilot 一期任务**的（"列进来"）。第 2–5 项是指标可读性的技术前置，第 6 项是 5xx 验收在目标环境的验证前置，第 7 项是运营前置（它决定次周留存何时能重新定线）。>   
