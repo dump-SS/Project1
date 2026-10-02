@@ -16,6 +16,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { headingId, type DocPage } from '../../../pages/Docs/registry'
 import styles from './DocsProse.module.css'
 
@@ -58,7 +59,8 @@ export default function DocsProse({ body, page, actions }: DocsProseProps) {
   return (
     <article className={styles.prose}>
       {page && <PageHeader page={page} actions={actions} />}
-      <ReactMarkdown components={components}>{body}</ReactMarkdown>
+      {/* GFM：表格 / 删除线 / 任务列表。docs 内容页大量使用表格，缺了它表格会渲染成原始管道文本 */}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{body}</ReactMarkdown>
     </article>
   )
 }
