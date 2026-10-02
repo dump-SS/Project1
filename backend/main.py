@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from database import Base, engine
+from http_error_tracking import HttpErrorTrackingMiddleware
 from middleware import RequestIDMiddleware
 
 # 触发所有 ORM 类注册
@@ -91,6 +92,10 @@ if _cors_origins:
 
 # 请求 ID / 访问日志（放在 CORS 之后，让客户端先拿到 CORS 头）
 app.add_middleware(RequestIDMiddleware)
+
+# 5xx 计数（G 板块 pilot 一期前置，pilot-metrics-and-admission.md §2.2）：
+# 只把 /api/v1/** 的 5xx 落进 analytics_events，供「连续 4 周 5xx ≤ 1%」读出数据。
+app.add_middleware(HttpErrorTrackingMiddleware)
 
 # --- 统一错误响应：所有非 2xx 都返回 openapi.yaml 0.2 节的 { error: { code, message, field? } } ---
 
