@@ -56,9 +56,9 @@ pilot→beta 准入标准第 2 条要求「正式放号之日起连续 4 周后�
 SQL 只留 SQLite 版
 ------------------
 Postgres 版**尚未在 PG 上实测过**（本机无 Docker / 无 PG 实例），X0 裁定：本分支不合并 PG 常量，
-单独挂 pilot 一期任务，在 Neon 分支跑通实测后再入库（见 `pilot-metrics-and-admission.md` §5）。
+单独挂 pilot 一期任务——`pilot-metrics-and-admission.md` §5 第 6 项，在 Neon 分支跑通实测后再入库。
 在此之前**不要**把任何未在 PG 上跑过的 SQL 塞进本文件——`a91f4c2d7e03` 那次就是
-「PG 特有缺陷 SQLite 100% 测不出来」。PG 版文本见回执 `.workbuddy/tmp/reply-5xx-denominator.md`
+「PG 特有缺陷 SQLite 100% 测不出来」。PG 版文本见 `.workbuddy/tmp/reply-5xx-denominator.md`
 与 commit `b82d837`。
 
 已知取舍（X0 已确认**接受，不加 lifespan 钩子**）
@@ -327,8 +327,8 @@ WHERE category = 'ai_quality'
 
 # ⚠️ Postgres 版**刻意不在本分支**：它尚未在真 PG 上跑过（本机无 Docker、无 PG 实例、
 # .env 指向 SQLite），留着就是颗雷——`a91f4c2d7e03` 那次正是「PG 特有缺陷 SQLite 100% 测不出来」。
-# X0 裁定：单独挂 pilot 一期任务，在 Neon 分支跑通实测后再入库（见
-# `pilot-metrics-and-admission.md` §5）。PG 版 SQL 文本见
+# X0 裁定：单独挂 pilot 一期任务（`pilot-metrics-and-admission.md` §5 第 6 项），
+# 在 Neon 分支跑通实测后再入库。PG 版 SQL 文本见
 # `.workbuddy/tmp/reply-5xx-denominator.md` 与 commit `b82d837`。
 # Neon 版验证时请顺手覆盖：payload_json 为 NULL 或**非法 JSON** 时应安全返回 0 而非报错
 # （PG 用 `payload_json::jsonb ->> 'count'`，同样的炸法；PG 无 json_valid，需用 CASE 判空 +
