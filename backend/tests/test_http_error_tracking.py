@@ -20,6 +20,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from fastapi import APIRouter
@@ -27,11 +30,13 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+import http_error_tracking
 from config import settings
 from database import SessionLocal
 from governance_service import ANALYTICS_CATEGORIES
 from http_error_tracking import (
     EVENT_TYPE_HTTP_5XX,
+    EVENT_TYPE_HTTP_REQUEST_TOTAL,
     SYSTEM_USER_ID,
     HttpErrorTrackingMiddleware,
     should_track_path,
@@ -47,6 +52,19 @@ _BOOM = "/api/v1/__test_5xx_boom"          # 抛未处理异常 → 500
 _BOOM_RESP = "/api/v1/__test_5xx_response"  # 显式返回 503
 _HEALTH_BOOM = "/health"                   # 让探活也 500，验证它确实不被记
 _STATIC_BOOM = "/assets/__test_5xx_boom.js"  # 让静态路径也 500，验证它确实不被记
+
+
+@pytest.fixture(autouse=True)
+def _reset_counter():
+    """每个用例前清空进程内计数器（分母）。
+
+    本模块用例都要观察「一个干净周期」的行为，不重置的话前一个用例的计数会漏进来。
+    这同时是「进程重启后计数归零」的等价模拟；真实重启由
+    test_counter_resets_on_process_restart 用两个真子进程覆盖。
+    """
+    http_error_tracking._COUNTER.reset()
+    yield
+    http_error_tracking._COUNTER.reset()
 
 
 @pytest.fixture()
@@ -101,6 +119,30 @@ def _events():
                 row.category,
                 json.loads(row.payload_json) if row.payload_json else None,
             )
+            for row in rows
+        ]
+    finally:
+        db.close()
+
+
+def _total_events():
+    """读回分母汇总行 → [(user_id, payload), ...]。
+
+    不按 created_at 排序断言（同秒写入会并列、id 又是随机的）——用例一律比较 sorted 后的计数。
+    """
+    db = SessionLocal()
+    try:
+        rows = (
+            db.execute(
+                select(AnalyticsEvent).where(
+                    AnalyticsEvent.event_type == EVENT_TYPE_HTTP_REQUEST_TOTAL
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            (row.user_id, json.loads(row.payload_json) if row.payload_json else None)
             for row in rows
         ]
     finally:
@@ -273,3 +315,146 @@ def test_middleware_installed_on_app():
 )
 def test_should_track_path(path, expected):
     assert should_track_path(path) is expected
+
+
+# ========== 分母（http_request_total）：X0 2026-10-02 裁定的第三个方案 ==========
+
+# ---------- 10. 分母计入 4xx（本次修的核心：此前完全没有分母概念） ----------
+
+def test_4xx_request_counts_toward_denominator(probe_routes, monkeypatch):
+    """4xx 不进分子，但**要进分母**（X0 裁定）。"""
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 1)
+
+    r = client.post("/api/v1/analytics/events", json={"category": "not_a_category"})
+    assert 400 <= r.status_code < 500
+
+    totals = _total_events()
+    assert sorted(p["count"] for _uid, p in totals) == [0, 1]  # 基线 + 本次
+    batch = [p for _uid, p in totals if p["count"] == 1][0]
+    assert batch["count4xx"] == 1
+    assert _events() == []  # 4xx 不进分子
+
+
+def test_2xx_request_counts_toward_denominator(probe_routes, monkeypatch):
+    """正常请求同样进分母——否则分母只剩错误请求，率会算成 100%。"""
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 1)
+
+    r = client.get("/api/v1/me", headers={"X-User-ID": "u_probe_denom"})
+    assert r.status_code == 200
+
+    totals = _total_events()
+    assert sorted(p["count"] for _uid, p in totals) == [0, 1]
+    assert [p for _uid, p in totals if p["count"] == 1][0]["count4xx"] == 0
+
+
+# ---------- 11. 到阈值 flush，且 flush 后归零 ----------
+
+def test_counter_flushes_at_threshold_and_resets(probe_routes, monkeypatch):
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 3)
+
+    for _ in range(3):
+        r = client.get("/api/v1/me", headers={"X-User-ID": "u_probe_denom"})
+        assert r.status_code == 200
+
+    totals = _total_events()
+    assert sorted(p["count"] for _uid, p in totals) == [0, 3]  # 基线 + 满窗
+    assert http_error_tracking._COUNTER.total == 0  # flush 后归零
+
+    # 再发一次：新窗口只有 1 次，不到阈值 → 不产生新的汇总行
+    client.get("/api/v1/me", headers={"X-User-ID": "u_probe_denom"})
+    assert len(_total_events()) == 2
+    assert http_error_tracking._COUNTER.total == 1
+
+
+# ---------- 12. 汇总行一律 system（聚合跨用户，归属到任何单个用户都是错的） ----------
+
+def test_denominator_flush_is_system_scoped(probe_routes, monkeypatch):
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 1)
+    # 刻意用「登录态」请求：汇总仍必须记在 system 名下
+    client.get("/api/v1/me", headers={"X-User-ID": "u_probe_denom"})
+
+    totals = _total_events()
+    assert totals, "至少应落一条进程启动基线"
+    for user_id, payload in totals:
+        assert user_id == SYSTEM_USER_ID == "system"
+        assert payload["userScoped"] is False
+        # 键集钉死：多一个键（比如 path / query）这条断言就会红
+        assert set(payload) == {"count", "count4xx", "windowMinutes", "userScoped"}
+
+
+def test_denominator_payload_has_no_request_info(probe_routes, monkeypatch):
+    monkeypatch.setattr(http_error_tracking, "FLUSH_THRESHOLD", 1)
+
+    client.get(
+        "/api/v1/me?access_token=SECRET_QUERY_TOKEN",
+        headers={
+            "Authorization": "Bearer SECRET_HEADER_TOKEN",
+            "X-User-ID": "u_probe_denom",
+        },
+    )
+
+    raw = json.dumps(_total_events(), ensure_ascii=False)
+    # 连 path 都不该有——汇总行只放计数与窗口
+    for secret in ("SECRET_QUERY_TOKEN", "SECRET_HEADER_TOKEN", "/api/v1"):
+        assert secret not in raw
+
+
+# ---------- 13. 进程重启后计数归零（真起两个子进程实测） ----------
+
+_PROBE_SCRIPT = """
+import json, os, sqlite3, sys
+
+os.environ["DATABASE_URL"] = sys.argv[1]
+os.environ["LLM_PROVIDER"] = "mock"
+os.environ["LLM_API_KEY"] = ""
+os.environ["ALLOW_INSECURE_USER_HEADER"] = "true"
+
+from database import Base, engine
+import models  # noqa: F401
+Base.metadata.create_all(bind=engine)
+
+import http_error_tracking as tracking
+tracking.FLUSH_THRESHOLD = 5          # 跑满一个窗口即可，不必真发 100 次
+
+from fastapi.testclient import TestClient
+from main import app
+
+client = TestClient(app)
+for _ in range(5):
+    client.get("/api/v1/me", headers={"X-User-ID": "u_restart_probe"})
+
+con = sqlite3.connect(sys.argv[1].replace("sqlite:///", ""))
+rows = con.execute(
+    "SELECT user_id, payload_json FROM analytics_events"
+    " WHERE event_type = 'http_request_total' ORDER BY rowid"
+).fetchall()
+con.close()
+print(json.dumps([[u, json.loads(p)] for u, p in rows], ensure_ascii=False))
+"""
+
+
+def _run_probe(db_url: str):
+    """在一个**全新 python 进程**里跑满一个计数窗口，返回该进程落的汇总行。"""
+    proc = subprocess.run(
+        [sys.executable, "-c", _PROBE_SCRIPT, db_url],
+        capture_output=True,
+        text=True,
+        cwd=str(Path(__file__).resolve().parents[1]),
+        timeout=300,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def test_counter_resets_on_process_restart(tmp_path):
+    """两次独立进程：每次都是「基线 count=0 + 满窗 count=5」，计数不跨进程残留。"""
+    runs = []
+    for i in range(2):
+        db = tmp_path / f"restart_probe_{i}.db"
+        runs.append(_run_probe(f"sqlite:///{db.as_posix()}"))
+
+    for run in runs:
+        assert [payload["count"] for _uid, payload in run] == [0, 5]
+        assert all(uid == SYSTEM_USER_ID for uid, _payload in run)
+        assert [payload["count4xx"] for _uid, payload in run] == [0, 0]
+
