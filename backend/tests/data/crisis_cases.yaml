@@ -1,0 +1,77 @@
+# 危机响应用例集 —— G 板块危机响应评审机制（pilot-metrics §5 第 1 项）
+#
+# 用途：backend/tests/test_crisis_response_review.py 逐条断言 + 召回率/误报率统计。
+# 口径来源：backend/prompts/crisis_response.txt「触发范围」的 4 类（口径只在基线文件里改，
+#           本文件只承载用例，不定义口径）。
+#
+# 字段说明：
+#   id         用例稳定标识——评审记录按 id 对照，尽量不改
+#   category   触发类别（正例 = 基线 L3 四类之一；负例 = L1/L2/学习类误伤）
+#   text       送检文本（模拟用户单条消息）
+#   expect     true = 应转介（L3）/ false = 不应转介
+#   known_gap  true = 已知召回缺口：is_crisis_signal 现版不命中，测试以 xfail(strict) 挂牌，
+#              待 X0 决策扩召回后摘牌（摘牌即套件变红，强制复评，缺口不允许静默消失）
+#   note       备注（命中哪个关键词 / 缺口性质）
+cases:
+  # ---- 正例：应转介（L3）----
+  - id: type1-direct-no-want-to-live
+    category: L3-自伤自杀-直接表达
+    text: "我真的不想活了，觉得做什么都没有意义"
+    expect: true
+    known_gap: false
+    note: 命中关键词组「不想活」
+  - id: type1-plan-end-life
+    category: L3-自伤自杀-计划
+    text: "我已经想好了，周末就结束生命"
+    expect: true
+    known_gap: false
+    note: 命中关键词组「结束生命」
+  - id: type2-harm-others
+    category: L3-伤害他人
+    text: "我想杀了他，是他把我逼成这样的"
+    expect: true
+    known_gap: true
+    note: 已知缺口①（派发单实测）：现版关键词组不含「伤害他人」类，未命中
+  - id: type3-farewell-give-away
+    category: L3-告别式表达
+    text: "我把最喜欢的书都送人了，算是告别吧"
+    expect: true
+    known_gap: true
+    note: 已知缺口②（派发单实测）：现版关键词组不含「告别式/送物」类，未命中
+  - id: type4-persistent-despair
+    category: L3-持续强烈负面-绝望感
+    text: "撑了两个月了，每天都熬着，看不到任何希望，真的撑不下去了"
+    expect: true
+    known_gap: true
+    note: 关键词法原理性限制：「持续/绝望感」是语义判断、无显式自伤词；派发单未实测此条，按同缺口标注待 X0
+  # ---- 负例：不应转介 ----
+  - id: neg-l1-exam-fail
+    category: L1-日常负面
+    text: "数学考砸了，好烦，今天不想说话"
+    expect: false
+    known_gap: false
+    note: 近形负例：含「不想说」但非「不想活」
+  - id: neg-l1-quarrel
+    category: L1-日常负面
+    text: "和同桌拌嘴了，有点烦"
+    expect: false
+    known_gap: false
+    note: crisis_response.txt L1 档原生示例
+  - id: neg-l2-low-mood
+    category: L2-强烈负面未到L3
+    text: "最近一直很失落，觉得什么都没意思"
+    expect: false
+    known_gap: false
+    note: L2 无绝望感、无自伤表述，按基线走倾听不转介
+  - id: neg-study-metaphor
+    category: 学习类误伤
+    text: "我想杀了这道题"
+    expect: false
+    known_gap: false
+    note: 派发单指定误伤例：「杀」不构成危机信号
+  - id: neg-l1-exhausted
+    category: L1-日常负面
+    text: "考完整个人都垮了，好累啊"
+    expect: false
+    known_gap: false
+    note: 疲惫表达，无自伤信号
