@@ -85,7 +85,7 @@
    - **数据来源（v1.0 补 · 2026-10-03 措辞对齐实现）**：`analytics_events` 中 `category=ai_quality` 的两类事件——
      `eventType=http_5xx`（**分子**，5xx 逐条实时落）与 `eventType=http_request_total`（**分母**，进程内累计后定时 flush 的汇总行）。
      **5xx 率 = 分子数 ÷ `SUM(payload.count)`**，`payload.count` **即分母本身**（= 该周期请求数 **− 4xx**，实现侧已按 §2.2 口径在累计时扣除 4xx）；4xx 的原始计数另存于 `payload.count4xx`，**仅供运营诊断，不作分母**。
-     同表、同口径、全部可从 SQL 读出。常量：`FIVE_XX_RATE_SQL`（SQLite）/ `_PG`（Postgres，**待 Neon 实测**）。
+     同表、同口径、全部可从 SQL 读出。常量：SQLite 版为 `FIVE_XX_RATE_SQL`（`backend/http_error_tracking.py` 底部，随实现入库）；**Postgres 版尚未入库**——原 `_PG` 常量已按裁定删除（避免留下未在 PG 上验证过的常量），待 Neon 实测通过后再以 `_PG` 常量入库，见 §5 第 6 项。
    - **分母口径**：仅计入 `/api/v1/**` 的 API 请求，**排除 4xx**、排除 `/health`、排除静态资源。进程内累计依赖**单进程单端口 uvicorn**（当前部署形态，见 `README.md`）；⚠️ 若将来上多 worker / 多实例，进程内计数会低估分母，届时需换共享存储。
    - **⚠️ 为什么 4xx 不计入分母**（2026-10-02 裁定，此处曾与 X0 裁定冲突，已统一）：本指标衡量的是**服务端故障率**，4xx 属客户端行为（未登录、token 过期、参数非法、游客态拦截、越权被拒），不是服务端出错。且 pilot 期 4xx 规模**特别不可控**——游客态与 `epochx:auth-expired` 广播机制刚落地（A 板块 M1），token 过期会产生成片 401。**计入 4xx 会稀释基准率**：按 1000 请求含 400 个 401 估算，排除后率 0.833% / 计入则 0.500%，门槛实质放宽近一半。`payload.count4xx` 字段仍落库，但**仅供运营诊断**（4xx 飙升 = 客户端在乱打或鉴权出问题），不作分母。
    - **⚠️ 为什么不用访问日志**（2026-10-02 裁定）：`epochx.request` 的 INFO 行仅在 uvicorn 启动时有 handler（项目无 `basicConfig`，实测 effective level 为 WARNING），且**不落库**、会轮转、进程重启即断——撑不起「连续 4 周」的验收门。
