@@ -151,7 +151,7 @@
 | 3 | **`routes/chat.py` 真链路**（当前 Chat 页是 `setTimeout + 关键词匹配` 的前端 mock，main 上 22 个 router 无 chat）                   | 全部 Chat 类指标；报错率因无 `message_id` 可填而不可算   | B             | ⬜ 未开始 |
 | 4 | **C 板块前端完成**（后端地基已并入 main，前端壳与受限 Chat 未做）                                                                      | §1.1 首日闭环完成率                            | C             | ⬜ 未开始 |
 | 5 | **危机响应评审机制**（固定脚本 5 场景试跑 + 记录表，判定 5/5）                                                                         | §1.5 危机响应触发正确率 100%                     | G             | 🟡 评测已交付（召回 **2/5 = 40%**、误报 0/5、一致性断言通过，缺口 `xfail(strict)` 挂牌）；**100% 红线未达成**，待 B 真链路后校准 |
-| 6 | **5xx 率 SQL 的 Neon/Postgres 版实测**（SQLite 版已实测：真 app 造数 100 次 → 率与手算一致；PG 版因本机无 PG 未验）⚠️ 已知风险：`payload_json` 为非法 JSON 时 `::jsonb` 转换会**直接抛错中断整个查询**（`http_request_total` 的行必为合法 JSON，但若有人手工插脏数据就会炸）——**已由实现侧加 `json_valid` 护栏规避**，Neon 版验证时仍须覆盖「payload 为 NULL/非法时安全返回 0」 | §2.2 的 5xx 率最终要在 Neon 上判（目标环境是 Neon，非 SQLite） | G | ⬜ 未开始 |
+| 6 | **5xx 率 SQL 的 Neon/Postgres 版实测**（SQLite 版已实测：真 app 造数 100 次 → 率与手算一致；**SQL 文本已固化到 [`five-xx-rate-sql.md`](./five-xx-rate-sql.md)**，PG 版因本机无 PG 未验）⚠️ 已知风险：`payload_json::jsonb` 遇**非法 JSON 会直接抛错中断整个查询**（已由实现侧加 `json_valid` 护栏规避）——Neon 版验证时须专门造 NULL/非法 payload 确认仍安全返回 0 | §2.2 的 5xx 率最终要在 Neon 上判（目标环境是 Neon，非 SQLite） | G | ⬜ 未开始 |
 | 7 | **通知能力状态确认**（站内通知 / 邮件提醒是否可用）                                                                                  | 次周留存重新定线的前置                             | 待定            | ⬜ 未确认 |
 
 > 说明：第 1 项是 Skyer 于 2026-10-02 拍板**明确列入 pilot 一期任务**的（"列进来"）。第 2–5 项是指标可读性的技术前置，第 6 项是 5xx 验收在目标环境的验证前置，第 7 项是运营前置（它决定次周留存何时能重新定线）。>   
