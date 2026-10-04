@@ -116,8 +116,16 @@ END $$;
 
 ### ⚠️ Neon 验证时必须覆盖的三个点（2026-10-04 已实测通过）
 
-**实测结论**（dev-4 在 Neon PG 18.6 上跑的）：
+**实测结论**（dev-4 在 Neon PG 18.6 上跑的，2026-10-04）：
+
+> ⚠️ **两版都实测过，别混为一谈**（dev-4 2026-10-04 指出我一度归因错）：
+> - **第一轮（19:23）**：跑的是**自建 `is_json()` 函数版**，结论是「守卫生效 / `rate_pct=25.000`」。
+> - **第二轮（19:45 补测）**：把上面主查询的 **`IS JSON` 版逐字照抄**在 Neon 上跑 —— 同样 `rate_pct=25.000`，
+>   且**五种 payload 同时在场**（NULL / `not-json` / `{"count":20}` / 标量 `123` / 数组 `[1,2]`）仍分毫不差。
+>
+> **下面这份清单默认指 `IS JSON` 版**，即当前文档主查询实际使用的那一版。
 - ✅ 守卫生效：造 `payload_json` 为 NULL 与 `'not-json'` 两行脏数据后，主查询**返回 `rate_pct=25.000`、未报错**
+- ✅ **更严的五种 payload 同时在场也过**（第二轮）：NULL / `not-json` / `{"count":20}` / 标量 `123` / 数组 `[1,2]` —— 标量与数组都不会被误当成对象取值，分母 20、分子 5 行 `http_5xx`，结果 25.000 分毫不差
 - ✅ **Neon 是 PG 18.6**（`server_version_num=180006`）
 - ✅ `round(numeric, 3)` 合法，实测返回三位小数，未出现 `round(double precision) does not exist`
 - ✅ 「`payload_json::jsonb` 遇非法 JSON 抛错中断整条查询」描述准确（实测复现 `invalid input syntax for type json`）
