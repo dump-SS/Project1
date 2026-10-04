@@ -40,6 +40,14 @@ _TEST_DATA_DIR = Path(__file__).resolve().parents[1] / ".pytest_data"
 _TEST_DATA_DIR.mkdir(exist_ok=True)
 os.environ["DATABASE_URL"] = f"sqlite:///{(_TEST_DATA_DIR / 'test.db').as_posix()}"
 
+# 向量索引目录同样必须隔离。_index_root() 的优先级是
+# KB_VECTOR_DIR > SQLite 同目录 > cwd。2026-10-04 新增 KB_VECTOR_DIR 后，若开发机
+# .env 里配了它，测试会绕过上面那道 DATABASE_URL 隔离、直接指向真实索引目录，
+# 而 test_vector_store.py 的 rebuild_index() 会 unlink 掉真实向量库
+# （2026-09-15 已发生过一次，见上文历史坑）。这里强制清空，让测试永远回落到
+# 由测试 DATABASE_URL 推导出的 .pytest_data/kb_vectors/。
+os.environ["KB_VECTOR_DIR"] = ""
+
 # 鉴权：测试环境启用「非安全身份回落链」（X-User-ID 头 / Bearer u_ / 匿名兜底
 # u_10237），与生产默认值（false）相反。绝大多数用例依赖 X-User-ID 指定身份。
 # 要验证生产口径（无会话 → 401），在用例内用 monkeypatch 把该开关改回 false，

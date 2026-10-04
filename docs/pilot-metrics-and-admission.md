@@ -133,7 +133,7 @@
 ## 4. 未决项
 
 - ~~§1 各表「待拍板」阈值~~ ✅ **已于 2026-10-02 全部拍板**（本文件 v1.0）。决策记录与被否理由见 [`pilot-threshold-proposal.md`](./pilot-threshold-proposal.md)。
-- **pilot 一期前置（6 项，见 §5）尚未销项**，其中 5xx 监控与前端埋点接线是硬前置。
+- **pilot 一期前置（8 项，见 §5）尚未销项**，其中 5xx 监控与前端埋点接线是硬前置。
 - 通知能力（站内通知 / 邮件提醒）状态待确认 → 直接决定次周留存何时能重新定线。`docs-site-structure.md` §5.2 标注为「状态待确认」（后端有 SMTP，前端是否有设置项未核实）。
 - 桌面端前移 beta（`desktop-timing-assessment.md`）：拍板后若前移，本文件 §2 增补桌面端验收条目。
 - B 板块事件名（`chat_interaction` / `profile_trace`）待 B 实际接入后核实；事件名变更属契约 `eventType` 描述更新，走 X0 评审。
@@ -153,7 +153,7 @@
 | 5 | **危机响应评审机制**（固定脚本 5 场景试跑 + 记录表，判定 5/5）                                                                         | §1.5 危机响应触发正确率 100%                     | G             | 🟡 评测已交付（召回 **2/5 = 40%**、误报 0/5、一致性断言通过，缺口 `xfail(strict)` 挂牌）；**100% 红线未达成**，待 B 真链路后校准 |
 | 6 | **5xx 率 SQL 的 Neon/Postgres 版实测**（SQLite 版已实测：真 app 造数 100 次 → 率与手算一致；**SQL 文本与带 `json_valid` 守卫的 PG 版已固化到 [`five-xx-rate-sql.md`](./five-xx-rate-sql.md)**，PG 版因本机无 PG 未验）⚠️ 关键坑：`payload_json::jsonb` 遇**非法 JSON 会抛错中断整个查询**（不是返回 NULL）——**PG 侧必须先 `json_valid()` 再 cast**（PG 16+ 内置，<16 需自建 `is_json()`，见该文档）；SQLite 侧的 `json_valid` 是 SQLite 自己的函数，两侧机制不同别混用 | §2.2 的 5xx 率最终要在 Neon 上判（目标环境是 Neon，非 SQLite） | G | ⬜ 未开始 |
 | 7 | **通知能力状态确认**（站内通知 / 邮件提醒是否可用）                                                                                  | 次周留存重新定线的前置                             | 待定            | ⬜ 未确认 |
-| 8 | **向量检索在 pilot 期可用**（Skyer 2026-10-04 定：pilot 必须有向量检索，不接受 `name_fuzzy` 降级）<br>✅ 知识点已上 Neon（`kb_points` 3391 条，与本地逐行比对差异 0）<br>⬜ **待办**：① `vector_store._index_root()` 对非 SQLite URL 会静默退化成 `Path.cwd()/kb_vectors`，生产 `DATABASE_URL` 是 Neon → 须改为显式指定索引目录（建议 `KB_VECTOR_DIR`），**否则容器重启后冷启动读不到索引、静默降级**；② 26.5MB 索引文件随部署进到常驻容器磁盘；③ 启动后校验索引行数 == 3391，不满足即告警<br>📌 **不需要 pgvector**：部署评估已定「后端不放 Vercel」、候选 Railway/Fly/Render 均为常驻平台有持久磁盘（`deployment-stack-evaluation.md` §1.1/§1.2 + 风险表第 3 条） | §1.1 首日闭环与知识库检索的体验前提 | G + X1 | 🟡 知识点已上 Neon，索引部署路径待修 |
+| 8 | **向量检索在 pilot 期可用**（Skyer 2026-10-04 定：pilot 必须有向量检索，不接受 `name_fuzzy` 降级）<br>✅ 知识点已上 Neon（`kb_points` 3391 条，与本地逐行比对差异 0；`refs.json` 的 3391 个 `ref_id` 与库内id 集合**双向差异 0**）<br>✅ **① 已修**：`vector_store._index_root()` 改为优先读 `KB_VECTOR_DIR`（生产 `DATABASE_URL` 是 Neon，必须显式指定）；非 SQLite 且未设时回落cwd **改为 warning 并打出最终路径**（原为静默）；索引异常一律 error 级日志**且带实际值**；新增只读接口 `GET /health/vector-index`（`status`/`count`/`dim`/`problems`）把「静默降级」变成可观测<br>✅ **③ 已做**：`python scripts/check_vector_index.py` 在索引缺失或条目数 ≠ 3391 时 **exit 1**（可用作release/healthcheck）<br>⬜ **② 待部署执行**：26.5MB `embeddings.index` + `refs.json` 随部署进到常驻容器磁盘，并用 `KB_VECTOR_DIR` 指向它。**部署本身尚未搭建**——仓库当前无 Dockerfile / railway.json / fly.toml / render.yaml，故只能把配置与校验就位，实际搬运要等平台选定<br>📌 **不需要 pgvector**：部署评估已定「后端不放 Vercel」、候选 Railway/Fly/Render 均为常驻平台有持久磁盘（`deployment-stack-evaluation.md` §1.1/§1.2 + 风险表第 3 条） | §1.1 首日闭环与知识库检索的体验前提 | G + X1 | 🟡 ①③ 已完成，② 待部署落地 |
 
 > 说明：第 1 项是 Skyer 于 2026-10-02 拍板**明确列入 pilot 一期任务**的（"列进来"）。第 2–5 项是指标可读性的技术前置，第 6 项是 5xx 验收在目标环境的验证前置，第 7 项是运营前置（它决定次周留存何时能重新定线），第 8 项是知识库检索的体验前置。
 >

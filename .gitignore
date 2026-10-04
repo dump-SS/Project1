@@ -11,6 +11,9 @@ vite.config.ts.timestamp-*.mjs
 .env.local
 .env.*.local
 
+# 数据库外部备份（scripts/backup_neon.py 输出）——含生产数据，绝不入库
+.backups/
+
 __pycache__/
 *.pyc
 .venv/

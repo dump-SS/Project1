@@ -75,6 +75,17 @@ class Settings(BaseSettings):
     embed_request_timeout: int = 60
     embed_max_retries: int = 1
 
+    # --- 向量索引目录（FAISS 两个文件所在目录）---
+    # 生产 DATABASE_URL 是 Neon（非 SQLite），_index_root() 原逻辑会静默回落到
+    # Path.cwd()/"kb_vectors"——索引路径依赖进程工作目录，容器每次重启都可能是新
+    # 路径，冷启动读不到索引且**静默**降级成 name_fuzzy。显式指定可消除该歧义。
+    # 留空 = 沿用旧逻辑（SQLite 同目录 / 非 SQLite 用 cwd），本地开发无需设置。
+    kb_vector_dir: str = ""
+    # 启动自检基准：索引条目数应等于此值（3391 = 知识点总数，与库表已核一致）。
+    # 不等时打 error 日志并在只读接口暴露，但**不阻断启动**（pilot 期服务不可用
+    # 比检索降级更糟）。≠基准时先查 refs.json 与库是否同步，**不要直接重建索引**。
+    kb_vector_expected_count: int = 3391
+
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
     smtp_host: str = "smtp.163.com"
     smtp_port: int = 465

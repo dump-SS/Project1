@@ -181,6 +181,8 @@ alembic stamp head             # 标记为最新版本
 | **P1** | Alembic 空库验证 + 反转建表决策                | ✅ **已完成 2026-09-15**：原计划的 `upgrade head` 跑不通（基线越界建全表）→ 已 squash 为显式基线，空库 upgrade/downgrade 可反复，详见 §2-4 |
 | **P1** | CORS 白名单改造                           | ✅ **已完成 2026-09-15**：默认不挂中间件（同域），分域走 `CORS_ALLOW_ORIGINS` 白名单             |
 | **P1** | Cookie `Secure` / `SameSite` 按部署形态调整 | ✅ **已完成 2026-09-15**：`COOKIE_SAMESITE` / `COOKIE_SECURE` 可配，None 自动补 Secure  |
+| **P1** | 向量索引随部署进常驻容器磁盘              | `embeddings.index` 26.5MB + `refs.json` 0.3MB 必须在**常驻实例磁盘上**。build 时 `COPY` 或 release 时下载皆可——**必须用 `KB_VECTOR_DIR` 显式指定目录**：否则 `_index_root()` 在非 SQLite（Neon）下回落到进程 cwd，容器重启后路径可能变、读不到索引。已加该环境变量支持（2026-10-04，dev-4） |
+| **P1** | 启动后校验向量索引条目数                   | `python scripts/check_vector_index.py` → 索引缺失或条目数 ≠ 3391 时 **exit 1**；另有只读接口 `GET /health/vector-index` 可挂监控。**别让它静默降级**：索引读不到时应用照常启动、检索悄悄退化成 `name_fuzzy`，功能可用但匹配质量下降，日志与响应里都看不出异常<br>⚠️ `/health` 与 `/health/vector-index` 均为**运维诊断端点，不在 `openapi.yaml` 契约内、不保证向后兼容**（2026-10-04 lead-1 裁定，沿用 `/health` 的既有先例）——响应结构可随排障需要调整，前端/客户端不要依赖 |
 | **P2** | auth 限流持久化                           | ✅ **已完成 2026-09-15**（见附 B）                                                    |
 | **P2** | 密钥迁入平台 Secrets                       | 现状 `.env` 存明文（`LLM_API_KEY` / `EMBED_API_KEY` / `SMTP_PASS`），未被 git 跟踪但误提交即泄露 |
 | **P3** | R2 接入                                | 等有上传路由再做                                                                      |

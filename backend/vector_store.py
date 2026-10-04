@@ -21,19 +21,59 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["add", "search", "rebuild_index", "VECTOR_INDEX_DIR", "index_stats"]
+__all__ = [
+    "add",
+    "search",
+    "rebuild_index",
+    "VECTOR_INDEX_DIR",
+    "index_stats",
+    "vector_index_status",
+]
+
+
+def _index_source() -> str:
+    """索引目录的来源标识（KB_VECTOR_DIR / sqlite / cwd），供诊断暴露。"""
+    if (settings.kb_vector_dir or "").strip():
+        return "kb_vector_dir"
+    return "sqlite" if settings.database_url.startswith("sqlite:///") else "cwd"
 
 
 def _index_root() -> Path:
-    """索引目录：与 SQLite 同目录的 kb_vectors/。"""
+    """索引目录解析优先级：``KB_VECTOR_DIR`` > SQLite 同目录 > ``cwd/kb_vectors``。
+
+    为什么需要 ``KB_VECTOR_DIR``：生产 ``DATABASE_URL`` 是 Neon（非 SQLite），
+    旧逻辑静默 ``return Path.cwd() / "kb_vectors"``——索引路径变成**进程工作目录**，
+    容器里每次重启都可能是新路径，于是冷启动读不到索引、检索静悄悄降级成
+    ``name_fuzzy``，而日志与响应里都看不出任何异常。
+
+    刻意**不抛错**：索引不可用时 search 返回 []、调用方走 name_fuzzy 是ADR 早已
+    定好的降级路径；pilot 期「服务起不来」比「检索降级」更糟。异常一律改为
+    error 级日志 + 只读接口暴露（见 :func:`vector_index_status`）。
+    """
+    configured = (settings.kb_vector_dir or "").strip()
+    if configured:
+        root = Path(configured)
+        logger.info("[VECTOR] 索引目录来自 KB_VECTOR_DIR=%s", root)
+        return root
+
     db_url = settings.database_url
     if db_url.startswith("sqlite:///"):
         raw = db_url[len("sqlite:///"):]
         db_path = Path(raw)
         if not db_path.is_absolute():
             db_path = Path.cwd() / raw
-        return db_path.parent / "kb_vectors"
-    return Path.cwd() / "kb_vectors"
+        root = db_path.parent / "kb_vectors"
+        logger.info("[VECTOR] 索引目录来自 SQLite 同目录=%s", root)
+        return root
+
+    root = Path.cwd() / "kb_vectors"
+    logger.warning(
+        "[VECTOR] 索引目录回落到 cwd=%s：DATABASE_URL 非 SQLite 且未设 KB_VECTOR_DIR。"
+        "容器每次重启工作目录可能不同 → 可能读不到索引并静默降级 name_fuzzy。"
+        "请设 KB_VECTOR_DIR 指向索引目录。",
+        root,
+    )
+    return root
 
 
 VECTOR_INDEX_DIR = _index_root()
@@ -48,6 +88,49 @@ _index = None
 _refs: list[dict] = []  # [{"vectorId", "refId", "refType", "model"}]
 
 
+def _index_problems(total: int | None, refs_n: int) -> list[str]:
+    """列出索引的全部异常，**每条都带实际值**（空列表 = 健康）。
+
+    只诊断不修复、不抛错。条目数与基准不符时提示先查同步性而非直接重建——
+    refs.json 与库不同步时重建索引会把正确的向量覆盖成错的。
+    """
+    problems: list[str] = []
+    expected = settings.kb_vector_expected_count
+
+    if not VECTOR_INDEX_DIR.exists():
+        problems.append(f"索引目录不存在：{VECTOR_INDEX_DIR}")
+    if not _INDEX_FILE.exists():
+        problems.append(f"索引文件缺失：{_INDEX_FILE}（{_INDEX_FILE.stat().st_size if _INDEX_FILE.exists() else 0} bytes）")
+    if not _REFS_FILE.exists():
+        problems.append(f"引用文件缺失：{_REFS_FILE}")
+
+    if total is None:
+        problems.append("索引未加载（_index is None），search 将降级 name_fuzzy")
+        return problems
+
+    if total != expected:
+        problems.append(
+            f"索引条目数 {total} != 基准 {expected}"
+            f"（先核对 refs.json 与库表是否同步，不要直接重建索引）"
+        )
+    if total != refs_n:
+        problems.append(f"refs.json 条目数 {refs_n} != 索引行数 {total}（两者必须一一对应）")
+    return problems
+
+
+def _log_index_problems(total: int | None, dim: int | None, refs_n: int) -> None:
+    """把索引异常打成 error 且带实际值；正常时打 info 便于确认加载结果。"""
+    problems = _index_problems(total, refs_n)
+    if not problems:
+        logger.info(
+            "[VECTOR] 索引自检通过：%d 条 / dim=%s（基准 %d）@ %s",
+            total, dim, settings.kb_vector_expected_count, _INDEX_FILE,
+        )
+        return
+    for problem in problems:
+        logger.error("[VECTOR] 索引异常：%s", problem)
+
+
 def _import_faiss():
     try:
         import faiss
@@ -58,7 +141,10 @@ def _import_faiss():
 
 
 def _load_from_disk() -> None:
-    """懒加载：磁盘有索引则加载，否则保持空索引（等待首次 add 建库）。"""
+    """懒加载：磁盘有索引则加载，否则保持空索引（等待首次 add 建库）。
+
+    加载后立即自检并把异常打成 error（带实际值）——**不抛错**：降级是既定行为。
+    """
     global _index, _refs
     if _index is not None:
         return
@@ -77,8 +163,15 @@ def _load_from_disk() -> None:
             logger.exception("[VECTOR] 索引文件损坏，重建空索引")
             _index = None
             _refs = []
+    else:
+        logger.error(
+            "[VECTOR] 索引文件不存在：%s（目录是否存在：%s）→ 检索将降级 name_fuzzy",
+            _INDEX_FILE, VECTOR_INDEX_DIR.exists(),
+        )
     if _index is None:
         _index = None  # 等首次 add 时按向量维度建库
+        return
+    _log_index_problems(_index.ntotal, _index.d, len(_refs))
     return
 
 
@@ -196,4 +289,44 @@ def index_stats() -> dict:
             "dim": _index.d if _index is not None else None,
             "refs": len(_refs),
             "indexFile": str(_INDEX_FILE),
+        }
+
+
+def vector_index_status() -> dict:
+    """向量索引完整状态（只读诊断，不改任何状态）。
+
+    存在的理由：索引读不到时应用**照常启动**、检索静悄悄降级 name_fuzzy ——
+    只打日志不够（没人盯日志流就等于没写），所以把状态暴露到只读接口，
+    让「静默降级」变成「可观测」。部署检查清单与监控都读这个口径。
+    """
+    global _index, _refs
+    with _lock:
+        try:
+            _load_from_disk()
+        except Exception:  # noqa: BLE001 — 状态接口不该因索引异常而失败
+            logger.exception("[VECTOR] 读取索引状态时异常")
+
+        total = _index.ntotal if _index is not None else None
+        dim = _index.d if _index is not None else None
+        refs_n = len(_refs)
+        problems = _index_problems(total, refs_n)
+        expected = settings.kb_vector_expected_count
+
+        return {
+            "status": "ok" if not problems else "degraded",
+            # False = 检索会降级 name_fuzzy（功能可用、匹配质量下降）
+            "searchable": bool(total),
+            "searchMode": "vector" if total else "name_fuzzy",
+            "count": total,
+            "expectedCount": expected,
+            "dim": dim,
+            "refs": refs_n,
+            "indexDir": str(VECTOR_INDEX_DIR),
+            "indexDirSource": _index_source(),
+            "indexFile": str(_INDEX_FILE),
+            "refsFile": str(_REFS_FILE),
+            "indexFileExists": _INDEX_FILE.exists(),
+            "refsFileExists": _REFS_FILE.exists(),
+            "embedMode": settings.kb_embed_mode,
+            "problems": problems,
         }
