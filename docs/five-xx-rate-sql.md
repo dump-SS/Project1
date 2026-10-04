@@ -66,7 +66,7 @@ SELECT
             CASE WHEN event_type = 'http_request_total' THEN
               CASE
                 WHEN payload_json IS NULL              THEN 0
-                WHEN json_valid(payload_json)          THEN COALESCE((payload_json::jsonb ->> 'count')::int, 0)
+                WHEN payload_json IS JSON               THEN COALESCE((payload_json::jsonb ->> 'count')::int, 0)
                 ELSE 0
               END
             ELSE 0 END), 0), 3)
@@ -78,8 +78,9 @@ WHERE category = 'ai_quality'
 ```
 
 > **为什么必须带守卫**：`payload_json::jsonb` 遇到非法 JSON 会**直接抛错中断整个查询**（不是返回 NULL，是整条查询失败）。
-> `json_valid()` 必须在 `::jsonb` **之前**判断——`CASE WHEN` 是短路的，只有校验通过才执行 cast。
-> ⚠️ 若 Neon 上的 PG 版本 **< 16**，`json_valid()` 不存在（见下方「兼容 PG < 16」）。
+> `IS JSON` 必须在 `::jsonb` **之前**判断——`CASE WHEN` 是短路的，只有校验通过才执行 cast。
+> `IS JSON` 是 **SQL/JSON 标准谓词、PG 16 起可用**（实测 Neon 为 PG 18.6，直接可用）。
+> ⚠️ 它**不是** `json_valid()`——后者是 MySQL/SQLite 的函数，PG 从来没有过（见文末修正记录）。
 
 ### 分子：5xx 按天拆分（含匿名占比）
 
@@ -94,7 +95,7 @@ GROUP BY day
 ORDER BY day;
 ```
 
-### 兼容 PG < 16（`json_valid()` 不存在时）
+### 若将来要支持 PG 16 以下（`IS JSON` 不存在时）
 
 先建一次守卫函数，之后写法完全相同：
 
@@ -107,25 +108,66 @@ EXCEPTION WHEN others THEN RETURN false;
 END $$;
 ```
 
-然后把上面主查询里的 `json_valid(payload_json)` 换成 `is_json(payload_json)`。
+然后把主查询里的 `payload_json IS JSON` 换成 `is_json(payload_json)`。
 
 > ⚠️ **性能提醒**：pl/pgSQL 异常捕获比原生函数慢，**只在脏数据确实存在时才需要**。
 > 正常情况下所有 `http_request_total` 行都由 `track_event` 写入、必为合法 JSON，
 > 裸 cast 就够（快得多）。**守卫是为"有人手工插了脏数据"兜底**，不是常态路径。
 
-### ⚠️ Neon 验证时必须覆盖的三个点
+### ⚠️ Neon 验证时必须覆盖的三个点（2026-10-04 已实测通过）
 
-1. **上面那条带守卫的 SQL 能跑通**——先造一条 `payload_json` 为 NULL 的行、再造一条非法 JSON（如 `not-json`）的行，确认**查询仍返回结果而不是报错**。这是本条验证的核心。
-2. **确认 Neon 的 PG 版本**：≥16 可直接用 `json_valid()`；<16 需先建 `is_json()` 函数（见上）。用 `SELECT version();` 确认。
-3. **`round(numeric, 3)` 合法**——`100.0` 是 numeric、`numeric / bigint → numeric`，两参 round 成立。⚠️ 若算出 `double precision`，PG 会直接报 `function round(double precision, integer) does not exist`。
+**实测结论**（dev-4 在 Neon PG 18.6 上跑的）：
+- ✅ 守卫生效：造 `payload_json` 为 NULL 与 `'not-json'` 两行脏数据后，主查询**返回 `rate_pct=25.000`、未报错**
+- ✅ **Neon 是 PG 18.6**（`server_version_num=180006`）
+- ✅ `round(numeric, 3)` 合法，实测返回三位小数，未出现 `round(double precision) does not exist`
+- ✅ 「`payload_json::jsonb` 遇非法 JSON 抛错中断整条查询」描述准确（实测复现 `invalid input syntax for type json`）
+- ✅ CASE 短路语义成立，守卫放在 cast 之前是对的
+- ✅ 分子查询验过：`err_5xx=5 / err_5xx_anonymous=2`，与造数意图一致
+- ✅ 清理到位：`analytics_events` 0→0、残留探针行 0、`kb_points` 3391、关系 3127、`kb_subjects` 9、`alembic_version` 未动
+
+**⚠️ 本条曾被我写错（2026-10-04 修正）**：本文早先写「PG 16+ 才有内置 `json_valid()`」——
+**这是事实错误。`json_valid()` 是 MySQL / SQLite 的函数，PostgreSQL 从来没有过，任何版本都没有。**
+dev-4 实测 `SELECT json_valid('not-json')` 直接报 `function json_valid(text) does not exist`，
+穷举非系统 schema 与 129 个 `json%` 内置函数均无此项。
+
+**正确的做法是上面主查询用的 `IS JSON`** —— SQL/JSON 标准谓词，**PG 16 起可用**（Neon 18.6 直接可用），
+无需自建函数，也就不存在「函数不在迁移里、新库没有」的问题。
+
+### 若将来要支持 PG 16 以下（当前 Neon 不需要）
+
+`IS JSON` 在 PG 16 以下不存在，才需要自建 `is_json()`：
+
+```sql
+CREATE OR REPLACE FUNCTION is_json(t text) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE AS $$
+BEGIN
+  RETURN (t::jsonb IS NOT NULL);
+EXCEPTION WHEN others THEN RETURN false;
+END $$;
+```
+
+> ⚠️ **自建函数必须走 Alembic 迁移，不能手建。**（dev-4 2026-10-04 指出）
+> 手建的话它是**不受迁移管理**的 schema 对象：从迁移链建出来的新库（新分支 / 新环境 / CI /
+> 灾备恢复）不会有它，那里跑 5xx 查询就 `function is_json does not exist`——
+> 而 5xx 率是 §2.2「连续 4 周 5xx ≤ 1%」的验收门，**读不出来就判不了**。
+> 也就是说手建会让这条验收门**只在「手工建过函数的那个库」上成立**。
+> 当前用 `IS JSON` 就没有这个问题；若将来真要自建，务必配一条迁移 + 一个「函数是否存在」的断言测试。
+>
+> ⚠️ 性能提醒：`IS JSON` 是原生谓词，比 pl/pgSQL 异常捕获快得多。
+> 即便如此，守卫仍是**为「有人手工插了脏数据」兜底**，不是常态路径——
+> 正常情况下所有 `http_request_total` 行都由 `track_event` 写入、必为合法 JSON。
 
 ---
 
-## ⚠️ 关于 SQLite 侧的 `json_valid`
+## 两库守卫机制不同，别混用
 
-实现侧已在 `http_error_tracking.py` 里对 SQLite 查询加了 `json_valid` 护栏。
-**但 `json_valid()` 是 SQLite 的函数，PG 没有同名函数**（PG 16+ 才有内置版本，名字恰好相同）。
-两侧机制不同，验的时候别混用。
+| 库 | 守卫写法 | 出处 |
+|---|---|---|
+| **SQLite** | `json_valid(payload_json)` | 实现侧 `http_error_tracking.py` 已内置（SQLite 的 JSON1 扩展提供该函数） |
+| **Postgres / Neon** | `payload_json IS JSON`（SQL/JSON 标准谓词，PG 16+） | 本文档主查询 |
+
+**`json_valid()` 是 SQLite / MySQL 的函数，PostgreSQL 从来没有过。** 实现侧的 SQLite 查询注释里
+也已写明这一点（"PG 无 json_valid，需用 CASE 判空"）——**是本文档早先写错，实现侧一直是对的。**
 
 ---
 

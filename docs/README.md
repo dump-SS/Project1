@@ -16,6 +16,8 @@
 | `refactor-module-contracts.md` | 板块契约（10 板块所有权 / 协议 / 文件独占表） | 四件套 ②，可当任务单发 |
 | `refactor-migration-checklist.md` | 迁移清单（现有页面/接口/表逐项处置） | 四件套 ③ |
 | `refactor-decision-mapping.md` | D1–D59 全量映射（零孤儿验收索引） | 四件套 ④ |
+| `refactor-dispatch-cards.md` | 十板块派发卡（边界 / 依赖 / 验收 / 禁止项） | 2026-10-04 补登记（dev-3 巡检发现漏登记）。⚠️ **卡内事实可能滞后于代码**——卡 E 曾误写「services 下没有 communityApi.ts」而实际早已存在，用前先回查代码 |
+| `pilot-crisis-review-template.md` | 危机响应评审模板 + 第 0 号实测记录 | 2026-10-04 补登记（dev-3 巡检发现漏登记）。红线「危机响应触发正确率 100%」的记录载体；召回缺口以 `xfail(strict)` 挂牌留痕 |
 | `refactor-implementation-notes.md` | 执行细节（计量/上传/治理/稳定 ID 等） | 与目标态配套 |
 | `landing-page-dev-spec.md` | **落地页开发实施文档**（技术基线 / 动效引入与实测回填 / 逐屏规格 / 素材与占位 / 降级矩阵 / 性能终版数字 / 验收走查） | 2026-09-25 新建、2026-09-27 实现完成并走查（1440×900 + 375×720）；**视觉与文案的真源是 `visual-language.md`，本文只写实现**。⚠️ 此行曾在本分支合并 main 时被冲突解决误删，2026-09-27 恢复 |
 | `pilot-metrics-and-admission.md` | **pilot 核心指标 + pilot→beta 准入标准（#53）v1.0**（阈值已锁定） | 2026-09-25 v0.1 定口径 → **2026-10-02 阈值全部拍板升 v1.0**（次周留存降观察项、样本两期 20→50、5xx 监控列为一期必做）。⚠️ **§5 一期前置 6 项未销项前，§2 验收门无法判定**；决策记录见 `pilot-threshold-proposal.md` |
