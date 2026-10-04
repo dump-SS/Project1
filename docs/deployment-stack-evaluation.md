@@ -17,7 +17,7 @@
 | Cloudflare（DNS + CDN + SSL） | ✅ 采用            | 免费、成熟                                     |
 | **Vercel（前端）**              | ✅ 采用            | Vite 静态产物，正是它的主场                          |
 | **Vercel（后端）**              | ❌ **不建议**       | FastAPI 在 Serverless 上会有 4 处**静默失效**，见 §2 |
-| **后端托管**                    | 🔄 **换成常驻容器平台** | Railway / Fly.io / Render 任一              |
+| **后端托管**                    | ✅ **Railway**（2026-10-04 定） | 常驻容器 + 可挂持久卷；Fly.io / Render 为备选 |
 | Neon（Postgres）              | ✅ 采用            | 免费层 + 数据库分支，pilot 阶段开 staging 分支很值        |
 | SQLAlchemy + Alembic        | ✅ 采用            | 已有；⚠️ 但"alembic 只留痕"的决策**必须反转**，见 §2-4    |
 | Pydantic                    | ✅ 已有            | —                                         |
@@ -46,9 +46,17 @@
 
 | 平台          | 特点                         | 适配度         |
 | ----------- | -------------------------- | ----------- |
-| **Railway** | 一个服务 + Postgres 插件即可跑；配置最少 | pilot 阶段最省事 |
-| **Fly.io**  | 全球边缘部署、常驻 VM；配置略多          | 需要地域优化时选它   |
-| **Render**  | 有免费层（会冷启动）；配置简单            | 预算极紧时可考虑    |
+| **Railway** | 一个服务 + Postgres 插件即可跑；配置最少 | ✅ **已选定（2026-10-04，Skyer 拍板）** |
+| **Fly.io**  | 全球边缘部署、常驻 VM；配置略多          | 备选，需要地域优化时再切           |
+| **Render**  | 有免费层（会冷启动）；配置简单            | 备选，预算极紧时可考虑    |
+
+> **选 Railway 的连带约束**（dev-4 2026-10-04 整理，Skyer 确认）：本项目当前有**两处进程内状态依赖单实例**——
+> ① `auth/rate_limit.py` 的限流计数（文件 docstring 自述「多实例部署需换 Redis」）；
+> ② 26.5MB FAISS 向量索引（进程内 `_index` / `_refs`）。
+> **多实例化会同时打破这两处**，pilot 阶段不值得为此付运维成本。
+> 因此 Railway 侧须确保**单实例 + 挂持久卷**（卷路径即 `KB_VECTOR_DIR` 的值），
+> 否则向量索引会在容器重启后读不到、检索静默降级为 `name_fuzzy`。
+> 校验手段已就位：`GET /health/vector-index`（运维诊断端点，不在契约内）+ `scripts/check_vector_index.py`（可挂 healthcheck，条目数 ≠ 3391 即 exit 1）。
 
 > ⚠️ 若选自带 Postgres 的平台，**Neon 仍可保留**（团队已决定一步到位）：用它做 staging 分支 / 数据分析副本，生产库也可直接用它。接 Neon 时注意连接池（`pool_pre_ping=True`）。
 
@@ -148,7 +156,7 @@ alembic stamp head             # 标记为最新版本
 | 应用在空库上启动 | ✅ 建表 + 接口响应正确 |
 
 > 验证局限：本次在 SQLite 上做。Postgres 方言差异（如 `BOOLEAN DEFAULT (1)` 这类
-> SQLite 习惯写法）仍需在 Neon 分支库上复验——但那要等 P0 平台选型定稿。
+> SQLite 习惯写法）仍需在 Neon 分支库上复验——**平台已于 2026-10-04 定为 Railway，此项不再被阻塞**。
 
 ---
 
@@ -177,7 +185,7 @@ alembic stamp head             # 标记为最新版本
 | 优先级    | 事项                                   | 说明                                                                            |
 | ------ | ------------------------------------ | ----------------------------------------------------------------------------- |
 | **P0** | 修复 `current_user` 越权                 | ✅ **已完成 2026-09-15**（见附 A）                                                          |
-| **P0** | 后端平台选型定稿                             | 卡着后面所有工作量估算                                                                   |
+| **P0** | ~~后端平台选型定稿~~ → **✅ 已定：Railway**（2026-10-04） | 已解除。**新增后续**：写 `railway.json` / `Procfile` 与部署 runbook（仓库目前无任何容器编排文件）；确认持久卷挂载路径并配为 `KB_VECTOR_DIR`；挂 `check_vector_index.py` 到 healthcheck |
 | **P1** | Alembic 空库验证 + 反转建表决策                | ✅ **已完成 2026-09-15**：原计划的 `upgrade head` 跑不通（基线越界建全表）→ 已 squash 为显式基线，空库 upgrade/downgrade 可反复，详见 §2-4 |
 | **P1** | CORS 白名单改造                           | ✅ **已完成 2026-09-15**：默认不挂中间件（同域），分域走 `CORS_ALLOW_ORIGINS` 白名单             |
 | **P1** | Cookie `Secure` / `SameSite` 按部署形态调整 | ✅ **已完成 2026-09-15**：`COOKIE_SAMESITE` / `COOKIE_SECURE` 可配，None 自动补 Secure  |
