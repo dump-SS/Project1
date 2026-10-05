@@ -326,6 +326,7 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 | 19 | **本机 CLI 也需要 `python3`** | 与第 18 条同源、方向相反：Railway CLI 评估 **Python 版 IaC** 时会调 `python3`，而 Windows 上 `python3` 默认是**微软商店占位符**（`WindowsApps\python3.exe`），报「Python was not found」。<br>处置：建隔离 venv（`%LOCALAPPDATA%\railway-iac`）装 `railway-sdk`，并在其 `Scripts\` 内**复制出 `python3.exe`**（必须同目录，`pyvenv.cfg` 才能解析；`.cmd` shim 无效，原生 exe 的 `CreateProcess` 不执行 `.cmd`），再把该目录 prepend 到 PATH。**不动系统 Python** |
 | 20 | **`npm install -g @railway/cli` 会卡 15 分钟后失败** | 其 postinstall 要从 GitHub releases 下 `railway.exe`，脚本自己打印 `aborted`。**不是网络问题**——该 URL 实测 HTTP 200、7,989,377 字节可达。<br>处置：手工下载 `railway-<ver>-x86_64-pc-windows-gnu.tar.gz`，把 `railway.exe` 放到 `%APPDATA%\npm\node_modules\@railway\cli\bin\` |
 | 21 | **创建带 GitHub source 的服务会立即触发一次构建** | `railway config apply` 新建 service 后，Railway 自动构建 `reason: "deploy"`。**实测无法用 IaC 单独「建服务但不构建」**——`apply` 要求先有 linked project，项目又只能 `railway init` 建，建完就带 source。<br>所以「只 plan 不部署」的边界，在「从零建项目」这一步**做不到**，需要事先知会 |
+| 22 | **`source=github(...)` 只设 source，**不**建部署触发器** | 实测：IaC 里写了 `source=github(REPO, branch="main")`，构建也确实从该仓库 clone（部署元数据带 `repo` + `commitHash`），但服务的 `repoTriggers` 为**空**，于是 **push 不会触发任何构建**。<br>触发器（git push → 部署）是**独立于 source 的对象**，不由 IaC 这次创建。<br>后果：**当前 push 到 main 不会自动部署**，`ee9ab8e` 推送后没有任何新构建。首次那两个 FAILED 构建都是 apply 自己触发的，不是仓库触发。<br>**取舍**：刻意**不**补建触发器 —— 一旦开启，任何 agent 的一次 push 都会触发后端构建+部署；而服务在 `KB_VECTOR_URL` 等变量补齐前必然构建失败，等于每次 push 都留一个红构建。**是否开自动部署是部署治理决策，留给 Skyer**；在此之前用 Dashboard 手动 Redeploy |
 
 ---
 
