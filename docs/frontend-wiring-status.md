@@ -33,7 +33,6 @@
 | `/community` | — | — | 路由级重定向 → `/community/upload` | — | — |
 
 路由级口径：**19 页 + 2 路由级重定向**（/study-plan、/community，见 App.jsx L88/L103）；另有**组件级重定向** 1 处（/guardian-auth 页面内 Navigate，App.jsx:99 是真实路由）——两者不要混计。
-| `/guardian-auth` 之外的第 3 个重定向 | — | — | `/settings?tab=privacy`（guardian-auth 归位，D41） | — | — |
 
 RequireAuth 包裹 11 页（personal-data/goals/settings/summary-review/recommendations/profile-setup/guardian-auth/knowledge/error-book/chat/community/upload+compare）；未登录访问弹回 `/login` 并记住原路径（401 链路已闭环）。
 
