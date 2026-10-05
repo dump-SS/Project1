@@ -57,16 +57,20 @@ def aggregate_all(db) -> dict:
     # 全量维度组合（metric × stage），含 pool 为空的组合（需删除旧行）
     for stage in ("junior", "senior"):
         for metric in ("hours", "focus", "fatigue", "completion"):
-            values = [
-                row.value
-                for row in db.execute(
+            # ⚠️ `select(单列).scalars()` 返回的是**标量本身**（float），不是 Row。
+            # 曾写成 `[row.value for row in ...scalars().all()]` → pool 一旦达到 k
+            # 就 AttributeError: 'float' object has no attribute 'value'，聚合永远写不进去。
+            # 该缺陷此前无人发现有三层巧合：SQLite 不报错、单测只喂纯函数、
+            # 集成测试的池子从没到过 k。护栏见 tests/test_community_jobs_db.py。
+            values = list(
+                db.execute(
                     select(CommunityFeature.value).where(
                         CommunityFeature.period == period,
                         CommunityFeature.stage == stage,
                         CommunityFeature.metric == metric,
                     )
                 ).scalars().all()
-            ]
+            )
             existing = db.execute(
                 select(CommunityAggregate).where(
                     CommunityAggregate.period == period,
