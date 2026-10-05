@@ -607,6 +607,7 @@ paths:
                 aiWeightTuningEnabled: true
                 sendTextToAI: false
                 knowledgeAiEgressEnabled: false
+                userContentEmbeddingApiEnabled: false
                 experienceImprovementEnabled: false
                 updatedAt: '2026-08-16T09:12:00+08:00'
         '500':
@@ -645,7 +646,25 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
-          $ref: '#/components/responses/GuardianAuthorizationExpired'
+          description: >-
+            监护人授权未生效（D41）。仅对 userContentEmbeddingApiEnabled=true 生效：
+            未授权/待确认 → GUARDIAN_AUTHORIZATION_REQUIRED；已失效 → GUARDIAN_AUTHORIZATION_EXPIRED。
+            其余字段与一切撤回（置 false）均不受授权状态限制。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                required:
+                  value:
+                    error:
+                      code: GUARDIAN_AUTHORIZATION_REQUIRED
+                      message: 开启用户内容向量检索需要先完成监护人授权，请前往「设置 → 授权与隐私」
+                expired:
+                  value:
+                    error:
+                      code: GUARDIAN_AUTHORIZATION_EXPIRED
+                      message: 监护人授权已过期，请重新确认后继续使用
 
   /me/guardian-authorization:
     post:
@@ -3801,7 +3820,7 @@ components:
     Settings:
       type: object
       description: 用户设置。权重数值（α、β 及各子权重）不通过任何用户侧接口暴露（PRD 5.2）
-      required: [aiWeightTuningEnabled, sendTextToAI, knowledgeAiEgressEnabled, experienceImprovementEnabled, updatedAt]
+      required: [aiWeightTuningEnabled, sendTextToAI, knowledgeAiEgressEnabled, userContentEmbeddingApiEnabled, experienceImprovementEnabled, updatedAt]
       properties:
         aiWeightTuningEnabled:
           type: boolean
@@ -3812,6 +3831,14 @@ components:
         knowledgeAiEgressEnabled:
           type: boolean
           description: 是否允许知识复盘 AI 出域（PRD 12.6），默认 false；关闭时知识复盘走本地规则模板
+        userContentEmbeddingApiEnabled:
+          type: boolean
+          description: >-
+            是否允许「用户内容」（错题原文 / 作答 / 学习记录）的 embedding 走第三方 API（PRD 12.6）。
+            **默认 false（opt-in）**：关闭时用户内容恒定走本地模型；本地模型不可用则降级 name_fuzzy、
+            不造数（D34），绝不自动改走 API。开启时前端须弹窗告知并二次确认。
+            未满 14 周岁且监护人授权未生效的账号禁止开启（403 GUARDIAN_AUTHORIZATION_REQUIRED）。
+            撤回（置 false）不受授权状态限制。
         experienceImprovementEnabled:
           type: boolean
           description: >-
@@ -3835,6 +3862,13 @@ components:
         knowledgeAiEgressEnabled:
           type: boolean
           description: 默认 false；开启后知识复盘可用云端 LLM（经 EgressGuard 白名单）
+        userContentEmbeddingApiEnabled:
+          type: boolean
+          description: >-
+            默认 false（opt-in）。开启后用户内容（错题原文 / 作答 / 学习记录）的 embedding 可走第三方 API
+            （经 EgressGuard 校验）；关闭时恒定本地模型，本地不可用则降级 name_fuzzy、不造数（D34）。
+            未满 14 周岁且监护人授权未生效时，置 true 被 403 GUARDIAN_AUTHORIZATION_REQUIRED 拦截。
+            撤回（置 false）是用户权利，不受授权状态限制。
         experienceImprovementEnabled:
           type: boolean
           description: 默认 false（opt-in）；「将个人数据用于提升体验」（#29b），关闭时不进入产品改进用途
