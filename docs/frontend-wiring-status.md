@@ -19,18 +19,20 @@
 | `/study-timer` | 游客 | StudyTimer | **timer（6 网络函数+2 纯函数）**、plans、learningRecord、feedback | 真接口（GuestTimer 子组件纯本地=游客态设计） | 游客态用户主动进入，显式 |
 | `/personal-data` | 需登录 | PersonalData | calendar、checkIn、duration、feedback、focus、goals、learningRecord、mastery、stateBreakdown、subjectDistribution、summaries（12 个，经 9 张卡） | **降级链**（usePanelData：api→cache→placeholder） | ✅ 合规（SectionCard「占位数据/缓存数据」徽标+Tooltip） |
 | `/goals` | 需登录 | Goals | goals、exams（仅 listExams）、knowledgeV2、http | 真接口 | — |
-| `/settings` | 需登录 | SettingsPage | settings、user、usage、guardian、feedback、communityApi、http | 真接口 | —（**进行中**，见 §4） |
+| `/settings` | 需登录 | SettingsPage | settings、user、usage、guardian、feedback、communityApi、http | 真接口（数据流未变：GET/PATCH /me/settings，组件内无 fetch） | **改后状态已更新**（2026-10-05 dev-1：SWITCH_ITEMS +`userContentEmbeddingApiEnabled`(needsConsent)、新组件 UserContentEmbeddingConsent(antd Modal)、5 个 token-only class；三处重复 setValues 收成 toSettingsValues；**types/api.ts 的 Settings/SettingsUpdate 尚无该字段**——共享文件，已报 lead-2 派补） |
 | `/summary-review` | 需登录 | SummaryReview | summary、knowledgeSummary | 真接口 | — |
 | `/recommendations` | 需登录 | Recommendations | recommendations（全套+2s 轮询） | 真接口 | — |
 | `/profile-setup` | 需登录 | ProfileSetup | user | 真接口 | — |
-| `/guardian-auth` | 需登录 | GuardianAuth | **零** | 重定向页 → `/settings?tab=privacy`（本体归 Settings 授权与隐私；保留路由兼容旧链接） | 不适用 |
+| `/guardian-auth` | 需登录 | GuardianAuth | **零** | **真实路由**（非路由级重定向）；页面组件内部 `Navigate` → `/settings?tab=privacy`（index.tsx:16，保留路由兼容旧链接）；本体归 Settings 授权与隐私 | 不适用 |
 | `/knowledge` | 需登录 | Knowledge | knowledgeV2、mastery | 真接口（检索有降级，见 §4-2） | 见 §4-2 |
 | `/error-book` | 需登录 | ErrorBook | errorBook、knowledge | 真接口 | — |
 | `/chat` | 需登录 | Chat | **零** | **纯本地 mock**（setTimeout+关键词匹配+mockData.ts；文件头自述「纯前端演示，无后端」；B 板块未开工） | 文件头有自述；UI 可见演示徽标未逐项核实 |
 | `/community/upload` | 需登录 | Community/Upload | communityApi、http | 真接口 | — |
 | `/community/compare` | 需登录 | Community/Compare | communityApi、user、http | 真接口 | — |
-| `/study-plan` | — | — | 重定向 → `/study-guide` | — | — |
-| `/community` | — | — | 重定向 → `/community/upload` | — | — |
+| `/study-plan` | — | — | 路由级重定向 → `/study-guide` | — | — |
+| `/community` | — | — | 路由级重定向 → `/community/upload` | — | — |
+
+路由级口径：**19 页 + 2 路由级重定向**（/study-plan、/community，见 App.jsx L88/L103）；另有**组件级重定向** 1 处（/guardian-auth 页面内 Navigate，App.jsx:99 是真实路由）——两者不要混计。
 | `/guardian-auth` 之外的第 3 个重定向 | — | — | `/settings?tab=privacy`（guardian-auth 归位，D41） | — | — |
 
 RequireAuth 包裹 11 页（personal-data/goals/settings/summary-review/recommendations/profile-setup/guardian-auth/knowledge/error-book/chat/community/upload+compare）；未登录访问弹回 `/login` 并记住原路径（401 链路已闭环）。
@@ -57,7 +59,8 @@ RequireAuth 包裹 11 页（personal-data/goals/settings/summary-review/recommen
 
 1. **部署形态**：前后端分离——前端 Vercel（epochx.net）、后端 Railway（api.epochx.net）。「同域单服务」不再是目标态。
 2. **embedding 本地模式现状**：`pyproject.toml` 无 sentence-transformers / torch（仅 faiss-cpu）→ `embedding_service` local 模式必然 ImportError → 兜底返回 None → 降级 `name_fuzzy`。**本地与 Railway 容器当前都无本地向量能力**——凡涉及检索/向量的页面（/knowledge 等）按此口径记。
-3. **Settings 进行中**：lead-2 已派 dev-1 在 Settings 增「用户内容 embedding API 出域」开关（`userContentEmbeddingApiEnabled`，含弹窗二次确认、未成年未授权禁用态）。本文 Settings 行标「进行中」：当前快照（仅权重与用量两类、无出域开关）+ 待改项并记，dev-1 交回后补「改后状态」。
+3. **Settings 用户内容 embedding 开关已落地**（2026-10-05 dev-1 交回，只改 pages/Settings 两个文件）：SWITCH_ITEMS +`userContentEmbeddingApiEnabled`（needsConsent）、新组件 UserContentEmbeddingConsent（antd Modal）、5 个 token-only CSS class、三处重复 setValues 收成 toSettingsValues helper；数据流未变（GET/PATCH `/me/settings`）。**残留**：`types/api.ts` 的 Settings/SettingsUpdate 尚无该字段（共享文件，已报 lead-2 派补）。
+4. **已知契约-代码漂移（dev-1 核报 2026-10-05，非其引入，待 X0）**：① `Error.code` 在契约里是自由字符串无枚举，权威错误码清单在 `docs/archive/api-design-unified.md`（归档，非契约）；② 共享 response `GuardianAuthorizationRequired` 契约零引用（/me/settings 的 403 是内联重写）；③ `User.subjects` 后端 max_length=9 而契约无 maxItems、UserProfilePut/Patch 为 maxItems:10；④ `User.birth_year` 后端缺契约的 ge=1900/le=2100。
 
 ## 四、更正记录（本清单前身报告的误判，留痕防再犯）
 
@@ -72,8 +75,12 @@ RequireAuth 包裹 11 页（personal-data/goals/settings/summary-review/recommen
 1. **pilot 放号 + 前端埋点接线（§5 第 2 项）完成后**——复跑库侧取值与 postAnalyticsEvent 接线状态（本清单 B 类最大项）
 2. **B 板块 `routes/chat.py` 落地后**——/chat 从纯本地 mock 转真接口，整行重写
 3. **C 板块后端 /timer-sessions 之外的新端点落地后**——对应 services 接线状态更新
-4. **Settings 开关（dev-1）交回后**——补「改后状态」
+4. **Settings 开关（dev-1）交回后**——本版已补「改后状态」；`types/api.ts` 字段补齐（lead-2 派）后再更新一次
 5. 新页面路由注册后——补行
+
+## 六、§5 第 4 项销项口径（2026-10-05 lead-2 定）
+
+**「四页接真接口 + /timer-sessions 前后端均已实现且前端全量消费，无剩余缺口；『受限 Chat 侧栏』随 B 板块一并排期」**——勿让后来人以为受限 Chat 也已做了。
 
 ## 扫描三件套样例（本次主扫描）
 
