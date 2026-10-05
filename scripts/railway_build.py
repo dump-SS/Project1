@@ -47,6 +47,8 @@ import subprocess
 import sys
 import tomllib
 import urllib.error
+import shutil
+import subprocess
 import urllib.request
 from pathlib import Path
 
@@ -82,6 +84,56 @@ def run(cmd: list[str], cwd: Path, label: str) -> None:
         die(f"{label} 失败（exit {proc.returncode}）", f"工作目录 {cwd}")
 
 
+def _probe(cmd: list[str]) -> tuple[bool, str]:
+    """跑一条命令只问「能不能成」，不打印它的输出。"""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+    out = (p.stdout or p.stderr or "").strip()
+    return p.returncode == 0, out.splitlines()[0] if out else f"exit {p.returncode}"
+
+
+def _toolchain_report() -> str:
+    """失败时把「到底有什么」打出来，避免下一轮又靠猜。"""
+    lines = [f"sys.executable = {sys.executable}", f"python -V = {sys.version.split()[0]}"]
+    for name in ("pip", "pip3", "uv"):
+        lines.append(f"which {name} = {shutil.which(name) or '(不存在)'}")
+    for mod in ("pip", "ensurepip"):
+        ok, detail = _probe([sys.executable, "-m", mod, "--version"])
+        lines.append(f"python3 -m {mod} --version -> {'OK' if ok else 'FAIL'} ({detail})")
+    return "\n".join(lines)
+
+
+def _ensure_installer() -> list[str]:
+    """确保当前解释器有可用的包安装器，返回「装这些包」的完整命令前缀。
+
+    实测（2026-10-06）：Railpack 构建镜像里的 /usr/bin/python3 **没有 pip**，
+    报 `/usr/bin/python3: No module named pip`。
+    成因不是镜像残废，而是**仓库根没有 requirements.txt / pyproject.toml**，
+    Railpack 于是整段跳过依赖安装，镜像里的系统 python 从未被 pip 初始化过。
+    本机 Windows 的 python 自带 pip，所以这个坑在本地永远测不出来。
+
+    按可用性降级：pip → ensurepip 自举 → uv（mise 系镜像一般自带 uv）。
+    """
+    if _probe([sys.executable, "-m", "pip", "--version"])[0]:
+        return [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+
+    log("当前解释器没有 pip，尝试 ensurepip 自举")
+    ok, detail = _probe([sys.executable, "-m", "ensurepip", "--upgrade"])
+    log(f"  ensurepip -> {'OK' if ok else 'FAIL'} ({detail})")
+    if ok and _probe([sys.executable, "-m", "pip", "--version"])[0]:
+        log("  ensurepip 自举成功，改用 pip")
+        return [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+
+    uv = shutil.which("uv")
+    if uv and _probe([uv, "--version"])[0]:
+        log(f"改用 uv 安装（{uv}）")
+        return [uv, "pip", "install", "--system", "--no-cache-dir"]
+
+    die("镜像里既没有可用的 pip，也没有 uv", _toolchain_report())
+
+
 def step_install_python_deps() -> None:
     """从 backend/pyproject.toml 解析精确 pin 并安装。
 
@@ -99,7 +151,7 @@ def step_install_python_deps() -> None:
         die(f"{pyproject} 里没有 project.dependencies", "依赖清单被清空了？")
 
     log(f"从 pyproject 解析到 {len(deps)} 个依赖（含 extras 的原样传递）")
-    run([sys.executable, "-m", "pip", "install", "--no-cache-dir", *deps], REPO_ROOT, "装 Python 依赖")
+    run(_ensure_installer() + deps, REPO_ROOT, "装 Python 依赖")
 
 
 def step_build_frontend() -> None:

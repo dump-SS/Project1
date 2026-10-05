@@ -136,6 +136,20 @@ Redis 留二期（brief 明确不引入）。
 另注：Railway 后台的 replica 数量设置**会覆盖** `.railway/railway.py` 里的 `replicas`，
 两处都要是 1。
 
+### 决策状态（lead-2 2026-10-05 定稿）
+
+| 项 | 状态 |
+|---|---|
+| 索引送达方案 | ✅ **A + Cloudflare R2**（私有读 + 预置 URL） |
+| `preDeploy` 写生产库 | ✅ **Skyer 明确认可**（原话「可以」），保留不动 |
+| 前后端拓扑 | ✅ **分离**：前端 `epochx.net` / 后端 `api.epochx.net` → `BUILD_FRONTEND=0` |
+| 项目名 / 域名 / 证书 | ⏳ 取决于 `railway config plan` 结果，改配置即可；plan 不动也能继续 |
+| 用户数据 / embedding 边界 | 由 dev-2（数据/合规）与 dev-1（前端/合规）确认；本服务**不新增** `EMBED_*` 密钥调用 |
+
+> **`KB_VECTOR_URL` 需要一个 R2 上的预置 URL。** R2 是私有读，所以这个 URL 要么带签名、
+> 要么由 Cloudflare 侧配好可读路径。**若用签名 URL，过期会让后续每次构建都失败**——
+> 这是好事（可见），但要提前决定续签方式，别等构建红了才发现。
+
 ---
 
 ## 5. 环境变量清单（19 个）
@@ -160,30 +174,71 @@ Redis 留二期（brief 明确不引入）。
 
 | 变量 | 值 | 说明 |
 |---|---|---|
-| `BUILD_FRONTEND` | `1` | `1` = 本服务构建并托管 SPA（**同域，免 CORS**）；`0` = 前端由 Vercel 等单独部署，此时 `main.py` 对 `/` 与 SPA 路由返回 `FRONTEND_NOT_DEPLOYED`（预期行为，不是故障） |
+| `BUILD_FRONTEND` | **`0`** | **已定前后端分离**：前端 `epochx.net`（Vercel 等）、后端 `api.epochx.net`（Railway）。<br>此时 `main.py` 对 `/` 与 SPA 路由返回 `FRONTEND_NOT_DEPLOYED` —— **这是预期行为**，API 服务不负责托管 UI。<br>若将来改回同域单服务，把它设成 `1` 并清空 `CORS_ALLOW_ORIGINS` 即可。 |
 
-> ⚠️ brief 里这两条是矛盾的（①说「不构建前端」、②说「构建前端拷进 backend」）。
-> 选了**默认构建**（`BUILD_FRONTEND=1`）：§3 部署评估本身倾向**同域**
-> （「前端与后端走同一域名不同路径，规避 CORS 凭据与 Cookie SameSite 整类问题」），
-> 单服务同域是 pilot 期最少变量、最不容易第一次就撞坑的形态。
-> 若 Skyer 坚持前后端分离，改这一个变量即可。
-
-### 安全 / CORS
+### 安全 / CORS（前后端分域名部署的连带影响，**这一段最容易踩**）
 
 | 变量 | 值 |
 |---|---|
+| `CORS_ALLOW_ORIGINS` | `https://epochx.net` |
 | `COOKIE_SECURE` | `true` |
 | `COOKIE_SAMESITE` | `lax` |
 | `ALLOW_INSECURE_USER_HEADER` | **`false`**（true 会允许 `X-User-ID` 头任意冒充用户，只留给本地调试） |
-| `CORS_ALLOW_ORIGINS` | `preserve()` — 同域时留空即可；前后端分离时**必须**改成前端域名 |
 
-### 外部服务（全部 `preserve()`）
+**① `CORS_ALLOW_ORIGINS` 绝不能用 `*`。**
+`main.py:85-91` 用的是 `allow_credentials=True`，而**浏览器规范禁止
+`allow_origins=["*"] + allow_credentials=True`** —— 带凭据的跨域请求会被直接拒绝。
 
-`LLM_API_KEY`、`EMBED_API_KEY`、`EMBED_BASE_URL`、`EMBED_MODEL`、
-`SMTP_HOST`、`SMTP_USER`、`SMTP_PASS`；`SMTP_PROVIDER=real`（字面量）。
+> 这个坑**已经被踩过一次并修好了**，`main.py:80-82` 留着记录：
+> 「原来写的是 `allow_origins=["*"] + allow_credentials=True`……之所以一直没暴露，
+> 是因为 Vite dev server 把 `/api` 代理成了同源请求，CORS 从未真正触发；
+> **一旦前后端分域名部署，第一个请求就会挂**。」
+>
+> 本项目正是「前后端分域名部署」，所以这条直接适用。
 
-> ⚠️ **`KB_EMBED_MODE=off` 时 `EMBED_*` 不会被调用**，但仍建议配好——
-> 万一将来要重建索引或加错题向量化，缺key 会直接失败。
+**② `SameSite` 保持 `lax`，不要改成 `none`。**
+`epochx.net` 与 `api.epochx.net` 是**同站不同源** —— `SameSite` 比的是 eTLD+1（`epochx.net`），
+**不是 origin**。所以 `Lax` 的 cookie 在跨源 `fetch` 里**照样会带上**。
+改成 `none` 会无谓放宽 SameSite 覆盖面，换不来任何东西。
+
+**跨域真正依赖的是**：① 上面那行 CORS 白名单 + `allow_credentials=True`；
+② `COOKIE_SECURE=true`（`SameSite=None` 本来也强制要求 Secure，但我们不用 none）。
+
+### 外部服务
+
+`LLM_API_KEY`、`SMTP_HOST`、`SMTP_USER`、`SMTP_PASS` 用 `preserve()`；`SMTP_PROVIDER=real`（字面量）。
+
+#### `EMBED_*`：当前留空（**默认不出域**，但不是「永久不启用」）
+
+`EMBED_API_KEY` / `EMBED_BASE_URL` / `EMBED_MODEL` **当前留空**。
+
+**为什么当前留空**：默认不出域。这既有 Skyer 的决定，也因为历史上**出过配置泄漏导致用户内容出域的事故**
+（所以默认值必须保守）。`KB_EMBED_MODE=off` 时 `embedding_service._embed_api` 直接 `return None`
+（`embedding_service.py:98-100`），检索走**已有的本地 FAISS 索引**，不碰任何外部 embedding 接口。
+
+**⚠️ 但不要把它读成「永久不启用」—— 这是两道独立的闸**：
+
+| 闸 | 位置 | 语义 |
+|---|---|---|
+| `KB_EMBED_MODE` | **部署配置**（本文件 / Railway 变量） | 知识库内容是否走外部 embedding 向量化。**默认值** |
+| `userContentEmbeddingApiEnabled` | **用户级开关**（契约字段，`b7e3b5d`） | 用户**自行选择**「错题原文/作答/学习记录能否走第三方 API」，**默认关闭** |
+
+Skyer 2026-10-05 把闸门从「禁止配置」挪到了「用户同意」—— **默认关这条底线不变**，
+但**用户自己打开开关时，系统就需要 `EMBED_*` 这三个值**。
+
+> **口径更正记录**（两次，值得留着）：
+> ① runbook 早前写过「`EMBED_*` 建议配好」——那只是 dev-4 的建议、不是拍板。
+> ② 改成「占位 / 线上不启用」后**又纠过头了** —— 那等于把「默认关闭」说成「永远不启用」，
+> **替用户做了一个从没经过 Skyer 同意的决定**，比① 更糟。
+>
+> 记这一笔是因为：**「默认关闭」和「永久不启用」是两个不同的产品决定**，
+> 前者是默认值、后者是焊死开关。把建议写成「已建议配置」、或把默认值写成「永久」，
+> 都会在交接时被当成既成事实 —— 而这类错误从外表完全看不出来。
+
+**若将来要启用**（用户开关被打开，或需要重建知识库向量）：配置 `EMBED_*` 三项 +
+把 `KB_EMBED_MODE` 设为 `api`，并**重新验证 `scripts/check_vector_index.py`**；
+注意在索引已存在的容器里切到 `api` 会让 `add()` 向线上索引追加向量、**污染检索**，
+正确做法是重建索引而不是复用。
 
 ---
 
@@ -267,6 +322,10 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 | 15 | **冷启动时长** | 要加载 26.5MB FAISS；`healthcheckTimeout=300` 给的余量是否够，要实测 |
 | 16 | **`railway config plan` 的实际 diff** | 需已link 的账号；项目名不一致会plan 出重命名 |
 | 17 | **Neon 免费版限制在 Railway 上同样存在** | 只允许 1 个手动快照、无自动备份计划、PITR 仅 6h。换机器不会改变这一点 |
+| 18 | **Railpack 镜像只有 `python3`、没有 `python`** | ⚠️ **实测踩中**：首次真实构建 `sh: 1: python: not found` → `exit code: 127` → `Build Failed`。<br>原因：构建镜像 `railpack-builder:mise-2026.9.15` 只提供 `python3`；而**本机 Windows 恰好有 `python.exe`，所以本地永远测不出这个问题**。<br>处置：`buildCommand` 与 `startCommand` **全部改用 `python3`**；`startCommand` 进一步用 `python3 -m uvicorn` 而非裸 `uvicorn`，不依赖 console script 是否在 PATH |
+| 19 | **本机 CLI 也需要 `python3`** | 与第 18 条同源、方向相反：Railway CLI 评估 **Python 版 IaC** 时会调 `python3`，而 Windows 上 `python3` 默认是**微软商店占位符**（`WindowsApps\python3.exe`），报「Python was not found」。<br>处置：建隔离 venv（`%LOCALAPPDATA%\railway-iac`）装 `railway-sdk`，并在其 `Scripts\` 内**复制出 `python3.exe`**（必须同目录，`pyvenv.cfg` 才能解析；`.cmd` shim 无效，原生 exe 的 `CreateProcess` 不执行 `.cmd`），再把该目录 prepend 到 PATH。**不动系统 Python** |
+| 20 | **`npm install -g @railway/cli` 会卡 15 分钟后失败** | 其 postinstall 要从 GitHub releases 下 `railway.exe`，脚本自己打印 `aborted`。**不是网络问题**——该 URL 实测 HTTP 200、7,989,377 字节可达。<br>处置：手工下载 `railway-<ver>-x86_64-pc-windows-gnu.tar.gz`，把 `railway.exe` 放到 `%APPDATA%\npm\node_modules\@railway\cli\bin\` |
+| 21 | **创建带 GitHub source 的服务会立即触发一次构建** | `railway config apply` 新建 service 后，Railway 自动构建 `reason: "deploy"`。**实测无法用 IaC 单独「建服务但不构建」**——`apply` 要求先有 linked project，项目又只能 `railway init` 建，建完就带 source。<br>所以「只 plan 不部署」的边界，在「从零建项目」这一步**做不到**，需要事先知会 |
 
 ---
 
@@ -274,11 +333,12 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 
 | # | 事项 | 状态 |
 |---|---|---|
-| 1 | **`preDeploy` 跑 `alembic upgrade head`** |⚠️ **会写生产库**；失败会中止部署（这是有意的：宁可不部署，也不要带旧 schema 上线）。用户已同意放，但**需lead-1 / Skyer 拍板**。若不接受，改为写进 runbook 手动执行 |
-| 2 | 索引托管用哪家对象存储 | 待 Skyer（我不编造服务名） |
-| 3 | 项目名是否为 `epochx` | 待 Skyer；不一致时改 `.railway/railway.py` 的 `project("epochx", ...)` |
-| 4 | 前后端是否分离 | 默认同域单服务（`BUILD_FRONTEND=1`）；分离只改这一个变量 |
-| 5 | 本机 pg dump 备份是否也上 Railway 定期跑 | Neon 免费版无自动快照，这个缺口在换机器后**依然存在** |
+| 1 | **`preDeploy` 跑 `alembic upgrade head`** | ✅ **已获 Skyer 认可（2026-10-05，原话「可以」）**，按现实现保留。会写生产库，失败中止部署是有意的 |
+| 2 | 索引托管用哪家对象存储 | ✅ **已定 Cloudflare R2**（私有读 + 预置 URL）。**待办**：确认 R2 URL 的签名/续签方式，避免过期后每次构建都失败 |
+| 3 | 项目名 / 域名 / 证书 | ⏳ 跑 `railway config plan` 确认；改名或改配置即可，plan 不通过也能继续 |
+| 4 | 前后端拓扑 | ✅ **已定分离**：`epochx.net` + `api.epochx.net`（`BUILD_FRONTEND=0`）。**连带必须做**：CORS 白名单填 `https://epochx.net`（不能用 `*`，见 §5①） |
+| 5 | R2 桶的 CORS / 访问路径 | ⏳ 由 Skyer 配 R2 侧访问控制 |
+| 6 | 本机 pg_dump 备份是否也上 Railway 定期跑 | Neon 免费版无自动快照，这个缺口在换机器后**依然存在** |
 
 ---
 
