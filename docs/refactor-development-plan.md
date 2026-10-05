@@ -136,9 +136,24 @@ X1 前端壳与响应式、X2 QA 安全观测：全程横切，共享入口文�
 验收门：
 - [ ] /personal-data、/summary-review、/recommendations、/goals 按迁移清单处置，无 404
 - [ ] 收藏在原文过期后仍完整可读（快照）；虚化状态持久化
-- [ ] 社区页所有数值来自真接口；pool<k 时无数值；L4 标注三要素默认收起
+- [x] 社区页所有数值来自真接口；pool<k 时无数值；L4 标注三要素默认收起 —— **2026-10-05 达成**（PR #48 squash 合并 `9dbd448`）：`Compare.tsx`/`Upload.tsx` 接 `fetchCommunityConsent()` + `fetchCommunityAggregate(stage, metric)`；四类错误码分别处理未合并成统一空态；`pool<k` 响应体不含任何数值（实测断言）；假人 `community.ts`（149 行）+ `CommunityDemoBadge` 已下线，无双轨；`Upload.tsx` 的「填写+保存」表单同时移除（服务端抽取为唯一真源，不留第二个写入点）。**连带修复两个长期潜伏的后端 job 缺陷**（见下方「M4 连带修复」）
 - [ ] 设置页不再出现引擎调参 UI
 - [ ] 推荐卡冷却规则实测（3天/7天/周1）
+
+> **M4 连带修复：两个互相掩盖的 job 缺陷**（2026-10-05，PR #48）
+>
+> 两个都是「把 `.scalars()` 的结果当 Row 用」的同源错误，且**互相掩盖**：
+>
+> | 缺陷 | 真相 | 后果 |
+> |---|---|---|
+> | `jobs/community_aggregate.py` | `select(单列).scalars()` 返回**标量本身**（float），不是 Row；原写 `[row.value for row in ...]` 必抛 `AttributeError` | 聚合行永远写不进去，`GET /community/aggregate` 永远 503 |
+> | `jobs/community_extraction.py` | `for (uid,) in users:` 对着 `str` 列表解包 | 长度≠2 抛 `ValueError` 使 job 整体挂掉；**长度恰为 2 时静默拆成两个字符**（更隐蔽） |
+>
+> **⚠️ 触发门槛的实测修正**：PR 描述写「pool 达到 k=20 就崩」，实测更早——**只要该 metric×stage 组合有 ≥1 条特征数据就抛 AttributeError**；空表时列表推导式空转故不报错。**故验收应在「池子非空」时测，不是「等凑到 k」。**
+>
+> **为什么从 M2 活到今天**：`test_community_aggregate.py` 只喂纯 Python 列表给纯函数；`test_community_aggregate_api.py` 手工插入聚合行再读接口——**两边都不经过 `aggregate_all()` 的取数代码**；抽取侧注释写「真实抽取走 DB，由集成路径覆盖」，**而那条集成路径当时并不存在**。
+>
+> **新增护栏** `tests/test_community_jobs_db.py`（5 例，补上「真跑 job」这一层）+ 一条**静态规则**（禁止把 `.scalars()` 结果当 Row 用，一次挡住两个根因）。**tamper 已验证**：两处改回旧写法 → 5 条全红；还原 → 5 条全绿（2026-10-05 lead-1 独立复现）。
 
 ### M5 · 多模态与工具（F）
 
