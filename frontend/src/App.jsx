@@ -21,7 +21,6 @@ import Goals from './pages/Goals/index.jsx'
 import RecommendationsPage from './pages/Recommendations/index.tsx'
 import ProfileSetupPage from './pages/ProfileSetup/index.tsx'
 import GuardianAuthPage from './pages/GuardianAuth/index.tsx'
-import CommunityDemoBadge from './components/CommunityDemoBadge/index.jsx'
 import KnowledgePage from './pages/Knowledge/index.tsx'
 import ErrorBookPage from './pages/ErrorBook/index.tsx'
 import ChatPage from './pages/Chat/index.tsx'
@@ -104,15 +103,11 @@ export default function App() {
                 <Route path="/community" element={<Navigate to="/community/upload" replace />} />
                 <Route
                   path="/community/upload"
-                  element={
-                    <CommunityDemoBadge><CommunityUploadPage /></CommunityDemoBadge>
-                  }
+                  element={<CommunityUploadPage />}
                 />
                 <Route
                   path="/community/compare"
-                  element={
-                    <CommunityDemoBadge><CommunityComparePage /></CommunityDemoBadge>
-                  }
+                  element={<CommunityComparePage />}
                 />
               </Route>
             </Route>
