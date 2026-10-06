@@ -87,10 +87,16 @@ class Settings(BaseSettings):
     kb_vector_expected_count: int = 3391
 
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
-    smtp_host: str = "smtp.163.com"
+    # 2026-10-06 迁至 Resend（sky 拍板）：host=smtp.resend.com、user 为字面量 "resend"、
+    # password 填 Resend API key；端口 465 = SMTPS 隐式 TLS，与下方 SMTP_SSL 用法一致。
+    smtp_host: str = "smtp.resend.com"
     smtp_port: int = 465
     smtp_user: str = ""
     smtp_pass: str = ""
+    # 发件人地址。**必须与 smtp_user 分开**：Resend 的 SMTP 用户名是字面量 "resend"，
+    # 若沿用 `formataddr(("EpochX", smtp_user))` 会拼出无效地址 `EpochX <resend>` 被拒信。
+    # 需为已验证发信域（send.epochx.net）下的地址。
+    smtp_from: str = "no-reply@send.epochx.net"
     # 发送路由：real=真实 SMTP，mock=写到 logger（团队测试用，scripts/test-accounts/ 默认为 mock）
     smtp_provider: str = "real"
 

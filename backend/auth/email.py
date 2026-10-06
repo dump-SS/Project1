@@ -65,10 +65,13 @@ def _build_html(code_type: str, code: str) -> str:
 
 def _send_real(code_type: str, email: str, code: str) -> None:
     """真实 SMTP 发送。失败抛异常，调用方 catch 后记日志。"""
-    smtp_host = getattr(settings, "smtp_host", "smtp.163.com")
+    smtp_host = getattr(settings, "smtp_host", "smtp.resend.com")
     smtp_port = getattr(settings, "smtp_port", 465)
     smtp_user = getattr(settings, "smtp_user", "")
     smtp_pass = getattr(settings, "smtp_pass", "")
+    # 发件地址独立于 smtp_user：Resend 的 SMTP 用户名是字面量 "resend"，
+    # 不能拿它当 From（会拼出无效地址 `EpochX <resend>`，被服务商拒信）。
+    smtp_from = getattr(settings, "smtp_from", "") or smtp_user
 
     if not smtp_user or not smtp_pass:
         # 未配置 SMTP：记日志不发送（开发环境常见，验证码可通过日志/测试获取）
@@ -82,7 +85,7 @@ def _send_real(code_type: str, email: str, code: str) -> None:
     text = f"您的验证码是 {code}，5 分钟内有效。如非本人操作，请忽略本邮件。"
 
     msg = MIMEMultipart("alternative")
-    msg["From"] = formataddr(("EpochX", smtp_user))
+    msg["From"] = formataddr(("EpochX", smtp_from))
     msg["To"] = email
     msg["Subject"] = subject
     msg.attach(MIMEText(text, "plain", "utf-8"))
@@ -90,7 +93,8 @@ def _send_real(code_type: str, email: str, code: str) -> None:
 
     with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
         server.login(smtp_user, smtp_pass)
-        server.sendmail(smtp_user, [email], msg.as_string())
+        # envelope sender 用发件地址（不是 smtp_user）：Resend 校验 From 与发信域一致。
+        server.sendmail(smtp_from, [email], msg.as_string())
 
 
 def _send_mock(code_type: str, email: str, code: str) -> None:

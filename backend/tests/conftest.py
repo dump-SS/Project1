@@ -134,6 +134,12 @@ def _reset_db():
         cols = {c["name"] for c in insp.get_columns("settings")}
         if "experience_improvement_enabled" not in cols:
             Base.metadata.drop_all(bind=engine)
+    # 用户内容 embedding 出域开关（D41）：settings 新增 user_content_embedding_api_enabled。
+    # 老测试库缺列会让所有读 settings 的测试报 no such column，需重建。
+    if insp.has_table("settings"):
+        cols = {c["name"] for c in insp.get_columns("settings")}
+        if "user_content_embedding_api_enabled" not in cols:
+            Base.metadata.drop_all(bind=engine)
 
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)

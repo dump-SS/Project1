@@ -107,6 +107,7 @@ class Settings(BaseModel):
                 "aiWeightTuningEnabled": True,
                 "sendTextToAI": False,
                 "knowledgeAiEgressEnabled": False,
+                "userContentEmbeddingApiEnabled": False,
                 "experienceImprovementEnabled": False,
                 "updatedAt": "2026-08-16T09:12:00+08:00",
             }
@@ -117,6 +118,16 @@ class Settings(BaseModel):
     send_text_to_ai: bool = Field(..., alias="sendTextToAI", description="默认 false")
     knowledge_ai_egress_enabled: bool = Field(
         False, alias="knowledgeAiEgressEnabled", description="默认 false：知识复盘 AI 出域开关（PRD 12.6）"
+    )
+    user_content_embedding_api_enabled: bool = Field(
+        False,
+        alias="userContentEmbeddingApiEnabled",
+        description=(
+            "默认 false（opt-in）：用户内容（错题原文/作答/学习记录）embedding 是否允许走第三方 API"
+            "（PRD 12.6 / D41）。关闭时恒定走本地模型，本地不可用则降级 name_fuzzy、不造数（D34），"
+            "绝不自动改走 API。未满 14 周岁且监护人授权未生效的账号禁止开启（403）。"
+            "撤回（置 false）不受授权状态限制。"
+        ),
     )
     experience_improvement_enabled: bool = Field(
         False,
@@ -137,6 +148,11 @@ class SettingsUpdate(BaseModel):
     ai_weight_tuning_enabled: bool | None = Field(None, alias="aiWeightTuningEnabled")
     send_text_to_ai: bool | None = Field(None, alias="sendTextToAI")
     knowledge_ai_egress_enabled: bool | None = Field(None, alias="knowledgeAiEgressEnabled")
+    user_content_embedding_api_enabled: bool | None = Field(
+        None,
+        alias="userContentEmbeddingApiEnabled",
+        description="默认 false（opt-in）；开启后用户内容 embedding 可走第三方 API（PRD 12.6 / D41）",
+    )
     experience_improvement_enabled: bool | None = Field(
         None, alias="experienceImprovementEnabled", description="默认 false（opt-in，#29b）"
     )
@@ -147,11 +163,12 @@ class SettingsUpdate(BaseModel):
             self.ai_weight_tuning_enabled is None
             and self.send_text_to_ai is None
             and self.knowledge_ai_egress_enabled is None
+            and self.user_content_embedding_api_enabled is None
             and self.experience_improvement_enabled is None
         ):
             raise ValueError(
                 "至少传一项（aiWeightTuningEnabled / sendTextToAI / knowledgeAiEgressEnabled / "
-                "experienceImprovementEnabled）"
+                "userContentEmbeddingApiEnabled / experienceImprovementEnabled）"
             )
         return self
 

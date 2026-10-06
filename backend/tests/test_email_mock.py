@@ -80,3 +80,63 @@ def test_real_provider_does_not_call_mock(caplog, monkeypatch):
     assert any("未配置 SMTP_USER/SMTP_PASS" in r.getMessage() for r in caplog.records), (
         "凭据为空时应有「未配置」告警"
     )
+
+
+def test_smtp_defaults_point_to_resend():
+    """迁移后**代码默认值**必须是 Resend（防有人改回 163）。
+
+    注意：读 `Settings` 类的字段默认值，而不是 `settings` 实例——
+    实例会被本机 `.env`（可能仍是 163）覆盖，那样测的是环境不是代码。
+    """
+    from config import Settings
+
+    fields = Settings.model_fields
+    assert fields["smtp_host"].default == "smtp.resend.com"
+    assert fields["smtp_port"].default == 465
+    assert fields["smtp_from"].default == "no-reply@send.epochx.net"
+
+
+def test_send_real_uses_smtp_from_not_smtp_user(monkeypatch):
+    """🔴 From 头必须用 smtp_from，**不得**用 smtp_user。
+
+    原因：Resend 的 SMTP 用户名是字面量 "resend"，若沿用旧写法
+    `formataddr(("EpochX", smtp_user))` 会拼出无效地址 `EpochX <resend>` 被拒信。
+    本用例不发真邮件——把 SMTP_SSL 换成假的，只检查构造出的消息头。
+    """
+    sent: dict = {}
+
+    class _FakeSMTP:
+        def __init__(self, host, port):
+            sent["host"] = host
+            sent["port"] = port
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def login(self, user, pwd):
+            sent["login"] = (user, pwd)
+
+        def sendmail(self, frm, to, msg):
+            sent["envelope_from"] = frm
+            sent["msg"] = msg
+
+    monkeypatch.setattr("auth.email.smtplib.SMTP_SSL", _FakeSMTP)
+    monkeypatch.setattr(settings, "smtp_user", "resend")
+    monkeypatch.setattr(settings, "smtp_pass", "re_dummy")
+    monkeypatch.setattr(settings, "smtp_host", "smtp.resend.com")
+    monkeypatch.setattr(settings, "smtp_port", 465)
+    monkeypatch.setattr(settings, "smtp_from", "no-reply@send.epochx.net")
+
+    from auth.email import _send_real
+
+    _send_real("register", "to@epochx.dev", "654321")
+
+    assert sent["host"] == "smtp.resend.com" and sent["port"] == 465
+    assert sent["login"] == ("resend", "re_dummy")
+    assert "no-reply@send.epochx.net" in sent["msg"]
+    assert "EpochX <resend>" not in sent["msg"]  # 旧写法的产物绝不能出现
+    # envelope sender 也应是发件地址，不是 smtp_user
+    assert sent["envelope_from"] == "no-reply@send.epochx.net"

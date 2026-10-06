@@ -39,6 +39,7 @@ __all__ = [
     "embed_text",
     "embed_mode",
     "embed_mode_for",
+    "user_content_api_opt_in",
     "MODEL_NAME",
     "EMBED_DIM",
     "EMBED_SRC_KB",
@@ -54,14 +55,22 @@ def embed_mode() -> str:
     return getattr(settings, "kb_embed_mode", "off")
 
 
-def embed_mode_for(source: str) -> str:
+def embed_mode_for(source: str, *, user_api_opt_in: bool = False) -> str:
     """给定数据来源，实际生效的 embedding 模式。
 
-    用户内容**永远**是 local——不看 ``KB_EMBED_MODE``。配置成 api/off 时这里返回
-    ``local``，调用方据此判断「本条到底会不会走向量」，并把**实际使用的模式**写进
+    **用户内容默认永远是 local** —— 不看 ``KB_EMBED_MODE``。只有该用户在设置里显式开启
+    ``user_content_embedding_api_enabled``（PRD 12.6 / D41）时，调用方才传 ``user_api_opt_in=True``；
+    此时用户内容才**跟随全局配置**（``KB_EMBED_MODE=api`` 时才会真的走 API，是 local 就还是 local）。
+
+    Args:
+        source: 数据来源（``EMBED_SRC_KB`` / ``EMBED_SRC_USER``）。
+        user_api_opt_in: 该用户是否已显式同意「用户内容 embedding 出域」。**默认 False = 默认拒绝**；
+            它**不是配置项** —— ``KB_EMBED_MODE`` 放不开它。
+
+    调用方据此判断「本条到底会不会走向量」，并把**实际使用的模式**写进
     ``kb_embeddings.model``（别把全局配置值当成实际模式记，那会记错）。
     """
-    if source == EMBED_SRC_USER:
+    if source == EMBED_SRC_USER and not user_api_opt_in:
         return "local"
     return embed_mode()
 
@@ -123,24 +132,54 @@ def _embed_api(text: str) -> list[float] | None:
     return None
 
 
-def embed_text(text: str, *, source: str = EMBED_SRC_KB) -> list[float] | None:
+def user_content_api_opt_in(db, user_id: str) -> bool:
+    """该用户是否已显式同意「用户内容 embedding 出域」（PRD 12.6 / D41）。
+
+    **默认 False = 默认拒绝**：无 settings 行、或字段为 false，一律返回 False。
+    这是本模块**唯一**的 DB 读取，且是只读的授权查询 —— 「能不能出域」的判定需要它，
+    所以没把它塞进调用方（两处调用点各自读一次会让默认语义分叉）。
+
+    Args:
+        db: SQLAlchemy Session。
+        user_id: 该条用户内容所属用户。
+    """
+    from models.user import Settings as SettingsModel
+
+    row = db.get(SettingsModel, user_id)
+    return bool(row is not None and row.user_content_embedding_api_enabled)
+
+
+def embed_text(
+    text: str, *, source: str = EMBED_SRC_KB, user_api_opt_in: bool = False
+) -> list[float] | None:
     """文本 → 向量。失败/模式 off 返回 None（调用方降级）。
 
     Args:
         text: 待向量化文本。
         source: 数据来源。``EMBED_SRC_KB``=知识库内容（允许出域）；
-            ``EMBED_SRC_USER``=用户内容（错题原文/作答/学习记录），
-            **强制本地模型、永不出域**。
+            ``EMBED_SRC_USER``=用户内容（错题原文/作答/学习记录），**默认强制本地模型、永不出域**。
             传用户内容时必须显式传 ``EMBED_SRC_USER``——缺省会按知识库处理并可能出域。
+        user_api_opt_in: **仅对用户内容有意义**。该用户是否已在自己的设置里显式开启
+            ``user_content_embedding_api_enabled``（PRD 12.6 / D41）。**默认 False = 默认拒绝**；
+            只有调用方（持有该用户设置的路由）显式传 True，用户内容才可能跟随 ``KB_EMBED_MODE=api`` 出域。
+            它不是配置项，``KB_EMBED_MODE`` 放不开它。
 
     用户内容走 local 而 local 不可用时返回 None——**宁缺毋滥、不造数**（D34）。
+    ⚠️ 这里**不存在任何「本地失败就自动改走 api」的降级路径**：模式在进入本函数时已定死，
+    失败一律返回 None 交给调用方降级 name_fuzzy。
     """
-    mode = embed_mode_for(source)
+    mode = embed_mode_for(source, user_api_opt_in=user_api_opt_in)
 
-    if source == EMBED_SRC_USER and embed_mode() == "api" and "user" not in _warned_user_scope:
+    if (
+        source == EMBED_SRC_USER
+        and not user_api_opt_in
+        and embed_mode() == "api"
+        and "user" not in _warned_user_scope
+    ):
         _warned_user_scope.add("user")
         logger.warning(
             "[EMBED] 用户内容（错题/学习记录）不随 KB_EMBED_MODE 出域，本条强制走本地模型"
+            "（该用户未 opt-in）"
         )
 
     if mode == "off":
@@ -150,10 +189,10 @@ def embed_text(text: str, *, source: str = EMBED_SRC_KB) -> list[float] | None:
 
     if mode == "api":
         try:
-            assert_embed_source_offdomain_allowed(source)
+            assert_embed_source_offdomain_allowed(source, user_api_opt_in=user_api_opt_in)
         except EgressViolation:
-            # 兜底：source 与 mode 组合非法（例如有人给用户内容硬塞了 api 模式）时
-            # 绝不放行，退回 local；local 再失败就返回 None。
+            # 兜底：source 与 mode 组合非法（例如有人给用户内容硬塞了 api 模式、
+            # 或该用户并没有 opt-in）时绝不放行，退回 local；local 再失败就返回 None。
             logger.error("[EMBED] 出域判定未通过，退回本地模型")
             mode = "local"
 

@@ -70,6 +70,12 @@ class Settings(Base):
     ai_weight_tuning_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     send_text_to_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     knowledge_ai_egress_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # PRD 12.6 / D41：用户内容（错题原文 / 作答 / 学习记录）的 embedding 是否允许走第三方 API。
+    # 默认 false（opt-in）。关闭时恒定走本地模型；本地模型不可用则降级 name_fuzzy、不造数（D34），
+    # 绝不自动改走 API。未满 14 周岁且监护人授权未生效的账号禁止开启（路由层守门）。
+    user_content_embedding_api_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     # 板块三：匿名聚合授权（默认关闭 + 每周自动参与选项，§4.7 决议）
     community_consent_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     community_auto_participate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

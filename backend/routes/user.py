@@ -65,6 +65,45 @@ def _onboarding_completed(db: Session, user_id: str, birth_year: int | None) -> 
     return _guardian_status(db, user_id) == "active"
 
 
+def _ensure_guardian_active_for_user_content_embedding(
+    db: Session, user_id: str, birth_year: int | None
+) -> None:
+    """D41：未成年账号**开启**「用户内容 embedding 出域」前必须监护人授权已生效。
+
+    - **非未成年**（含 birth_year 为 None 的存量账号，沿用 _is_under_14 的既有约定）→ 直接放行；
+    - 未成年：``active`` → 放行；无记录 / ``pending`` → 403 ``GUARDIAN_AUTHORIZATION_REQUIRED``；
+      ``expired`` / ``revoked`` → 403 ``GUARDIAN_AUTHORIZATION_EXPIRED``。
+
+    ⚠️ **只在开启（true）时校验**：撤回（false）是用户权利，绝不能被授权状态挡住 ——
+    否则监护人授权一失效，用户连「关掉出域」都做不到（同 routes/community.py 的口径）。
+
+    ⚠️ 与 community.py 的 ``_ensure_guardian_active_for_enable`` 的**关键差别**：那个**不判年龄**、
+    无记录即按 pending 拦，会把所有成年用户也拦掉；这里要的是「**仅未成年且未授权**」才拦。
+    """
+    from fastapi import HTTPException
+
+    if not _is_under_14(birth_year):
+        return
+    status_value = _guardian_status(db, user_id)
+    if status_value == "active":
+        return
+    if status_value in ("expired", "revoked"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "GUARDIAN_AUTHORIZATION_EXPIRED",
+                "message": "监护人授权已过期，请重新确认后继续使用",
+            },
+        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "GUARDIAN_AUTHORIZATION_REQUIRED",
+            "message": "开启用户内容向量检索需要先完成监护人授权，请前往「设置 → 授权与隐私」",
+        },
+    )
+
+
 # ---------- Settings（已接 ORM，保持不变） ----------
 
 def _get_or_create_settings(db: Session, user_id: str):
@@ -84,6 +123,7 @@ def _serialize_settings(settings):
             "aiWeightTuningEnabled": settings.ai_weight_tuning_enabled,
             "sendTextToAI": settings.send_text_to_ai,
             "knowledgeAiEgressEnabled": settings.knowledge_ai_egress_enabled,
+            "userContentEmbeddingApiEnabled": settings.user_content_embedding_api_enabled,
             "experienceImprovementEnabled": settings.experience_improvement_enabled,
             "updatedAt": settings.updated_at,
         }
@@ -191,6 +231,14 @@ def patch_settings(
         settings.send_text_to_ai = body.send_text_to_ai
     if body.knowledge_ai_egress_enabled is not None:
         settings.knowledge_ai_egress_enabled = body.knowledge_ai_egress_enabled
+    if body.user_content_embedding_api_enabled is not None:
+        # D41：**只在开启时**校验监护人授权；撤回（置 false）是用户权利，不设门槛。
+        # birth_year 取自 current_user 组装的 User（deps._build_user_response 已读 ORM 的 birth_year）。
+        if body.user_content_embedding_api_enabled:
+            _ensure_guardian_active_for_user_content_embedding(
+                db, user.user_id, user.birth_year
+            )
+        settings.user_content_embedding_api_enabled = body.user_content_embedding_api_enabled
     if body.experience_improvement_enabled is not None:
         settings.experience_improvement_enabled = body.experience_improvement_enabled
 
