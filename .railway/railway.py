@@ -121,6 +121,18 @@ def main(ctx=None):
             # 生产必须 false（true 会允许 X-User-ID 头任意冒充用户，只留给本地调试）。
             "ALLOW_INSECURE_USER_HEADER": "false",
             # —— 外部服务 ——
+            # ⚠️ 这三个是**必需的**，不是可选增强。独立核实过：
+            #   backend/config.py:56 默认 llm_provider="mock"、llm_base_url=""、llm_model=""
+            #   backend/llm_provider.py:182 → if llm_provider=="mock" or not llm_api_key: MockProvider()
+            # 也就是说**只配 LLM_API_KEY 是不够的**：llm_provider 仍是 "mock"，
+            # 线上后端会一直走规则模板、根本不调 AIping，且不报错、不降级提示——
+            # 是一种「看起来在跑 AI、其实没有」的静默失效。
+            "LLM_PROVIDER": "openai_compatible",
+            "LLM_BASE_URL": "https://aiping.cn/api/v1",
+            # 模型 ID 由 Skyer 指定，**不要自行替换**。若 AIping 上查不到这个模型，
+            # 正确做法是报「未验/不存在」，而不是换一个能用的——换模型是用户决策。
+            "LLM_MODEL": "GLM-5.3-Flash",
+            # 只有它是真密钥，不落文件。
             "LLM_API_KEY": preserve(),
             # ⚠️ EMBED_* 当前留空，但**不要**把它们写成「永久占位 / 永久不启用」——
             # 那是替用户做了「永远不启用」的决定，而这个决定从没经过 Skyer 同意。

@@ -18,7 +18,7 @@
 | pre-deploy | `cd backend && python -m alembic upgrade head` |
 | healthcheck | 路径 `/health`，超时 300s |
 | 索引来源 | build 时从 `KB_VECTOR_URL` 下载 → `KB_VECTOR_DIR=/app/kb_vectors` |
-| 变量总数 | 19（其中 **11 个用 `preserve()`**，本文件不含任何真实凭据） |
+| 变量总数 | 22（其中 **10 个用 `preserve()`**，本文件不含任何真实凭据） |
 | 部署者| Railway 后台相关步骤由 **Skyer** 执行（我们没有账号权限） |
 
 ---
@@ -51,7 +51,7 @@
 | 2 | 本机装 CLI + SDK：`npm i -g @railway/cli` / `pip install railway-sdk` | 任意 agent |
 | 3 | `railway login && railway link` 关联到目标项目与环境 | 任意 agent |
 | 4 | **把索引传到对象存储**，得到一个目录 URL（其下有 `embeddings.index` 与 `refs.json`） | **Skyer**（见 §3） |
-| 5 | 在 Railway 配齐 §5 的 19 个变量（11 个 `preserve()` 的必须**先在后台填好值**，否则 `apply` 后服务起不来） | **Skyer** |
+| 5 | 在 Railway 配齐 §5 的 22 个变量（10 个 `preserve()` 的必须**先在后台填好值**，否则 `apply` 后服务起不来） | **Skyer** |
 
 ---
 
@@ -206,7 +206,37 @@ Redis 留二期（brief 明确不引入）。
 
 ### 外部服务
 
-`LLM_API_KEY`、`SMTP_HOST`、`SMTP_USER`、`SMTP_PASS` 用 `preserve()`；`SMTP_PROVIDER=real`（字面量）。
+| 变量 | 值 | 为什么 |
+|---|---|---|
+| `LLM_PROVIDER` | `openai_compatible`（字面量） | **必需，不是可选增强** |
+| `LLM_BASE_URL` | `https://aiping.cn/api/v1`（字面量） | 同上 |
+| `LLM_MODEL` | `GLM-5.3-Flash`（字面量） | Skyer 指定，**不要自行替换** |
+| `LLM_API_KEY` | `preserve()` | 唯一真密钥，不落文件 |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | `preserve()` | 凭据 |
+| `SMTP_PROVIDER` | `real`（字面量） | — |
+
+#### ⚠️ 为什么 `LLM_PROVIDER` 不配就会静默跑成 mock
+
+只配 `LLM_API_KEY` 是**不够**的，已独立核实：
+
+- `backend/config.py:56` 默认 `llm_provider = "mock"`、`llm_base_url = ""`、`llm_model = ""`
+- `backend/llm_provider.py:182` → `if settings.llm_provider == "mock" or not settings.llm_api_key:` → `MockProvider()`
+
+后果：线上后端**一直用规则模板、根本不调 AIping，而且不报错、不降级提示** ——
+是一种「看起来在跑 AI、其实没有」的静默失效，比直接启动失败更难发现。
+
+#### ⚠️ `LLM_MODEL` 的两处待验风险（已报lead-2，未自行改动）
+
+1. **大小写**：主流 OpenAI 兼容平台用的 id 是**全小写** `glm-5.3-flash`
+   （Z.ai 官方 `glm-5.3-flash`、Novita `zai-org/glm-5.3-flash`、wcode `z-ai/glm-5.3-flash`），
+   而配置里是 Skyer 指定的 `GLM-5.3-Flash`（**大写 GLM + 大写 Flash**）。
+   OpenAI 兼容层通常对 model id **大小写敏感**，写错会得到 `404 model_not_found`。
+2. **`aiping.cn` 的性质存疑**：其 `modelList` 页自述是「大模型服务**评测与信息汇总**平台」，
+   不像标准 OpenAI 兼容网关；`https://aiping.cn/api/v1` 未必就是 `chat/completions` 端点。
+
+**为什么没改**：模型 ID 与服务商是 Skyer 的决策，且**手上没有 AIping key 无法实测**。
+按 lead-2 指示「验不到就如实报未验，不要自行替换」—— 换模型是用户决策，不是排障手段。
+**验证方法（拿到 key 后）**：`GET {LLM_BASE_URL}/models` 看返回列表里到底哪个写法。
 
 #### `EMBED_*`：当前留空（**默认不出域**，但不是「永久不启用」）
 
@@ -327,6 +357,7 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 | 20 | **`npm install -g @railway/cli` 会卡 15 分钟后失败** | 其 postinstall 要从 GitHub releases 下 `railway.exe`，脚本自己打印 `aborted`。**不是网络问题**——该 URL 实测 HTTP 200、7,989,377 字节可达。<br>处置：手工下载 `railway-<ver>-x86_64-pc-windows-gnu.tar.gz`，把 `railway.exe` 放到 `%APPDATA%\npm\node_modules\@railway\cli\bin\` |
 | 21 | **创建带 GitHub source 的服务会立即触发一次构建** | `railway config apply` 新建 service 后，Railway 自动构建 `reason: "deploy"`。**实测无法用 IaC 单独「建服务但不构建」**——`apply` 要求先有 linked project，项目又只能 `railway init` 建，建完就带 source。<br>所以「只 plan 不部署」的边界，在「从零建项目」这一步**做不到**，需要事先知会 |
 | 22 | **`source=github(...)` 只设 source，**不**建部署触发器** | 实测：IaC 里写了 `source=github(REPO, branch="main")`，构建也确实从该仓库 clone（部署元数据带 `repo` + `commitHash`），但服务的 `repoTriggers` 为**空**，于是 **push 不会触发任何构建**。<br>触发器（git push → 部署）是**独立于 source 的对象**，不由 IaC 这次创建。<br>后果：**当前 push 到 main 不会自动部署**，`ee9ab8e` 推送后没有任何新构建。首次那两个 FAILED 构建都是 apply 自己触发的，不是仓库触发。<br>**取舍**：刻意**不**补建触发器 —— 一旦开启，任何 agent 的一次 push 都会触发后端构建+部署；而服务在 `KB_VECTOR_URL` 等变量补齐前必然构建失败，等于每次 push 都留一个红构建。**是否开自动部署是部署治理决策，留给 Skyer**；在此之前用 Dashboard 手动 Redeploy |
+| 23 | **`preDeployCommand` 里的 `python` 尚未验证** | ⚠️ **未修，待实测**：`preDeploy = cd backend && python -m alembic upgrade head` 用的是 `python`，与第 18 条同一类疑点。<br>但**不能直接照搬第 18 条的结论**：preDeploy 跑在**部署阶段**（`railpack-runtime`），第 18 条是**构建阶段**（`railpack-builder`），两个镜像不同族。<br>若运行时同样没有 `python`，后果是**迁移不执行** —— 服务可能对着未迁移的库启动。<br>**为什么先不改**：本次授权范围是「只补 LLM 三个变量」，改 preDeploy 超出范围；且正确写法取决于实测结果（`python3`？还是运行时另有 `python`？），先改属于猜。**拿到 Skyer 变量后首次 Redeploy 时重点看这条日志** |
 
 ---
 
@@ -347,7 +378,7 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 
 | 验证 | 命令/方式 | 结果 |
 |---|---|---|
-| IaC 配置编译 | 用真实 `railway-sdk` 执行 `.railway/railway.py` 的 `main()`，读 `to_graph()` | **17/17 断言全过**，19 变量、11 个 `preserve()`、无凭据字面量 |
+| IaC 配置编译 | 用真实 `railway-sdk` 执行 `.railway/railway.py` 的 `main()`，读 `to_graph()` | **断言全过**，22 变量、10 个 `preserve()`、无凭据字面量 |
 | 依赖解析 | 实跑 `scripts/railway_build.py` 的 `step_install_python_deps` | 从 `pyproject.toml` 解析 12 个 pin 并安装成功 |
 | 缺 URL 硬失败 | 不设 `KB_VECTOR_URL` 跑构建 | **exit 1** + 可操作提示 |
 | 索引下载真跑 | 本地 `http.server` 供**真实** `backend/kb_vectors/`，`KB_VECTOR_URL` 指向它 | 落地 27,779,117 / 354,166 字节，**SHA256 与源逐字节一致**，`check_vector_index.py` exit 0、`searchMode=vector` |
