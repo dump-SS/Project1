@@ -77,6 +77,11 @@ export interface Settings {
   sendTextToAI: boolean;
   /** 知识复盘 AI 出域（PRD 12.6），默认 false */
   knowledgeAiEgressEnabled?: boolean;
+  /**
+   * 用户内容（错题原文 / 作答 / 学习记录）embedding 走第三方 API 的授权（PRD 12.6 / D41）。
+   * 默认 false（opt-in）；未满 14 周岁且监护人授权未生效时后端拒绝置 true。
+   */
+  userContentEmbeddingApiEnabled?: boolean;
   /** 「将个人数据用于提升体验」（#29b），默认 false（opt-in） */
   experienceImprovementEnabled?: boolean;
   updatedAt: string;
@@ -86,6 +91,8 @@ export interface SettingsUpdate {
   aiWeightTuningEnabled?: boolean;
   sendTextToAI?: boolean;
   knowledgeAiEgressEnabled?: boolean;
+  /** 见 Settings.userContentEmbeddingApiEnabled；撤回（false）不受监护人授权状态限制 */
+  userContentEmbeddingApiEnabled?: boolean;
   experienceImprovementEnabled?: boolean;
 }
 

@@ -344,3 +344,70 @@
   background: var(--primary-soft, rgba(31, 111, 235, 0.08));
   color: var(--primary-deep, #1a56c4);
 }
+
+/* ===== 用户内容向量化授权（PRD 12.6 / D34 / D41）=====
+ * 这一段是**新代码**，按 visual-language §8.1 只引用语义 token 层、不写色值，
+ * 深色模式自动跟随 [data-theme]。上面那些 --ink / --glass-* 是 v0.3 旧语言，本段不混用。
+ */
+
+.consentHint {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--state-amber);   /* 需要用户去做一件事 → 提醒色，不用系统错误红 */
+}
+
+/* 「后端还没这个 key」：用户无事可做，纯告知，所以用中性次要色而不是提醒色 */
+.consentPending {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+.consentBody {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+.consentLead {
+  margin: 0 0 var(--sp-2);
+}
+
+.consentList {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.consentList li {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+.consentNote {
+  margin: var(--sp-4) 0 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-hairline);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+.consentLegal {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-tertiary);
+}
+
+.consentError {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--state-red);     /* 系统错误红：主语是系统出了错，不是对用户的评价 */
+}
