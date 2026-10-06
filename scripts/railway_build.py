@@ -42,14 +42,17 @@ EXPECTED_VECTOR_COUNT  期望条目数，默认读 KB_VECTOR_EXPECTED_COUNT（33
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
+import shutil
 import subprocess
 import sys
 import tomllib
 import urllib.error
-import shutil
-import subprocess
+import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -75,6 +78,63 @@ def die(msg: str, hint: str = "") -> None:
 
 def truthy(name: str, default: str = "") -> str:
     return (os.environ.get(name) or default).strip()
+
+
+def _sigv4_headers(url: str, access_key: str, secret_key: str) -> dict[str, str]:
+    """为一次 GET 生成 AWS SigV4 签名头（R2 的 S3 端点只认这个）。
+
+    实测教训：这里原本写成 `Authorization: Bearer <R2 API 令牌>`，
+    被 R2 以 HTTP 400 `Missing x-amz-content-sha256` 拒掉。
+    R2 的对象下载走 S3 兼容端点，必须 SigV4；Bearer 只对管理接口有效。
+
+    签名串里的 region 固定 `auto`、service 固定 `s3` —— 这是 R2 的要求，
+    不是随便填的（用错会 403 SignatureDoesNotMatch）。
+    """
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.netloc
+    path = urllib.parse.quote(parsed.path or "/")
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+    payload_hash = hashlib.sha256(b"").hexdigest()  # GET 无请求体
+
+    canonical_headers = (
+        f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+    )
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical_request = (
+        f"GET\n{path}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+    )
+    scope = f"{date_stamp}/auto/s3/aws4_request"
+    string_to_sign = (
+        "AWS4-HMAC-SHA256\n"
+        + amz_date
+        + "\n"
+        + scope
+        + "\n"
+        + hashlib.sha256(canonical_request.encode()).hexdigest()
+    )
+
+    def _sign(key: bytes, msg: str) -> bytes:
+        return hmac.new(key, msg.encode(), hashlib.sha256).digest()
+
+    k_date = _sign(("AWS4" + secret_key).encode(), date_stamp)
+    k_region = _sign(k_date, "auto")
+    k_service = _sign(k_region, "s3")
+    k_signing = _sign(k_service, "aws4_request")
+    signature = hmac.new(
+        k_signing, string_to_sign.encode(), hashlib.sha256
+    ).hexdigest()
+
+    return {
+        "Authorization": (
+            f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
+        ),
+        "x-amz-date": amz_date,
+        "x-amz-content-sha256": payload_hash,
+        "Host": host,
+    }
 
 
 def run(cmd: list[str], cwd: Path, label: str) -> None:
@@ -199,16 +259,63 @@ def step_download_vector_index() -> None:
     target_dir = Path(truthy("KB_VECTOR_DIR", "/app/kb_vectors"))
     target_dir.mkdir(parents=True, exist_ok=True)
 
+# 桶保持私有，所以下载必须签名鉴权。
+    # 为什么不能匿名下：R2 桶 epoch-x 不只是放索引——docs/deployment-stack-evaluation.md
+    # 记着二期多模态拍题要在**同一个桶**存用户上传的题目图片（用户数据）。
+    # 一旦开公开读，索引公开会连带把用户图片也暴露出去。
+    #
+    # 为什么用 SigV4 而不是 Bearer：**实测**R2 的 S3 兼容端点
+    # （<account>.r2.cloudflarestorage.com）只接受 AWS SigV4。
+    # 曾先按「加个 Authorization 头」写成 `Bearer <R2 API 令牌>`，
+    # 实测被拒：HTTP 400 `Missing x-amz-content-sha256`。
+    # Bearer 只对 api.cloudflare.com 的管理接口有效，对象下载走不了。
+    #
+    # 为什么不用预签名 URL：S3 预签名最长 7 天，而 Railway 变量是静态的，
+    # 过期后每次构建都失败，变成必须定期轮换的运维债。签名每次现算，不过期。
+    access_key = truthy("KB_VECTOR_ACCESS_KEY_ID")
+    secret_key = truthy("KB_VECTOR_SECRET_ACCESS_KEY")
+    if not access_key or not secret_key:
+        missing = [
+            name
+            for name, val in (
+                ("KB_VECTOR_ACCESS_KEY_ID", access_key),
+                ("KB_VECTOR_SECRET_ACCESS_KEY", secret_key),
+            )
+            if not val
+        ]
+        die(
+            "S3 签名凭据不完整，无法从私有桶下载索引：" + "、".join(missing) + " 未设置",
+            "桶 epoch-x 保持私有（不开放读），下载走 R2 的 S3 端点，必须用 SigV4 签名，"
+            "需要 access key id 与 secret access key 两个变量。"
+            "请把它们配成 Railway 变量后重新构建。",
+        )
+
     base = url.rstrip("/")
     for name, min_bytes in ((VECTOR_FILE, MIN_VECTOR_BYTES), (REFS_FILE, MIN_REFS_BYTES)):
         src_url = f"{base}/{name}"
         dest = target_dir / name
-        log(f"下载 {src_url} → {dest}")
+        log(f"下载 {src_url} → {dest}（SigV4 签名）")
+        req = urllib.request.Request(
+            src_url, headers=_sigv4_headers(src_url, access_key, secret_key)
+        )
         try:
-            with urllib.request.urlopen(src_url, timeout=120) as resp:  # noqa: S310 - URL 来自 Railway 变量
+            with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 - URL 来自 Railway 变量
                 data = resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read(300).decode("utf-8", "replace")[:200].replace("\n", " ")
+            except Exception:
+                pass
+            die(
+                f"下载 {name} 失败：HTTP {exc.code} {exc.reason}"
+                + (f"｜服务端返回：{detail}" if detail else ""),
+                "403/401 通常是 access key 无效、已撤销，或权限不含该桶的对象读取；"
+                "404 是路径下没有该文件（确认 KB_VECTOR_URL 是**桶的基址**"
+                "（到 .../<bucket> 为止，不含文件名），且其下确实有 " + name + "）。",
+            )
         except (urllib.error.URLError, OSError) as exc:
-            die(f"下载 {name} 失败：{exc}", f"确认 KB_VECTOR_URL 可公开访问，且路径下确实有 {name}")
+            die(f"下载 {name} 失败：{exc}", f"确认 KB_VECTOR_URL 可访问，且路径下确实有 {name}")
 
         if len(data) < min_bytes:
             die(

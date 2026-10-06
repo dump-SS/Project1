@@ -18,7 +18,7 @@
 | pre-deploy | `cd backend && python -m alembic upgrade head` |
 | healthcheck | 路径 `/health`，超时 300s |
 | 索引来源 | build 时从 `KB_VECTOR_URL` 下载 → `KB_VECTOR_DIR=/app/kb_vectors` |
-| 变量总数 | 22（其中 **10 个用 `preserve()`**，本文件不含任何真实凭据） |
+| 变量总数 | 24（其中 **12 个用 `preserve()`**，本文件不含任何真实凭据） |
 | 部署者| Railway 后台相关步骤由 **Skyer** 执行（我们没有账号权限） |
 
 ---
@@ -51,7 +51,7 @@
 | 2 | 本机装 CLI + SDK：`npm i -g @railway/cli` / `pip install railway-sdk` | 任意 agent |
 | 3 | `railway login && railway link` 关联到目标项目与环境 | 任意 agent |
 | 4 | **把索引传到对象存储**，得到一个目录 URL（其下有 `embeddings.index` 与 `refs.json`） | **Skyer**（见 §3） |
-| 5 | 在 Railway 配齐 §5 的 22 个变量（10 个 `preserve()` 的必须**先在后台填好值**，否则 `apply` 后服务起不来） | **Skyer** |
+| 5 | 在 Railway 配齐 §5 的 24 个变量（12 个 `preserve()` 的必须**先在后台填好值**，否则 `apply` 后服务起不来） | **Skyer** |
 
 ---
 
@@ -82,9 +82,25 @@ build 时从 `KB_VECTOR_URL` 下载。`scripts/railway_build.py` 的行为：
 
 ### Skyer 需要做的
 
-把两个文件放到一个**可公开读取**的目录（例如对象存储桶或带读 token 的 URL），
-把 URL 配成 Railway 变量 `KB_VECTOR_URL`。若用私有桶 + 签名 URL，
-**注意签名会过期**——过期的 URL 会让后续每次构建都失败（这是好事，比静默降级强）。
+把两个文件放到 R2 桶 `epoch-x`，把**桶的基址**配成 Railway 变量 `KB_VECTOR_URL`。
+
+**桶保持私有（不开公开读、不挂自定义域）**，另配 **S3 签名凭据**两个变量
+`KB_VECTOR_ACCESS_KEY_ID` 与 `KB_VECTOR_SECRET_ACCESS_KEY`；
+`scripts/railway_build.py` 每次下载现算 **AWS SigV4** 签名。
+
+**为什么必须私有**：桶 `epoch-x` 不只放索引 —— `docs/deployment-stack-evaluation.md` 记着
+二期多模态拍题要在**同一个桶**存用户上传的题目图片（用户数据）。
+一旦开放公开读，索引公开会**连带把用户图片一起暴露**。
+
+**为什么不用预签名 URL**：S3 预签名最长 7 天，而 Railway 变量是静态的 ——
+过期后**每次构建都失败**，变成必须定期轮换的运维债。SigV4 每次现算，不过期。
+
+| 变量 | 桶是否需公开 | 是否会过期 |
+|---|---|---|
+| **SigV4 签名（采用）** | 否，桶保持私有 | 不过期 |
+| S3 预签名 URL | 否 | **会过期**，需轮换 |
+| 公开读 + r2.dev | **是** | 不过期，但公开 + 限速且官方定位非生产 |
+| 公开读 + 自定义域 | **是** | 不过期，同样公开 |
 
 ### 方案选择表（lead-1 2026-10-05 要求：说明每个选项在 pilot 期需要回答什么）
 
@@ -378,7 +394,7 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 
 | 验证 | 命令/方式 | 结果 |
 |---|---|---|
-| IaC 配置编译 | 用真实 `railway-sdk` 执行 `.railway/railway.py` 的 `main()`，读 `to_graph()` | **断言全过**，22 变量、10 个 `preserve()`、无凭据字面量 |
+| IaC 配置编译 | 用真实 `railway-sdk` 执行 `.railway/railway.py` 的 `main()`，读 `to_graph()` | **断言全过**，24 变量、12 个 `preserve()`、无凭据字面量 |
 | 依赖解析 | 实跑 `scripts/railway_build.py` 的 `step_install_python_deps` | 从 `pyproject.toml` 解析 12 个 pin 并安装成功 |
 | 缺 URL 硬失败 | 不设 `KB_VECTOR_URL` 跑构建 | **exit 1** + 可操作提示 |
 | 索引下载真跑 | 本地 `http.server` 供**真实** `backend/kb_vectors/`，`KB_VECTOR_URL` 指向它 | 落地 27,779,117 / 354,166 字节，**SHA256 与源逐字节一致**，`check_vector_index.py` exit 0、`searchMode=vector` |

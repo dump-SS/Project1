@@ -93,6 +93,17 @@ def main(ctx=None):
             # 不设时 _index_root() 会回落到进程 cwd，容器重启后路径可能变 → 读不到索引 → 静默降级。
             "KB_VECTOR_DIR": "/app/kb_vectors",
             "KB_VECTOR_EXPECTED_COUNT": "3391",
+            # 私有桶的 S3 签名凭据。**桶不开公开读**，索引下载必须签名。
+            # 为什么不能开公开读：桶 epoch-x 不只放索引——docs/deployment-stack-evaluation.md
+            # 记着二期多模态拍题要在**同一个桶**存用户上传的题目图片（用户数据）。
+            # 一旦公开读，索引公开会连带把用户图片一起暴露。
+            # 为什么是**两个**变量而不是一个令牌：实测 R2 的 S3 兼容端点只认 AWS SigV4，
+            # `Authorization: Bearer <R2 API 令牌>` 会被拒（HTTP 400 Missing
+            # x-amz-content-sha256）。SigV4 需要 key id + secret 两个值。
+            # 为什么不用预签名 URL：S3 预签名最长 7 天，而 Railway 变量是静态的，
+            # 过期后每次构建都失败，变成必须定期轮换的运维债。签名每次现算，不过期。
+            "KB_VECTOR_ACCESS_KEY_ID": preserve(),
+            "KB_VECTOR_SECRET_ACCESS_KEY": preserve(),
             # off = 检索走向量（读本地 FAISS 索引）。
             # 绝不能设 api：那样 add() 会把向量追加进线上索引，污染检索。
             "KB_EMBED_MODE": "off",
