@@ -85,30 +85,6 @@ def main(ctx=None):
         # 多副本会同时打破两处；pilot 期限流不准可接受，但索引不能没有。
         replicas=1,
         env={
-            # —— 构建环境（不是应用变量，但同样是 Railway 变量）——
-            # ⚠️ 这条**必须声明在这里**，不能只在 CLI 手动设一次——
-            # 原因：`.railway/railway.py` 只在 `railway config apply` 时被读取，
-            # 而 **apply 会把 IaC 里没声明的变量删掉**。若只手动设、不声明，
-            # 下一次 apply 就会把它删掉，构建随即退回「镜像里没有 pip」。
-            #
-            # 为什么需要它（真实构建实测踩出来的）：Railpack 按固定顺序取第一个
-            # Detect()==true 的 provider，**python 排在 node 之前**，而判定文件只看
-            # **仓库根目录**。本仓库根目录有 package.json（Neon 配置），Python 依赖却在
-            # backend/pyproject.toml → python.Detect() 为 false → **node provider 胜出**
-            # → mise Python 根本没装 → 构建里的 python3 是基础镜像的 Debian 系统 Python。
-            # 而 Debian 有意把 pip 与 ensurepip 拆到独立包（python3-pip / python3.13-venv），
-            # 所以两者**同时缺失是确定性的**，脚本里自举 ensurepip 必然失败。
-            # 声明它之后 mise 会装上自带 pip 的 Python（python-build-standalone 预装 pip），
-            # /mise/shims 进 PATH，脚本里的 python3 即变成有 pip 的那个。
-            #
-            # 版本手写的原因：backend/.python-version 是 3.12，但该文件在子目录，
-            # Railpack 只读根目录 idiomatic 文件、读不到它。两处不一致时以这里为准，
-            # **且没有任何东西会告警**——改版本时记得同步改 backend/.python-version。
-            #
-            # 不用「根目录放 requirements.txt」这个常见方案：它确实能让 Railpack 走 pip 路径，
-            # 但会把 provider 翻成 python 导致 **npm 消失**，且多一份会漂移的依赖真相源
-            # （当初手写 tomllib 解析 backend/pyproject.toml 正是为了避免它）。
-            "RAILPACK_PACKAGES": "python@3.12",
             # —— 必填 ——
             # DATABASE_URL / JWT_SECRET 用 preserve()：值只在 Railway 上，本文件不承载。
             # DATABASE_URL 必须指向 Neon，且要带 psycopg2 可用的形式。

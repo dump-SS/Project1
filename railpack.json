@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.railpack.com",
+  // 强制走 python provider。实测逼出来的，原因三条：
+  //
+  // 1) Railpack 按固定顺序取第一个 Detect()==true 的 provider，python 排在 node 之前，
+  //    而判定文件只看**仓库根目录**。本仓库根目录有 package.json（Neon 配置用），
+  //    Python 依赖却在 backend/pyproject.toml（子目录）→ python 未命中、node 胜出。
+  // 2) node provider 的构建镜像里 python3 是 Debian 系统 Python，而 Debian 有意把
+  //    pip 与 ensurepip 拆到独立包（python3-pip / python3.13-venv），两者**同时缺失
+  //    是确定性的**，所以构建期装不上依赖、运行期连 python3 都没有
+  //    （实测两次：`No module named pip`、`/bin/bash: python3: command not found`）。
+  // 3) 强制 python 后，mise 装的 Python（自带 pip）会同时进入构建层与运行时层。
+  //
+  // 为什么不怕丢 node：容器里不需要 node。前端已分离到 Vercel，
+  // scripts/railway_build.py 在 BUILD_FRONTEND=0 时直接 return、不调用 npm
+  //（已核 step_build_frontend 的早退分支）。根 package.json 只用于本地 Neon 工具。
+  //
+  // 版本钉 3.12 的原因：backend/.python-version 是 3.12，而它在子目录、
+  // Railpack 读不到，所以只能在这里钉。两处不一致时**没有任何东西会告警**，
+  // 改版本请同时改 backend/.python-version。pyproject 的 requires-python 是 >=3.11。
+  "provider": "python",
+  "packages": {
+    "python": "3.12"
+  }
+}
