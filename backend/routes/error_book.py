@@ -28,6 +28,8 @@ from models.knowledge import (
 )
 from privacy_filter import contains_sensitive_info
 from schemas.error_book import (
+    ERROR_CAUSES,
+    ERROR_INTENTS,
     ErrorBookList,
     ErrorRecord,
     ErrorRecordCreate,
@@ -77,7 +79,38 @@ def _to_item(row: ErrorRecordORM, db: Session) -> dict:
         ],
         "createdAt": row.created_at.isoformat() if row.created_at else None,
         "lastReviewedAt": row.last_reviewed_at.isoformat() if row.last_reviewed_at else None,
+        # D48 两正交维度：errorCause（结构化错因）/ intent（主观意图）
+        # 无错因即 star 题——照样在题本里、照样复习，但不喂 mastery。
+        "errorCause": row.error_cause,
+        "intent": row.intent,
+        "sourceExamId": row.source_exam_id,
     }
+
+
+def _validate_dimensions(error_cause: str | None, intent: str | None) -> None:
+    """校验 D48 两维度取值（契约 ErrorCause / ErrorIntent 枚举）。
+
+    非法值直接 400，不静默丢弃——静默丢弃会让「用户以为存了错因、其实没存」，
+    进而导致 mastery 少算样本，这种偏差事后极难排查。
+    """
+    if error_cause is not None and error_cause not in ERROR_CAUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "VALIDATION_FAILED",
+                "message": f"errorCause 取值非法，可选：{'、'.join(ERROR_CAUSES)}",
+                "field": "errorCause",
+            },
+        )
+    if intent is not None and intent not in ERROR_INTENTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "VALIDATION_FAILED",
+                "message": f"intent 取值非法，可选：{'、'.join(ERROR_INTENTS)}",
+                "field": "intent",
+            },
+        )
 
 
 def _check_sensitive(payload: ErrorRecordCreate) -> None:
@@ -103,11 +136,33 @@ def _check_sensitive(payload: ErrorRecordCreate) -> None:
 def list_errors(
     subject: str | None = None,
     status_filter: str | None = Query(None, alias="status"),
+    error_cause: str | None = Query(None, alias="errorCause"),
+    intent: str | None = Query(None, alias="intent"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ) -> ErrorBookList:
+    """题本列表。D48 两维度可按错因 / 意图单独或组合筛选（两维度正交，组合是「且」）。"""
+    if error_cause is not None and error_cause not in ERROR_CAUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "VALIDATION_FAILED",
+                "message": f"errorCause 取值非法，可选：{'、'.join(ERROR_CAUSES)}",
+                "field": "errorCause",
+            },
+        )
+    if intent is not None and intent not in ERROR_INTENTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "VALIDATION_FAILED",
+                "message": f"intent 取值非法，可选：{'、'.join(ERROR_INTENTS)}",
+                "field": "intent",
+            },
+        )
+
     q = select(ErrorRecordORM).where(
         ErrorRecordORM.user_id == _user.user_id,
         ErrorRecordORM.deleted_at.is_(None),
@@ -116,6 +171,10 @@ def list_errors(
         q = q.where(ErrorRecordORM.subject == subject)
     if status_filter:
         q = q.where(ErrorRecordORM.status == status_filter)
+    if error_cause:
+        q = q.where(ErrorRecordORM.error_cause == error_cause)
+    if intent:
+        q = q.where(ErrorRecordORM.intent == intent)
 
     total = db.execute(
         select(func.count()).select_from(q.subquery())
@@ -149,6 +208,7 @@ def create_error(
             detail={"code": "KB_TEXT_TOO_LONG", "message": "错题文本过长，请精简到 4000 字以内", "field": "rawText"},
         )
     _check_sensitive(payload)
+    _validate_dimensions(payload.error_cause, payload.intent)
 
     err = ErrorRecordORM(
         id=_gen("err"),
@@ -160,9 +220,17 @@ def create_error(
         error_type=payload.error_type,
         error_note=payload.error_note,
         status="open",
+        # D48 两正交维度 + D49 来源考试（sourceExamId 不校验考试是否存在——
+        # exams 属 C 板块，跨板块不读别人的表；只存 ID，由 C 侧接口负责展示）
+        error_cause=payload.error_cause,
+        intent=payload.intent,
+        source_exam_id=payload.source_exam_id,
     )
     db.add(err)
     db.flush()
+
+    # 有错因才算「错题」：无错因（star 题）也要关联知识点，但不喂 mastery（D48）
+    has_cause = payload.error_cause is not None
 
     for pid in payload.point_ids or []:
         if db.get(KnowledgePointORM, pid) is not None:
@@ -170,11 +238,13 @@ def create_error(
 
     db.commit()
 
-    # 触发式 mastery 重算（PRD 12.3.4）：错题关联的点都要更新
-    from .mastery import recompute_and_store
-    for pid in payload.point_ids or []:
-        recompute_and_store(db, _user.user_id, pid)
-    db.commit()
+    # 触发式 mastery 重算（PRD 12.3.4）：只有「有错因」的才重算
+    # （gather_inputs 侧还有一层同样的过滤，这里是省掉无意义的计算）
+    if has_cause:
+        from .mastery import recompute_and_store
+        for pid in payload.point_ids or []:
+            recompute_and_store(db, _user.user_id, pid)
+        db.commit()
 
     # 异步 embedding + 候选知识点匹配（v2.1-B6；embed off 时任务为空操作）
     background_tasks.add_task(_async_embed_error, err.id)
@@ -260,10 +330,20 @@ def update_error(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "RESOURCE_NOT_FOUND", "message": "错题不存在"},
         )
+    _validate_dimensions(payload.error_cause, payload.intent)
+
     if payload.error_type is not None:
         row.error_type = payload.error_type
     if payload.error_note is not None:
         row.error_note = payload.error_note
+    # D48 两维度：契约里 errorCause/intent 不支持传 null 清除（只有 sourceExamId 支持），
+    # 故这里仅在「传了非空值」时更新。
+    if payload.error_cause is not None:
+        row.error_cause = payload.error_cause
+    if payload.intent is not None:
+        row.intent = payload.intent
+    if "source_exam_id" in payload.model_fields_set:
+        row.source_exam_id = payload.source_exam_id  # 显式 null = 清除关联
     if payload.status is not None:
         if payload.status not in ("open", "resolved"):
             raise HTTPException(
@@ -278,12 +358,14 @@ def update_error(
                 db.add(ErrorPointORM(id=_gen("erp"), error_id=error_id, point_id=pid, confidence=1.0))
     db.commit()
 
-    from .mastery import recompute_and_store
-    for ep in db.execute(
-        select(ErrorPointORM.point_id).where(ErrorPointORM.error_id == error_id)
-    ).all():
-        recompute_and_store(db, _user.user_id, ep[0])
-    db.commit()
+    # 只有「有错因」的才喂 mastery（D48）：无错因的 star 题不触发重算
+    if row.error_cause is not None:
+        from .mastery import recompute_and_store
+        for ep in db.execute(
+            select(ErrorPointORM.point_id).where(ErrorPointORM.error_id == error_id)
+        ).all():
+            recompute_and_store(db, _user.user_id, ep[0])
+        db.commit()
 
     return ErrorRecord.model_validate(_to_item(row, db))
 
@@ -346,13 +428,15 @@ def review_error(
     row.last_reviewed_at = datetime.utcnow()
     db.commit()
 
-    # 触发式 mastery 重算（复习改变 recall/recency 因子）
-    from .mastery import recompute_and_store
-    for ep in db.execute(
-        select(ErrorPointORM.point_id).where(ErrorPointORM.error_id == error_id)
-    ).all():
-        recompute_and_store(db, _user.user_id, ep[0])
-    db.commit()
+    # 触发式 mastery 重算（复习改变 recall/recency 因子）。
+    # star 题（无错因）也走艾宾浩斯队列，但不喂 mastery（D48）。
+    if row.error_cause is not None:
+        from .mastery import recompute_and_store
+        for ep in db.execute(
+            select(ErrorPointORM.point_id).where(ErrorPointORM.error_id == error_id)
+        ).all():
+            recompute_and_store(db, _user.user_id, ep[0])
+        db.commit()
 
     next_at = (datetime.utcnow() + timedelta(days=next_interval)).date().isoformat()
     return ReviewResult(

@@ -136,18 +136,24 @@ def gather_inputs(db: "object", user_id: str, point_id: str) -> MasteryInputs:
     if not err_ids:
         return MasteryInputs()
 
+    # D48：mastery 与归因**只消费「有错因」的错题**。
+    # 只有意图、无错因的 star 题照样在题本里、照样进艾宾浩斯复习队列，
+    # 但不得进入掌握度计算——否则「我觉得这题好」会污染「我掌握得怎么样」。
     errors = db.execute(
         select(ErrorRecordORM).where(
             ErrorRecordORM.id.in_(err_ids),
             ErrorRecordORM.user_id == user_id,
             ErrorRecordORM.deleted_at.is_(None),
+            ErrorRecordORM.error_cause.is_not(None),
         )
     ).scalars().all()
     unresolved = sum(1 for e in errors if e.status == "open")
 
+    # 复习日志同样只取「有错因」的错题，保持与 error_count 同源
+    scored_err_ids = [e.id for e in errors]
     logs = db.execute(
         select(ReviewLogORM)
-        .where(ReviewLogORM.error_id.in_(err_ids))
+        .where(ReviewLogORM.error_id.in_(scored_err_ids))
         .order_by(ReviewLogORM.reviewed_at.desc())
     ).scalars().all()
     recall_ok = sum(1 for lg in logs if lg.recall_correct)
