@@ -175,7 +175,45 @@ D 侧实现已按下列 paths 写好并挂上 router（`main.py` 挂载也请 X0
 
 ---
 
-## 5. 测试
+## 5. ⚠️ 跨板块触碰说明（出域调用点全仓审计附带修复，需 E / X2 / X0 知悉）
+
+做「加固 ① 有没有后台路径偷偷出域」的审计时，用 AST 全仓扫了所有
+`*.generate(...)` 调用点，发现**两处声明缺失**。修复**不改变任何行为**，
+只是把本该声明的出域类别补上：
+
+| 文件 | 归属 | 问题 | 处置 |
+|---|---|---|---|
+| `routes/knowledge.py` `error-parse` | **D**（本人） | 注释写着「由 EgressGuard 白名单强校验」，但 context 里既无 `data_class` 也无 `egress_fields`——`_build_error_parse_prompt` 算出的 `egress` **被丢弃了**。`_enforce_egress` 对 `data_class=None` 直接放行，**整改后的校验从未真正执行** | 补 `egress_fields` + `data_class=knowledge_aggregated` |
+| `daily_summary.py:186` | **E** | 同样未声明 | 补 `data_class=state_plan` + `scene` |
+
+**内容上没有发生泄漏**：error-parse 的 prompt 只含知识点名/定义/易错点，
+daily_summary 只含结构化统计（时长/学科/完成情况/自评均值/情绪计数，note 不入 prompt，
+PRD 6.2）。**坏的是机制不是内容**——机制不生效，以后谁改了 prompt 加上原文，
+没有任何东西会拦。
+
+### 配套守护（落在 `tests/test_egress_ci.py`，属 X2，请 X2 复核）
+
+1. **静态**：扫全仓 `generate` 调用点，**漏声明 data_class 直接挂 CI**；
+   声明了但取值拼错同样挂。动态取值必须显式登记在 `_DYNAMIC_DECLARE_OK`
+   并写明理由，且有断言防止豁免项失效后留在表里。
+2. **运行时**：`test_error_parse_really_goes_through_guard` 从 provider 侧断言
+   error-parse 真的传了 `data_class` 与 `egress_fields`——
+   静态只能证明「写了字面量」，这条证明「真的传到了」。
+   已验证有效性：**临时把修复回退，两条测试都报红**。
+3. **定时任务**：`jobs/` 下的 LLM 调用只允许 `knowledge_aggregated`
+   （定时无用户即时意图，**永远**不该出现 `user_error_content`）。
+
+### 给 X0 的建议（未擅自改，属 X0/G 的文件）
+
+`llm_provider._enforce_egress` 对 `data_class=None` **默认放行**（向后兼容板块一）。
+而 `Guard.check` 对未声明是**拒绝**的——同一件事两道闸标准相反。
+现在全仓 9 个调用点已全部显式声明，**可以安全收紧为默认拒绝**；
+收紧后新增调用点漏声明会立刻报错，而不是静默出域。
+是否收紧请 X0 定（会动 `llm_provider.py`，G 板块登记文件）。
+
+---
+
+## 6. 测试
 
 `backend/tests/test_search_egress.py`（22 例）覆盖：
 

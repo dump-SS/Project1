@@ -255,11 +255,16 @@ def create_error_parse(
     try:
         prompt, egress = _build_error_parse_prompt(payload.error_id)
         provider = get_provider()
+        # ⚠️ data_class 与 egress_fields **必须传**：少了它们，
+        # llm_provider._enforce_egress 会因 data_class=None 直接放行，
+        # 白名单校验根本不跑——整改过的接口就成了「自己以为在守，其实没守」。
         text = provider.generate(
             prompt,
             context={
                 "system": ERROR_PARSE_SYSTEM,
                 "scene": "error_parse",
+                "egress_fields": egress,
+                "data_class": "knowledge_aggregated",
                 "user_id": _user.user_id,
                 "feature_tier": "embedded",
             },
