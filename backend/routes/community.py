@@ -42,14 +42,36 @@ def _get_or_create_settings(db: Session, user_id: str) -> SettingsORM:
     return s
 
 
-def _ensure_guardian_active(db: Session, user_id: str) -> None:
-    """监护人授权失效 → 403（写接口阻断，§4.5）。无记录视为 pending 放行（由监护人链路另行处理）。"""
+def _ensure_guardian_active_for_enable(db: Session, user_id: str) -> None:
+    """D41：**开启**群体参照前必须监护人授权已生效。
+
+    - `active` → 放行；
+    - 无记录 / `pending` → 403 `GUARDIAN_AUTHORIZATION_REQUIRED`（前端引导至「设置 → 授权与隐私」）；
+    - `expired` / `revoked` → 403 `GUARDIAN_AUTHORIZATION_EXPIRED`（需重新发起授权）。
+
+    ⚠️ 只在**开启**时校验：撤回（enabled=false）是用户权利，不能被授权状态挡住——
+    否则授权一失效，用户连"退出聚合"都做不到。
+    """
     g = db.get(GuardianORM, user_id)
-    if g is not None and g.status in ("expired", "revoked"):
+    status_value = g.status if g is not None else "pending"
+
+    if status_value == "active":
+        return
+    if status_value in ("expired", "revoked"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "GUARDIAN_AUTHORIZATION_EXPIRED", "message": "监护人授权已过期，请重新确认后继续使用"},
+            detail={
+                "code": "GUARDIAN_AUTHORIZATION_EXPIRED",
+                "message": "监护人授权已过期，请重新确认后继续使用",
+            },
         )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "GUARDIAN_AUTHORIZATION_REQUIRED",
+            "message": "开启匿名群体参照需要先完成监护人授权，请前往「设置 → 授权与隐私」",
+        },
+    )
 
 
 @router.get("", response_model=CommunityConsent, summary="读取匿名聚合授权状态")
@@ -71,7 +93,9 @@ def put_community_consent(
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
 ) -> CommunityConsent:
-    _ensure_guardian_active(db, _user.user_id)
+    # D41：只在开启时校验监护人授权；撤回不设门槛（撤回是权利）
+    if body.enabled:
+        _ensure_guardian_active_for_enable(db, _user.user_id)
 
     s = _get_or_create_settings(db, _user.user_id)
     s.community_consent_enabled = body.enabled

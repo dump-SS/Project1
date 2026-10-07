@@ -1,0 +1,250 @@
+/* DocsProse · 长文排版（§8.4.2）—— 度量全部取自 §8.4.1/§8.4.2，不另取一套 */
+
+.prose {
+  /* 行宽 ≈ 700–760px：文档「耐读」的关键值 */
+  max-width: var(--docs-measure);
+  font-family: var(--font-prose);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  color: var(--text-primary);
+  /* 衬线体字重不上 Bold（§5 中文衬线选型坑：靠行高与字重克制，不靠换字体） */
+  font-weight: 400;
+}
+
+/* ---------- 页头 ---------- */
+
+.pageHead {
+  margin-bottom: var(--sp-6);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+/* 标题行：标题靠左，操作区（复制按钮）margin-left:auto 推到同行最右
+   （2026-09-30 Skyer，从左侧改到最右侧） */
+.pageHeadRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.pageActions {
+  flex: none;
+  margin-left: auto;
+}
+
+.pageTitle {
+  margin: 0 0 var(--sp-2);
+  /* 标题无衬线 = 正在发生（§5） */
+  font-family: var(--font-heading);
+  font-size: var(--fs-h1);
+  font-weight: 600;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+}
+
+.pageMeta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-tertiary);
+}
+
+.badge {
+  padding: 1px 6px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ---------- 章节：章节间距 24–32px ---------- */
+
+.prose > * {
+  margin-top: 0;
+  margin-bottom: var(--sp-4);
+}
+
+.prose h2 {
+  margin-top: var(--sp-6);
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-heading);
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+  /* 锚点跳转时不贴顶 */
+  /* 锚点跳转落点避开顶栏（2026-09-29 加顶栏） */
+  scroll-margin-top: calc(var(--docs-topbar-h) + var(--sp-4));
+}
+
+.prose h3 {
+  margin-top: var(--sp-5);
+  margin-bottom: var(--sp-2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+  /* 锚点跳转落点避开顶栏（2026-09-29 加顶栏） */
+  scroll-margin-top: calc(var(--docs-topbar-h) + var(--sp-4));
+}
+
+.prose h1:not(.pageTitle) {
+  font-family: var(--font-heading);
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  line-height: var(--lh-title);
+}
+
+.prose p {
+  margin-bottom: var(--sp-4);
+}
+
+/* ---------- 列表：缩进与段落对齐，不加色块（§8.4.2）---------- */
+
+.prose ul,
+.prose ol {
+  margin: 0 0 var(--sp-4);
+  padding-left: 1.5em;
+  line-height: var(--lh-list);
+}
+
+.prose li {
+  margin-bottom: var(--sp-2);
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: var(--sp-2);
+  margin-bottom: 0;
+}
+
+/* ---------- 引用：左侧 hairline 细条，不做整块底色 ---------- */
+
+.prose blockquote {
+  margin: var(--sp-4) 0;
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-4);
+  border-left: 2px solid var(--border-hairline-strong);
+  color: var(--text-secondary);
+}
+
+.prose blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- 链接 ---------- */
+
+.prose a {
+  color: var(--brand-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--border-hairline-strong);
+  transition: text-decoration-color 0.15s ease;
+}
+
+.prose a:hover {
+  text-decoration-color: var(--brand-blue);
+}
+
+.prose a:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---------- 行内代码 ---------- */
+
+.prose code {
+  font-family: var(--font-code);
+  font-size: 0.88em;
+  padding: 1px 4px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-control);
+  background: var(--code-bg);
+  color: var(--text-primary);
+}
+
+/* ---------- 代码块：等宽 + hairline + 极淡底，不染色（§8.4.2）---------- */
+
+.prose pre {
+  margin: var(--sp-4) 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  /* --code-bg：比底纸再偏半档；正文落在底纸上，用 --bg-page 会与页面同色 */
+  background: var(--code-bg);
+  overflow-x: auto;
+  line-height: var(--lh-list);
+}
+
+.prose pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-primary);
+  white-space: pre;
+}
+
+/* ---------- 表格：hairline 分层 ---------- */
+
+.tableScroll {
+  margin: var(--sp-4) 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+}
+
+.prose th,
+.prose td {
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.prose th {
+  /* 表头无衬线（要看的） */
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.prose td {
+  color: var(--text-secondary);
+}
+
+.prose tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ---------- 分隔线 ---------- */
+
+.prose hr {
+  margin: var(--sp-6) 0;
+  border: 0;
+  border-top: 1px solid var(--border-hairline);
+}
+
+/* ---------- 移动端：字号微调，不改行宽逻辑 ---------- */
+
+@media (max-width: 900px) {
+  .pageTitle {
+    font-size: 24px;
+  }
+}

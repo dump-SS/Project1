@@ -1,0 +1,149 @@
+/* DocsSidebar · §8.4.4 */
+
+.sidebar {
+  width: var(--docs-sidebar-w);
+  flex: none;
+  /* 跟右侧 TOC 行为对齐：长文滚动时钉在视口上，否则滚到页底导航就没了
+     （TOC 原本就是 sticky，侧栏是 static，两栏不一致）。
+     top 避开顶栏高度（2026-09-29 加顶栏） */
+  position: sticky;
+  top: var(--docs-topbar-h);
+  height: calc(100vh - var(--docs-topbar-h));
+  height: calc(100dvh - var(--docs-topbar-h));
+  padding: var(--sp-5) var(--sp-4) var(--sp-6);
+  border-right: 1px solid var(--border-hairline);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* 侧栏自身不参与主题过渡的位移，只让颜色跟着切 */
+  background: var(--bg-page);
+}
+
+.group + .group {
+  margin-top: var(--sp-5);
+}
+
+/* 分组标题：衬线小字 = 注释层级（§8.4.4 / §5）
+   字号 12px（2026-10-01 Skyer：比正文档再小一档，压住注释感） */
+.groupLabel {
+  margin: 0 0 var(--sp-2);
+  padding-left: 10px;
+  font-family: var(--font-prose);
+  font-size: 12px;
+  line-height: var(--lh-title);
+  color: var(--text-tertiary);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px 10px 5px 10px;
+  /* 2px 左侧留位给「当前项」的蓝墨水细条，所有项对齐不受影响 */
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+  text-decoration: none;
+  /* hover 与 focus-visible 同款：触屏/键盘有等价路径（§9.1 判据） */
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* hover 是「装饰性增强」——允许，但焦点等价，且不是唯一入口 */
+.item:hover {
+  color: var(--text-primary);
+  background: var(--surface-card);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: -2px;
+  color: var(--text-primary);
+  background: var(--surface-card);
+}
+
+/* 当前项：蓝墨水左细条 + 文字转蓝 + 加粗
+   （加粗 2026-10-01 Skyer：500 提到 700，选中项要在列表里立得住） */
+.current {
+  border-left-color: var(--accent);
+  color: var(--brand-blue);
+  font-weight: 700;
+}
+
+.itemText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* placeholder：虚线 + 灰（§4「不可用状态一律灰，不占用蓝色」） */
+.placeholder {
+  border-left-style: dashed;
+  color: var(--text-tertiary);
+}
+
+.placeholder .itemText {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-hairline-strong);
+}
+
+/* building：灰标，文字本身保持中性（灰的是「不可用」不是「低价值」） */
+.building {
+  color: var(--text-secondary);
+}
+
+.tagBuilding {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-card);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* 「家长」chip：浅色底 + hairline，不占用蓝色（只加标识，不抢注意力） */
+.chipParent {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-pill);
+  background: var(--bg-page);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  /* 移动端：抽屉。见页面外壳（Docs/index.tsx）负责开合。 */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    height: auto; /* 覆盖桌面 sticky 的 height，抽屉满高（否则底部漏出 56px） */
+    z-index: 40;
+    width: min(88vw, var(--docs-sidebar-w));
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: none;
+    border-right: 1px solid var(--border-hairline);
+  }
+
+  .open {
+    transform: translateX(0);
+  }
+}

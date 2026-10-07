@@ -7,7 +7,7 @@
 
 | 文档 | 角色 | 备注 |
 |---|---|---|
-| `openapi.yaml` | **唯一契约真相源**（v1.7.1 · 64 paths · 174 schemas · 表 47 张 / 单 head `c7a1f2e4d9b3`） | 改动走 X0 评审；v1.7.0 = G 板块增量（用量/报错/违规/奖章/埋点），v1.7.1 = C 板块增量（考试/计时会话/记录回写/目标树），2026-09-25 |
+| `openapi.yaml` | **唯一契约真相源**（v1.8.0 · 64 paths · 174 schemas · 表 47 张 / 单 head `a91f4c2d7e03`） | 改动走 X0 评审；v1.7.0 = G 板块增量（用量/报错/违规/奖章/埋点），v1.7.1 = C 板块增量（考试/计时会话/记录回写/目标树），v1.8.0 = A 板块增量（邀请码注册 / 出生年份 / 提升体验开关 / 监护人确认结果页 / 群体参照授权前置），2026-09-30 |
 | `openapi-usage.md` | 契约使用说明 | 内含历史校验记录，以文首当前口径为准 |
 | `product-redesign-target.md` | **产品目标态** v0.29（D1–D59） | 不含 UI 视觉细节 |
 | `visual-language.md` | **视觉语言基准** v0.2（品牌世界观 / 色板 / 字体时态 / 蓝色两种存在 / 文案红线 / 落地页八屏 / 动效分层） | 2026-09-25 新建、2026-09-27 落地页实现后回写 As-built（§7 顶部）。**落地页已实现（feat/landing-page 分支）**；**产品内视觉仍属讨论阶段（#51 未拍板）** |
@@ -16,9 +16,13 @@
 | `refactor-module-contracts.md` | 板块契约（10 板块所有权 / 协议 / 文件独占表） | 四件套 ②，可当任务单发 |
 | `refactor-migration-checklist.md` | 迁移清单（现有页面/接口/表逐项处置） | 四件套 ③ |
 | `refactor-decision-mapping.md` | D1–D59 全量映射（零孤儿验收索引） | 四件套 ④ |
+| `refactor-dispatch-cards.md` | 十板块派发卡（边界 / 依赖 / 验收 / 禁止项） | 2026-10-04 补登记（dev-3 巡检发现漏登记）。⚠️ **卡内事实可能滞后于代码**——卡 E 曾误写「services 下没有 communityApi.ts」而实际早已存在，用前先回查代码 |
+| `pilot-crisis-review-template.md` | 危机响应评审模板 + 第 0 号实测记录 | 2026-10-04 补登记（dev-3 巡检发现漏登记）。红线「危机响应触发正确率 100%」的记录载体；召回缺口以 `xfail(strict)` 挂牌留痕 |
 | `refactor-implementation-notes.md` | 执行细节（计量/上传/治理/稳定 ID 等） | 与目标态配套 |
 | `landing-page-dev-spec.md` | **落地页开发实施文档**（技术基线 / 动效引入与实测回填 / 逐屏规格 / 素材与占位 / 降级矩阵 / 性能终版数字 / 验收走查） | 2026-09-25 新建、2026-09-27 实现完成并走查（1440×900 + 375×720）；**视觉与文案的真源是 `visual-language.md`，本文只写实现**。⚠️ 此行曾在本分支合并 main 时被冲突解决误删，2026-09-27 恢复 |
-| `pilot-metrics-and-admission.md` | pilot 核心指标口径 + pilot→beta 准入标准（#53） | G 板块基线；指标全部可从埋点/usage_ledger 读出，阈值待拍板 |
+| `pilot-metrics-and-admission.md` | **pilot 核心指标 + pilot→beta 准入标准（#53）v1.0**（阈值已锁定） | 2026-09-25 v0.1 定口径 → **2026-10-02 阈值全部拍板升 v1.0**（次周留存降观察项、样本两期 20→50、5xx 监控列为一期必做）。⚠️ **§5 一期前置 6 项未销项前，§2 验收门无法判定**；决策记录见 `pilot-threshold-proposal.md` |
+| `pilot-threshold-proposal.md` | #53 阈值建议稿（13 项建议值 + 样本量判定力分析 + 指标可读性前置清单） | 2026-10-02 新建、**同日全部拍板**。**已非基线**，保留作决策记录（记下哪些数被否与原因） |
+| `five-xx-rate-sql.md` | **5xx 率查询 SQL**（SQLite 已实测 / Postgres-Neon 待实测）+ 口径说明 | 2026-10-03 新建。为 §2.2 验收门固化 SQL 文本——原先它只存在于 dev-2 本地分支的 commit b82d837 与 gitignore 的临时文件里，worktree 一删就丢。§5 第 6 项 Neon 验证的直接输入 |
 | `refactor-2026-09-feature-ia-logic.md` | 现状基线（功能清单/IA/技术债） | 与勘误对照读 |
 | `refactor-baseline-recheck-2026-09-18.md` | 现状勘误（10 条已过时 / 7 条仍准确 / 新发现） | 以 HEAD 实测为准 |
 | `refactor-d-knowledge-ref-protocol.md` | **知识引用协议**（D 产出 → F/B/E 消费）：`{pointId, subjectCode, name, mastery?}` | 2026-09-29 新增、**2026-09-30 移入权威栏**；**文本已冻结**，消费方按此开发不必等实现，且**不得自行扩展字段** |

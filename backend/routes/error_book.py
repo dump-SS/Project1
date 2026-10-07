@@ -260,18 +260,26 @@ def _async_embed_error(error_id: str) -> None:
     name_fuzzy，不阻断。绝不用 KB_EMBED_MODE=api 把错题原文发出去。
     """
     from database import SessionLocal
-    from embedding_service import EMBED_SRC_USER, embed_mode_for, embed_text
+    from embedding_service import (
+        EMBED_SRC_USER,
+        embed_mode_for,
+        embed_text,
+        user_content_api_opt_in,
+    )
     from models.knowledge import EmbeddingRef as EmbedRef
 
     db = SessionLocal()
     try:
-        mode = embed_mode_for(EMBED_SRC_USER)
-        if mode == "off":
-            return
         row = db.get(ErrorRecordORM, error_id)
         if row is None:
             return
-        vec = embed_text(row.raw_text, source=EMBED_SRC_USER)
+        # D41：只有该用户在设置里显式 opt-in，用户内容才可能跟随 KB_EMBED_MODE=api 出域；
+        # 默认（含无 settings 行）恒为 local。**本地失败也不会改走 api**（宁缺毋滥，D34）。
+        opt_in = user_content_api_opt_in(db, row.user_id)
+        mode = embed_mode_for(EMBED_SRC_USER, user_api_opt_in=opt_in)
+        if mode == "off":
+            return
+        vec = embed_text(row.raw_text, source=EMBED_SRC_USER, user_api_opt_in=opt_in)
         if vec is None:
             return
         ref_id = _gen("ve")
@@ -281,10 +289,13 @@ def _async_embed_error(error_id: str) -> None:
         ))
         row.vector_id = ref_id
         db.commit()
-        # 向量本体入本地 FAISS 索引（引用表不含向量，落盘才能检索）
+        # 向量本体入本地 FAISS 索引（引用表不含向量，落盘才能检索）。
+        # 🔴 必须写用户独立命名空间（store="user"）：错题原文属用户内容，
+        # 写进 KB 共享索引会污染生产检索（2026-10-06 开关冲突案 · 方案 B 物理隔离）。
+        from vector_store import STORE_USER
         from vector_store import add as vector_add
 
-        vector_add(vec, ref_id, "error", error_id, mode, len(vec))
+        vector_add(vec, ref_id, "error", error_id, mode, len(vec), store=STORE_USER)
     except Exception as e:  # noqa: BLE001
         logger.warning("[ERROR_BOOK] 异步 embedding 失败: %s", e)
     finally:

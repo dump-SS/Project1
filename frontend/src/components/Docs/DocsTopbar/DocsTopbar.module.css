@@ -1,0 +1,327 @@
+/* DocsTopbar · 文档站顶栏（2026-09-29 Skyer 指定）
+ * 与页面同一张底纸，只靠底部 hairline 分层（§8.1 第 3 条：不靠色块/阴影）。
+ * 控件无衬线（§5 正在发生）；蓝色只出现在焦点 / hover（§4）。
+ * z-index 30：低于移动端抽屉(40)/遮罩(35)，高于正文与侧栏。 */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex: none;
+  height: var(--docs-topbar-h);
+  display: flex;
+  align-items: center;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-4);
+}
+
+/* 左右两个弹性侧翼，把中间的「索引 + 搜索」顶到正中。
+   不写 min-width:0——侧翼不许小于内容（min-content 兜底），
+   否则窄屏下 logo 会溢出侧翼压到「索引」钮上；收缩压力全给搜索框 */
+.side {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+}
+
+.sideRight {
+  justify-content: flex-end;
+}
+
+/* ---------- logo 全称：日/夜两版，跟 [data-theme] 切显隐 ---------- */
+
+.brand {
+  flex: none; /* 侧翼收缩时 logo 项不能被压窄，否则 img 溢出压到相邻控件 */
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-control);
+  /* 往右挪一些（2026-10-01 Skyer）：与下方侧栏分组标题的字头大致对齐 */
+  margin-left: var(--sp-2);
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.brand img {
+  /* 显隐由 .logoLight / .logoDark 决定——这里不写 display，
+     否则 (0,1,1) 会压过 .logoDark 的 display:none，日间出双 logo 叠影 */
+  height: 26px;
+  width: auto;
+  align-self: flex-start;
+}
+
+.logoLight {
+  display: block;
+}
+
+.logoDark {
+  display: none;
+}
+
+:global([data-theme='night']) .logoLight {
+  display: none;
+}
+
+:global([data-theme='night']) .logoDark {
+  display: block;
+}
+
+/* ---------- 中部：索引钮 + 搜索 ---------- */
+
+.center {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.indexBtn {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-control);
+  background: var(--surface-card);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.indexBtn:hover {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+}
+
+.indexBtn:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.searchWrap {
+  position: relative;
+  width: min(440px, 56vw);
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-card);
+  transition: border-color 0.15s ease;
+}
+
+.searchBox:focus-within {
+  border-color: var(--brand-blue);
+}
+
+.searchIcon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.searchInput::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 结果浮层：白卡 + hairline，不加阴影（层级照 §8.1 靠边框与留白） */
+.results {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  background: var(--surface-card);
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-tertiary);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.resultActive {
+  background: var(--bg-page);
+}
+
+.result:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: -2px;
+}
+
+.resultHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.resultTitle {
+  font-family: var(--font-heading);
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultSection {
+  flex: none;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.resultSnippet {
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 命中词：只抬字重，不着色（§8.1 不靠色块） */
+.hit {
+  margin: 0;
+  background: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+/* ---------- 右上：主题切换 ---------- */
+
+.themeBtn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-control);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.themeBtn:hover {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+}
+
+.themeBtn:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- 窄屏：logo 收一档，搜索占满余量 ---------- */
+
+@media (max-width: 900px) {
+  .inner {
+    gap: var(--sp-3);
+    padding: 0 var(--sp-3);
+  }
+
+  .brand img {
+    height: 22px;
+  }
+
+  .center {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .searchWrap {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .searchBox {
+    height: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand img {
+    height: 20px;
+  }
+
+  .indexBtn {
+    padding: 5px 9px;
+  }
+}

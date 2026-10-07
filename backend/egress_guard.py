@@ -145,30 +145,46 @@ class EgressViolation(Exception):
 EMBED_SRC_KB = "kb"
 EMBED_SRC_USER = "user"
 
-# 允许走外部 embedding API 的来源白名单。**用户内容不在其中，且不可通过配置放开。**
+# 允许走外部 embedding API 的来源白名单。
+# **用户内容（EMBED_SRC_USER）不在其中，且不可通过配置放开**——它只能在用户**显式 opt-in**
+# （PRD 12.6 / D41 的 settings.user_content_embedding_api_enabled）时，
+# 由调用方显式传 user_api_opt_in=True 放行。默认参数 False ⇒ 默认拒绝。
 EMBED_OFFDOMAIN_ALLOWED_SOURCES: frozenset[str] = frozenset({EMBED_SRC_KB})
 
 
-def assert_embed_source_offdomain_allowed(source: str) -> None:
+def assert_embed_source_offdomain_allowed(source: str, *, user_api_opt_in: bool = False) -> None:
     """准备把文本发给**外部** embedding API 前的最后一道闸。
 
     与 :meth:`Guard.check` 同为「默认拒绝」：未声明的来源一律当作越权处理，
     不放行到 api 模式。
 
+    Args:
+        source: 数据来源（``EMBED_SRC_KB`` / ``EMBED_SRC_USER``）。
+        user_api_opt_in: **仅对用户内容有意义**。用户内容默认禁止出域；只有该用户在自己的设置里
+            显式开启（``settings.user_content_embedding_api_enabled``，PRD 12.6 / D41）时，
+            调用方才传 ``True`` 放行。**默认 False = 默认拒绝**；而且它**不是配置项** ——
+            按用户、按请求显式给出，``KB_EMBED_MODE`` 放不开它。
+
     Raises:
-        EgressViolation: 来源未声明，或属于禁止出域的用户内容。
+        EgressViolation: 来源未声明，或属于禁止出域的用户内容（且未 opt-in）。
     """
     if source not in (EMBED_SRC_KB, EMBED_SRC_USER):
         logger.error("[EGRESS] 未声明合法 embedding 来源：%r", source)
         raise EgressViolation(f"未声明合法 embedding 来源：{source!r}")
-    if source not in EMBED_OFFDOMAIN_ALLOWED_SOURCES:
-        logger.error(
-            "[EGRESS] 来源 %s 禁止出域到外部 embedding API（错题原文/作答/学习记录永不出域）",
-            source,
-        )
-        raise EgressViolation(
-            f"embedding 来源 {source!r} 禁止出域：用户内容只能用本地模型"
-        )
+    if source in EMBED_OFFDOMAIN_ALLOWED_SOURCES:
+        return
+    if source == EMBED_SRC_USER and user_api_opt_in:
+        # 用户显式 opt-in：放行，但留一条痕（是谁开的可从 settings 表追）。
+        logger.info("[EGRESS] 用户内容 embedding 出域：该用户已显式 opt-in（PRD 12.6 / D41）")
+        return
+    logger.error(
+        "[EGRESS] 来源 %s 禁止出域到外部 embedding API"
+        "（错题原文/作答/学习记录默认永不出域，除非用户显式 opt-in）",
+        source,
+    )
+    raise EgressViolation(
+        f"embedding 来源 {source!r} 禁止出域：用户内容只能用本地模型（除非该用户已显式 opt-in）"
+    )
 
 
 class Guard:

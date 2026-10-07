@@ -39,7 +39,7 @@
 | 1 | 产品介绍 | ✅ | EpochX 是什么、为谁做的、能做什么 | 落地页内容的**文档版**：朴素、无动效、不吹 |
 | 2 | **致家长** | ✅ | 给家长的说明与承诺 | **特殊文档**，见 §9 |
 | 3 | 快速入门 | ✅ | 一页走完：注册 → 建档 → 第一次记录 → 看状态 | 面向"我想马上用起来"的人 |
-| 4 | 注册与邀请码 | ✅ | 邀请码注册（一码一用）与登录 | |
+| 4 | 注册与邀请码 | ✅ | **邀请码注册（一码一用，必填）与登录** | **2026-09-30 A 板块 M1 已落地**（PR #46）：邀请码进 `POST /auth/register` 必填校验，一码一用（`409 INVITE_CODE_USED`），格式/存在性校验 `422 INVITE_CODE_INVALID`，大小写与首尾空格规范化，注册失败不占用（回写 `used_by` 稳定 userId + `used_at`）。契约 v1.7.1 → **v1.8.0**。正文已按实现重写 |
 | 5 | 首次建档 | ✅ | 年龄、学科、目标等建档步骤 | |
 | 6 | 监护人授权 | ✅ | 未满 14 岁的授权流程（操作层面） | 与「致家长」互链不重复 |
 | 7 | 界面导览 | ⏳ | 各页面入口说明 | **重构中**，等 X1 壳落地后写 |
@@ -79,7 +79,7 @@
 |---|---|---|---|---|
 | 1 | 个人资料 | ✅ | 资料与偏好 | |
 | 2 | 通知与邮件 | ⏳ | 通知设置 | **状态待确认**（后端有 SMTP，前端是否有设置项需核实） |
-| 3 | 注销与删除 | ✅ | 注销、数据删除 | 与「撤回即删除」互链 |
+| 3 | 注销与删除 | ⏳ | 注销、数据删除 | **2026-09-28 由 ✅ 改为 ⏳**：契约 64 个 path 里无账号注销、无数据删除接口（只有 `POST /auth/logout`，那是退出登录）；`refactor-implementation-notes.md` 的「注册/登录/改邮箱/注销 全链路通过」仍是未勾选项。按 §0 规则 2「写了就是谎」，降为 building 不写步骤 |
 
 ## 6. 第 5 章 · 价格与计费
 
@@ -112,8 +112,8 @@
 |---|---|---|---|---|
 | 1 | 更新日志 | ✅ | 版本与变更 | 可由 `git log` 生成 |
 | 2 | 联系我们 | 🔒 | 联系方式 | **占位，内容留空**（不预先编造） |
-| 3 | 隐私政策 | 🔒 | 政策正文 | #29a 上线前补项，**占位** |
-| 4 | 服务条款 | 🔒 | 条款正文 | 同上 |
+| 3 | 隐私政策 | ✅ | 政策正文 | #29a 已交付（2026-10-02，按 `user_error_content` 口径） |
+| 4 | 服务条款 | ✅ | 条款正文 | 同上 |
 
 ---
 
@@ -187,5 +187,161 @@ updated: 2026-09-29
 1. 「通知与邮件」页的真实状态（前端是否有通知设置）待核实
 2. 「常见问题」四类内容等 pilot 后按真实提问填充
 3. 隐私政策 / 服务条款属 #29a 上线前补项
-4. 文档页是否做搜索：pilot 阶段可省，或客户端模糊匹配，不上索引
+4. ~~文档页是否做搜索~~ → **已落地（2026-09-29）**：顶栏搜索框，客户端子串匹配（§17），不上索引服务
 5. 文档页落地顺序（骨架先上 / 内容分批填）由 Skyer 定
+
+---
+
+## 15. 落地记录（2026-09-28）
+
+**结论：骨架 7 章 38 页全部上线，`/docs` + `/docs/:section/:slug` 可访问。**
+
+| 项 | 结果 |
+|---|---|
+| 内容 | `frontend/src/pages/Docs/content/<section>/<slug>.md` 共 **38** 个文件 |
+| status 分布 | `implemented` **24** / `building` **5** / `placeholder` **9** |
+| 排序 | frontmatter `order` 生效，用 10/20/30 间隔值（`registry.ts` 读 `import.meta.glob`，运行期无 fs/无后端/无索引服务） |
+| 校验 | 逐项核对章节数 / 标题 / order / status 与本表一致；`owner` 字段 0 处；跨页链接死链 **0** |
+| 依赖 | **零新增**。`react-markdown` 为既有依赖，Docs 走路由级代码分割（独立 chunk ≈ 77 KB） |
+| 构建 | `npm run typecheck` 与 `npm run build` 均通过 |
+
+**实现落点**
+
+- `frontend/src/pages/Docs/registry.ts` —— 内容登记表（glob + frontmatter 解析 + 排序 + 标题抽取）
+- `frontend/src/pages/Docs/index.tsx` —— 页面外壳（`DocsRoutes` / `DocsIndex` / `DocArticle`）
+- `frontend/src/components/Docs/` —— **可复用组件**（§8.4.6）：`DocsSidebar` / `DocsProse` / `DocsCallout` / `DocsCard` / `DocsToc` / `DocsPager`。放在 `components/` 而非 Docs 页内，**这一步做了，文档页就不只是文档，而是重构的视觉垫脚石**。
+
+**三处需要 Skyer 复核的决策**
+
+1. **「注册与邀请码」正文只写邮箱注册，不提邀请码**（见 §2 第 4 行）。标题未动。若认为标题应改，等你定。
+2. **「注销与删除」由 ✅ 降为 ⏳**（见 §5 第 3 行）。契约无接口，按规则 2 降级。
+3. **`掌握度` 一词与 §6.2 内部术语禁令有张力** —— §6.2 把「掌握度」列为内部术语，但 §3 章本就有「知识库与掌握度」这个页名，且掌握度确实是用户可见的概念（节点由暗到亮）。当前处理：**保留页名与正文用词**（页名以本骨架为准），但在正文中避免使用「画像 / 归因 / 状态画像」这三个纯内部词。**这条需要你裁决**：若坚持 §6.2 严格执行，页名要改。
+
+**共享文件改动（3 处，待 Skyer 收口）**
+
+| 文件 | 改动 | 原因 |
+|---|---|---|
+| `src/App.jsx` | +lazy import、+`isDocs`、+`/docs/*` 一条路由、LaunchScreen/CustomCursor 跳过 `/docs` | 不注册路由则 `/docs` 不可访问。diff 约 12 行，与 Landing 现有写法同构 |
+| `src/styles/tokens.css` | 新增**语义 token 层**（§3 八项 + 蓝色三出口 + 状态色）与**度量层**（§8.4.1） | §3 的语义 token 此前**全站不存在**；§8.1 第 1 条要求「颜色只走语义 token，不写色值」。唯一覆盖：`--bg-page` 原为天空渐变，实测**全站无人引用**，按 §3 改为实色底纸 |
+| `src/pages/Landing/content/copy.zh.ts` / `copy.en.ts` | 「资源」菜单 文档 / 更新日志 / 隐私政策 三个 href 指向对应页；「媒体」保持空 | §12 路由落点要求 |
+
+**未做（明确不做，不是遗漏）**
+
+- **未预置任何价格数字、未编造订阅方案、未填联系方式 / 协议链接 / 备案**（§0 规则 + §6.1 + §13 规则 4）
+- **未给 `building` 页写步骤**（§11：写了就是谎）
+- 价格与计费两页仅保留 §6.1 硬约束要求的**那一句**（价格=「pilot 封测期间免费，正式版定价方案待公布」；计费=「封测期间不涉及账单与支付」），与落地页顶栏「定价 = 暂无」严格一致
+
+> ⚠️ **本节已被后续修订覆盖**（2026-09-29，见 §16 / §17）：站内搜索**已做**
+> （`registry.searchPages`，客户端子串匹配），§14 待定项 4 随之关闭。
+> 「未做搜索」一条已从上方「未做」清单移除——它只在本节首次落地时成立。
+
+---
+
+## 15·五、A 板块 M1 合并后的文档内容回写（2026-10-01）
+
+合并 PR #46（A 板块 M1，`ff5c375` / `d6bb8d7`）时发现：**该 PR 推翻了文档里 6 条断言**，全部按实现重写，未留旧口径。
+
+| 页 | 原写法 | 现写法（依据） |
+|---|---|---|
+| `getting-started/sign-up` | 「当前注册流程**不需要填邀请码**」「邀请码一个字不提」 | 邀请码**必填**、一码一用、大小写/空格容错、注册失败不占用。`POST /auth/register` + `tests/test_invite_register.py` |
+| `getting-started/profile-setup` | 建档填**年龄段 + 学科 + 目标** | 建档填**学段 + 年级 + 学科 + 出生年份（可空）**；目标移至「目标」页。`UserProfilePut.required = [stage, grade, subjects]` |
+| `getting-started/guardian-authorization` | 未提判定依据、未提确认结果页 | 判定改为**出生年份**、取保守侧（`当前年 - 出生年 <= 14` 视为可能未满）；**持续判定**（撤销授权后回到未完成）；监护人**邮箱或手机号二选一**；**确认结果页**（`Accept: text/html` 返回自包含 HTML，JSON 客户端语义不变）。`routes/user.py::_is_under_14`、`tests/test_guardian_threshold.py`、`tests/test_guardian_confirm_page.py` |
+| `getting-started/quick-start` | 「开始之前」未列邀请码；建档写「年龄段」 | 补邀请码为前置条件；建档改四步 |
+| `getting-started/for-parents` | 「收集年龄段」 | 改「收集出生年份」，并写明**只收年份不收完整生日**的理由与**判定持续** |
+| `getting-started/introduction` | 未提访客 | 新增「可以先不注册」：访客可试用计划与计时，**数据只存当前页面、刷新或登录即清空、不写入不串号**、**AI 功能标灰**。`services/guestSession.ts`（`epochx:guest-mode` sessionStorage） |
+| `account/profile` | 「年龄段不能改」 | 改「出生年份可改，**改完重新判定门槛**」；新增「**将个人数据用于提升体验**」开关（`experienceImprovementEnabled`，**默认 false / opt-in**） |
+| `reference/changelog` | 止于 2026-09-29 | 新增 **2026-09-30** 条目，逐条对应 A 板块 M1 的用户可见变化 |
+
+**契约版本**：v1.7.1 → **v1.8.0**（64 paths / 174 schemas 不变）。
+
+**⚠️ 顺带发现并已修复一处阻塞级缺陷**
+
+新迁移 **`a91f4c2d7e03`（A 板块 M1 · 出生年份 + #29b 开关）在非空库上必然失败**。受控复现（临时库，未碰开发库）：
+
+```
+[空库]   settings 0 行 -> upgrade head 成功
+[非空库] settings 1 行 -> upgrade head 失败
+         sqlite3.IntegrityError: NOT NULL constraint failed:
+         _alembic_tmp_settings.experience_improvement_enabled
+```
+
+根因：迁移第 40–48 行在**同一个** `batch_alter_table` 里先加 `NOT NULL` 列（带 `server_default='0'`）、
+紧接着 `alter_column(server_default=None)`。SQLite 的 batch 模式是「建临时表 → `INSERT INTO tmp SELECT ...`
+（**该 INSERT 不含新列**）→ 删旧表 → 改名」。`server_default` 已被摘掉、新列又不在 INSERT 列表里，
+于是存量行拿到 `NULL` → 违反 NOT NULL。**空库时 `INSERT` 插入 0 行、不触发约束，所以能过。**
+
+- 因此**「空库 `upgrade head` 通过」这道验收门抓不到它**，与之前「本地库落后一迁移」「pytest 抓不到」同属一类陷阱：
+  **验证路径没覆盖真实故障条件**。只验空库的护栏等于没有护栏。
+- 失败后 `data.db` 会停在**半迁移态**：SQLite DDL 非事务，`users.birth_year` 已落、版本号未前进，
+  重跑会再撞 `duplicate column`。恢复办法是从备份还原。
+- **影响面**：任何已产生过 `settings` 行的库（本地开发库、已放量的 Neon）升级都会失败。
+
+**已修复**（2026-10-01，本机 agent 持 X0 权限，见 `AGENTS.md` §〇）：拆成**两个** batch ——
+阶段 1 保留 `server_default='0'` 让重建出的临时表带默认值兜住存量行，阶段 2 再单独摘默认值
+（此时该列已在 `settings`，重建时的 INSERT 会带上真实值）。revision id 未改。
+
+新增 `backend/tests/test_migration_nonempty_db.py`（7 例）作**空库 + 非空库双向**回归护栏，
+并做了 tamper 验证：改回「同一个 batch」后**恰好 3 条非空库用例失败、4 条空库用例仍通过**——
+精确复现了当初漏掉的原因，恢复后 7/7 通过。
+
+---
+
+## 16. 可见性审计与修复（2026-09-29）
+
+**结论：两主题（day / night）渲染、度量（§8.4.1）、状态标识、死链全部复核通过；修 4 类问题，留 2 项待定。**
+
+审计方式：内置浏览器实测 `/docs` 索引、文章页、`building`/`placeholder` 页、404、移动端抽屉，日/夜两主题各走一遍。
+
+**已修（照既有规范，无设计新增）**
+
+| 项 | 问题 | 处理 |
+|---|---|---|
+| 侧栏跟随 | `DocsSidebar` 是 `static`，右侧 TOC 是 `sticky`——长文滚到页底只剩侧栏尾巴，导航消失 | 改为 `sticky; top: 0; height: 100dvh`，与 TOC 行为对齐（`DocsSidebar.module.css`） |
+| 代码块底 | §8.4.2 要求 pre / 行内码「极淡底」，但正文直接落在底纸上，若用 `--bg-page` 就与页面同色，只剩 hairline 勾边 | 新增语义 token `--code-bg`（日 `#f0efeb` / 夜 `#151d27`），`DocsProse` 改引它。**当前 38 篇内容里零代码块、零行内码**，故此项为规范兜底、页面暂不可见（`DocsProse` 将来复用时生效） |
+| hook 顺序 | `DocArticle` 的 `useMemo` 写在 `if (!page) return` **之后**——同一实例从正常页切到 404 时 hook 数量变化，React 抛错白屏（历史记录前进/后退可触发） | 全部 hook 提到早退之前；实测「文章页 → 站内切 404」不再报错，404 卡片正常渲染 |
+| 页签标题 | `index.html` 写死 `<title>EpochX</title>`，全站无一处改 `document.title`，38 篇共用一个标题 | 索引页 `EpochX 文档`；文章页 `<页名> · EpochX 文档`；404 `页面不存在 · EpochX 文档` |
+| 移动端抽屉 | ①「目录」钮 z-index 50 高于抽屉 40，开抽屉后压住列表项；② 抽屉开着时背景仍在滚 | ①开启时隐藏按钮；②`body.style.overflow` 锁定并在关闭/卸载时还原 |
+| 首载闪色 | `App.jsx` 里 `/docs` 的 Suspense fallback 写死 `background: '#10161E'`，日间用户首次打开文档站会先闪一下深色 | **两步根治**：①`index.html` 加首帧前引导脚本，按 `localStorage` 手选 → 系统偏好设好 `data-theme`（逻辑与 `ThemeContext.getInitialTheme` 一致）——顺带治掉了夜色用户全站首帧先闪日色的老问题；②fallback 改 `var(--bg-page)`，两主题第一帧都解析对。**落地页 fallback 保持 `#10161E` 不动**：落地页两主题都是固定深底（`landing.css --lp-bg` 同值），深色 fallback 才是无缝 |
+
+**待定（需 Skyer 拍板，未做）**
+
+1. ~~**站内返回入口**~~ → **已由 §17 顶栏解决**（logo → 官网，索引钮 → `/docs`）。
+
+**本轮共享文件改动**：`src/styles/tokens.css` 仅**新增** `--code-bg` 一对（未改任何既有 token 值）；`src/App.jsx` 改 1 行（`/docs` fallback 色 → `var(--bg-page)`，落地页 fallback 注明保持原因）；`index.html` 加 10 行引导脚本（`<head>` 内同步执行，先于首帧）。
+
+---
+
+## 17. 顶栏、搜索、主题切换、复制页面（2026-09-29 Skyer 指定）
+
+**结论：四件事全部落地并实测通过——加顶栏（logo 全称 + 索引钮 + 居中搜索 + 右上主题切换）、文章页标题行最右侧复制按钮（下拉：复制为 Markdown / 以 Markdown 格式查看；位置与 hover 反馈 2026-09-30 按 Skyer 意见调整）。**
+
+**新增组件（照 §8.4.6 放 `components/Docs/`，产品内将来复用）**
+
+| 组件 | 职责 |
+|---|---|
+| `DocsTopbar` | 顶栏壳 + 站内搜索 + 主题切换。sticky 顶部，底纸同色只靠底部 hairline 分层；z-index 30（低于移动端抽屉 40 / 遮罩 35） |
+| `DocsCopyMenu` | 分体钮（复制｜下箭头）+ 下拉菜单 + Markdown 查看弹层。默认动作＝复制当前页 Markdown；弹层展示原始源文（等宽 + `--code-bg` 底、按屏宽折行），Esc / 点遮罩 / 关闭钮均可关。**位置：文章页标题行最右侧**（2026-09-30 Skyer 调整，原定标题左侧）；**hover：整组只描边转品牌青，悬停哪个钮哪个文字变暗一档**（copy: primary→secondary，箭头: secondary→tertiary，2026-09-30 二次调整：不做整组联动）；**菜单入场从上滑出 + 渐入**（0.16s，每次打开重放），开启时下箭头翻向上、收起复位 |
+| `DocsToc`（改造） | **滚动跟随 scroll-spy（2026-10-01 Skyer）**：`DocArticle` 挂 scroll 监听（直呼不套 rAF），视口 96px 处作阅读线，最后一个越过它的标题＝当前小节；TOC 里该项用蓝墨水左细条 + 文字转蓝标出（与侧栏当前项同款，§8.4.4/§4），带 `aria-current="location"`。96 必须大于锚点落点（scroll-margin-top 72），否则点目录跳转后那一节不亮。不做 rAF 节流的原因：十来个标题的 rect 读取开销可忽略，而 rAF 在冻结合成器环境会饿死（落地页已踩过一次） |
+
+**决策与实现口径**
+
+1. **logo 全称版**：用 `/brand/logo-full-on-{light,dark}-trim.png`（724×155），按 `[data-theme]` 用 CSS 切显隐（同 tokens 的深色跟随方式），点击回官网 `/`；「索引」钮紧贴搜索框左侧，回 `/docs` 目录页。
+2. **搜索＝§14 待定项 4 的「客户端匹配」方案落地**：`registry.searchPages` 对 38 篇标题 + 正文做子串匹配（空白分词、AND 语义、标题命中优先展示、正文命中带上下文摘要），不引依赖、不上索引服务。摘要走「剥 markdown 记号后的纯文本」（按页缓存），不会露出 `**` `##` `[]()`。命中词在结果里只抬字重不着色（§8.1 不靠色块）。键盘 ↑↓ 选结果、Enter 跳转、Esc 收起、点外部收起。
+3. **主题切换**：直接用全局 `useTheme().toggleTheme`（文档站在 ThemeProvider 内），不另起一套；切主题会带出全局云层过渡（CloudTransition 是全站主题切换仪式，未对文档站豁免）。主题手选结果由 ThemeProvider 持久化到 localStorage，与 index.html 引导脚本（§16）闭环。
+4. **复制页面**：默认动作与「复制为 Markdown」都写 `page.body`（registry 的原始 markdown，不含 frontmatter）；剪贴板优先 `navigator.clipboard`，非安全上下文（http 部署）降级 `execCommand`。反馈只说事实（「已复制」/「复制失败」）。
+5. **布局连锁改动**：`tokens.css` 度量层新增 `--docs-topbar-h: 56px`；`.shell` 改纵向两段（顶栏 + bodyRow）；侧栏 sticky `top` 改 56、高度改 `calc(100dvh - 56px)`；TOC sticky `top` 改 56+24；正文锚点 `scroll-margin-top` 同步避开顶栏。
+
+**实测中修掉的三个自伤**
+
+| 问题 | 修法 |
+|---|---|
+| 日间顶栏出**双 logo 叠影**：`.brand img { display:block }`（特异性 0,1,1）压过 `.logoDark { display:none }`（0,1,0），暗版日间藏不住 | 显隐只写在 `.logoLight/.logoDark` 两个类里，`.brand img` 不再写 display |
+| 窄屏 logo **溢出压住「索引」钮**：侧翼 `.side { min-width: 0 }` 被压得比内容窄，`flex:none` 的 logo 溢出侧翼 | 侧翼去掉 `min-width:0`（min-content 兜底），收缩压力全给搜索框 |
+| 移动端**抽屉不满高**（844 视口只有 788）：桌面 sticky 的 `height: calc(100dvh - 56px)` 泄进媒体查询 | 媒体查询里 `height: auto`，`inset: 0 auto 0 0` 恢复满高 |
+
+**侧栏微调（2026-10-01 Skyer）**：分组标题字号 13→12px（注释层级再压一档）；当前项字重 500→700（选中项在列表里要立得住）。字体栈已含 Noto Sans SC 700，无需加载体重。
+
+**共享文件改动（本轮）**：`tokens.css` 新增 `--docs-topbar-h` 一个度量 token；`App.jsx` / `index.html` 未再动。
+
+**已知环境限制（非代码问题）**：本机内置浏览器长会话后点击/键盘事件投递会失效（window 捕获层 0 事件），最后两枚 Link（logo / 索引）只能做到 href 属性级验证——但二者是标准 react-router `Link`，与全站 40+ 处已验证可用的链接同一机制；搜索、复制、弹层、主题切换、抽屉均已实测通过。
+

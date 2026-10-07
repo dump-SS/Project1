@@ -56,14 +56,18 @@ def extract_community_features(db=None) -> dict:
         end_dt = datetime.combine(end, datetime.max.time())
 
         # 只抽已授权且资料完整（有 stage）的建档用户
-        users = db.execute(
+        # ⚠️ `select(单列).scalars()` 返回的是**标量本身**（user_id 字符串），不是 Row/元组
+        # ——**不要**写成 `for (uid,) in users:`：user_id 长度恰好为 2 时会被拆成两个字符，
+        # 否则直接 ValueError 让整个 job 挂掉（一个用户都抽不到）。护栏见
+        # tests/test_community_jobs_db.py。
+        user_ids = db.execute(
             select(SettingsORM.user_id)
             .where(SettingsORM.community_consent_enabled.is_(True))
         ).scalars().all()
         # stage 从 User 表读取（未建档/缺 stage 用户跳过）
         from models.user import User as UserORM
 
-        for (uid,) in users:
+        for uid in user_ids:
             u = db.get(UserORM, uid)
             if u is None or not u.onboarding_completed or u.stage not in ("junior", "senior"):
                 continue  # stage 缺失不抽取（§4.6）

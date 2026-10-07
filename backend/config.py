@@ -75,11 +75,28 @@ class Settings(BaseSettings):
     embed_request_timeout: int = 60
     embed_max_retries: int = 1
 
+    # --- 向量索引目录（FAISS 两个文件所在目录）---
+    # 生产 DATABASE_URL 是 Neon（非 SQLite），_index_root() 原逻辑会静默回落到
+    # Path.cwd()/"kb_vectors"——索引路径依赖进程工作目录，容器每次重启都可能是新
+    # 路径，冷启动读不到索引且**静默**降级成 name_fuzzy。显式指定可消除该歧义。
+    # 留空 = 沿用旧逻辑（SQLite 同目录 / 非 SQLite 用 cwd），本地开发无需设置。
+    kb_vector_dir: str = ""
+    # 启动自检基准：索引条目数应等于此值（3391 = 知识点总数，与库表已核一致）。
+    # 不等时打 error 日志并在只读接口暴露，但**不阻断启动**（pilot 期服务不可用
+    # 比检索降级更糟）。≠基准时先查 refs.json 与库是否同步，**不要直接重建索引**。
+    kb_vector_expected_count: int = 3391
+
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
-    smtp_host: str = "smtp.163.com"
+    # 2026-10-06 迁至 Resend（sky 拍板）：host=smtp.resend.com、user 为字面量 "resend"、
+    # password 填 Resend API key；端口 465 = SMTPS 隐式 TLS，与下方 SMTP_SSL 用法一致。
+    smtp_host: str = "smtp.resend.com"
     smtp_port: int = 465
     smtp_user: str = ""
     smtp_pass: str = ""
+    # 发件人地址。**必须与 smtp_user 分开**：Resend 的 SMTP 用户名是字面量 "resend"，
+    # 若沿用 `formataddr(("EpochX", smtp_user))` 会拼出无效地址 `EpochX <resend>` 被拒信。
+    # 需为已验证发信域（send.epochx.net）下的地址。
+    smtp_from: str = "no-reply@send.epochx.net"
     # 发送路由：real=真实 SMTP，mock=写到 logger（团队测试用，scripts/test-accounts/ 默认为 mock）
     smtp_provider: str = "real"
 
