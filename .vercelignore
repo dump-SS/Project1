@@ -1,0 +1,12 @@
+.backups/
+.workbuddy-ai/
+.workbuddy/
+.reasonix/
+.trae/
+.trae-html-share-packages/
+.cursor/
+node_modules/
+*.log
+*.db
+*.db.bak-*
+backend/kb_vectors/

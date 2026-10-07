@@ -58,7 +58,10 @@ START_COMMAND = (
 
 # ⚠️ 会写生产库。**已获 Skyer 认可（2026-10-05，原话「可以」）**——
 # 失败会中止部署是有意的：宁可不部署，也不要带着旧 schema 上线。
-PRE_DEPLOY_COMMAND = "cd backend && python -m alembic upgrade head"
+# ⚠️ 与上面两条同源：该镜像只有 python3、没有 python（Railpack 构建镜像
+# railpack-builder:mise-2026.9.15）。此前只改了 BUILD 与 START，漏了这一条，
+# 导致 preDeploy 仍以 `sh: python: not found` exit 127 失败。
+PRE_DEPLOY_COMMAND = "cd backend && python3 -m alembic upgrade head"
 
 
 @define_railway
