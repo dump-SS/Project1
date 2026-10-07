@@ -75,7 +75,11 @@ export interface GenerationStatus {
 export interface Settings {
   aiWeightTuningEnabled: boolean;
   sendTextToAI: boolean;
-  /** 知识复盘 AI 出域（PRD 12.6），默认 false */
+  /**
+   * 题面外发开关（PRD 12.6 / 2026-09-30 拍板）。默认关闭。
+   * 开启后，用户当场输入的题面才会发给云端模型（`user_error_content`）；
+   * 关闭时搜题只按知识点给通用解法，题面一个字都不出域。
+   */
   knowledgeAiEgressEnabled?: boolean;
   /**
    * 用户内容（错题原文 / 作答 / 学习记录）embedding 走第三方 API 的授权（PRD 12.6 / D41）。
