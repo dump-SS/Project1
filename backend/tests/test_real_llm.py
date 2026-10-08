@@ -5,8 +5,14 @@
     # .env 里配好 LLM_PROVIDER=openai_compatible / LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
     .venv/Scripts/python -m pytest tests/test_real_llm.py -v
 
-当前接入的供应商：aiping.cn（Step-3.5-Flash），OpenAI 兼容 Bearer 鉴权。
-耗时警告：每个用例真实调用一次 LLM，约 10-30 秒。
+当前接入的供应商：aiping.cn，OpenAI 兼容 Bearer 鉴权。
+⚠️ **模型名以线上 `LLM_MODEL` 为准，不要照抄本文件**：2026-10-09 实测线上为
+`GLM-5.3-Flash`，而 `backend/.env` 本地默认值是 `Step-3.5-Flash`（Skyer 裁定线上
+保持 GLM）。两者恰好都 14 字符，只比长度分辨不出，容易误判。
+
+耗时警告：每个用例真实调用一次 LLM，会实际计费并写入 `ai_call_logs`。
+另注：`LLM_MODEL=GLM-5.3-Flash` 实测单次 HTTP 约 2.7 秒；老注释里
+「aiping Step-3.5 实测 17-30s」已不适用于当前模型。
 """
 
 from __future__ import annotations
