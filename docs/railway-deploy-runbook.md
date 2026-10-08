@@ -373,7 +373,11 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 | 20 | **`npm install -g @railway/cli` 会卡 15 分钟后失败** | 其 postinstall 要从 GitHub releases 下 `railway.exe`，脚本自己打印 `aborted`。**不是网络问题**——该 URL 实测 HTTP 200、7,989,377 字节可达。<br>处置：手工下载 `railway-<ver>-x86_64-pc-windows-gnu.tar.gz`，把 `railway.exe` 放到 `%APPDATA%\npm\node_modules\@railway\cli\bin\` |
 | 21 | **创建带 GitHub source 的服务会立即触发一次构建** | `railway config apply` 新建 service 后，Railway 自动构建 `reason: "deploy"`。**实测无法用 IaC 单独「建服务但不构建」**——`apply` 要求先有 linked project，项目又只能 `railway init` 建，建完就带 source。<br>所以「只 plan 不部署」的边界，在「从零建项目」这一步**做不到**，需要事先知会 |
 | 22 | **`source=github(...)` 只设 source，**不**建部署触发器** | 实测：IaC 里写了 `source=github(REPO, branch="main")`，构建也确实从该仓库 clone（部署元数据带 `repo` + `commitHash`），但服务的 `repoTriggers` 为**空**，于是 **push 不会触发任何构建**。<br>触发器（git push → 部署）是**独立于 source 的对象**，不由 IaC 这次创建。<br>后果：**当前 push 到 main 不会自动部署**，`ee9ab8e` 推送后没有任何新构建。首次那两个 FAILED 构建都是 apply 自己触发的，不是仓库触发。<br>**取舍**：刻意**不**补建触发器 —— 一旦开启，任何 agent 的一次 push 都会触发后端构建+部署；而服务在 `KB_VECTOR_URL` 等变量补齐前必然构建失败，等于每次 push 都留一个红构建。**是否开自动部署是部署治理决策，留给 Skyer**；在此之前用 Dashboard 手动 Redeploy |
-| 23 | **`preDeployCommand` 里的 `python` 尚未验证** | ⚠️ **未修，待实测**：`preDeploy = cd backend && python -m alembic upgrade head` 用的是 `python`，与第 18 条同一类疑点。<br>但**不能直接照搬第 18 条的结论**：preDeploy 跑在**部署阶段**（`railpack-runtime`），第 18 条是**构建阶段**（`railpack-builder`），两个镜像不同族。<br>若运行时同样没有 `python`，后果是**迁移不执行** —— 服务可能对着未迁移的库启动。<br>**为什么先不改**：本次授权范围是「只补 LLM 三个变量」，改 preDeploy 超出范围；且正确写法取决于实测结果（`python3`？还是运行时另有 `python`？），先改属于猜。**拿到 Skyer 变量后首次 Redeploy 时重点看这条日志** |
+| 23 | **`preDeployCommand` 里的 `python`** | ✅ **已解决（2026-10-08 实测）**：原写法是 `python`，与第 18 条同类疑点。改为 `python3` 后 **preDeploy 真的跑起来了**，`alembic upgrade head` 在部署日志里建表成功（`kb_error_points`、`summaries` 等）。<br>但**这不代表运行时有 `python` 命令**——见第 26 条：运行时只有 `python3`，且它来自**另一个**解释器 |
+| 24 | **Railpack provider 由「仓库根目录」决定，子目录的 Python 清单无效** | ⚠️ **实测踩中，根因级**：Railpack 按固定顺序取第一个 `Detect()==true` 的 provider，`python` 排在 `node` **之前**；但判定**只看仓库根目录**。<br>本项目根目录有 `package.json`（Neon 配置），Python 依赖在**子目录** `backend/pyproject.toml`、`backend/.python-version` 也在子目录 → **`node` provider 胜出**，构建镜像是 Debian + Node，**连 `python3` 都没有**。<br>后果分两层：构建期报 `/usr/bin/python3: No module named pip`（连 `ensurepip`、`uv` 也没有）；部署期报 `python3: command not found`。<br>处置：新增 `railpack.json` 强制 `"provider": "python"`，并把版本钉在 `"packages": {"python": "3.12"}`（子目录的 `.python-version` Railpack 读不到）。<br>**取舍**：文件放仓库根，牺牲了 IaC 的「配置集中在 `.railway/`」整洁度，换取 provider 可控——这个代价值得 |
+| 25 | **`RAILPACK_PACKAGES` 只修构建、救不了运行** | ⚠️ **实测踩中（最贵的一次弯路）**：设了 `RAILPACK_PACKAGES=python@3.12` 后，**构建成功**（索引校验通过、3391/2048、镜像 push 成功），但**部署仍报 `python3: command not found`**。<br>原因：`RAILPACK_PACKAGES` 由 mise 在**构建阶段**安装，产物不进运行时镜像。<br>**教训**：「build 日志全绿」不等于「能跑」。第 26 条才是真正原因，`RAILPACK_PACKAGES` 只是把失败从构建期推迟到了部署期 |
+| 26 | **构建期与运行期是两个不同的 Python，依赖带不过去** | ⚠️ **实测踩中，最终真凶**：加上 `railpack.json` 后运行时有了 python，但 preDeploy 报 `No module named alembic.__main__`。查日志发现路径不同：<br>• 构建：`/mise/installs/python/3.12.14/bin/python3`（mise 装的，依赖装进了它）<br>• 运行：`/mise/installs/python/3.12/bin/python3`（运行时镜像自带的另一个，无依赖）<br>构建阶段 mise 装的解释器与 site-packages **不进入运行时镜像**。三条路逐一排除：<br>• 装进解释器自身 → 留在 `/mise/installs`，带不过去（第 25 条）<br>• 建 venv → `pyvenv.cfg` 记录**基解释器绝对路径**，运行时该路径不存在，venv 直接失效<br>• **`--target` 装进 `/app/vendor`（采用）** → 装出来是真实文件、不引用解释器路径，随构建产物进镜像，再由 `PYTHONPATH` 指过去，**路径无关、可跨镜像**<br>配套：`KB_VENDOR_DIR`（给构建脚本，装到哪）与 `PYTHONPATH`（给 preDeploy/start，从哪 import）**必须是同一个值**，不一致就是「装了却 import 不到」；装完立刻用 `PYTHONPATH` 试 `import alembic, uvicorn, fastapi, faiss, sqlalchemy, psycopg2` 自检 |
+| 27 | **`config apply` 删除变量属破坏性操作，`--yes` 不够** | 实测：`config apply --yes` 被 Railway 自己拦下（`Destructive Railway configuration changes require explicit confirmation`），必须 `--confirm-destructive`。**这道拦截是对的**，别想绕过。<br>删除动作本身要有预期：把 `RAILPACK_PACKAGES` 从 IaC 移除时，plan 会列 `1 to destroy`——那是**预期迁移**（版本改由 `railpack.json` 负责），不是误删。<br>流程上固定为：`config plan` → 确认唯一破坏项是预期的 → 再 `--confirm-destructive` |
 
 ---
 
@@ -387,6 +391,8 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 | 4 | 前后端拓扑 | ✅ **已定分离**：`epochx.net` + `api.epochx.net`（`BUILD_FRONTEND=0`）。**连带必须做**：CORS 白名单填 `https://epochx.net`（不能用 `*`，见 §5①） |
 | 5 | R2 桶的 CORS / 访问路径 | ⏳ 由 Skyer 配 R2 侧访问控制 |
 | 6 | 本机 pg_dump 备份是否也上 Railway 定期跑 | Neon 免费版无自动快照，这个缺口在换机器后**依然存在** |
+| 7 | **`DATABASE_URL` 未设置，服务正跑在容器内临时 SQLite 上** | 🔴 **最高优先级，2026-10-08 实测发现**：线上变量里**没有** `DATABASE_URL`，`backend/config.py:27` 的默认值 `sqlite:///./data.db` 生效了。<br>所以「`database: ok`」是**误导**——health 检查的是 SQLite 连通，不是生产库。<br>后果：<br>① **无持久化**——每次重启/重新部署都从零建表（首次部署日志里确实全量建了 `kb_error_points`、`summaries` 等）<br>② **Neon 的 `kb_points` 3391 条不在库里**——检索能用是因为 FAISS 索引从 R2 走**文件**加载（`searchMode=vector`），与数据库无关，容易误以为「数据都齐了」<br>③ 用户数据（users / learning_records / exams）全部落在容器内、重建即丢<br>`backend/.env.example:91` 早就写了「生产 DATABASE_URL 是 Neon，务必显式指定」，**这条警告应视为硬要求**。需 Skyer 决定：接 Neon（推荐，pilot 已有）还是 Railway 自带 Postgres |
+| 8 | **`JWT_SECRET` 未设置** | 同上，线上 28 个变量里没有它。JWT 签名密钥每次启动随机生成 → **容器一重启，所有已登录用户的 token 立刻失效**。需 Skyer 提供一个固定值 |
 
 ---
 
@@ -398,7 +404,7 @@ railway config plan --detailed-exit-code   # 无变更 exit 0，有变更 exit 2
 | 依赖解析 | 实跑 `scripts/railway_build.py` 的 `step_install_python_deps` | 从 `pyproject.toml` 解析 12 个 pin 并安装成功 |
 | 缺 URL 硬失败 | 不设 `KB_VECTOR_URL` 跑构建 | **exit 1** + 可操作提示 |
 | 索引下载真跑 | 本地 `http.server` 供**真实** `backend/kb_vectors/`，`KB_VECTOR_URL` 指向它 | 落地 27,779,117 / 354,166 字节，**SHA256 与源逐字节一致**，`check_vector_index.py` exit 0、`searchMode=vector` |
-| Railway 后台全流程 | **未验证**（无账号权限） | 见 §8 第13–16 项 |
+| Railway 后台全流程 | **已验证**（2026-10-08 首次成功部署 `4f058142`） | ✅ build 成功 → preDeploy 跑完 `alembic upgrade head` → 容器启动。<br>`GET https://api.epochx.net/health` → **200** `{"status":"ok","service":"EpochX API","checks":{"app":"ok","database":{"status":"ok","error":null}}}`<br>`GET https://api.epochx.net/health/vector-index` → **200** `searchable:true`、`searchMode:"vector"`、`count:3391`、`expectedCount:3391`、`dim:2048`、`refs:3391`、索引文件均存在<br>自定义域 `api.epochx.net` 状态 **ACTIVE**，TLS 已签发<br>⚠️ **`database: ok` 不可信**——见 §9 第 7 条：实际是容器内临时 SQLite |
 
 > ⚠️ 上表刻意区分「本地已验」与「线上未验」。本轮唯一无法在本地闭环的是
 > **Railway 侧的一切**，已在 §8 第 4 节逐条列出。
