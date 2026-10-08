@@ -96,6 +96,20 @@ def main(ctx=None):
             # 不设时 _index_root() 会回落到进程 cwd，容器重启后路径可能变 → 读不到索引 → 静默降级。
             "KB_VECTOR_DIR": "/app/kb_vectors",
             "KB_VECTOR_EXPECTED_COUNT": "3391",
+            # —— 依赖安装位置：必须与下面 PYTHONPATH 一致，否则「装了却 import 不到」——
+            #
+            # 为什么需要这一对：实测（2026-10-08 真实部署）**构建期与运行期是两个
+            # 不同的 Python**：构建用 /mise/installs/python/3.12.14，运行用
+            # /mise/installs/python/3.12。构建阶段 mise 装的解释器与其 site-packages
+            # **不会进入运行时镜像**，所以依赖不能装进解释器自身、也不能靠 venv
+            # （venv 的 pyvenv.cfg 记的是基解释器绝对路径，运行时该路径不存在）。
+            # 唯一可靠做法：装成 /app 下的**真实文件**，随构建产物进镜像，再由
+            # PYTHONPATH 指过去 —— 路径无关，可跨镜像。
+            #
+            # 这两个值必须一致：KB_VENDOR_DIR 给构建脚本（装到哪），
+            # PYTHONPATH 给 preDeploy 与 start（从哪 import）。不一致就是上面那个坑。
+            "KB_VENDOR_DIR": "/app/vendor",
+            "PYTHONPATH": "/app/vendor",
             # 私有桶的 S3 签名凭据。**桶不开公开读**，索引下载必须签名。
             # 为什么不能开公开读：桶 epoch-x 不只放索引——docs/deployment-stack-evaluation.md
             # 记着二期多模态拍题要在**同一个桶**存用户上传的题目图片（用户数据）。

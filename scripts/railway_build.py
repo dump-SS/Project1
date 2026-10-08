@@ -195,10 +195,26 @@ def _ensure_installer() -> list[str]:
 
 
 def step_install_python_deps() -> None:
-    """从 backend/pyproject.toml 解析精确 pin 并安装。
+    """从 backend/pyproject.toml 解析精确 pin，**装进会随 app 带走的目录**。
 
     刻意不新增 requirements.txt：两份依赖清单必然漂移，而漂移会在
     「本地装的是 A、线上装的是 B」时变成极难查的问题。
+
+    ⚠️ 为什么用 `--target <VENDOR_DIR>` 而不是装进解释器自身，也不是建 venv：
+    实测（2026-10-08 真实部署）**构建期与运行期是两个不同的 Python**：
+        构建: /mise/installs/python/3.12.14/bin/python3   ← 依赖原本装进了这里
+        运行: /mise/installs/python/3.12/bin/python3      ← 运行时镜像自带的另一个，无依赖
+    构建阶段 mise 装的解释器与它的 site-packages **不会进入运行时镜像**，
+    于是 preDeploy 报 `No module named alembic.__main__`。
+
+    - **装进解释器自身**：留在 /mise/installs，带不过去（实测失败）。
+    - **建 venv**：venv 的 pyvenv.cfg 记录的是**基解释器绝对路径**
+      （/mise/installs/python/3.12.14），运行时该路径不存在 → venv 直接失效。
+    - **`--target` 装进 /app/vendor**：装出来的是**真实文件**、不引用任何解释器路径，
+      /app 内容会随构建产物进入运行时镜像，再由 PYTHONPATH 指过去 → 路径无关、可跨镜像。
+
+    所以 VENDOR_DIR 必须是 /app 下的路径，且必须与 Railway 变量 PYTHONPATH 一致
+    （见 .railway/railway.py）——这两处不一致就是「装了但 import 不到」。
     """
     pyproject = BACKEND_DIR / "pyproject.toml"
     if not pyproject.exists():
@@ -210,8 +226,30 @@ def step_install_python_deps() -> None:
     if not deps:
         die(f"{pyproject} 里没有 project.dependencies", "依赖清单被清空了？")
 
+    vendor = Path(truthy("KB_VENDOR_DIR", "/app/vendor"))
+    vendor.mkdir(parents=True, exist_ok=True)
     log(f"从 pyproject 解析到 {len(deps)} 个依赖（含 extras 的原样传递）")
-    run(_ensure_installer() + deps, REPO_ROOT, "装 Python 依赖")
+    log(f"装到 {vendor}（必须是 /app 下的路径，运行时会靠 PYTHONPATH 指过来）")
+
+    cmd = _ensure_installer() + ["--target", str(vendor)] + deps
+    run(cmd, REPO_ROOT, "装 Python 依赖")
+
+    # 装完立刻自检：不试一次 import，就不知道 PYTHONPATH 到底有没有生效。
+    # 历史上这里栽过：构建日志显示「Successfully installed」就以为万事大吉，
+    # 结果运行期才发现 import 不到——构建与运行不是同一个解释器。
+    probe = subprocess.run(
+        [sys.executable, "-c", "import alembic, uvicorn, fastapi, faiss, sqlalchemy, psycopg2"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(vendor)},
+    )
+    if probe.returncode != 0:
+        die(
+            f"依赖装完但 import 自检失败：{(probe.stderr or '').strip()[:200]}",
+            f"确认 PYTHONPATH 与本步骤的 {vendor} 是同一个路径"
+            "（.railway/railway.py 里的 PYTHONPATH 必须与 KB_VENDOR_DIR 一致）。",
+        )
+    log("依赖 import 自检通过（带 PYTHONPATH）")
 
 
 def step_build_frontend() -> None:
