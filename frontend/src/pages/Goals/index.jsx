@@ -454,6 +454,12 @@ export default function Goals() {
                         <span>截止 {dayjs(goal.targetDate).format('M 月 D 日')}</span>
                       </>
                     ) : null}
+                    {goal.completedAt ? (
+                      <>
+                        <span className="meta-divider" />
+                        <span>完成于 {dayjs(goal.completedAt).format('M 月 D 日')}</span>
+                      </>
+                    ) : null}
                   </div>
                   <div className="goal-list-item-progress">
                     <div className="goal-progress-track">

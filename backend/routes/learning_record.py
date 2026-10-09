@@ -160,12 +160,25 @@ def create_learning_record(
     )
     db.commit()
 
-    # 提交学习记录时，若关联了计划任务，自动同步任务状态（PRD 5.3：计划完成计数应实时反映）
+    # 提交学习记录时，若关联了计划任务，按「累计专注时长达标」推进任务状态。
+    # 任务状态只看累计时长是否跑满 estimatedMinutes，不看单次自评的
+    # completed/partial/abandoned——单次「放弃」只落到 learning_record 的行为
+    # 数据（behavior_completion），不把整个任务划成「已放弃」。任务放弃应由用户
+    # 在任务列表显式操作（PATCH status=abandoned）。（PRD 5.3 修正）
     if body.plan_task_id:
         from models.plan import PlanTask as PlanTaskORM
         task = db.get(PlanTaskORM, body.plan_task_id)
         if task is not None and task.user_id == _user.user_id:
-            task.status = body.behavior.completion.value
+            accumulated = db.execute(
+                select(func.coalesce(func.sum(LearningRecordORM.duration_minutes), 0)).where(
+                    LearningRecordORM.plan_task_id == task.id
+                )
+            ).scalar_one() or 0
+            task.status = (
+                "completed"
+                if accumulated >= (task.estimated_minutes or 0)
+                else "partial"
+            )
             db.commit()
 
     assessment = _recompute_snapshot(db, _user.user_id, body.subject.value, record_id)

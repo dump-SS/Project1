@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -75,16 +75,29 @@ def _split_tasks(
     available_minutes: int,
     goals: list[GoalORM],
 ) -> list[dict]:
-    """按可用时间和和目标列表生成任务。
+    """按可用时间和目标列表生成任务。
 
     策略（MVP 规则模板，PRD 5.1）：
-      - 至少为每个目标生成一个核心任务（25-40min）
-      - 剩余时间按目标顺序补第二个任务
-      - 单任务时长 20-45min；剩余时间不足以再加新任务则结束
+      - 单目标：整段可用时间归这一个任务（estimatedMinutes = 总时长），
+        番茄钟的拆分交给执行端（StudyTimer）按 25 分钟单元做，后端不硬拆。
+      - 多目标：至少为每个目标生成一个核心任务（25-40min），
+        剩余时间按目标顺序补第二个任务，单任务时长 20-45min。
       - priority 从 1 递增
     """
     if not goals:
         return []
+
+    # 单目标：一个任务承接全部时长（「历史 60 分钟」= 1 个 60 分钟任务，
+    # 而非被拆成 30+30 两条、再被前端只取第一条丢掉一半）
+    if len(goals) == 1:
+        goal = goals[0]
+        return [{
+            "subject": goal.subject,
+            "topic": _pick_topic(goal.subject, 0),
+            "estimated_minutes": available_minutes,
+            "priority": 1,
+            "goal_id": goal.id,
+        }]
 
     tasks: list[dict] = []
     remaining = available_minutes
@@ -244,7 +257,8 @@ def create_plan(
                     "message": "当日已存在计划，如需覆盖请传 regenerate=true",
                 },
             )
-        # 覆盖：删旧计划（plan_tasks 通过 ondelete=CASCADE 连带删除）
+        # 覆盖：先删旧任务、再删旧计划（SQLite 外键级联默认不启用，已手动补删）
+        db.execute(delete(PlanTaskORM).where(PlanTaskORM.plan_id == existing.id))
         db.delete(existing)
         db.commit()
 
@@ -269,14 +283,15 @@ def create_plan(
 
     # P0-1 兜底：无目标（或可用时间不足以放任何任务）时，补一条通用任务，
     # 保证 tasks 至少 1 条，前端推荐（取 tasks[0].topic）永远有内容可填。
-    # topic 用可读中文（Jacky 方案A P0-2），subject 用合法枚举 other（P0-3）。
+    # 若存在目标，兜底任务用该目标的学科 + 关联该目标（否则学科脱钩、目标进度恒 0%）。
     if not task_dicts:
+        fallback_goal = goals[0] if goals else None
         task_dicts = [{
-            "subject": "other",
+            "subject": fallback_goal.subject if fallback_goal else "other",
             "topic": "自由学习 · 巩固已学",
             "estimated_minutes": min(_DEFAULT_TASK_MINUTES, effective_minutes, _MAX_TASK_MINUTES),
             "priority": 1,
-            "goal_id": None,
+            "goal_id": fallback_goal.id if fallback_goal else None,
         }]
 
     plan_id = gen_id("p")

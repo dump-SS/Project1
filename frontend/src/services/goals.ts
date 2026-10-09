@@ -14,7 +14,7 @@
  *   契约里没有独立 DELETE；归档即"软删除"，保留历史供复盘引用。
  */
 
-import { apiGetAllPages, apiPatch, apiPost } from './http';
+import { apiDelete, apiGetAllPages, apiPatch, apiPost } from './http';
 import type { Goal, GoalCreate, GoalOutcome, GoalSummary, GoalUpdate } from '@/types/api';
 import type { GoalCard, GoalPanel } from '@/types/view';
 import { subjectLabels } from '@/styles/theme';
@@ -58,6 +58,7 @@ function toCard(goal: GoalSummary): GoalCard {
     plannedTasks: goal.progress?.plannedTasks ?? 0,
     completedTasks: goal.progress?.completedTasks ?? 0,
     completionNote: goal.completionNote ?? null,
+    completedAt: goal.completedAt ?? null,
   };
 }
 
@@ -199,4 +200,28 @@ export function updateGoal(
  */
 export function archiveGoal(goalId: string, signal?: AbortSignal): Promise<Goal> {
   return updateGoal(goalId, { status: 'archived' }, signal);
+}
+
+/**
+ * 物理删除目标（区别于归档）。对应 `DELETE /api/v1/goals/{goalId}`。
+ * 供 Chat 指令「删除目标」调用，删除后不可恢复。
+ */
+export function deleteGoal(
+  goalId: string,
+  signal?: AbortSignal,
+): Promise<{ deleted: boolean; goalId: string }> {
+  return apiDelete<{ deleted: boolean; goalId: string }>(
+    `/goals/${encodeURIComponent(goalId)}`,
+    signal,
+  );
+}
+
+/**
+ * 批量删除所有进行中（active）目标。对应 `DELETE /api/v1/goals`。
+ * 供 Chat 指令「删除所有未完成目标」调用。
+ */
+export function deleteAllActiveGoals(
+  signal?: AbortSignal,
+): Promise<{ deleted: number; goalIds: string[] }> {
+  return apiDelete<{ deleted: number; goalIds: string[] }>('/goals', signal);
 }

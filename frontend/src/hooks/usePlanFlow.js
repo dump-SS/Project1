@@ -100,14 +100,14 @@ export function usePlanFlow() {
     }
   }, [hasGenerated, minutes, generate]);
 
-  /** PATCH 任务成功后局部更新 plan.tasks */
+  /** PATCH 任务成功后局部更新 plan.tasks；removed=true 时从列表移除 */
   const handleTaskUpdated = useCallback((updated) => {
     setPlan((prev) => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        tasks: prev.tasks.map((t) => (t.taskId === updated.taskId ? { ...t, ...updated } : t)),
-      };
+      const tasks = updated?.removed
+        ? prev.tasks.filter((t) => t.taskId !== updated.taskId)
+        : prev.tasks.map((t) => (t.taskId === updated.taskId ? { ...t, ...updated } : t));
+      return { ...prev, tasks };
     });
   }, []);
 

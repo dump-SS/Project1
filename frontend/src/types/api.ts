@@ -270,6 +270,8 @@ export interface GoalSummary {
   outcome?: GoalOutcome | null;
   /** 契约待补充：目标完成总结 */
   completionNote?: string | null;
+  /** 契约待补充：目标完成（归档）时间；进行中为 null */
+  completedAt?: string | null;
 }
 
 export interface Goal extends GoalSummary {

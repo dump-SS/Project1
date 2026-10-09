@@ -18,18 +18,19 @@ import MessageList from '@/components/Chat/MessageList'
 import InputArea from '@/components/Chat/InputArea'
 import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
+import SelectionToolbar from '@/components/Chat/SelectionToolbar'
+import FloatChat from '@/components/Chat/FloatChat'
 import {
   genId,
   type ChatMessage,
   type ErrorItem,
+  type RefChip,
   type Subject,
 } from '@/components/Chat/types'
 import { useTheme } from '../../context/ThemeContext.jsx'
-import { WELCOME_MESSAGE, pickMockReply } from './mockData'
+import { WELCOME_MESSAGE } from './mockData'
 import '@/components/Chat/chat.css'
 import './index.css'
-
-const AI_REPLY_DELAY = 1500
 
 export default function ChatPage() {
   const { theme, toggleTheme } = useTheme()
@@ -37,6 +38,27 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: genId('msg'), role: 'ai', content: WELCOME_MESSAGE, createdAt: Date.now() },
   ])
+
+  // #34：回到 AI 页先拉问候语（冷启动会带上次话题摘要），成功则用它替换初始骨架
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/v1/chat/greeting')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data || !data.greeting || data.showGreeting === false) return
+        setMessages((prev) =>
+          prev.length && prev[0].role === 'ai' && prev[0].content === WELCOME_MESSAGE
+            ? [{ ...prev[0], content: data.greeting }]
+            : prev,
+        )
+      })
+      .catch(() => {
+        // 后端未就绪/未鉴权：保留 WELCOME_MESSAGE 兜底，不白屏
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const [draft, setDraft] = useState('')
   const [typing, setTyping] = useState(false)
   /** 录入错题后 +1，通知左侧错题列表重读 localStorage */
@@ -44,19 +66,53 @@ export default function ChatPage() {
   /** 窄屏下右侧面板改为浮层 */
   const [entryOpen, setEntryOpen] = useState(false)
 
-  const inputRef = useRef<HTMLTextAreaElement | null>(null)
-  const timerRef = useRef<number | null>(null)
+  // ---- D51 划选 / 引用块 / 随手问浮窗 ----
+  const [sel, setSel] = useState<{ x: number; y: number; text: string } | null>(null)
+  const [refs, setRefs] = useState<RefChip[]>([])
+  const [floatOpen, setFloatOpen] = useState(false)
+  const [floatInit, setFloatInit] = useState('')
 
-  // 卸载时清理未完成的 AI 回复定时器
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // 全局划选：在对话区内选中文本 → 浮出工具条（引用主对话 / 随手问）
   useEffect(() => {
+    const onMouseUp = () => {
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed) return setSel(null)
+      const anchor = selection.anchorNode as Node | null
+      const host = anchor && anchor.nodeType === Node.TEXT_NODE ? anchor.parentNode : anchor
+      if (!host || !(host instanceof Element) || !host.closest('.chat-page')) return setSel(null)
+      const text = selection.toString().trim()
+      if (!text) return setSel(null)
+      const rect = selection.getRangeAt(0).getBoundingClientRect()
+      setSel({ x: rect.left + window.scrollX, y: rect.top - 44 + window.scrollY, text })
+    }
+    const onDown = () => setTimeout(() => setSel(null), 0)
+    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('mousedown', onDown)
     return () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('mousedown', onDown)
     }
   }, [])
 
-  /** 发送一条用户消息，1.5s 后追加 mock AI 回复 */
+  const addQuoteRef = (text: string) =>
+    setRefs((prev) => [...prev, { id: genId('ref'), label: '引用', text }])
+  const addFloatRef = (text: string) =>
+    setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
+  const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
+
+  // D51 主路径：引用块的正文随消息原文一起发出（让后端看到被引用内容）
+  const composeWithRefs = (draft: string, refsList: RefChip[]) =>
+    refsList
+      .map((r) => `[${r.label}] ${r.text}`)
+      .concat(draft.trim())
+      .filter((s) => s)
+      .join('\n')
+
+  /** 发送一条用户消息，调用后端 /api/v1/chat 拿真实回复 */
   const sendMessage = useCallback(
-    (raw: string) => {
+    async (raw: string) => {
       const content = raw.trim()
       if (!content || typing) return
       setMessages((prev) => [
@@ -65,14 +121,29 @@ export default function ChatPage() {
       ])
       setDraft('')
       setTyping(true)
-      timerRef.current = window.setTimeout(() => {
+      try {
+        const resp = await fetch('/api/v1/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        })
+        if (!resp.ok) throw new Error(`chat ${resp.status}`)
+        const data = await resp.json()
+        const reply = (data && data.reply) || '（未收到回复）'
+        const cards = Array.isArray(data?.cards) ? data.cards : []
         setMessages((prev) => [
           ...prev,
-          { id: genId('msg'), role: 'ai', content: pickMockReply(content), createdAt: Date.now() },
+          { id: genId('msg'), role: 'ai', content: reply, cards, createdAt: Date.now() },
         ])
+      } catch (err) {
+        console.error('[chat] request failed', err)
+        setMessages((prev) => [
+          ...prev,
+          { id: genId('msg'), role: 'ai', content: '我暂时接不上你的话，能换个说法再跟我说一次吗？', createdAt: Date.now() },
+        ])
+      } finally {
         setTyping(false)
-        timerRef.current = null
-      }, AI_REPLY_DELAY)
+      }
     },
     [typing],
   )
@@ -115,7 +186,7 @@ export default function ChatPage() {
             {/* 窄屏：右侧面板改浮层 */}
             <button
               type="button"
-              className="chat-header-btn chat-entry-open"
+              className="chat-header-btn"
               onClick={() => setEntryOpen(true)}
             >
               录入错题
@@ -143,24 +214,21 @@ export default function ChatPage() {
         </header>
 
         <div className="chat-layout">
-          {/* 左侧：快速引用 */}
-          <aside className="chat-left glass">
-            <ReferencePanel
-              onFillInput={fillInput}
-              onSendQuick={sendMessage}
-              refreshKey={refreshKey}
-            />
-          </aside>
-
-          {/* 中间：聊天主区域 */}
+          {/* 聊天主区域（快速引用收进输入框「+」浮层，不再常驻左栏） */}
           <section className="chat-center glass">
             <MessageList messages={messages} typing={typing} />
             <InputArea
               value={draft}
               onChange={setDraft}
-              onSend={() => sendMessage(draft)}
+              onSend={() => {
+                if (!draft.trim() && refs.length === 0) return
+                sendMessage(composeWithRefs(draft, refs))
+                setRefs([])
+              }}
               disabled={typing}
               inputRef={inputRef}
+              refs={refs}
+              onRemoveRef={removeRef}
               renderQuickPanel={(close) => (
                 <ReferencePanel
                   compact
@@ -172,14 +240,33 @@ export default function ChatPage() {
               )}
             />
           </section>
-
-          {/* 右侧：录入新错题 */}
-          <aside className="chat-right glass">
-            <ErrorEntryPanel onSaved={handleErrorSaved} />
-          </aside>
         </div>
 
-        {/* 窄屏：录入错题浮层 */}
+        {/* D51 划选工具条（引用主对话 / 随手问） */}
+        {sel && (
+          <SelectionToolbar
+            x={sel.x}
+            y={sel.y}
+            text={sel.text}
+            onQuote={addQuoteRef}
+            onFloat={(text) => {
+              setFloatInit(text)
+              setFloatOpen(true)
+            }}
+            onDone={() => setSel(null)}
+          />
+        )}
+
+        {/* D51 随手问浮窗（受限 Chat 基础问答） */}
+        {floatOpen && (
+          <FloatChat
+            initialText={floatInit}
+            onAddToMain={addFloatRef}
+            onClose={() => setFloatOpen(false)}
+          />
+        )}
+
+        {/* 录入错题浮层 */}
         {entryOpen && (
           <>
             <div className="chat-entry-mask" onClick={() => setEntryOpen(false)} aria-hidden="true" />

@@ -60,6 +60,9 @@ class GoalSummary(GoalBase):
     point_ids: list[str] = Field(
         default_factory=list, alias="pointIds", description="目标绑定的知识点 ID（板块二 v2.2，可选）"
     )
+    completed_at: datetime | None = Field(
+        None, alias="completedAt", description="目标完成（归档）时间；进行中目标为 null"
+    )
     progress: GoalProgress
 
 

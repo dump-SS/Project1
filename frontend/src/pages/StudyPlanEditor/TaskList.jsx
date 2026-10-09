@@ -26,19 +26,25 @@ const STATUS_LABELS = {
 export default function TaskList({ plan, onTaskUpdated }) {
   // 当前正在提交的任务 id，用于「完成」按钮的 busy 态
   const [busyTaskId, setBusyTaskId] = useState(null)
+  // 正在删除的任务 id
+  const [deletingTaskId, setDeletingTaskId] = useState(null)
   // 行内错误（按 taskId 存，5s 自动清）
   const [rowErrors, setRowErrors] = useState({})
 
   if (!plan || !Array.isArray(plan.tasks) || plan.tasks.length === 0) return null
 
+  const clearError = (taskId) => {
+    setRowErrors((prev) => {
+      const next = { ...prev }
+      delete next[taskId]
+      return next
+    })
+  }
+
   const handleComplete = async (task) => {
     if (task.status === 'completed') return
     setBusyTaskId(task.taskId)
-    setRowErrors((prev) => {
-      const next = { ...prev }
-      delete next[task.taskId]
-      return next
-    })
+    clearError(task.taskId)
     try {
       const updated = await updatePlanTask(plan.planId, task.taskId, { status: 'completed' })
       if (onTaskUpdated) onTaskUpdated(updated)
@@ -49,15 +55,26 @@ export default function TaskList({ plan, onTaskUpdated }) {
         : (err?.message ?? '更新失败，请稍后再试')
       setRowErrors((prev) => ({ ...prev, [task.taskId]: msg }))
       // 5s 后自动清掉错误
-      setTimeout(() => {
-        setRowErrors((prev) => {
-          const next = { ...prev }
-          delete next[task.taskId]
-          return next
-        })
-      }, 5000)
+      setTimeout(() => clearError(task.taskId), 5000)
     } finally {
       setBusyTaskId(null)
+    }
+  }
+
+  const handleDelete = async (task) => {
+    setDeletingTaskId(task.taskId)
+    clearError(task.taskId)
+    try {
+      const updated = await updatePlanTask(plan.planId, task.taskId, { removed: true })
+      if (onTaskUpdated) onTaskUpdated(updated)
+    } catch (err) {
+      const msg = err?.status === 404
+        ? '后端尚未实现 PATCH 接口'
+        : (err?.message ?? '删除失败，请稍后再试')
+      setRowErrors((prev) => ({ ...prev, [task.taskId]: msg }))
+      setTimeout(() => clearError(task.taskId), 5000)
+    } finally {
+      setDeletingTaskId(null)
     }
   }
 
@@ -66,6 +83,7 @@ export default function TaskList({ plan, onTaskUpdated }) {
       {plan.tasks.map((task) => {
         const isDone = task.status === 'completed'
         const isBusy = busyTaskId === task.taskId
+        const isDeleting = deletingTaskId === task.taskId
         const subjectLabel = subjectLabels[task.subject] ?? task.subject
         const statusLabel = STATUS_LABELS[task.status] ?? task.status
         const errMsg = rowErrors[task.taskId]
@@ -109,6 +127,16 @@ export default function TaskList({ plan, onTaskUpdated }) {
                   {isBusy ? '提交中…' : '完成'}
                 </button>
               )}
+              <button
+                type="button"
+                className="task-delete-btn"
+                onClick={() => handleDelete(task)}
+                disabled={isDeleting}
+                aria-busy={isDeleting}
+                title="删除该任务"
+              >
+                {isDeleting ? '删除中…' : '删除'}
+              </button>
             </div>
           </li>
         )

@@ -5,6 +5,7 @@ import { subjectLabels } from '@/styles/theme'
 import { createLearningRecord, getRecommendation } from '@/services/learningRecord'
 import { putRecommendationFeedback } from '@/services/feedback'
 import { getPlanByDate, localDateString } from '@/services/plans'
+import FloatChat from '@/components/Chat/FloatChat'
 
 const FOCUS_LABELS = { 1: '分心', 2: '一般', 3: '还好', 4: '专注', 5: '非常专注' }
 const FATIGUE_LABELS = { 1: '精神', 2: '轻微', 3: '一般', 4: '疲劳', 5: '非常疲劳' }
@@ -71,7 +72,7 @@ function RatingButtons({ value, onChange, options, wide = false }) {
   )
 }
 
-function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
+function SelfAssessment({ task, error, planTaskStats, taskTotalMinutes, accumulatedMinutes, pomodoroMinutes, onConfirm, onSkip }) {
   const [completion, setCompletion] = useState('completed')
   const [focus, setFocus] = useState(null)
   const [fatigue, setFatigue] = useState(null)
@@ -79,6 +80,17 @@ function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
   const [difficultyFeel, setDifficultyFeel] = useState(null)
 
   const complete = focus !== null && fatigue !== null && emotion !== null && difficultyFeel !== null
+
+  // 任务精确拆分：完整番茄钟 + 末尾不满一个（60 = 2×25 + 10，而非 3×25=75）
+  const fullPomos = Math.floor(taskTotalMinutes / pomodoroMinutes)
+  const remPomoMinutes = taskTotalMinutes % pomodoroMinutes
+  const breakdownParts = []
+  if (fullPomos > 0) breakdownParts.push(`${fullPomos} 个 ${pomodoroMinutes} 分钟`)
+  if (remPomoMinutes > 0) breakdownParts.push(`1 个 ${remPomoMinutes} 分钟`)
+  const breakdown = breakdownParts.join(' + ')
+
+  // 弹窗弹出时本轮番茄钟已跑完，把本轮也计入「已累计」，避免提交前显示 0/60 让用户以为没记录
+  const shownAccumulated = Math.min(taskTotalMinutes, accumulatedMinutes + pomodoroMinutes)
 
   const submit = () => {
     if (!complete) return
@@ -88,9 +100,25 @@ function SelfAssessment({ task, error, planTaskStats, onConfirm, onSkip }) {
   return (
     <>
       <div className={styles.popHeader}>
-        <span className={styles.popTitle}>任务完成</span>
-        <span className={styles.popText}>「{task}」已完成</span>
+        <span className={styles.popTitle}>本轮专注完成</span>
+        <span className={styles.popText}>「{task}」本轮专注已结束</span>
       </div>
+
+      {/* 任务拆分与累计进度（PRD 5.1：一个任务可跨多个番茄钟，跑满总时长才完成） */}
+      {taskTotalMinutes > 0 && (
+        <div className={styles.planStats}>
+          <span>任务共 {taskTotalMinutes} 分钟（{breakdown}）</span>
+          <strong className={styles.planStatsNum}>
+            {shownAccumulated} / {taskTotalMinutes}
+          </strong>
+          <span>
+            分钟
+            {shownAccumulated < taskTotalMinutes
+              ? ` · 还差 ${taskTotalMinutes - shownAccumulated} 分钟`
+              : ' · 任务完成'}
+          </span>
+        </div>
+      )}
 
       {/* 今日计划完成计数（PRD 5.3：让用户感知"今天做完了几个"） */}
       {planTaskStats && planTaskStats.total > 0 && (
@@ -288,9 +316,25 @@ export default function StudyTimerPage() {
   // 直接访问 /study-timer 路由时 state 为空，保留原默认值 25 + FALLBACK_TASK
   const location = useLocation()
   const navState = location.state || {}
-  const initialMinutes = Number.isInteger(navState.availableMinutes) && navState.availableMinutes > 0
-    ? navState.availableMinutes
-    : 25
+
+  // 番茄钟默认时长：独立于任务总时长，计时页「专注」框可调（PRD 5.1 拆分）
+  const POMODORO_MINUTES = 25
+
+  // Chat 确认卡可指定番茄钟时长（pomodoroMinutes 透传），没传则回退 25 分钟
+  const initialPomodoroMinutes =
+    Number.isInteger(navState.pomodoroMinutes) && navState.pomodoroMinutes > 0
+      ? navState.pomodoroMinutes
+      : POMODORO_MINUTES
+
+  // 任务总时长：Chat/StudyGuide 透传（taskTotalMinutes 优先，兼容旧 availableMinutes）。
+  // 用于「跑满才完成」的完成判定与番茄钟数量展示，不再混用成单个番茄钟时长。
+  const taskTotalMinutes = (() => {
+    const t = navState.taskTotalMinutes
+    if (Number.isInteger(t) && t > 0) return t
+    const a = navState.availableMinutes
+    if (Number.isInteger(a) && a > 0) return a
+    return POMODORO_MINUTES
+  })()
 
   const [task, setTask] = useState(navState.task || FALLBACK_TASK)
   const [taskSource, setTaskSource] = useState(navState.task ? 'plan' : 'fallback') // 'plan' | 'edited' | 'fallback'
@@ -311,16 +355,18 @@ export default function StudyTimerPage() {
   const [subject, setSubject] = useState(initialSubject)
 
   const [mode, setMode] = useState('focus')
-  // 关键：focusMinutes 默认值改为 state 透传的可用分钟（PRD 5.1：计划与执行端一致）
-  const [focusMinutes, setFocusMinutes] = useState(initialMinutes)
+  // 番茄钟时长：优先用 Chat 确认卡传的值，否则默认 25 分钟（不再是任务总时长）
+  const [focusMinutes, setFocusMinutes] = useState(initialPomodoroMinutes)
   const [breakMinutes, setBreakMinutes] = useState(5)
-  const [remaining, setRemaining] = useState(initialMinutes * 60)
+  const [remaining, setRemaining] = useState(initialPomodoroMinutes * 60)
+  // 本次进入计时页后累计完成的专注分钟数（用于「任务还差多少」展示）
+  const [accumulatedMinutes, setAccumulatedMinutes] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [sessionStart, setSessionStart] = useState(null)
 
   // 标记：state 透传时跳过 useEffect 拉 plan（任务已确定，避免 100% 重复拉取）
-  const skipPlanFetch = Boolean(navState.task && navState.availableMinutes)
+  const skipPlanFetch = Boolean(navState.task && (navState.availableMinutes || navState.taskTotalMinutes))
 
   const [popupPhase, setPopupPhase] = useState('selfAssessment')
   const [recId, setRecId] = useState(null)
@@ -334,6 +380,8 @@ export default function StudyTimerPage() {
   // 当前正在执行的计划任务 ID（用于提交学习记录时关联计划任务，驱动状态更新和 AI 上下文）
   const [planTaskId, setPlanTaskId] = useState(null)
   const [planId, setPlanId] = useState(navState.planId || null)
+  /** C 计时页随手问：浮窗开合（standalone 模式，只 Q&A 不打断专注） */
+  const [floatOpen, setFloatOpen] = useState(false)
 
   const timerRef = useRef(null)
 
@@ -503,6 +551,9 @@ export default function StudyTimerPage() {
       // 在设置 recId 之前先调，让弹窗切到 recommendation 前数据已就绪
       refreshPlanStats().catch(() => {}); // 失败不影响主流程
 
+      // 累加本轮实际专注分钟，供「任务还差多少个番茄钟」展示（后端按累计判定任务完成）
+      setAccumulatedMinutes((prev) => prev + actualMinutes)
+
       if (result.recommendation?.recommendationId) {
         setRecId(result.recommendation.recommendationId)
         setPopupPhase('polling')
@@ -652,6 +703,9 @@ export default function StudyTimerPage() {
               task={task}
               error={popupError}
               planTaskStats={planTaskStats}
+              taskTotalMinutes={taskTotalMinutes}
+              accumulatedMinutes={accumulatedMinutes}
+              pomodoroMinutes={focusMinutes}
               onConfirm={handleConfirmSelfReport}
               onSkip={handleDone}
             />
@@ -670,6 +724,20 @@ export default function StudyTimerPage() {
             />
           )}
         </div>
+      )}
+
+      {/* C 计时页随手问：不打断专注，仅 Q&A */}
+      <button
+        type="button"
+        className={styles.floatFab}
+        onClick={() => setFloatOpen((v) => !v)}
+        aria-label="随手问"
+        title="随手问"
+      >
+        ？
+      </button>
+      {floatOpen && (
+        <FloatChat standalone initialText="" onAddToMain={() => {}} onClose={() => setFloatOpen(false)} />
       )}
     </div>
   )
