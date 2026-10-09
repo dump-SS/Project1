@@ -5,6 +5,7 @@
  */
 import { apiGet, apiPost, apiPatch, isNetworkError } from './http';
 import { cacheGet, cacheSet } from './localFallback';
+import { buildGuestPlan, guestPlanStore, isGuestMode } from './guestSession';
 import type { Plan, PlanTask } from '@/types/api';
 
 /** localStorage 最近一次成功计划缓存 key */
@@ -19,6 +20,13 @@ export interface PlanCreatePayload {
   goalIds?: string[];
   /** 可选，默认 false；true 覆盖当日已有计划 */
   regenerate?: boolean;
+  /**
+   * 可选，科目 / 任务描述。
+   * **只在游客态使用**（`guestSession.buildGuestPlan` 就地成型，不调后端）；
+   * 服务端会忽略这两个额外字段（Pydantic 忽略未知字段），传了也不影响线上语义。
+   */
+  subject?: string;
+  topic?: string;
 }
 
 export interface CreatePlanResult {
@@ -28,6 +36,13 @@ export interface CreatePlanResult {
 }
 
 export async function createPlan(payload: PlanCreatePayload): Promise<CreatePlanResult> {
+  // 游客态（D1）：不走后端接口、不落库——就地生成一条纯前端计划（刷新即失）
+  if (isGuestMode()) {
+    const plan = buildGuestPlan(payload);
+    guestPlanStore.put(plan);
+    return { plan, fromCache: false };
+  }
+
   try {
     const plan = await apiPost<Plan>('/plans', payload);
     cacheSet(LAST_PLAN_CACHE_KEY, plan);
@@ -71,6 +86,13 @@ export async function updatePlanTask(
   taskId: string,
   patch: PlanTaskUpdate,
 ): Promise<PlanTask> {
+  // 游客态：只改内存里的计划（不落库）
+  if (isGuestMode()) {
+    const updated = guestPlanStore.patchTask(planId, taskId, patch as Partial<PlanTask>);
+    if (updated) return updated;
+    throw new Error('游客试用数据已失效（刷新会清空试用数据），请重新生成计划');
+  }
+
   return apiPatch<PlanTask>(`/plans/${encodeURIComponent(planId)}/tasks/${encodeURIComponent(taskId)}`, patch);
 }
 
@@ -82,6 +104,11 @@ export async function updatePlanTask(
  * @returns 当日计划对象；当日无计划时返回 null（不抛错，让调用方走兜底文案）。
  */
 export async function getPlanByDate(date: string): Promise<Plan | null> {
+  // 游客态：读内存（刷新后为空，属预期——"游客数据不保存"）
+  if (isGuestMode()) {
+    return guestPlanStore.byDate(date);
+  }
+
   try {
     const result = await apiGet<{ items: Plan[]; pagination: { page: number; pageSize: number; total: number } }>(
       `/plans?date_from=${encodeURIComponent(date)}&date_to=${encodeURIComponent(date)}&page=1&page_size=1`,
@@ -89,6 +116,27 @@ export async function getPlanByDate(date: string): Promise<Plan | null> {
     return result.items?.[0] ?? null;
   } catch {
     // 网络/服务异常时降级为 null，让调用方决定是否走兜底（不阻断专注计时主流程）
+    return null;
+  }
+}
+
+/**
+ * 按 planId 拉计划（openapi.yaml GET /plans/{planId}）。
+ *
+ * 为什么需要它：`/study-timer?planId=xxx` 用 query 承载上下文（刷新/直链都不丢），
+ * 而"按日期找计划"在跨日或计划被重新生成时会指错——有 planId 就应当按 id 精确取。
+ *
+ * @returns 计划对象；不存在或不属于当前用户时返回 null（不抛错，让调用方走兜底）。
+ */
+export async function getPlanById(planId: string): Promise<Plan | null> {
+  // 游客态：从内存取（计时页带 planId 回来时用）
+  if (isGuestMode()) {
+    return guestPlanStore.byId(planId);
+  }
+
+  try {
+    return await apiGet<Plan>(`/plans/${encodeURIComponent(planId)}`);
+  } catch {
     return null;
   }
 }

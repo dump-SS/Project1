@@ -1,0 +1,227 @@
+/* Docs · 页面外壳（visual-language §8.4）
+ *
+ * 两级面：底纸（--bg-page）+ 白卡（--surface-card），层级靠 hairline + 留白，
+ * 不靠色块分区、不靠阴影堆叠（§8.1 第 3 条 / §3.1 判据）。
+ * 文档页有正文要读 → 蓝色只用在「当前项 / 焦点」，不做大面积光场（§4）。
+ */
+
+.shell {
+  /* 顶栏（sticky）在上，bodyRow 在下（2026-09-29 加顶栏后改列布局） */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  /* 文档页是阅读界面，禁掉文字层面的整页选区高亮带来的干扰 */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 顶栏之下的一行：侧栏 + 正文 */
+.bodyRow {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--sp-6) var(--sp-5) var(--sp-6);
+  display: flex;
+  justify-content: center;
+}
+
+.column {
+  width: 100%;
+  /* 行宽 ≈ 700–760px（§8.4.2）——中文 40–45 字/行 */
+  max-width: var(--docs-measure);
+}
+
+.contentRow {
+  display: flex;
+  gap: var(--sp-6);
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ---------- 索引页 ---------- */
+
+.pageHead {
+  margin-bottom: var(--sp-6);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.pageTitle {
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-h1);
+  font-weight: 600;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+}
+
+.lede {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  color: var(--text-secondary);
+}
+
+.indexSection {
+  margin-bottom: var(--sp-5);
+}
+
+.indexSectionTitle {
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-title);
+  color: var(--text-tertiary);
+}
+
+.indexList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-2);
+}
+
+.indexItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  height: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  background: var(--surface-card);
+  font-family: var(--font-heading);
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.indexItem:hover {
+  border-color: var(--border-hairline-strong);
+  background: var(--bg-page);
+}
+
+.indexItem:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.indexItemTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 状态标签：不可用状态一律灰，不占用蓝色（§4） */
+.tagBuilding,
+.tagPlaceholder {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* ---------- 页脚 pilot 合规声明（与落地页页尾同一句）---------- */
+
+.pilotNote {
+  margin: var(--sp-5) 0 0;
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-tertiary);
+}
+
+/* ---------- 404 ---------- */
+
+.backBtn {
+  padding: 5px 12px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-control);
+  background: var(--surface-card);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.backBtn:hover {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+}
+
+.backBtn:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+/* ---------- 移动端：目录抽屉 ---------- */
+
+.menuButton {
+  display: none;
+  position: fixed;
+  left: var(--sp-3);
+  bottom: var(--sp-3);
+  z-index: 50;
+  padding: 8px 14px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-card);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.menuButton:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .main {
+    padding: var(--sp-5) var(--sp-4) var(--sp-6);
+  }
+
+  .menuButton {
+    display: block;
+  }
+
+  /* 抽屉开着时把「目录」钮藏掉：它 z-index 比抽屉高，留着会压住抽屉里的列表项 */
+  .menuButtonHidden {
+    display: none;
+  }
+
+  .contentRow {
+    gap: 0;
+  }
+}

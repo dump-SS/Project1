@@ -1,0 +1,246 @@
+/* 设置 · 运营治理面板（G 板块）。结构优先，不引入视觉风格（UI 未拍板 #51）；
+   类名自足，不复用 Settings 的 index.module.css（那是 E 板块文件）。 */
+
+.card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cardDesc {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #d4380d;
+}
+
+.ok {
+  font-size: 12px;
+  color: #389e0d;
+}
+
+/* 用量 */
+
+.monthNav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monthBtn {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: #374151;
+}
+
+.monthBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.monthLabel {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+}
+
+.usageTotals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.totalCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.totalLabel {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.totalValue {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #111827;
+}
+
+.tierList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tierItem {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #374151;
+}
+
+.tierStat {
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.detailTable {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.detailTable th,
+.detailTable td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-variant-numeric: tabular-nums;
+}
+
+.detailTable th {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.linkBtn {
+  margin-top: 10px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: #4a7dff;
+  cursor: pointer;
+}
+
+/* 奖章 */
+
+.medalList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.medalItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.03);
+  opacity: 0.55;
+}
+
+.medalEarned {
+  opacity: 1;
+  background: rgba(255, 200, 80, 0.14);
+}
+
+.medalIcon {
+  font-size: 18px;
+}
+
+.medalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.medalTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.medalDesc {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* 报错 */
+
+.reportTextarea {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.reportTextarea:focus {
+  outline: none;
+  border-color: #4a7dff;
+}
+
+.reportActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.reportBtn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 13px;
+  background: #4a7dff;
+  color: #fff;
+  cursor: pointer;
+}
+
+.reportBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -39,6 +39,22 @@ def _determine_trend(slope: float, thresholds: LabelThresholds) -> Trend:
     return Trend.FLAT
 
 
+def _trailing_present(records: list[RecordInput], getter) -> list:
+    """从末尾往回取**连续有值**的项，遇到缺失即停。
+
+    为什么不用「过滤掉 None 再看」：那两个信号判的都是「**连续** N 次」（连续疲劳偏高 /
+    连续情绪负向）。过滤会让中间缺失的记录被跳过，把不连续的样本读成连续，凭空造出一个
+    "连续负向"的结论——正是 D34 要避免的"变假"。遇缺即停则保守：宁可不预警，也不误判。
+    """
+    out = []
+    for r in reversed(records):
+        value = getter(r)
+        if value is None:
+            break
+        out.append(value)
+    return list(reversed(out))
+
+
 def _determine_label(
     mean_score: float,
     trend: Trend,
@@ -48,11 +64,14 @@ def _determine_label(
     """PRD 5.2 第 3 点的标签映射。返回 (标签, 可解释信号列表)。
 
     PRD 注明阈值待校准，这里用 LabelThresholds 的可配置默认值。
+
+    ⚠️ 自评软字段可缺（2026-09-25）：疲劳/情绪缺失时**不参与**对应信号的判定。
+    四字段齐全时行为与放开前完全一致。
     """
     signals: list[str] = []
 
     # 检测疲劳持续偏高
-    recent_fatigues = [r.self_report.fatigue for r in records[-3:]]
+    recent_fatigues = _trailing_present(records[-3:], lambda r: r.self_report.fatigue)
     fatigue_high = (
         len(recent_fatigues) >= 2
         and all(f >= thresholds.fatigue_high for f in recent_fatigues)
@@ -61,7 +80,9 @@ def _determine_label(
         signals.append(f"自评疲劳度连续 {len(recent_fatigues)} 次 ≥{thresholds.fatigue_high:.0f}")
 
     # 检测情绪连续负向
-    recent_emotions = [r.self_report.emotion for r in records[-thresholds.emotion_negative_streak:]]
+    recent_emotions = _trailing_present(
+        records[-thresholds.emotion_negative_streak:], lambda r: r.self_report.emotion
+    )
     emotion_blocked = (
         len(recent_emotions) >= thresholds.emotion_negative_streak
         and all(e == Emotion.NEGATIVE for e in recent_emotions)

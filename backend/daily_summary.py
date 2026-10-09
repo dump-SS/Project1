@@ -183,7 +183,14 @@ def generate_day_summary(db: Session, user_id: str, date_str: str) -> str:
 
     try:
         provider = get_provider()
-        text = provider.generate(user, context={"system": system})
+        # data_class 必须显式声明：未声明时 provider 层按「历史调用」直接放行，
+        # 等于这条链路没有出域类别、事后无从审计。送出去的只有结构化聚合统计
+        # （时长 / 学科 / 完成情况 / 自评均值 / 情绪计数），note 不入 prompt（PRD 6.2），
+        # 属板块一 state_plan 语义。
+        text = provider.generate(user, context={
+            "system": system, "user_id": user_id, "feature_tier": "embedded",
+            "scene": "daily_summary", "data_class": "state_plan",
+        })
     except Exception as e:  # noqa: BLE001 — 任何 LLM 异常都降级
         logger.warning("[DAY_SUMMARY] LLM 调用异常: %s: %s", type(e).__name__, e)
         text = None

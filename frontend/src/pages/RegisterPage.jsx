@@ -1,18 +1,21 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FormField from '../components/FormField.jsx'
-import { MailIcon, LockIcon, ShieldIcon, CheckIcon } from '../components/Icons.jsx'
+import { MailIcon, LockIcon, ShieldIcon, CheckIcon, TicketIcon } from '../components/Icons.jsx'
 import { useCodeCountdown } from '../hooks/useCodeCountdown.js'
 import {
   validateEmail,
   validateCode,
   validatePasswordStrength,
-  validateConfirmPassword
+  validateConfirmPassword,
+  validateInviteCode
 } from '../utils/validators.js'
 import { sendRegisterCode, register } from '../services/authApi.js'
+import { useAuth } from '../context/AuthContext.jsx'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const { enterGuest } = useAuth()
 
   const [email, setEmail] = useState('')
   const [emailErr, setEmailErr] = useState('')
@@ -26,6 +29,10 @@ export default function RegisterPage() {
 
   const [confirmPwd, setConfirmPwd] = useState('')
   const [confirmPwdErr, setConfirmPwdErr] = useState('')
+
+  // pilot 邀请码（#50 一码一用，契约 v1.8.0）
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteErr, setInviteErr] = useState('')
 
   const [tip, setTip] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -53,24 +60,43 @@ export default function RegisterPage() {
     const cErr = validateCode(code)
     const pErr = validatePasswordStrength(password)
     const cpErr = validateConfirmPassword(password, confirmPwd)
+    const iErr = validateInviteCode(inviteCode)
 
     setEmailErr(eErr)
     setCodeErr(cErr)
     setPasswordErr(pErr)
     setConfirmPwdErr(cpErr)
+    setInviteErr(iErr)
 
-    if (eErr || cErr || pErr || cpErr) return
+    if (eErr || cErr || pErr || cpErr || iErr) return
 
     setSubmitting(true)
     try {
-      await register({ email, code, password, confirmPassword: confirmPwd })
+      await register({
+        email,
+        code,
+        password,
+        confirmPassword: confirmPwd,
+        inviteCode: inviteCode.trim()
+      })
       setTip({ type: 'success', msg: '注册成功，即将跳转登录页…' })
       setTimeout(() => navigate('/login'), 900)
     } catch (e) {
-      setTip({ type: 'error', msg: e.message || '注册失败' })
+      // 邀请码类错误定位到字段本身，其余走顶部提示
+      if (e.code === 'INVITE_CODE_INVALID' || e.code === 'INVITE_CODE_USED' || e.field === 'inviteCode') {
+        setInviteErr(e.message || '邀请码无效')
+      } else {
+        setTip({ type: 'error', msg: e.message || '注册失败' })
+      }
     } finally {
       setSubmitting(false)
     }
+  }
+
+  /* ---------- 游客试用（D1：「暂不登录，先试试看」） ---------- */
+  function handleTryAsGuest() {
+    enterGuest()
+    navigate('/study-guide')
   }
 
   return (
@@ -85,6 +111,19 @@ export default function RegisterPage() {
         {tip && <div className={`form-tip ${tip.type}`}>{tip.msg}</div>}
 
         <form onSubmit={handleSubmit} noValidate>
+          <FormField
+            label="邀请码"
+            required
+            icon={<TicketIcon />}
+            placeholder="pilot 邀请码（一码一用）"
+            value={inviteCode}
+            onChange={(v) => { setInviteCode(v.toUpperCase()); setInviteErr('') }}
+            onBlur={() => setInviteErr(validateInviteCode(inviteCode))}
+            error={inviteErr}
+            maxLength={32}
+            autoComplete="off"
+          />
+
           <FormField
             label="邮箱"
             required
@@ -153,6 +192,12 @@ export default function RegisterPage() {
           已有账号？
           <Link className="link" to="/login">返回登录</Link>
         </div>
+
+        {/* 游客试用（D1/§1.2）：注册形态提供「暂不登录，先试试看」→ 以游客身份进首页。
+            游客态：不保存任何数据、不能用 AI 功能；登录后试用数据清空。 */}
+        <button type="button" className="btn-guest" onClick={handleTryAsGuest}>
+          暂不登录，先试试看
+        </button>
         </div>
       </div>
     </div>

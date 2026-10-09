@@ -22,7 +22,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Cookie, Depends, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from auth.code import consume_code, store_code, verify_code
@@ -32,6 +32,7 @@ from auth.password import hash_password, is_strong_password, verify_password
 from auth.rate_limit import allow, clear_fails, is_locked, record_fail
 from auth.session import COOKIE_NAME, create_session, destroy_all_sessions_for_user, destroy_session, get_session
 from database import get_db
+from models.invite import InviteCode as InviteCodeORM
 from models.user import User as UserORM
 
 router = APIRouter(prefix="/auth", tags=["鉴权会话"])
@@ -46,6 +47,15 @@ def generate_user_id() -> str:
     16 hex = 64 bit 随机空间，pilot 量级下碰撞概率可忽略。
     """
     return "u_" + uuid.uuid4().hex[:16]
+
+
+def _normalize_invite_code(raw: str | None) -> str:
+    """邀请码规范化：去空白 + 大写。
+
+    邀请码是人工抄写/转发的短码（形如 `EPX-7F3K-2M9Q`），大小写与首尾空格
+    都是常见的手抄误差，统一在这里抹平；库里只存大写形式。
+    """
+    return (raw or "").strip().upper()
 
 
 def _ensure_stable_user_id(db: Session, auth_user: AuthUser) -> str:
@@ -83,6 +93,8 @@ class RegisterRequest(BaseModel):
     code: str
     password: str
     confirmPassword: str
+    # pilot 邀请码制（#50，契约 v1.8.0）：必填、一码一用
+    inviteCode: str = ""
 
 
 class LoginCodeRequest(BaseModel):
@@ -160,6 +172,12 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         raise _validation_error("邮箱格式不正确", "email")
     if db.get(AuthUser, body.email):
         raise _error(409, "EMAIL_ALREADY_REGISTERED", "该邮箱已注册，请直接登录", "email")
+    # 邀请码先于验证码校验：码不对就没必要消耗一条邮箱验证码（#50）
+    invite_code = _normalize_invite_code(body.inviteCode)
+    if not invite_code:
+        raise _validation_error("请填写邀请码", "inviteCode")
+    if db.get(InviteCodeORM, invite_code) is None:
+        raise _error(422, "INVITE_CODE_INVALID", "邀请码无效，请确认后重试", "inviteCode")
     if not re.match(r"^\d{6}$", body.code):
         raise _validation_error("验证码为 6 位数字", "code")
     if not body.password or not (6 <= len(body.password) <= 32):
@@ -187,6 +205,18 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         select(UserORM).where(UserORM.email == body.email)
     ).scalars().first()
     user_id = existing_profile.id if existing_profile else generate_user_id()
+
+    # 一码一用（#50）：条件 UPDATE 占用，rowcount=0 说明码已被别人抢占——
+    # 用「占用语句本身」而不是「先查后写」来挡住两个请求同时用同一个码。
+    # 占用与建号在同一事务里，任何一步失败一起回滚（码不会被白占）。
+    claimed = db.execute(
+        update(InviteCodeORM)
+        .where(InviteCodeORM.code == invite_code, InviteCodeORM.used_by.is_(None))
+        .values(used_by=user_id, used_at=datetime.utcnow())
+    ).rowcount
+    if not claimed:
+        db.rollback()
+        raise _error(409, "INVITE_CODE_USED", "该邀请码已被使用，请换一个", "inviteCode")
 
     if existing_profile is None:
         db.add(UserORM(

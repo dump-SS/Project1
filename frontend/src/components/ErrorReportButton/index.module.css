@@ -1,0 +1,80 @@
+/* 消息级报错按钮（G 板块）。结构优先，视觉待设计拍板后再统一。 */
+
+.wrap {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  position: relative;
+}
+
+.btn {
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--ink-3, #8a8f99);
+  cursor: pointer;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.btn:hover,
+.btnOpen {
+  color: var(--ink-1, #333);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.pop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.textarea {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--primary, #4a7dff);
+}
+
+.popActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.popError {
+  font-size: 12px;
+  color: #d4380d;
+  margin-right: auto;
+}
+
+.send {
+  border: none;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  background: var(--primary, #4a7dff);
+  color: #fff;
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

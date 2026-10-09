@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // 首帧前定主题：逻辑与 ThemeContext.getInitialTheme 一致（localStorage 手选优先，否则跟系统）。
+      // 不提前设 data-theme 时 :root 默认日色，夜色用户首帧会先闪一下日色再翻面；
+      // 懒加载 fallback（App.jsx）用的 var(--bg-page) 也靠它在第一帧就解析对。
+      (function () {
+        var t = null
+        try { t = localStorage.getItem('epochx-theme') } catch (e) {}
+        if (t !== 'day' && t !== 'night') {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day'
+        }
+        document.documentElement.dataset.theme = t
+      })()
+    </script>
     <link rel="icon" type="image/png" href="/brand/logo-mark-on-light.png" />
     <title>EpochX</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

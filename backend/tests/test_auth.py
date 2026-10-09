@@ -16,6 +16,7 @@ SMTP 全程 monkeypatch mock 掉，验证码通过 mock 捕获（不真发邮件
 from __future__ import annotations
 
 import time
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -64,6 +65,21 @@ def _no_rate_limit(monkeypatch):
 
 # ---------- 辅助 ----------
 
+def _fresh_invite_code() -> str:
+    """落一个一次性邀请码（#50 一码一用）：本文件每个用例都可能注册，故按次生成。"""
+    from database import SessionLocal
+    from models.invite import InviteCode
+
+    code = "EPX-A" + uuid.uuid4().hex[:8].upper()
+    db = SessionLocal()
+    try:
+        db.add(InviteCode(code=code))
+        db.commit()
+    finally:
+        db.close()
+    return code
+
+
 def _register(client: TestClient, email: str, password: str, captured: dict) -> int:
     """跑完整注册流程：发码 → 用捕获到的 code 注册。返回 status_code。"""
     r = client.post("/api/v1/auth/send-register-code", json={"email": email})
@@ -72,6 +88,7 @@ def _register(client: TestClient, email: str, password: str, captured: dict) -> 
     r = client.post("/api/v1/auth/register", json={
         "email": email, "code": code,
         "password": password, "confirmPassword": password,
+        "inviteCode": _fresh_invite_code(),
     })
     return r.status_code
 
@@ -112,6 +129,7 @@ def test_register_weak_password(_mock_email):
     r = client.post("/api/v1/auth/register", json={
         "email": email, "code": code,
         "password": "123456", "confirmPassword": "123456",
+        "inviteCode": _fresh_invite_code(),
     })
     assert r.status_code == 400
     assert r.json()["error"]["field"] == "password"
@@ -126,6 +144,7 @@ def test_register_password_mismatch(_mock_email):
     r = client.post("/api/v1/auth/register", json={
         "email": email, "code": code,
         "password": "Abc123!@#", "confirmPassword": "Abc123!@X",
+        "inviteCode": _fresh_invite_code(),
     })
     assert r.status_code == 400
     assert r.json()["error"]["field"] == "confirmPassword"
@@ -139,6 +158,7 @@ def test_register_wrong_code(_mock_email):
     r = client.post("/api/v1/auth/register", json={
         "email": email, "code": "000000",
         "password": "Abc123!@#", "confirmPassword": "Abc123!@#",
+        "inviteCode": _fresh_invite_code(),
     })
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "CODE_INVALID"

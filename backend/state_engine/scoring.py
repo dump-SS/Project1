@@ -91,6 +91,15 @@ def compute_session_score(record: RecordInput, weights: WeightConfig) -> Session
         行为子分 = w1×完成度 + w2×正确率 + w3×节奏稳定度
         自评子分 = w4×专注度 + w5×(6-疲劳度) + w6×情绪正向程度
         单次状态分 = α×行为子分 + β×自评子分
+
+    **软字段缺失的处理（2026-09-25 加，对应 D20/D34）**：
+    专注 / 疲劳 / 情绪任一为 None 时，该项**不参与**，并把分母换成"可用项权重之和"
+    （等价于该项权重归零后按可用部分归一化）——软字段缺失只让结论"变粗"，不让它"变假"。
+    三项全缺（考试成绩回填记录）→ 自评子分不可用，退化为只按行为子分计（α 归一化为 1），
+    并把 `self_report_sub` 置 None，让上层知道"这次没有自评可谈"。
+
+    ⚠️ **三项齐全时必须与放开前逐字节一致**：所以齐全走原公式（不除分母），
+    只有缺失时才走归一化分支。这条由 tests/test_scoring.py 与 test_adapter.py 守住。
     """
     b = record.behavior
     s = record.self_report
@@ -105,12 +114,31 @@ def compute_session_score(record: RecordInput, weights: WeightConfig) -> Session
 
     behavior_sub = _clamp01(bw1 * completion_val + bw2 * accuracy_val + bw3 * rhythm_val)
 
-    # 自评子分
-    focus_val = normalize_focus(s.focus)
-    fatigue_val = normalize_inverse_fatigue(s.fatigue)
-    emotion_val = normalize_emotion(s.emotion)
+    # 自评子分：只累计有值的项
+    present: list[tuple[float, float]] = []
+    if s.focus is not None:
+        present.append((weights.w4, normalize_focus(s.focus)))
+    if s.fatigue is not None:
+        present.append((weights.w5, normalize_inverse_fatigue(s.fatigue)))
+    if s.emotion is not None:
+        present.append((weights.w6, normalize_emotion(s.emotion)))
 
-    self_report_sub = _clamp01(weights.w4 * focus_val + weights.w5 * fatigue_val + weights.w6 * emotion_val)
+    if not present:
+        # 自评整段缺失：不编自评，只按行为子分计（β 的权重让给 α）
+        return SessionScore(score=behavior_sub, behavior_sub=behavior_sub, self_report_sub=None)
+
+    if len(present) == 3:
+        # 齐全 → 原公式（保持与放开前逐字节一致）
+        self_report_sub = _clamp01(
+            present[0][0] * present[0][1]
+            + present[1][0] * present[1][1]
+            + present[2][0] * present[2][1]
+        )
+    else:
+        total_w = sum(w for w, _ in present)
+        self_report_sub = (
+            _clamp01(sum(w * v for w, v in present) / total_w) if total_w else 0.0
+        )
 
     # 总分
     score = _clamp01(weights.alpha * behavior_sub + weights.beta * self_report_sub)

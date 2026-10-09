@@ -61,6 +61,7 @@ class MockProvider:
     def generate(self, prompt: str, context: dict | None = None) -> str | None:
         _enforce_egress(prompt, context)
         logger.info("[LLM] MockProvider 返回 None，将走规则兜底")
+        # 不写 usage_ledger：mock 不产生真实成本（usage_ledger 只记真实调用的数值）。
         from ai_call_log import log_call
         log_call(context, latency_ms=0, success=False, error_msg="mock_provider_no_output")
         return None
@@ -84,12 +85,14 @@ class OpenAICompatibleProvider:
         if not settings.llm_api_key:
             raise ValueError("OpenAICompatibleProvider 需要 llm_api_key")
 
-    def _call_once(self, url: str, payload: bytes, headers: dict) -> str | None:
-        """单次 HTTP 调用，任何失败都返回 None（绝不向上抛异常）。
+    def _call_once(self, url: str, payload: bytes, headers: dict) -> tuple[str | None, dict]:
+        """单次 HTTP 调用，任何失败都返回 (None, {})（绝不向上抛异常）。
 
         PRD 5.2/6.4：API 调用失败一律回退，异常穿透会导致路由 500。
         socket 读超时抛 TimeoutError（非 URLError 子类），此前漏捕导致
         重试逻辑失效、异常直接穿透——已改为捕 Exception 兜底。
+
+        返回值带 usage（OpenAI 兼容响应的 tokens 用量），供 usage_ledger 计量（#9）。
         """
         import json
         import urllib.error
@@ -99,10 +102,11 @@ class OpenAICompatibleProvider:
             req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
             with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
-                return body["choices"][0]["message"]["content"]
+                usage = body.get("usage") or {}
+                return body["choices"][0]["message"]["content"], usage
         except Exception as e:  # noqa: BLE001 — 供应商任何异常都必须降级为 None
             logger.warning("[LLM] 单次请求失败: %s: %s", type(e).__name__, e)
-            return None
+            return None, {}
 
     def generate(self, prompt: str, context: dict | None = None) -> str | None:
         _enforce_egress(prompt, context)
@@ -139,13 +143,22 @@ class OpenAICompatibleProvider:
                 # 简单退避 1s
                 time.sleep(1)
                 logger.info("[LLM] 第 %d 次重试", attempt + 1)
-            text = self._call_once(url, payload, headers)
+            text, usage = self._call_once(url, payload, headers)
             if text is not None:
                 if attempt > 0:
                     logger.info("[LLM] 重试成功")
                 else:
                     logger.info("[LLM] 生成成功，长度 %d", len(text))
                 log_call(context, latency_ms=int((time.monotonic() - start) * 1000), success=True)
+                # usage_ledger 计量（#9/D38）：真实调用必须可追溯到用户数值成本。
+                # 无论供应商是否回 usage 字段都记行（缺失记 0，调用本身可追溯）。
+                from usage_ledger import record_usage
+                record_usage(
+                    context,
+                    model=settings.llm_model,
+                    tokens_in=int(usage.get("prompt_tokens") or 0),
+                    tokens_out=int(usage.get("completion_tokens") or 0),
+                )
                 return text
         logger.warning("[LLM] 重试 %d 次后仍失败，将走兜底", self.MAX_RETRIES)
         log_call(

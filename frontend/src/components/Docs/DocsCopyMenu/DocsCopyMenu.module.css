@@ -1,0 +1,271 @@
+/* DocsCopyMenu · 复制页面（2026-09-29 Skyer 指定）
+ * 分体钮 = 白卡 + hairline + r-control；菜单/弹层同样白卡 hairline，
+ * 不加阴影（§8.1：层级靠边框与留白）。反馈文字只说事实。 */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ---------- 分体钮 ---------- */
+
+.split {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-control);
+  background: var(--surface-card);
+  transition: border-color 0.15s ease;
+}
+
+.split:hover {
+  border-color: var(--brand-blue);
+}
+
+/* 悬停谁谁变暗（2026-09-30 Skyer：不做整组联动，光标在哪个钮上哪个降一档；
+   只悬在边框/缝隙上时仅描边高亮） */
+.copyBtn:hover {
+  color: var(--text-secondary);
+}
+
+.arrowBtn:hover {
+  color: var(--text-tertiary);
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: var(--r-control) 0 0 var(--r-control);
+  background: none;
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.arrowBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 7px;
+  border: 0;
+  border-left: 1px solid var(--border-hairline);
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+/* 菜单开着时箭头翻向上（随开合转动） */
+.arrowBtn svg {
+  transition: transform 0.16s ease;
+}
+
+.arrowOpen svg {
+  transform: rotate(180deg);
+}
+
+.copyBtn:focus-visible,
+.arrowBtn:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: -2px;
+}
+
+.icon {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- 下拉菜单 ---------- */
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  left: 0;
+  z-index: 10;
+  min-width: 176px;
+  padding: var(--sp-1);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  background: var(--surface-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 入场：从上往下滑出 + 渐入（每次打开重放，0.16s 不喧宾） */
+  animation: menuIn 0.16s ease;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menuItem {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.menuItem:hover {
+  background: var(--bg-page);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: -2px;
+}
+
+/* ---------- Markdown 查看弹层 ---------- */
+
+.viewerLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* 盖过顶栏(30)/抽屉(40)/悬浮钮(50) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+}
+
+.viewerScrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.32);
+  cursor: default;
+}
+
+.viewer {
+  position: relative;
+  width: min(860px, 100%);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.viewerHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.viewerHeading {
+  min-width: 0;
+}
+
+.viewerKicker {
+  margin: 0 0 2px;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+.viewerTitle {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewerActions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.viewerCopy {
+  padding: 5px 12px;
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-control);
+  background: none;
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.viewerCopy:hover {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+}
+
+.viewerClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.viewerClose:hover {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+}
+
+.viewerCopy:focus-visible,
+.viewerClose:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.viewerPre {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--sp-4);
+  overflow: auto;
+  background: var(--code-bg);
+  font-family: var(--font-code);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-primary);
+  /* 源文按屏宽折行：横向滚动读中文源文太费劲 */
+  white-space: pre-wrap;
+  word-break: break-word;
+}

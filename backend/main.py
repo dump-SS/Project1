@@ -1,10 +1,12 @@
 """
 EpochX API — FastAPI 入口
 
-阶段：
-  1. ORM 骨架 + 启动建表 ✅
-  2. Pydantic schemas + 路由 + mock 数据（当前）✅
-  3. 接入 state_calculator.py + ai_suggestion.py，替换 mock（待）
+现状：
+  1. ORM + Alembic 迁移（schema 唯一真相源是 alembic，非 create_all）
+  2. 20 个 router / 84 operations 全部接真实实现，按 docs/openapi.yaml v1.8.0
+  3. state_engine / mastery_engine / ai_suggestion 均已接线，无 mock 残留
+     （MockProvider 只在 tests 与 LLM_PROVIDER=mock 时启用）
+  4. 前端静态托管在本文件末尾，默认指向 frontend/dist（构建产物）
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from database import Base, engine
+from http_error_tracking import HttpErrorTrackingMiddleware
 from middleware import RequestIDMiddleware
 
 # 触发所有 ORM 类注册
@@ -90,6 +93,10 @@ if _cors_origins:
 # 请求 ID / 访问日志（放在 CORS 之后，让客户端先拿到 CORS 头）
 app.add_middleware(RequestIDMiddleware)
 
+# 5xx 计数（G 板块 pilot 一期前置，pilot-metrics-and-admission.md §2.2）：
+# 只把 /api/v1/** 的 5xx 落进 analytics_events，供「连续 4 周 5xx ≤ 1%」读出数据。
+app.add_middleware(HttpErrorTrackingMiddleware)
+
 # --- 统一错误响应：所有非 2xx 都返回 openapi.yaml 0.2 节的 { error: { code, message, field? } } ---
 
 
@@ -150,14 +157,16 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, chat, community, daily_summary, error_book, goal, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, summary, user, weight
+from routes import assessment, auth, chat, community, daily_summary, error_book, exam, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
 api_v1.include_router(user.router)
 api_v1.include_router(chat.router)
 api_v1.include_router(goal.router)
+api_v1.include_router(exam.router)
 api_v1.include_router(plan.router)
+api_v1.include_router(timer.router)
 api_v1.include_router(learning_record.router)
 api_v1.include_router(assessment.router)
 api_v1.include_router(recommendation.router)
@@ -169,31 +178,45 @@ api_v1.include_router(knowledge.router)
 api_v1.include_router(knowledge_kb.router)
 api_v1.include_router(error_book.router)
 api_v1.include_router(mastery.router)
+# D 板块搜题与讲解（D24 三态 / D52 讲解归档）：/search-archives、/explanations
+# 路径用复数资源名（评审已确认），与历史单数 /error-book 不强行统一。
+api_v1.include_router(search.router)
 # OCR 路线已彻底放弃（#32）：原 routes/ocr.py 的 501 占位已删除，统一走多模态。
 # 契约里本就没有 /ocr 路径，删除后代码与契约一致。
 api_v1.include_router(community.router)
 api_v1.include_router(community.aggregate_router)
+# G 板块（pilot 运营与治理）：用量查询 / 报错 / 违规留痕 / 奖章 / 埋点（openapi v1.7.0）
+api_v1.include_router(governance.router)
 
 app.include_router(health.router)
 app.include_router(api_v1)
 
 
 # --- 前端静态托管 + SPA 回退（生产环境，与 API 同端口，无跨域）---
-# FRONTEND_DIR 默认取 backend/ 的上级目录下的 frontend/，
-# 服务器布局为 /epochx/{backend,frontend}，本地仓库布局同样成立，无需额外配置。
+# ⚠️ 必须指向**构建产物** `frontend/dist`，不是源码目录 `frontend/`。
+# 原因：`frontend/index.html` 引用的是 `/src/main.jsx`——浏览器无法直接执行 JSX/TSX。
+# 若托管 `frontend/`，catch-all 会把 `frontend/src/main.jsx` 当普通 JS 吐出去，
+# 浏览器解析失败**白屏**，且 `/brand/*`、`/bg-sky.jpg` 等 public 资源也会 404
+# （它们在 `frontend/public/` 下，构建时才被复制到 `dist/` 根）。
+#
+# 服务器布局：/epochx/{backend,frontend}，默认路径同样成立；部署时用 FRONTEND_DIR 覆盖即可。
+# 找不到产物时返回 404 JSON 提示，**不**回退去服务源码目录。
 import os
 from pathlib import Path
 
 from fastapi.responses import FileResponse
 
 FRONTEND_DIR = Path(
-    os.getenv("FRONTEND_DIR", str(Path(__file__).resolve().parent.parent / "frontend"))
+    os.getenv("FRONTEND_DIR", str(Path(__file__).resolve().parent.parent / "frontend" / "dist"))
 ).resolve()
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str):
-    """静态文件优先，找不到回退 index.html（SPA 路由），并防目录穿越。"""
+    """静态文件优先，找不到回退 index.html（SPA 路由），并防目录穿越。
+
+    注册在所有 API 路由之后，`/api/v1/*` 与 `/health` 不会被这里截走。
+    """
     candidate = (FRONTEND_DIR / full_path).resolve()
     if full_path and candidate.is_file() and candidate.is_relative_to(FRONTEND_DIR):
         return FileResponse(candidate)
@@ -202,7 +225,12 @@ async def serve_spa(full_path: str):
         return FileResponse(index)
     return JSONResponse(
         status_code=404,
-        content={"error": {"code": "FRONTEND_NOT_DEPLOYED", "message": "前端产物未部署"}},
+        content={
+            "error": {
+                "code": "FRONTEND_NOT_DEPLOYED",
+                "message": f"前端产物未部署：在 {FRONTEND_DIR} 未找到 index.html（先执行 npm run build）",
+            }
+        },
     )
 
 

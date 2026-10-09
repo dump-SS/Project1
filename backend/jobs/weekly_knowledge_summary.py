@@ -112,6 +112,8 @@ def _generate_for(db, user_id: str, subject: str) -> str | None:
                 "subject": subject,
                 "egress_fields": {"subject": subject, "period": payload.period},
                 "data_class": "knowledge_aggregated",
+                "user_id": user_id,
+                "feature_tier": "embedded",
             },
         )
         if text:

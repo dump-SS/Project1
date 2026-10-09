@@ -1,0 +1,46 @@
+/* 功能屏 ×3（叙事部分）的常驻背景层：Threads 光线 sticky 钉满视口，
+   三块叙事内容从其上滚过（2026-09-25 Skyer 指定）。 */
+
+.zone {
+  position: relative;
+}
+
+/* 常驻背景：sticky 钉住一屏；负 margin 使后续内容直接叠上来（不占布局流） */
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  margin-bottom: -100vh;
+  margin-bottom: -100dvh;
+  overflow: hidden;
+}
+
+/* 上下渐隐：与三时代终态 / 信任屏的深色底无缝衔接 */
+.fadeTop,
+.fadeBottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.fadeTop {
+  top: 0;
+  background: linear-gradient(180deg, var(--lp-bg) 0%, transparent 100%);
+}
+
+.fadeBottom {
+  bottom: 0;
+  background: linear-gradient(0deg, var(--lp-bg) 0%, transparent 100%);
+}
+
+/* 叙事内容层：抬到光线上方；上下留白——首卡与上一屏拉开距离（Skyer 2026-09-25） */
+.content {
+  position: relative;
+  z-index: 1;
+  padding-top: 12vh;
+  padding-bottom: 8vh;
+}

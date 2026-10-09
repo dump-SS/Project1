@@ -36,6 +36,13 @@
 
 幂等：按 id upsert（存在则更新字段），重复执行不产生重复行。
 
+⚠️ **必须单进程运行**（脚本内置跨进程独占锁，第二个实例会直接退出，不等不排队）。
+本脚本对每个点先`db.get()` 再按需 INSERT、每 50 点 commit：两个进程同时跑时各自
+的事务快照互相看不到对方未提交的行 → 双方都判定「新点」→ 都 INSERT →撞
+`kb_points_pkey`。实测报 `UniqueViolation`、冲突 id `YY_RJ_G1_B7_U1_004`（2026-10-04）。
+**脚本本身幂等（重跑不产生重复行，已验证）但不抗并发**——这是两件事，
+不要拿「我跑过没问题」当并发安全的依据。
+
 用法：
     cd backend
     .venv\\Scripts\\python.exe ../scripts/import_knowledge_points.py                 # 默认目录
@@ -43,8 +50,11 @@
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -165,6 +175,69 @@ def _import_relations(db, pt: dict) -> int:
     return added
 
 
+_LOCK_NAME = "epochx_kb_import.lock"
+
+
+class ConcurrentImportError(RuntimeError):
+    """已有另一个导入进程在跑（锁未拿到）。"""
+
+
+@contextlib.contextmanager
+def _single_instance_lock():
+    """跨进程独占锁，保证导入全局单实例。
+
+    刻意用**操作系统级**文件锁（Windows `msvcrt.locking` / POSIX `fcntl.flock`）
+    而非 `O_CREAT|O_EXCL` 锁文件：前者进程一退出（哪怕是被 kill -9）锁自动释放，
+    后者会留下需要人工清理的残留文件——而「残留锁挡住下次导入」本身就是一种静默故障。
+
+    粒度是全局单锁（不按目标目录细分）：两个并发导入不仅会撞数据库主键，
+    还可能同时写同一个本地 FAISS 索引，那比撞主键更难恢复。
+    """
+    lock_path = Path(tempfile.gettempdir()) / _LOCK_NAME
+    # 确保至少有 1 字节可锁（msvcrt.locking 锁的是字节区间）
+    if not lock_path.exists() or lock_path.stat().st_size == 0:
+        with open(lock_path, "wb") as seed:
+            seed.write(b"0")
+
+    handle = open(lock_path, "r+b")
+    try:
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise ConcurrentImportError(
+                    f"已有导入进程在运行（锁 {lock_path}）。\n"
+                    f"本脚本**必须单进程**——并发会撞 kb_points_pkey。\n"
+                    f"若确认没有其他导入在跑，删掉该锁文件再试：del {lock_path}"
+                ) from exc
+        else:
+            import fcntl
+
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                raise ConcurrentImportError(
+                    f"已有导入进程在运行（锁 {lock_path}）。\n"
+                    f"本脚本**必须单进程**——并发会撞 kb_points_pkey。"
+                ) from exc
+        yield
+    finally:
+        with contextlib.suppress(Exception):
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
 def main() -> None:
     target = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DIR
     files = _list_files(target)
@@ -176,6 +249,16 @@ def main() -> None:
 
     mode = embed_mode()
     print(f"导入 {len(files)} 个文件（embedding 模式：{mode}）")
+    try:
+        with _single_instance_lock():
+            _run_import(files, mode)
+    except ConcurrentImportError as exc:
+        print(f"[中止] {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _run_import(files: list[Path], mode: str) -> None:
+    """真正的导入流程（调用方须已持有单实例锁）。"""
     db = SessionLocal()
     total_new = total_upd = total_rel = total_vec = 0
     batch = 0

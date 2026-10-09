@@ -176,11 +176,14 @@ class StateBreakdownResponse(BaseModel):
     subject: str
     window_score: float | None = Field(..., alias="windowScore")
     behavior_sub_avg: float = Field(..., alias="behaviorSubAvg")
-    self_report_sub_avg: float = Field(..., alias="selfReportSubAvg")
-    behavior_contribution: float = Field(..., alias="behaviorContribution")
-    self_report_contribution: float = Field(..., alias="selfReportContribution")
-    behavior_share: float = Field(..., alias="behaviorShare")
-    self_report_share: float = Field(..., alias="selfReportShare")
+    # 自评侧**可空**（2026-09-25）：窗口内一条自评都没有时（例如只有考试成绩回填的记录），
+    # 这几项回 null 由前端显示"—"。不拿 0.0 冒充——0.0 读起来是"自评很差"，
+    # 与"压根没有自评"是两回事（D34 不造数）。
+    self_report_sub_avg: float | None = Field(..., alias="selfReportSubAvg")
+    behavior_contribution: float | None = Field(None, alias="behaviorContribution")
+    self_report_contribution: float | None = Field(None, alias="selfReportContribution")
+    behavior_share: float | None = Field(None, alias="behaviorShare")
+    self_report_share: float | None = Field(None, alias="selfReportShare")
     record_count: int = Field(..., alias="recordCount")
     state_label: str | None = Field(None, alias="stateLabel")
     trend: str | None = None

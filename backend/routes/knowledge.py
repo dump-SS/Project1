@@ -168,6 +168,8 @@ def create_knowledge_summary(
                 # EgressGuard：知识聚合包白名单（无原文）
                 "egress_fields": {"subject": payload.subject, "period": payload.period},
                 "data_class": "knowledge_aggregated",
+                "user_id": _user.user_id,
+                "feature_tier": "embedded",
             },
         )
         if text:
@@ -253,9 +255,19 @@ def create_error_parse(
     try:
         prompt, egress = _build_error_parse_prompt(payload.error_id)
         provider = get_provider()
+        # ⚠️ data_class 与 egress_fields **必须传**：少了它们，
+        # llm_provider._enforce_egress 会因 data_class=None 直接放行，
+        # 白名单校验根本不跑——整改过的接口就成了「自己以为在守，其实没守」。
         text = provider.generate(
             prompt,
-            context={"system": ERROR_PARSE_SYSTEM, "scene": "error_parse"},
+            context={
+                "system": ERROR_PARSE_SYSTEM,
+                "scene": "error_parse",
+                "egress_fields": egress,
+                "data_class": "knowledge_aggregated",
+                "user_id": _user.user_id,
+                "feature_tier": "embedded",
+            },
         )
         if text:
             from safety_filter import check
@@ -302,6 +314,27 @@ def _build_error_parse_prompt(error_id: str) -> tuple[str, dict]:
     return prompt, {"retrievedFragmentSnippets": agg}
 
 
+def _merge_hits(
+    kb_hits: list[tuple[str, float]],
+    user_hits: list[tuple[str, float]],
+    *,
+    limit: int,
+) -> list[tuple[str, float]]:
+    """合并 KB / USER 两个命名空间的召回结果：按 refId 去重、按相似度降序、截断。
+
+    为什么要合并：错题向量隔离到 USER store 后，单查 KB 收不到 error 类型 ref。
+    为什么可比：两库向量都是 L2 归一化后入 IndexFlatIP，分值同为余弦相似度；
+    两库维度不一致时 search 各自返回 []，不会产生不可比的分值。
+    """
+    merged: dict[str, float] = {}
+    for ref_id, sim in (*kb_hits, *user_hits):
+        # 同 refId 保高分（同一向量不会在两库同时命中，此处是防御性处理）
+        if ref_id not in merged or sim > merged[ref_id]:
+            merged[ref_id] = sim
+    ordered = sorted(merged.items(), key=lambda kv: kv[1], reverse=True)
+    return ordered[:limit]
+
+
 def _retrieve_error_points(error_id: str) -> list[dict]:
     """本地检索错题关联的知识点（原文不出库、不出域）。
 
@@ -310,6 +343,8 @@ def _retrieve_error_points(error_id: str) -> list[dict]:
       与路径 1 并集去重（同名合并）。embedding off/失败/向量库空时静默跳过路径 2。
       错题原文仅用于本地向量化（embedding 出域已有 2026-08-25 决策豁免），
       召回结果只取知识点元信息，原文不出域。
+      ⚠️ 2026-10-06 起：错题向量落在**独立命名空间**（USER store，见 vector_store），
+      故此处**同时查 KB 与 USER 两库再合并**——只查 KB 会收不到 error 类型 ref。
     """
     merged: dict[str, dict] = {}
 
@@ -340,24 +375,52 @@ def _retrieve_error_points(error_id: str) -> list[dict]:
         logger.info("[ERROR_PARSE] 知识库检索不可用（%s），走通用兜底", type(e).__name__)
 
     # 路径 2：向量召回（T8）
+    # ⚠️ 这里查的是**错题原文**（error_id），属用户内容 → 强制本地模型、永不出域
+    # （PRD 12.6 / AGENTS.md 铁律 6）。上面路径 1 的知识库检索走外部 API 才是允许的。
     try:
-        from embedding_service import embed_mode, embed_text
+        from embedding_service import (
+            EMBED_SRC_USER,
+            embed_mode_for,
+            embed_text,
+            user_content_api_opt_in,
+        )
+        from vector_store import STORE_KB, STORE_USER
         from vector_store import search as vector_search
         from models.knowledge import ErrorPoint as ErrorPointORM
         from models.knowledge import ErrorRecord as ErrorRecordORM
         from models.knowledge import KnowledgePoint as KnowledgePointORM
 
-        if embed_mode() not in ("local", "api"):
-            return list(merged.values())[:5]
         db = SessionLocal()
         try:
             row = db.get(ErrorRecordORM, error_id)
             if row is None or not row.raw_text or not row.raw_text.strip():
                 return list(merged.values())[:5]
-            vec = embed_text(row.raw_text)
+            # D41：只有该用户显式 opt-in，用户内容才可能跟随 KB_EMBED_MODE=api 出域；
+            # 默认（含无 settings 行）恒为 local，且本地失败不改走 api（D34）。
+            opt_in = user_content_api_opt_in(db, row.user_id)
+            if embed_mode_for(EMBED_SRC_USER, user_api_opt_in=opt_in) not in ("local", "api"):
+                return list(merged.values())[:5]
+            vec = embed_text(row.raw_text, source=EMBED_SRC_USER, user_api_opt_in=opt_in)
             if vec is None:
                 return list(merged.values())[:5]
-            hits = vector_search(vec, top_k=5)
+
+            # 两次检索合并（2026-10-06，开关冲突案 · 方案 B 后续）：
+            # 错题向量被隔离到 USER store 后，只查 KB 会永远收不到 error 类型 ref，
+            # 使下面 :error 分支成为不可达代码。故两库各查一次再合并。
+            #
+            # 合并语义（三个决策点）：
+            # - top_k：**各取 5**，再按全局相似度降序截断到 5。不按比例分配，
+            #   因为「只有一边有命中」时按比例会白削召回；各取 5 最坏等效于只查
+            #   有命中的那一边取 5，最好时拿全局最相似的 5 条 → 单调不劣。
+            # - 去重：按 refId 去重（KB 存 point id、USER 存 error id，空间不同本不撞；
+            #   显式去重是防两边将来出现同 id）。下游 merged 还会按知识点 name 合并。
+            # - 顺序：全局按相似度降序——两库向量都是 L2 归一化后的内积（余弦），
+            #   同口径可比（前提：两库维度一致，维度不同时 search 已各自返回 []）。
+            hits = _merge_hits(
+                vector_search(vec, top_k=5, store=STORE_KB),
+                vector_search(vec, top_k=5, store=STORE_USER),
+                limit=5,
+            )
             seen_errors: set[str] = set()
             for hit_id, _sim in hits:
                 # point 类型 ref：命中即知识点

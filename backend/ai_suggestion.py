@@ -138,7 +138,10 @@ def generate_recommendation(
         today_completed_count=today_completed_count,
         today_total_count=today_total_count,
     )
-    llm_text = provider.generate(user, context={"system": system, "scene": scene, "subject": subj, "data_class": "state_plan"})
+    llm_text = provider.generate(user, context={
+        "system": system, "scene": scene, "subject": subj, "data_class": "state_plan",
+        "user_id": user_id, "feature_tier": "embedded",
+    })
 
     if llm_text:
         # 安全审核
@@ -234,7 +237,10 @@ def generate_summary(
         today_total_count=today_total_count,
         today_completed=today_completed,
     )
-    llm_text = provider.generate(prompt, {"period": f"{period_start}~{period_end}", "data_class": "state_plan"})
+    llm_text = provider.generate(prompt, {
+        "period": f"{period_start}~{period_end}", "data_class": "state_plan",
+        "user_id": user_id, "feature_tier": "embedded",
+    })
 
     if llm_text:
         passed, reason = check(llm_text)

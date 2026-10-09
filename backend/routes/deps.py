@@ -41,6 +41,7 @@ def _build_user_response(db: Session, user_id: str) -> User:
             stage="senior",  # 默认值，建档时覆盖
             grade="",
             subjects=["other"],
+            birthYear=None,
             guardianAuthorization=GuardianAuthorizationInfo(status="pending"),
             onboardingCompleted=False,
         )
@@ -60,17 +61,20 @@ def _build_user_response(db: Session, user_id: str) -> User:
         stage=user_row.stage,
         grade=user_row.grade,
         subjects=user_row.subjects or [],
+        birthYear=user_row.birth_year,
         guardianAuthorization=guardian_info,
         onboardingCompleted=user_row.onboarding_completed,
     )
 
 
-def current_user(
-    authorization: str | None = Header(default=None),
-    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
-    sid: str | None = Cookie(default=None),
-) -> User:
-    """当前用户依赖。
+def resolve_user_id(
+    *,
+    sid: str | None,
+    authorization: str | None = None,
+    x_user_id: str | None = None,
+    db: Session | None = None,
+) -> str | None:
+    """解析请求身份 → 稳定 user_id；**无有效身份返回 None，不抛异常**。
 
     身份的唯一可信来源是 sid cookie（查 backend 自己的 auth_sessions 表）。
 
@@ -78,9 +82,13 @@ def current_user(
     只在 settings.allow_insecure_user_header=true 时启用——它们允许请求方自报身份，
     打开即等于任意用户可被冒充。该开关仅允许测试/联调环境使用，生产保持默认 false。
 
-    生产（开关关闭）下无有效会话直接 401，不再兜底共享账号。
+    ⚠️ 这是身份的**唯一实现**。`current_user`（路由鉴权）与 `http_error_tracking`
+    （5xx 埋点归属）都必须走这里，不要各写一份——两处漂移会让埋点把真实用户
+    错记成 system（或反之），而这类错误在测试里看不出来。
     """
-    db = SessionLocal()
+    own = db is None
+    if own:
+        db = SessionLocal()
     try:
         # 1. sid cookie（真实登录用户，查 auth_sessions 表；生产环境唯一路径）
         user_id = get_session(db, sid)
@@ -100,6 +108,29 @@ def current_user(
             # 4. 无登录态 → 回落到 mock 用户（仅测试环境；生产已禁用）
             if user_id is None:
                 user_id = "u_10237"
+
+        return user_id
+    finally:
+        if own:
+            db.close()
+
+
+def current_user(
+    authorization: str | None = Header(default=None),
+    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
+    sid: str | None = Cookie(default=None),
+) -> User:
+    """当前用户依赖。
+
+    身份解析见 `resolve_user_id`（唯一实现）；这里只负责「无身份 → 401」与组装响应。
+
+    生产（开关关闭）下无有效会话直接 401，不再兜底共享账号。
+    """
+    db = SessionLocal()
+    try:
+        user_id = resolve_user_id(
+            sid=sid, authorization=authorization, x_user_id=x_user_id, db=db
+        )
 
         # 生产：无有效会话 → 401，不返回任何用户数据
         if user_id is None:

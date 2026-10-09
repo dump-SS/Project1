@@ -159,7 +159,7 @@ def _extract_json_block(text: str) -> str:
     return match.group(1).strip() if match else text
 
 
-def _suggest_weights(features: dict, current: WeightConfig, current_mastery: dict[str, float] | None = None) -> dict | None:
+def _suggest_weights(features: dict, current: WeightConfig, current_mastery: dict[str, float] | None = None, user_id: str | None = None) -> dict | None:
     """向 LLM 请求调权建议（PRD 5.2：输出建议值 + 理由）。
 
     返回解析后的 dict（含 alpha/beta/w1..w6 与 m1..m5 与 reason）；解析失败返回 None。
@@ -198,7 +198,10 @@ def _suggest_weights(features: dict, current: WeightConfig, current_mastery: dic
         f"近期特征: {summary}\n"
         "请输出调整后的 JSON。"
     )
-    text = provider.generate(prompt, context={"system": system, "data_class": "state_plan"})
+    text = provider.generate(prompt, context={
+        "system": system, "data_class": "state_plan",
+        "user_id": user_id, "feature_tier": "embedded",
+    })
     if not text:
         logger.info("[AI 调权] LLM 未返回文本")
         return None
@@ -267,7 +270,7 @@ def tune_user_weights(db: Session, user_id: str) -> bool:
 
     # 组装特征 → LLM 建议
     features = _build_features(db, user_id)
-    proposed = _suggest_weights(features, current, current_mastery)
+    proposed = _suggest_weights(features, current, current_mastery, user_id=user_id)
     if proposed is None:
         logger.info("[AI 调权] 用户 %s LLM 未给出有效建议，跳过", user_id)
         return False

@@ -36,6 +36,14 @@ export function validateCode(code) {
   return ''
 }
 
+// pilot 邀请码（#50）：必填、4-32 位；规范化（去空白 + 大写）由后端统一处理
+export function validateInviteCode(code) {
+  const v = (code || '').trim()
+  if (!v) return '请输入邀请码'
+  if (v.length < 4 || v.length > 32) return '邀请码为 4-32 位字符'
+  return ''
+}
+
 export function classNames(...args) {
   return args.filter(Boolean).join(' ')
 }

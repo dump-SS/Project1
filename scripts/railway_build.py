@@ -1,0 +1,395 @@
+"""Railway 构建脚本：装依赖 → （可选）构建前端 → 下载并校验向量索引。
+
+为什么要有这个脚本（而不是把命令堆在 Railway 配置里）
+----------------------------------------------------
+三条都是实测踩出来的，不是预防性写法：
+
+1. **`pip install ./backend` 装不上。** `backend/pyproject.toml` 没有 `[build-system]`，
+   而 `backend/` 是平铺布局且含多个顶层目录（`models/` `routes/` `tests/` `alembic/`），
+   setuptools 自动发现直接失败：
+   `error: Multiple top-level packages discovered in a flat-layout`。
+   实测命令：`pip install --dry-run --no-deps ./backend` → exit 1。
+
+   所以这里用 `tomllib`（Python 3.11+ 标准库）读出 `project.dependencies` 的精确 pin
+   再喂给 pip。**好处：`backend/pyproject.toml` 仍是依赖的唯一真相源**，
+   不新增一份会漂移的 requirements.txt。
+
+2. **Railpack 在仓库根探测不到依赖。** `pyproject.toml` 在 `backend/` 下，
+   而 Railway 从 `root_directory`（这里是仓库根）找依赖清单。依赖安装因此
+   显式写在这里，不依赖平台的自动探测。
+
+3. **向量索引进不了仓库。** `.gitignore` 含 `backend/kb_vectors/`，26.5MB 二进制
+   不入库；而源 JSON 在仓库之外（`D:\\Projects\\knowledge base\\...`），
+   所以 Railway 上**既拿不到也重建不了**——只能从外部 URL 拉。
+
+   缺 `KB_VECTOR_URL` 时**故意让构建失败**：宁可部署失败，也不要「部署成功但
+   检索静悄悄降级成 name_fuzzy」——那正是 pilot 要避免的情况，而且事后极难察觉。
+
+用法（Railway build 命令）
+------------------------
+    python scripts/railway_build.py
+
+环境变量
+--------
+KB_VECTOR_URL   必填（除非 SKIP_VECTOR_INDEX=1）。索引文件的下载 URL。
+KB_VECTOR_DIR   索引落地目录，默认 /app/kb_vectors。
+SKIP_VECTOR_INDEX=1   跳过索引下载（**仅限本地/CI 演练**，线上不要设）。
+BUILD_FRONTEND  1=构建前端（默认） / 0=不构建（前端由 Vercel 等单独部署）。
+EXPECTED_VECTOR_COUNT  期望条目数，默认读 KB_VECTOR_EXPECTED_COUNT（3391）。
+
+⚠️ 本地能跑通 ≠ Railway 能跑通。本脚本在 Linux 容器里执行，
+   而开发机是 Windows —— 见交付文档「哪些本地没事、上 Railway 会出问题」。
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import os
+import shutil
+import subprocess
+import sys
+import tomllib
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_DIR = REPO_ROOT / "backend"
+VECTOR_FILE = "embeddings.index"
+REFS_FILE = "refs.json"
+# 仅用于挡住「下到一个 HTML 错误页 / 空文件」这类明显失败；
+# 真正的判据是最后跑 check_vector_index.py（它会读 FAISS，截断必然读不出来）。
+MIN_VECTOR_BYTES = 1_000_000
+MIN_REFS_BYTES = 10_000
+
+
+def log(msg: str) -> None:
+    print(f"[railway-build] {msg}", flush=True)
+
+
+def die(msg: str, hint: str = "") -> None:
+    print(f"[railway-build][FATAL] {msg}", flush=True)
+    if hint:
+        print(f"[railway-build][HINT] {hint}", flush=True)
+    sys.exit(1)
+
+
+def truthy(name: str, default: str = "") -> str:
+    return (os.environ.get(name) or default).strip()
+
+
+def _sigv4_headers(url: str, access_key: str, secret_key: str) -> dict[str, str]:
+    """为一次 GET 生成 AWS SigV4 签名头（R2 的 S3 端点只认这个）。
+
+    实测教训：这里原本写成 `Authorization: Bearer <R2 API 令牌>`，
+    被 R2 以 HTTP 400 `Missing x-amz-content-sha256` 拒掉。
+    R2 的对象下载走 S3 兼容端点，必须 SigV4；Bearer 只对管理接口有效。
+
+    签名串里的 region 固定 `auto`、service 固定 `s3` —— 这是 R2 的要求，
+    不是随便填的（用错会 403 SignatureDoesNotMatch）。
+    """
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.netloc
+    path = urllib.parse.quote(parsed.path or "/")
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+    payload_hash = hashlib.sha256(b"").hexdigest()  # GET 无请求体
+
+    canonical_headers = (
+        f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+    )
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical_request = (
+        f"GET\n{path}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+    )
+    scope = f"{date_stamp}/auto/s3/aws4_request"
+    string_to_sign = (
+        "AWS4-HMAC-SHA256\n"
+        + amz_date
+        + "\n"
+        + scope
+        + "\n"
+        + hashlib.sha256(canonical_request.encode()).hexdigest()
+    )
+
+    def _sign(key: bytes, msg: str) -> bytes:
+        return hmac.new(key, msg.encode(), hashlib.sha256).digest()
+
+    k_date = _sign(("AWS4" + secret_key).encode(), date_stamp)
+    k_region = _sign(k_date, "auto")
+    k_service = _sign(k_region, "s3")
+    k_signing = _sign(k_service, "aws4_request")
+    signature = hmac.new(
+        k_signing, string_to_sign.encode(), hashlib.sha256
+    ).hexdigest()
+
+    return {
+        "Authorization": (
+            f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
+        ),
+        "x-amz-date": amz_date,
+        "x-amz-content-sha256": payload_hash,
+        "Host": host,
+    }
+
+
+def run(cmd: list[str], cwd: Path, label: str) -> None:
+    log(f"{label}: {' '.join(cmd)}")
+    proc = subprocess.run(cmd, cwd=str(cwd))
+    if proc.returncode != 0:
+        die(f"{label} 失败（exit {proc.returncode}）", f"工作目录 {cwd}")
+
+
+def _probe(cmd: list[str]) -> tuple[bool, str]:
+    """跑一条命令只问「能不能成」，不打印它的输出。"""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+    out = (p.stdout or p.stderr or "").strip()
+    return p.returncode == 0, out.splitlines()[0] if out else f"exit {p.returncode}"
+
+
+def _toolchain_report() -> str:
+    """失败时把「到底有什么」打出来，避免下一轮又靠猜。"""
+    lines = [f"sys.executable = {sys.executable}", f"python -V = {sys.version.split()[0]}"]
+    for name in ("pip", "pip3", "uv"):
+        lines.append(f"which {name} = {shutil.which(name) or '(不存在)'}")
+    for mod in ("pip", "ensurepip"):
+        ok, detail = _probe([sys.executable, "-m", mod, "--version"])
+        lines.append(f"python3 -m {mod} --version -> {'OK' if ok else 'FAIL'} ({detail})")
+    return "\n".join(lines)
+
+
+def _ensure_installer() -> list[str]:
+    """确保当前解释器有可用的包安装器，返回「装这些包」的完整命令前缀。
+
+    实测（2026-10-06）：Railpack 构建镜像里的 /usr/bin/python3 **没有 pip**，
+    报 `/usr/bin/python3: No module named pip`。
+    成因不是镜像残废，而是**仓库根没有 requirements.txt / pyproject.toml**，
+    Railpack 于是整段跳过依赖安装，镜像里的系统 python 从未被 pip 初始化过。
+    本机 Windows 的 python 自带 pip，所以这个坑在本地永远测不出来。
+
+    按可用性降级：pip → ensurepip 自举 → uv（mise 系镜像一般自带 uv）。
+    """
+    if _probe([sys.executable, "-m", "pip", "--version"])[0]:
+        return [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+
+    log("当前解释器没有 pip，尝试 ensurepip 自举")
+    ok, detail = _probe([sys.executable, "-m", "ensurepip", "--upgrade"])
+    log(f"  ensurepip -> {'OK' if ok else 'FAIL'} ({detail})")
+    if ok and _probe([sys.executable, "-m", "pip", "--version"])[0]:
+        log("  ensurepip 自举成功，改用 pip")
+        return [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+
+    uv = shutil.which("uv")
+    if uv and _probe([uv, "--version"])[0]:
+        log(f"改用 uv 安装（{uv}）")
+        return [uv, "pip", "install", "--system", "--no-cache-dir"]
+
+    die("镜像里既没有可用的 pip，也没有 uv", _toolchain_report())
+
+
+def step_install_python_deps() -> None:
+    """从 backend/pyproject.toml 解析精确 pin，**装进会随 app 带走的目录**。
+
+    刻意不新增 requirements.txt：两份依赖清单必然漂移，而漂移会在
+    「本地装的是 A、线上装的是 B」时变成极难查的问题。
+
+    ⚠️ 为什么用 `--target <VENDOR_DIR>` 而不是装进解释器自身，也不是建 venv：
+    实测（2026-10-08 真实部署）**构建期与运行期是两个不同的 Python**：
+        构建: /mise/installs/python/3.12.14/bin/python3   ← 依赖原本装进了这里
+        运行: /mise/installs/python/3.12/bin/python3      ← 运行时镜像自带的另一个，无依赖
+    构建阶段 mise 装的解释器与它的 site-packages **不会进入运行时镜像**，
+    于是 preDeploy 报 `No module named alembic.__main__`。
+
+    - **装进解释器自身**：留在 /mise/installs，带不过去（实测失败）。
+    - **建 venv**：venv 的 pyvenv.cfg 记录的是**基解释器绝对路径**
+      （/mise/installs/python/3.12.14），运行时该路径不存在 → venv 直接失效。
+    - **`--target` 装进 /app/vendor**：装出来的是**真实文件**、不引用任何解释器路径，
+      /app 内容会随构建产物进入运行时镜像，再由 PYTHONPATH 指过去 → 路径无关、可跨镜像。
+
+    所以 VENDOR_DIR 必须是 /app 下的路径，且必须与 Railway 变量 PYTHONPATH 一致
+    （见 .railway/railway.py）——这两处不一致就是「装了但 import 不到」。
+    """
+    pyproject = BACKEND_DIR / "pyproject.toml"
+    if not pyproject.exists():
+        die(f"找不到 {pyproject}", "确认 root_directory 是仓库根")
+
+    with pyproject.open("rb") as fh:
+        data = tomllib.load(fh)
+    deps = data.get("project", {}).get("dependencies") or []
+    if not deps:
+        die(f"{pyproject} 里没有 project.dependencies", "依赖清单被清空了？")
+
+    vendor = Path(truthy("KB_VENDOR_DIR", "/app/vendor"))
+    vendor.mkdir(parents=True, exist_ok=True)
+    log(f"从 pyproject 解析到 {len(deps)} 个依赖（含 extras 的原样传递）")
+    log(f"装到 {vendor}（必须是 /app 下的路径，运行时会靠 PYTHONPATH 指过来）")
+
+    cmd = _ensure_installer() + ["--target", str(vendor)] + deps
+    run(cmd, REPO_ROOT, "装 Python 依赖")
+
+    # 装完立刻自检：不试一次 import，就不知道 PYTHONPATH 到底有没有生效。
+    # 历史上这里栽过：构建日志显示「Successfully installed」就以为万事大吉，
+    # 结果运行期才发现 import 不到——构建与运行不是同一个解释器。
+    probe = subprocess.run(
+        [sys.executable, "-c", "import alembic, uvicorn, fastapi, faiss, sqlalchemy, psycopg2"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(vendor)},
+    )
+    if probe.returncode != 0:
+        die(
+            f"依赖装完但 import 自检失败：{(probe.stderr or '').strip()[:200]}",
+            f"确认 PYTHONPATH 与本步骤的 {vendor} 是同一个路径"
+            "（.railway/railway.py 里的 PYTHONPATH 必须与 KB_VENDOR_DIR 一致）。",
+        )
+    log("依赖 import 自检通过（带 PYTHONPATH）")
+
+
+def step_build_frontend() -> None:
+    """构建前端静态产物到 frontend/dist（main.py 的 SPA 回退读这里）。"""
+    if truthy("BUILD_FRONTEND", "1") == "0":
+        log("BUILD_FRONTEND=0 → 跳过前端构建")
+        log("  注意：main.py 的 FRONTEND_DIR 找不到 index.html 时，"
+            "对 / 与 SPA 路由会返回 FRONTEND_NOT_DEPLOYED（这是预期行为，不是故障）")
+        return
+
+    frontend = REPO_ROOT / "frontend"
+    pkg = frontend / "package.json"
+    if not pkg.exists():
+        die(f"找不到 {pkg}", "BUILD_FRONTEND=1 但仓库里没有 frontend/package.json")
+
+    lock = frontend / "package-lock.json"
+    if lock.exists():
+        run(["npm", "ci", "--no-audit", "--no-fund"], frontend, "装前端依赖")
+    else:
+        log("没有 package-lock.json → 用 npm install（不保证可复现）")
+        run(["npm", "install", "--no-audit", "--no-fund"], frontend, "装前端依赖")
+    run(["npm", "run", "build"], frontend, "构建前端")
+
+    dist_index = frontend / "dist" / "index.html"
+    if not dist_index.exists():
+        die(f"构建结束但没有 {dist_index}", "看上面 npm run build 的输出")
+    log(f"前端产物就位：{dist_index}")
+
+
+def step_download_vector_index() -> None:
+    """从 KB_VECTOR_URL 下载索引并校验，然后跑权威校验脚本。"""
+    if truthy("SKIP_VECTOR_INDEX") == "1":
+        log("SKIP_VECTOR_INDEX=1 → 跳过索引下载（**线上不要设**）")
+        return
+
+    url = truthy("KB_VECTOR_URL")
+    if not url:
+        die(
+            "KB_VECTOR_URL 未设置，索引无法送达",
+            "26.5MB 的 embeddings.index 不在 git 里（.gitignore 有 backend/kb_vectors/），"
+            "源 JSON 也在仓库外，所以线上无法重建。请把索引传到对象存储，"
+            "把下载 URL 配成 Railway 变量 KB_VECTOR_URL 后重新构建。",
+        )
+
+    target_dir = Path(truthy("KB_VECTOR_DIR", "/app/kb_vectors"))
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+# 桶保持私有，所以下载必须签名鉴权。
+    # 为什么不能匿名下：R2 桶 epoch-x 不只是放索引——docs/deployment-stack-evaluation.md
+    # 记着二期多模态拍题要在**同一个桶**存用户上传的题目图片（用户数据）。
+    # 一旦开公开读，索引公开会连带把用户图片也暴露出去。
+    #
+    # 为什么用 SigV4 而不是 Bearer：**实测**R2 的 S3 兼容端点
+    # （<account>.r2.cloudflarestorage.com）只接受 AWS SigV4。
+    # 曾先按「加个 Authorization 头」写成 `Bearer <R2 API 令牌>`，
+    # 实测被拒：HTTP 400 `Missing x-amz-content-sha256`。
+    # Bearer 只对 api.cloudflare.com 的管理接口有效，对象下载走不了。
+    #
+    # 为什么不用预签名 URL：S3 预签名最长 7 天，而 Railway 变量是静态的，
+    # 过期后每次构建都失败，变成必须定期轮换的运维债。签名每次现算，不过期。
+    access_key = truthy("KB_VECTOR_ACCESS_KEY_ID")
+    secret_key = truthy("KB_VECTOR_SECRET_ACCESS_KEY")
+    if not access_key or not secret_key:
+        missing = [
+            name
+            for name, val in (
+                ("KB_VECTOR_ACCESS_KEY_ID", access_key),
+                ("KB_VECTOR_SECRET_ACCESS_KEY", secret_key),
+            )
+            if not val
+        ]
+        die(
+            "S3 签名凭据不完整，无法从私有桶下载索引：" + "、".join(missing) + " 未设置",
+            "桶 epoch-x 保持私有（不开放读），下载走 R2 的 S3 端点，必须用 SigV4 签名，"
+            "需要 access key id 与 secret access key 两个变量。"
+            "请把它们配成 Railway 变量后重新构建。",
+        )
+
+    base = url.rstrip("/")
+    for name, min_bytes in ((VECTOR_FILE, MIN_VECTOR_BYTES), (REFS_FILE, MIN_REFS_BYTES)):
+        src_url = f"{base}/{name}"
+        dest = target_dir / name
+        log(f"下载 {src_url} → {dest}（SigV4 签名）")
+        req = urllib.request.Request(
+            src_url, headers=_sigv4_headers(src_url, access_key, secret_key)
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 - URL 来自 Railway 变量
+                data = resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read(300).decode("utf-8", "replace")[:200].replace("\n", " ")
+            except Exception:
+                pass
+            die(
+                f"下载 {name} 失败：HTTP {exc.code} {exc.reason}"
+                + (f"｜服务端返回：{detail}" if detail else ""),
+                "403/401 通常是 access key 无效、已撤销，或权限不含该桶的对象读取；"
+                "404 是路径下没有该文件（确认 KB_VECTOR_URL 是**桶的基址**"
+                "（到 .../<bucket> 为止，不含文件名），且其下确实有 " + name + "）。",
+            )
+        except (urllib.error.URLError, OSError) as exc:
+            die(f"下载 {name} 失败：{exc}", f"确认 KB_VECTOR_URL 可访问，且路径下确实有 {name}")
+
+        if len(data) < min_bytes:
+            die(
+                f"{name} 只有 {len(data)} 字节（期望至少 {min_bytes}）—— 多半下到了错误页或空文件",
+                "检查 URL 是否指向对象存储里的真实文件，而不是桶目录或登录页",
+            )
+        dest.write_bytes(data)
+        log(f"  {name}: {len(data):,} bytes")
+
+    # 权威判据：复用 check_vector_index.py（与 HTTP /health/vector-index 同一口径）。
+    # 它会真正读取 FAISS，所以截断/损坏/条目数不对都会在这里暴露。
+    log("跑 scripts/check_vector_index.py 做权威校验")
+    proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "check_vector_index.py")],
+        cwd=str(REPO_ROOT),
+    )
+    if proc.returncode != 0:
+        die(
+            "向量索引校验未通过（check_vector_index.py 退出非 0）",
+            "部署已中止——这是有意的：宁可部署失败，也不要上线后检索静悄悄降级成 name_fuzzy。"
+            "用 --json 看 problems 字段定位。",
+        )
+    log("索引校验通过")
+
+
+def main() -> int:
+    log(f"仓库根：{REPO_ROOT}")
+    log(f"Python：{sys.version.split()[0]}（{sys.executable}）")
+
+    step_install_python_deps()
+    step_build_frontend()
+    step_download_vector_index()
+
+    log("构建步骤全部完成")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

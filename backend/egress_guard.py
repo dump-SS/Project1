@@ -24,16 +24,58 @@ __all__ = [
     "EgressViolation",
     "Guard",
     "EGRESS_BLOCKED_FIELD_NAMES",
+    "USER_ERROR_CONTENT",
+    "USER_ERROR_ALLOWED_KEYS",
+    "EMBED_SRC_KB",
+    "EMBED_SRC_USER",
+    "assert_embed_source_offdomain_allowed",
 ]
 
 logger = logging.getLogger(__name__)
 
-# 三种 data_class（PRD 12.6）
+# 四种 data_class（PRD 12.6 + 2026-09-30 合规口径修订）
 STATE_PLAN = "state_plan"
 KNOWLEDGE_AGGREGATED = "knowledge_aggregated"
 KNOWLEDGE_RAW = "knowledge_raw"
+USER_ERROR_CONTENT = "user_error_content"
 
 DataClass = str
+
+# ---------------------------------------------------------------------------
+# user_error_content：用户自己的错题 / 题面（2026-09-30 拍板新增）
+#
+# 背景：原先把用户自己录入的错题一并归进 knowledge_raw，是**分类错了**——
+# knowledge_raw 本是给爬取的教材 / 题库素材用的（版权与第三方数据问题，永不出域合理），
+# 用户自己的内容不该与它同等对待。
+#
+# 判定规则：**不看「存没存过」，看「这次是不是用户主动发起 + 内容是不是用户自己的」**
+#   用户在对话里当场输入 / 拍照搜题                  ✅ 允许
+#   用户在错题本点「讲一遍 / 出变式 / 相似题」        ✅ 允许（用户主动 + 自己的内容）
+#   系统自动批量外发（后台生成、定时推送等）          ❌ 禁止（无用户即时意图）
+#   知识点库原始素材                                  ❌ 永不出域（不变）
+#   embedding                                         ❌ 必须本地模型（不变）
+#
+# 四道加固（放宽红线的前提，调用方必须遵守）：
+#   ① 每次点击即一次授权——只接受用户当下发起的请求，禁止走后台任务 / 定时任务
+#   ② 优先境内服务商，明确第三方不留存、不用于训练
+#   ③ 用户可关闭（settings.knowledge_ai_egress_enabled），关闭后退回本地检索 + 通用讲解
+#   ④ 出域留痕——调用记进日志（含用户、内容类型、时间）
+#
+# 仍然「能走聚合就走聚合」：只问「这类题怎么解」的场景照旧只发
+# knowledge_aggregated 白名单字段，不因为开了口子就一律发原文。
+# ---------------------------------------------------------------------------
+USER_ERROR_ALLOWED_KEYS: frozenset[str] = frozenset({
+    "subject",
+    "rawText",
+    "studentAnswer",
+    "correctAnswer",
+    "errorNote",
+    "errorType",
+    "errorCause",
+    "intent",
+    "questionType",
+    "difficulty",
+})
 
 # knowledge_aggregated 白名单：加字段必须先评审（契约 v1.5 的 EgressGuard 部分）
 AGGREGATED_ALLOWED_KEYS: frozenset[str] = frozenset({
@@ -89,6 +131,62 @@ class EgressViolation(Exception):
     """越权出域：knowledge_raw 序列化或 knowledge_aggregated 白名单外字段。"""
 
 
+# ---------------------------------------------------------------------------
+# embedding 侧的数据来源标记
+#
+# 为什么要单独一套：上面的 Guard 拦的是**dict payload**（LLM 调用），靠字段名识别知识原文。
+# embedding 调用送出去的是**一整条裸文本**，没有字段名可扫，所以必须由调用方在调用点
+# 显式声明「这条文本是什么来源」，再在这里做一次判定。
+#
+# 与知识库/错题那对既定决策对应（AGENTS.md 铁律 6）：
+# - 知识库内容（编者提供、公开）→ 允许走外部 embedding API（既定决策）
+# - 用户内容（错题原文 / 作答 / 学习记录）→ **永不出域**，只能用本地模型
+# ---------------------------------------------------------------------------
+EMBED_SRC_KB = "kb"
+EMBED_SRC_USER = "user"
+
+# 允许走外部 embedding API 的来源白名单。
+# **用户内容（EMBED_SRC_USER）不在其中，且不可通过配置放开**——它只能在用户**显式 opt-in**
+# （PRD 12.6 / D41 的 settings.user_content_embedding_api_enabled）时，
+# 由调用方显式传 user_api_opt_in=True 放行。默认参数 False ⇒ 默认拒绝。
+EMBED_OFFDOMAIN_ALLOWED_SOURCES: frozenset[str] = frozenset({EMBED_SRC_KB})
+
+
+def assert_embed_source_offdomain_allowed(source: str, *, user_api_opt_in: bool = False) -> None:
+    """准备把文本发给**外部** embedding API 前的最后一道闸。
+
+    与 :meth:`Guard.check` 同为「默认拒绝」：未声明的来源一律当作越权处理，
+    不放行到 api 模式。
+
+    Args:
+        source: 数据来源（``EMBED_SRC_KB`` / ``EMBED_SRC_USER``）。
+        user_api_opt_in: **仅对用户内容有意义**。用户内容默认禁止出域；只有该用户在自己的设置里
+            显式开启（``settings.user_content_embedding_api_enabled``，PRD 12.6 / D41）时，
+            调用方才传 ``True`` 放行。**默认 False = 默认拒绝**；而且它**不是配置项** ——
+            按用户、按请求显式给出，``KB_EMBED_MODE`` 放不开它。
+
+    Raises:
+        EgressViolation: 来源未声明，或属于禁止出域的用户内容（且未 opt-in）。
+    """
+    if source not in (EMBED_SRC_KB, EMBED_SRC_USER):
+        logger.error("[EGRESS] 未声明合法 embedding 来源：%r", source)
+        raise EgressViolation(f"未声明合法 embedding 来源：{source!r}")
+    if source in EMBED_OFFDOMAIN_ALLOWED_SOURCES:
+        return
+    if source == EMBED_SRC_USER and user_api_opt_in:
+        # 用户显式 opt-in：放行，但留一条痕（是谁开的可从 settings 表追）。
+        logger.info("[EGRESS] 用户内容 embedding 出域：该用户已显式 opt-in（PRD 12.6 / D41）")
+        return
+    logger.error(
+        "[EGRESS] 来源 %s 禁止出域到外部 embedding API"
+        "（错题原文/作答/学习记录默认永不出域，除非用户显式 opt-in）",
+        source,
+    )
+    raise EgressViolation(
+        f"embedding 来源 {source!r} 禁止出域：用户内容只能用本地模型（除非该用户已显式 opt-in）"
+    )
+
+
 class Guard:
     """出域白名单校验器。全部静态方法，无状态、可注入测试。"""
 
@@ -100,12 +198,36 @@ class Guard:
             EgressViolation: 未声明 data_class / knowledge_raw 越权 /
                 knowledge_aggregated 含白名单外字段。
         """
-        if data_class not in (STATE_PLAN, KNOWLEDGE_AGGREGATED, KNOWLEDGE_RAW):
+        if data_class not in (
+            STATE_PLAN,
+            KNOWLEDGE_AGGREGATED,
+            KNOWLEDGE_RAW,
+            USER_ERROR_CONTENT,
+        ):
             raise EgressViolation(f"未声明合法 data_class：{data_class!r}")
 
         if data_class == KNOWLEDGE_RAW:
             logger.error("[EGRESS] knowledge_raw 出域被拒绝（payload keys=%s）", list(payload))
-            raise EgressViolation("knowledge_raw 禁止出域：错题原文/作答/自述错因永不出域")
+            raise EgressViolation(
+                "knowledge_raw 禁止出域：知识点库原始素材（教材/题库爬取内容）永不出域"
+            )
+
+        # user_error_content：用户自己的题面，允许用户主动发起时出域；
+        # 走独立白名单（含题面字段），白名单外的字段一律拒绝——这样即便误传了
+        # 知识点库素材字段（definition/example 等）也照样被挡下。
+        if data_class == USER_ERROR_CONTENT:
+            unknown = [k for k in payload if k not in USER_ERROR_ALLOWED_KEYS]
+            if unknown:
+                logger.error(
+                    "[EGRESS] user_error_content 白名单外字段被拦截：%s", unknown
+                )
+                raise EgressViolation(
+                    f"user_error_content 出域 payload 含白名单外字段：{unknown}"
+                )
+            logger.info(
+                "[EGRESS] user_error_content 出域放行（keys=%s）", sorted(payload)
+            )
+            return payload
 
         Guard._reject_raw_fields(payload)
 

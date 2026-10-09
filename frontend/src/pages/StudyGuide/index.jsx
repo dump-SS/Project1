@@ -5,11 +5,13 @@ import TaskList from '../StudyPlanEditor/TaskList.jsx'
 import { usePlanFlow } from '@/hooks/usePlanFlow'
 import { fetchRecommendationContent } from '@/services/recommendationContent'
 import { subjectLabels } from '@/styles/theme'
+import { useAuth } from '@/context/AuthContext.jsx'
 import './index.css'
 import './Guide.css'
 
 export default function StudyGuide() {
   const navigate = useNavigate()
+  const { isGuest } = useAuth()
   const { state, validators, handlers } = usePlanFlow()
   const { taskValue, setTaskValue, minutes, setMinutes, plan, hasGenerated, submitError, offlineNote } = state
   const { MINUTES_VALIDATOR } = validators
@@ -34,6 +36,21 @@ export default function StudyGuide() {
   const [recLoading, setRecLoading] = useState(true)
 
   useEffect(() => {
+    // 游客态：AI 推荐不走接口（也避免打一个注定 401 的请求），直接给引导文案
+    if (isGuest) {
+      setRec({
+        eligible: false,
+        recordCount: 0,
+        recentWindowDays: 7,
+        subject: null,
+        topic: null,
+        reason: '游客暂不能使用 AI 推荐，登录后开启',
+        fromLLM: false,
+      })
+      setRecLoading(false)
+      return
+    }
+
     let cancelled = false
     setRecLoading(true)
     fetchRecommendationContent()
@@ -45,7 +62,7 @@ export default function StudyGuide() {
         if (!cancelled) setRecLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [isGuest])
 
   // 点击 AUTO 自动填充:让 LLM 推荐的 subject + topic 落到表单
   const handleAutoFill = async () => {
@@ -65,7 +82,8 @@ export default function StudyGuide() {
   // 点击「进入」按钮:先生成计划,成功后显示弹窗
   const handleEnterClick = async () => {
     if (!allFilled) return
-    const ok = await handleEnter()
+    // subject 只在游客态被使用（本地成型计划）；登录态服务端忽略该额外字段
+    const ok = await handleEnter({ subject })
     // handleEnter 返回 true 表示已生成可直接跳转;false 表示刚生成
     // 两种情况都进入弹窗阶段
     if (ok || hasGenerated || plan) {
@@ -84,20 +102,22 @@ export default function StudyGuide() {
   }
 
   // 水淹动画结束后跳转
+  //
+  // ⚠️ 上下文改用 **URL query** 承载，不再走 `navigate(state)`。
+  // 原因：location.state 一刷新就没了（技术债「/study-timer 刷新丢上下文」的根因）。
+  // query 可刷新、可直链、可分享；计时会话本身由服务端持久化，两边一起把上下文钉住。
   useEffect(() => {
     if (stage !== 'flooding') return
     const timer = setTimeout(() => {
-      navigate('/study-timer', {
-        state: {
-          availableMinutes: MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60,
-          task: taskValue || null,
-          subject: subject || null,
-          planId: plan?.planId || null,
-        },
-      })
+      const params = new URLSearchParams()
+      const mins = MINUTES_VALIDATOR(minutes) ? Number(minutes) : 60
+      params.set('minutes', String(mins))
+      if (plan?.planId) params.set('planId', plan.planId)
+      if (rec.taskId) params.set('taskId', rec.taskId)
+      if (subject) params.set('subject', subject)
+      navigate(`/study-timer?${params.toString()}`)
     }, 1400) // 与水淹动画时长一致
-    return () => clearTimeout(timer)
-  }, [stage, navigate, minutes, taskValue, subject, plan, MINUTES_VALIDATOR])
+  }, [stage, navigate, minutes, subject, plan, rec.taskId, MINUTES_VALIDATOR])
 
   // 黑场阶段监听 Enter 键
   useEffect(() => {
@@ -165,21 +185,33 @@ export default function StudyGuide() {
           <span className="en">Study Guide</span>
         </h1>
 
+        {/* 游客态提示（D1/D43）：数据不保存、AI 不可用；随时可转登录 */}
+        {isGuest && (
+          <div className="guest-trial-note" role="note">
+            <strong>游客试用中</strong>
+            <span>计划只在本次浏览内有效，刷新即清空，不会保存到任何账号。</span>
+            <a href="/login">登录 / 注册</a>
+            <span>后可保存数据并使用 AI 功能。</span>
+          </div>
+        )}
+
         {/* LLM 学习内容推荐块(PRD 5.3 / 6.4) */}
         <div className="recommend" aria-hidden="true">
           <p className="recommend-line">
             学习内容推荐<span className="en">Recommendation{rec.fromLLM ? ' · AI' : ''}</span>
           </p>
           <p className="recommend-line">
-            {recLoading
-              ? '正在为你推荐下一个学习内容…'
-              : !rec.eligible
-                ? rec.reason
-                : subjectName
-                  ? `${subjectName} · ${rec.topic}`
-                  : rec.reason}
+            {isGuest
+              ? '游客暂不能使用 AI 推荐，登录后开启'
+              : recLoading
+                ? '正在为你推荐下一个学习内容…'
+                : !rec.eligible
+                  ? rec.reason
+                  : subjectName
+                    ? `${subjectName} · ${rec.topic}`
+                    : rec.reason}
           </p>
-          {rec.eligible && rec.reason && (
+          {!isGuest && rec.eligible && rec.reason && (
             <p className="recommend-reason">{rec.reason}</p>
           )}
         </div>
@@ -188,9 +220,11 @@ export default function StudyGuide() {
           type="button"
           className="auto-fill"
           onClick={handleAutoFill}
-          disabled={recLoading}
+          disabled={recLoading || isGuest}
+          title={isGuest ? 'AI 自动填充需要登录后使用' : undefined}
+          aria-disabled={isGuest || undefined}
         >
-          AUTO自动填充
+          AUTO自动填充{isGuest ? '（需登录）' : ''}
         </button>
 
         <StudyEditor

@@ -1,0 +1,47 @@
+/* DocsCard · 卡片外壳：hairline + 留白，**不用阴影堆叠**（§8.1 第 3 条） */
+
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+  padding: var(--sp-4);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+/* 卡片标题：衬线（注释层级，§5） */
+.title {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-title);
+  color: var(--text-primary);
+}
+
+.meta {
+  flex: none;
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-title);
+}
+
+.body {
+  font-family: var(--font-prose);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  color: var(--text-secondary);
+}
+
+.body > :first-child {
+  margin-top: 0;
+}
+.body > :last-child {
+  margin-bottom: 0;
+}

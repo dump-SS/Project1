@@ -142,10 +142,16 @@ class ErrorPoint(Base):
 
 
 class PointMastery(Base):
-    """知识点掌握度（kb_point_mastery）。联合唯一 (user_id, point_id)。"""
+    """知识点掌握度（kb_point_mastery）。联合唯一 (user_id, point_id)。
+
+    ⚠️ 这里**不再声明** `UniqueConstraint("user_id","point_id", name="uq_user_point")`。
+    主键已经是同样两列，那个 UNIQUE 是纯冗余，而它正是 `alembic check` 在 Postgres
+    上永远不干净的根因：PG 在建表时会把与主键重复的 UNIQUE **静默丢弃**，
+    于是「模型里有、库里没有」→ drift。SQLite 两个都留，看起来没事。
+    （详见迁移 b7d2e4f1a609 的 docstring；删这条约束不影响任何行为——主键已保证唯一）
+    """
 
     __tablename__ = "kb_point_mastery"
-    __table_args__ = (UniqueConstraint("user_id", "point_id", name="uq_user_point"),)
 
     user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     point_id: Mapped[str] = mapped_column(String(64), primary_key=True)

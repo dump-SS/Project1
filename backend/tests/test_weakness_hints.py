@@ -26,7 +26,12 @@ HDR = {"X-User-ID": "u_test_weak"}
 
 @pytest.fixture(autouse=True)
 def _seed():
-    """数学学科 + 2 知识点；kp_2 挂 3 条未解决错题 → mastery≈0.35（<0.4 弱）。"""
+    """数学学科 + 2 知识点；kp_2 挂 3 条未解决错题 → mastery≈0.35（<0.4 弱）。
+
+    ⚠️ 三条错题必须带 error_cause：D48 起 mastery 与薄弱归因**只消费「有错因」的
+    错题**，只有意图的 star 题不进掌握度。造「错题」却不给错因，等于造了 star 题，
+    薄弱路径会理所当然地为空。
+    """
     db = SessionLocal()
     try:
         db.add(KnowledgeSubjectORM(id="ks_math", code="SX", name="数学", version="1.0", enabled=True))
@@ -48,6 +53,7 @@ def _seed():
             db.add(ErrorRecordORM(
                 id=eid, user_id="u_test_weak", subject="SX",
                 raw_text=f"错题 {i}", status="open",
+                error_cause="concept_unclear",  # D48：有错因才算「错题」，才喂 mastery
             ))
             db.add(ErrorPointORM(id=f"ep_{i}", error_id=eid, point_id="kp_2", confidence=1.0))
         db.commit()

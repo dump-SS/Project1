@@ -12,9 +12,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -31,6 +32,76 @@ from schemas.user import (
 from .deps import _build_user_response, current_user
 
 router = APIRouter(prefix="", tags=["用户与设置"])
+
+# ---------- 低龄强制门槛（D41） ----------
+
+# 「未满 14 周岁」的判定口径：只采集出生**年份**（最小必要，不采集精确生日），
+# 因此年龄只能算到区间。判定取**保守侧**——宁可多拦一次，也不放走可能未满 14 岁的账号：
+#   current_year - birth_year <= 14  → 可能未满 14 周岁 → 需要已生效的监护人授权
+#   current_year - birth_year >= 15  → 确定已满 14 周岁 → 不拦
+# 例：2012 年出生、2026 年（差 14）→ 拦（可能仍 13 岁）；2011 年出生（差 15）→ 放行。
+# 未采集 birth_year 的存量账号（None）不拦截——门槛只对激活式建档采集过的账号生效。
+_UNDER14_YEAR_GAP = 14
+
+
+def _is_under_14(birth_year: int | None, today: date | None = None) -> bool:
+    """按出生年份保守判定「可能未满 14 周岁」。"""
+    if birth_year is None:
+        return False
+    today = today or date.today()
+    return (today.year - birth_year) <= _UNDER14_YEAR_GAP
+
+
+def _guardian_status(db: Session, user_id: str) -> str:
+    """监护人授权状态；无记录视为 pending（PRD 8.1：未授权视为待确认）。"""
+    row = db.get(GuardianAuthorizationORM, user_id)
+    return row.status if row is not None else "pending"
+
+
+def _onboarding_completed(db: Session, user_id: str, birth_year: int | None) -> bool:
+    """档案能否置为「已完成」：未满 14 岁时必须监护人授权 active（D41）。"""
+    if not _is_under_14(birth_year):
+        return True
+    return _guardian_status(db, user_id) == "active"
+
+
+def _ensure_guardian_active_for_user_content_embedding(
+    db: Session, user_id: str, birth_year: int | None
+) -> None:
+    """D41：未成年账号**开启**「用户内容 embedding 出域」前必须监护人授权已生效。
+
+    - **非未成年**（含 birth_year 为 None 的存量账号，沿用 _is_under_14 的既有约定）→ 直接放行；
+    - 未成年：``active`` → 放行；无记录 / ``pending`` → 403 ``GUARDIAN_AUTHORIZATION_REQUIRED``；
+      ``expired`` / ``revoked`` → 403 ``GUARDIAN_AUTHORIZATION_EXPIRED``。
+
+    ⚠️ **只在开启（true）时校验**：撤回（false）是用户权利，绝不能被授权状态挡住 ——
+    否则监护人授权一失效，用户连「关掉出域」都做不到（同 routes/community.py 的口径）。
+
+    ⚠️ 与 community.py 的 ``_ensure_guardian_active_for_enable`` 的**关键差别**：那个**不判年龄**、
+    无记录即按 pending 拦，会把所有成年用户也拦掉；这里要的是「**仅未成年且未授权**」才拦。
+    """
+    from fastapi import HTTPException
+
+    if not _is_under_14(birth_year):
+        return
+    status_value = _guardian_status(db, user_id)
+    if status_value == "active":
+        return
+    if status_value in ("expired", "revoked"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "GUARDIAN_AUTHORIZATION_EXPIRED",
+                "message": "监护人授权已过期，请重新确认后继续使用",
+            },
+        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "GUARDIAN_AUTHORIZATION_REQUIRED",
+            "message": "开启用户内容向量检索需要先完成监护人授权，请前往「设置 → 授权与隐私」",
+        },
+    )
 
 
 # ---------- Settings（已接 ORM，保持不变） ----------
@@ -52,6 +123,8 @@ def _serialize_settings(settings):
             "aiWeightTuningEnabled": settings.ai_weight_tuning_enabled,
             "sendTextToAI": settings.send_text_to_ai,
             "knowledgeAiEgressEnabled": settings.knowledge_ai_egress_enabled,
+            "userContentEmbeddingApiEnabled": settings.user_content_embedding_api_enabled,
+            "experienceImprovementEnabled": settings.experience_improvement_enabled,
             "updatedAt": settings.updated_at,
         }
     )
@@ -70,22 +143,36 @@ def put_me(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> User:
-    """幂等建档：用户不存在则创建，存在则覆盖（PUT 语义）。"""
-    row = db.get(UserORM, user.user_id)
-    if row is None:
+    """幂等建档：用户不存在则创建，存在则覆盖（PUT 语义）。
+
+    低龄强制门槛（D41）：`birthYear` 推算为「可能未满 14 周岁」且监护人授权尚未 `active` 时，
+    资料照常落库，但 `onboardingCompleted` 保持 false——前端据此进入监护人授权步骤；
+    授权生效后重调本接口即置 true（幂等）。
+    """
+    existing = db.get(UserORM, user.user_id)
+    # birthYear 未传（None）表示"本次不改动"：不覆盖已采集的值，避免误清空
+    birth_year = body.birth_year if body.birth_year is not None else (
+        existing.birth_year if existing is not None else None
+    )
+    completed = _onboarding_completed(db, user.user_id, birth_year)
+
+    if existing is None:
         row = UserORM(
             id=user.user_id,
             stage=body.stage.value,
             grade=body.grade,
             subjects=[s.value for s in body.subjects],
-            onboarding_completed=True,
+            birth_year=birth_year,
+            onboarding_completed=completed,
         )
         db.add(row)
     else:
+        row = existing
         row.stage = body.stage.value
         row.grade = body.grade
         row.subjects = [s.value for s in body.subjects]
-        row.onboarding_completed = True
+        row.birth_year = birth_year
+        row.onboarding_completed = completed
     db.commit()
     return _build_user_response(db, user.user_id)
 
@@ -111,6 +198,11 @@ def patch_me(
         row.grade = body.grade
     if body.subjects is not None:
         row.subjects = [s.value for s in body.subjects]
+    if body.birth_year is not None:
+        row.birth_year = body.birth_year
+    # 改动 birthYear 后重算门槛：改成未满 14 岁且授权未生效 → 档案回到「未完成」，
+    # 前端会重新把用户带回监护人授权步骤（D41 是强制门槛，不是一次性检查）。
+    row.onboarding_completed = _onboarding_completed(db, user.user_id, row.birth_year)
     db.commit()
     return _build_user_response(db, user.user_id)
 
@@ -139,6 +231,16 @@ def patch_settings(
         settings.send_text_to_ai = body.send_text_to_ai
     if body.knowledge_ai_egress_enabled is not None:
         settings.knowledge_ai_egress_enabled = body.knowledge_ai_egress_enabled
+    if body.user_content_embedding_api_enabled is not None:
+        # D41：**只在开启时**校验监护人授权；撤回（置 false）是用户权利，不设门槛。
+        # birth_year 取自 current_user 组装的 User（deps._build_user_response 已读 ORM 的 birth_year）。
+        if body.user_content_embedding_api_enabled:
+            _ensure_guardian_active_for_user_content_embedding(
+                db, user.user_id, user.birth_year
+            )
+        settings.user_content_embedding_api_enabled = body.user_content_embedding_api_enabled
+    if body.experience_improvement_enabled is not None:
+        settings.experience_improvement_enabled = body.experience_improvement_enabled
 
     db.commit()
     db.refresh(settings)
@@ -208,6 +310,13 @@ def revoke_guardian_authorization(
         row.status = "revoked"
         row.confirm_token = None
         row.expires_at = None
+        # 低龄门槛重算（D41）：撤销后未满 14 岁的账号回到「未完成建档」，
+        # 前端会把用户带回监护人授权步骤；≥14 岁账号不受影响。
+        user_row = db.get(UserORM, user.user_id)
+        if user_row is not None:
+            user_row.onboarding_completed = _onboarding_completed(
+                db, user.user_id, user_row.birth_year
+            )
         db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -217,12 +326,17 @@ def revoke_guardian_authorization(
     summary="监护人点击链接确认授权（无需登录）",
 )
 def confirm_guardian_authorization(
+    request: Request,
     token: str = Query(...),
     db: Session = Depends(get_db),
-) -> dict[str, bool]:
+):
     """监护人点确认链接：查 token → 置 active + 设置 expires_at。
 
     token 无效或已使用返回 ok=False。无需登录（security: []）。
+
+    **结果页**：监护人是从邮件里点开链接的——他既没有账号、也不在应用内，
+    所以 `Accept` 首选 `text/html`（浏览器地址栏/邮件客户端直开）时返回自包含 HTML 结果页，
+    不依赖前端构建产物；接口客户端（前端 fetch、自动化测试）仍拿 `{"ok": bool}`，语义不变。
     """
     from sqlalchemy import select
 
@@ -234,11 +348,99 @@ def confirm_guardian_authorization(
         )
     ).scalars().first()
 
-    if row is None:
-        return {"ok": False}
+    ok = row is not None
+    if ok:
+        row.status = "active"
+        row.expires_at = datetime.utcnow() + timedelta(days=_GUARDIAN_AUTH_TTL_DAYS)
+        row.confirm_token = None  # 一次性，确认后清空
+        db.commit()
 
-    row.status = "active"
-    row.expires_at = datetime.utcnow() + timedelta(days=_GUARDIAN_AUTH_TTL_DAYS)
+    if _wants_html(request):
+        return HTMLResponse(_guardian_result_page(ok))
+    return {"ok": ok}
+
+
+# ---------- 监护人确认结果页（自包含 HTML） ----------
+
+def _wants_html(request: Request) -> bool:
+    """Accept 首选 text/html → 浏览器/邮件客户端直开；其余（*/*、application/json）走 JSON。"""
+    accept = request.headers.get("accept", "")
+    return accept.split(",")[0].strip().lower().startswith("text/html")
+
+
+def _guardian_result_page(ok: bool) -> str:
+    """监护人人看到的结果页。
+
+    监护人不装 App、不登录，页面必须**自包含**（内联样式、无 JS、无外部资源），
+    并明确说清三件事：这次确认的结果、授权的有效期、以及在哪里可以撤销。
+    """
+    if ok:
+        icon, title, tone = "✓", "授权已确认", "#0E9F6E"
+        body = (
+            "<p class=\"line\">你已确认对该账号的监护人授权，账号可以正常使用了。</p>"
+            "<ul class=\"facts\">"
+            "<li>授权有效期 <strong>12 个月</strong>，到期后需重新确认。</li>"
+            "<li>你可以随时撤销：账号持有人可在「设置 → 授权与隐私」内查看状态并撤销；"
+            "撤销后该账号将进入只读状态。</li>"
+            "<li>如果你并不认识这个账号，或并未同意，请忽略本页，并通过下方邮箱联系我们。</li>"
+            "</ul>"
+        )
+    else:
+        icon, title, tone = "!", "链接无效或已使用", "#B45309"
+        body = (
+            "<p class=\"line\">这个确认链接不存在、已经使用过，或已被重新发起而失效。</p>"
+            "<ul class=\"facts\">"
+            "<li>如果授权此前已经确认过，你无需再做任何操作。</li>"
+            "<li>如果需要重新确认，请让账号持有人重新提交监护人联系方式，你会收到新的确认链接。</li>"
+            "</ul>"
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EpochX · 监护人授权确认</title>
+<style>
+  :root {{ color-scheme: light; }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px; background: #F5F7FA; color: #1F2937;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }}
+  .card {{
+    width: 100%; max-width: 520px; background: #FFFFFF; border-radius: 16px;
+    padding: 32px 28px; box-shadow: 0 8px 30px rgba(16, 22, 30, 0.08);
+  }}
+  .badge {{
+    width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 22px; font-weight: 700; color: #FFFFFF;
+    background: {tone}; margin-bottom: 16px;
+  }}
+  h1 {{ margin: 0 0 8px; font-size: 20px; line-height: 1.4; }}
+  .brand {{ margin: 0 0 20px; font-size: 13px; color: #6B7280; letter-spacing: .04em; }}
+  .line {{ margin: 0 0 12px; font-size: 15px; line-height: 1.7; }}
+  .facts {{ margin: 0 0 4px; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #374151; }}
+  .facts li {{ margin-bottom: 4px; }}
+  footer {{ margin-top: 24px; padding-top: 16px; border-top: 1px solid #E5E7EB; font-size: 12px; color: #9CA3AF; line-height: 1.7; }}
+  a {{ color: #2563EB; text-decoration: none; }}
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="badge" aria-hidden="true">{icon}</div>
+    <h1>{title}</h1>
+    <p class="brand">EpochX · 监护人授权</p>
+    {body}
+    <footer>
+      EpochX 由学生团队开发，目前处于 pilot 封测阶段，本页文案未经专业法律审核。<br />
+      如需协助，请通过监护人联系邮箱与我们联系，或返回 <a href="/">EpochX 首页</a>。
+    </footer>
+  </main>
+</body>
+</html>"""
     row.confirm_token = None  # 一次性，确认后清空
     db.commit()
     return {"ok": True}
