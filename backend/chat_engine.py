@@ -700,7 +700,18 @@ def _summarize_previous_period(
         f"---\n{transcript}\n---\n输出："
     )
     try:
-        out = get_provider().generate(prompt)
+        # ⚠️ data_class 必须显式声明：未声明时 provider 层按「历史调用」直接放行、
+        # 出域白名单一律不校验（tests/test_egress_ci.py 守这条）。
+        # 这里送出去的是**学生自己在对话里说过的原文**——按 egress_guard 的判定规则
+        # 「不看存没存过，看是不是用户主动发起 + 内容是不是用户自己的」，
+        # 归 user_error_content（用户内容类），不是 knowledge_raw（后者永不出域）。
+        # 用字面量而非 egress_guard.USER_ERROR_CONTENT：CI（test_egress_ci.py）
+        # 是静态扫描源码文本的，常量变量会被判为「动态值、无法判定」。
+        # 改动此值时必须与 egress_guard.USER_ERROR_CONTENT 同步。
+        out = get_provider().generate(
+            prompt,
+            context={"scene": "chat_topic_summary", "data_class": "user_error_content"},
+        )
     except Exception as e:  # noqa: BLE001 — 摘要失败不阻断问候/聊天
         logger.warning("[CHAT] 话题摘要生成失败: %s", e)
         return None
