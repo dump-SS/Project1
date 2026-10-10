@@ -94,6 +94,11 @@ tags:
     description: |
       板块三（pilot）：匿名群体参照。只上传匿名分桶特征（服务端抽取为唯一真源）、只下发聚合结果
       （k≥20 才下发，不含个体值）。授权默认关闭、显式开启、可随时撤回（撤回即物理删除）。
+  - name: Chat
+    description: |
+      板块 B：首页 Chat 真链路（M1 最小真链路）。意图三通道（斜杠命令 / 按钮 / 模型裸判）、
+      单对话 + 上下文栈（深度=3、LIFO）、画像四组按意图选组注入、情绪安全与危机转介。
+      **无对话历史列表、无「新建对话」**（D45）。
 
   - name: 考试
     description: |
@@ -746,6 +751,44 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /chat:
+    post:
+      tags: [Chat]
+      operationId: sendMessage
+      summary: 发送一条消息，获取助手真实回复（M1 最小真链路）
+      description: >-
+        首页 Chat 的真链路入口。单对话模型：无历史列表、无「新建对话」（D45）。
+        意图走三通道（斜杠命令 / 按钮 / 模型裸判，D3）；动作类请求（加题本 / 改画像 / 建目标）
+        由模型出锚定确认卡交用户确认，不在本接口直接执行（#17 第三层）；危机信号走 L3 转介，
+        事件细节不进画像（D37）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessageRequest'
+            example:
+              content: 帮我讲讲二次函数的单调性
+              intent: null
+      responses:
+        '200':
+          description: 助手回复（真实文案 + 意图 + 可选卡片 + 会话/上下文栈状态）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatReply'
+              example:
+                reply: 二次函数的单调性可以这样看……
+                intent: explain
+                crisis: false
+                cards: []
+                sessionId: cs_8f3a1b2c
+                contextStack: []
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /goals:
     post:
@@ -6117,6 +6160,76 @@ components:
             到期时间；TTL 清除 job 据此物理删除。**留存窗口定为 30 天**（§3.8.3 建议 7–30 天，取上限）：
             L3 危机响应要求事后可追溯，对未成年产品而言「出了事查不到用户说了什么」是反向风险，
             宁可多留几天。窗口值集中在配置里，不散落在各调用点。
+
+    # ---------- B 板块：Chat 内核 API（M1 最小真链路） ----------
+    ChatMessageRequest:
+      type: object
+      description: >-
+        Chat 单轮请求。intent 为可选的显式意图（按钮通道）；为空则走斜杠命令或模型裸判（D3）。
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: 用户消息正文
+        intent:
+          type: string
+          nullable: true
+          description: >-
+            显式意图（按钮通道）；取值 chat / search / explain / practice / task / goal /
+            question / emotional。为空时由斜杠命令或模型裸判确定。
+    ChatCard:
+      type: object
+      description: >-
+        结构化产物卡片（D22 卡片协议）。type 决定前端渲染：task_card / knowledge_point / confirmation 等。
+        同一轮可返回多张卡（D53 多产物），不强砍用户诉求。
+      required: [type, title]
+      properties:
+        type:
+          type: string
+          description: 卡片类型：task_card / knowledge_point / confirmation 等
+        title:
+          type: string
+          maxLength: 60
+          description: 卡片标题（短）
+        payload:
+          type: object
+          description: 结构化数据（注入模型上下文的显式内容，不含隐式上下文）
+        display:
+          type: object
+          description: 渲染数据（前端展示用）
+    ChatReply:
+      type: object
+      description: >-
+        一次 Chat 的响应：真实文案 + 意图 + 可选卡片 + 会话/上下文栈状态。crisis=true 表示触发
+        L3 危机转介（不过 LLM、事件细节不进画像）。
+      required: [reply, crisis, sessionId]
+      properties:
+        reply:
+          type: string
+          description: 助手回复文本
+        intent:
+          type: string
+          nullable: true
+          description: 本轮解析出的意图
+        crisis:
+          type: boolean
+          description: 是否触发危机转介（L3）
+        cards:
+          type: array
+          description: 结构化产物卡片（本轮可能为空）
+          items:
+            $ref: '#/components/schemas/ChatCard'
+        sessionId:
+          type: string
+          description: 当前会话 id（单对话模型，跨请求稳定）
+        contextStack:
+          type: array
+          description: 当前上下文栈（深度≤3、LIFO）
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ChatContextStackItem'
 
     # ========== M0 补漏 · M2+ 硬需求（第二张迁移，X0 定 schema） ==========
     #

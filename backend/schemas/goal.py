@@ -67,6 +67,9 @@ class GoalSummary(GoalBase):
     target_score: float | None = Field(
         None, alias="targetScore", description="目标分数（配合 examId，表达「这次想考到 X」）"
     )
+    completed_at: datetime | None = Field(
+        None, alias="completedAt", description="目标完成（归档）时间；进行中目标为 null"
+    )
     progress: GoalProgress
 
 

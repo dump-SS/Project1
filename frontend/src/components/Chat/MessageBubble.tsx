@@ -3,6 +3,7 @@
  */
 
 import ReactMarkdown from 'react-markdown'
+import ChatCards from './ChatCards'
 import { formatTime, type ChatMessage } from './types'
 
 interface MessageBubbleProps {
@@ -26,6 +27,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             <ReactMarkdown>{message.content}</ReactMarkdown>
           </div>
         )}
+        {!isUser && <ChatCards cards={message.cards || []} />}
         <span className="chat-bubble-time">{formatTime(message.createdAt)}</span>
       </div>
     </div>

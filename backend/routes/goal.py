@@ -8,8 +8,10 @@
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -100,6 +102,15 @@ def _aggregate_progress(db: Session, goal_id: str) -> dict:
     }
 
 
+def _utc_iso(dt: datetime | None) -> str | None:
+    """naive datetime 按 UTC 输出带 Z 的 ISO 串，前端 dayjs 才能正确转本地时区展示。"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _orm_to_goal_summary(row: GoalORM, progress: dict) -> dict:
     """ORM Goal → GoalSummary 形状（camelCase dict）。"""
     import json as _json
@@ -123,6 +134,7 @@ def _orm_to_goal_summary(row: GoalORM, progress: dict) -> dict:
         "parentGoalId": row.parent_goal_id,
         "examId": row.exam_id,
         "targetScore": row.target_score,
+        "completedAt": _utc_iso(row.completed_at),
         "progress": progress,
     }
 
@@ -251,6 +263,11 @@ def update_goal(
                 },
             )
         row.status = body.status
+        # 归档 → 记录完成时间；取消归档 → 清空完成时间
+        if body.status == "archived":
+            row.completed_at = datetime.utcnow()
+        else:
+            row.completed_at = None
     # 归档终态 + 完成总结（仅 archived 时有意义，但不在后端强制——前端控制时机）
     if body.outcome is not None:
         if body.outcome not in ("achieved", "abandoned", "expired"):
@@ -284,3 +301,63 @@ def update_goal(
 
     progress = _aggregate_progress(db, row.id)
     return Goal.model_validate(_orm_to_goal(row, progress))
+
+
+@router.delete("/{goal_id}", summary="删除目标（物理删除）")
+def delete_goal(
+    goal_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(current_user),
+) -> dict:
+    """真正删除一个目标（区别于归档 status=archived）。会用指令（Chat）触发。
+
+    删除前解除两处松耦合引用，避免悬挂：
+    - 该目标名下任务 plan_tasks.goal_id 置空（否则进度统计仍会算到一个不存在的目标）
+    - 以它为父的子目标 parent_goal_id 置空（防止目标树悬挂）
+    """
+    row = db.get(GoalORM, goal_id)
+    if row is None or row.user_id != _user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": "目标不存在"},
+        )
+
+    db.execute(
+        update(PlanTaskORM).where(PlanTaskORM.goal_id == goal_id).values(goal_id=None)
+    )
+    db.execute(
+        update(GoalORM).where(GoalORM.parent_goal_id == goal_id).values(parent_goal_id=None)
+    )
+    db.delete(row)
+    db.commit()
+    return {"deleted": True, "goalId": goal_id}
+
+
+@router.delete("", summary="批量删除全部进行中（active）目标")
+def delete_active_goals(
+    db: Session = Depends(get_db),
+    _user: User = Depends(current_user),
+) -> dict:
+    """删除当前用户所有 active（进行中 / 未完成）目标。供指令「删除所有未完成目标」调用。
+
+    逐个解除关联（plan_tasks.goal_id、子目标 parent_goal_id）后批量物理删除。
+    """
+    rows = db.execute(
+        select(GoalORM).where(
+            GoalORM.user_id == _user.user_id,
+            GoalORM.status == "active",
+        )
+    ).scalars().all()
+    ids = [r.id for r in rows]
+
+    if ids:
+        db.execute(
+            update(PlanTaskORM).where(PlanTaskORM.goal_id.in_(ids)).values(goal_id=None)
+        )
+        db.execute(
+            update(GoalORM).where(GoalORM.parent_goal_id.in_(ids)).values(parent_goal_id=None)
+        )
+        db.execute(delete(GoalORM).where(GoalORM.id.in_(ids)))
+
+    db.commit()
+    return {"deleted": len(ids), "goalIds": ids}

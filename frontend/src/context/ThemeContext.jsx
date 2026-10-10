@@ -71,7 +71,15 @@ export function ThemeProvider({ children }) {
     setTheme((prev) => (prev === 'day' ? 'night' : 'day'))
   }, [])
 
-  const value = useMemo(() => ({ theme, toggleTheme }), [theme, toggleTheme])
+  // 明确设置日/夜模式（供 Chat 指令「切到夜间/日间模式」调用），只接受 day/night
+  const setThemeMode = useCallback((mode) => {
+    if (mode === 'day' || mode === 'night') setTheme(mode)
+  }, [])
+
+  const value = useMemo(
+    () => ({ theme, toggleTheme, setTheme: setThemeMode }),
+    [theme, toggleTheme, setThemeMode],
+  )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
