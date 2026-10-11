@@ -51,6 +51,10 @@ class Goal(Base):
     planned_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # 目标完成（归档）时间：status 从 active → archived 时写入；取消归档时清空。
+    # 独立于 updated_at（编辑标题等也会更新 updated_at，不能代表「完成时刻」）。
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

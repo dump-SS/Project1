@@ -6,6 +6,7 @@ import { subjectLabels } from '@/styles/theme'
 import { useAuth } from '@/context/AuthContext.jsx'
 import { getRecommendation, updateLearningRecord } from '@/services/learningRecord'
 import { putRecommendationFeedback } from '@/services/feedback'
+
 import { getPlanByDate, getPlanById, localDateString } from '@/services/plans'
 import {
   computeDisplaySeconds,
@@ -17,6 +18,7 @@ import {
   startTimerSession,
   switchTimerTask,
 } from '@/services/timer'
+import FloatChat from '@/components/Chat/FloatChat'
 
 const EMOTION_LABELS = { positive: '积极', neutral: '一般', negative: '消极' }
 const COMPLETION_LABELS = { completed: '完成', partial: '部分完成', abandoned: '放弃' }
@@ -54,6 +56,7 @@ function RatingButtons({ value, onChange, options, wide = false }) {
   )
 }
 
+
 /**
  * 收尾**层 1**（D20）：结束瞬间的 0 步卡。
  *
@@ -69,6 +72,7 @@ function SettleCard({ subjectLabel, minutes, onDone, onRefine }) {
         <span className={styles.popText}>
           {subjectLabel} · {minutes} 分钟
         </span>
+
       </div>
       <div className={styles.settleMeta}>
         已经帮你留下来了。想补两句就展开，不想就收起来——之后随时能补。
@@ -80,6 +84,7 @@ function SettleCard({ subjectLabel, minutes, onDone, onRefine }) {
     </>
   )
 }
+
 
 /**
  * 收尾**层 2**（D20）：轻收尾卡，约 10 秒。
@@ -100,6 +105,7 @@ function LightSettleCard({ completion, setCompletion, note, setNote, emotion, se
         <span className={styles.popTitle}>再补两句？</span>
         <span className={styles.popText}>都可以跳过</span>
       </div>
+
 
       <div className={styles.selfSection}>
         <span className={styles.selfLabel}>完成情况</span>
@@ -319,8 +325,10 @@ export default function StudyTimerPage() {
 function AuthedStudyTimer() {
   const FALLBACK_TASK = '今日学习（待编辑）'
 
+
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+
 
   // ---------------------------------------------------------------------------
   // 上下文来源：**URL query 自取，不再依赖 navigate(state)**
@@ -338,6 +346,7 @@ function AuthedStudyTimer() {
   const [session, setSession] = useState(null)
   const [restore, setRestore] = useState(null)
 
+
   // 开始面板的参数（无进行中会话时用）
   const [task, setTask] = useState(FALLBACK_TASK)
   const [taskId, setTaskId] = useState(queryTaskId || null)
@@ -350,6 +359,7 @@ function AuthedStudyTimer() {
   // 本地暂停（服务端没有挂起语义：只留「结束」一个出口）
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef({ pausedAt: null, accumulatedMs: 0 })
+
 
   const [now, setNow] = useState(() => Date.now())
   const [stage, setStage] = useState('idle') // idle | settle | light | polling | summary | verdict
@@ -369,12 +379,14 @@ function AuthedStudyTimer() {
   const [switching, setSwitching] = useState(false)
   const [switchError, setSwitchError] = useState(null)
 
+
   // `now` 每秒更新，暂停时长自动跟着重算（暂停中也在涨）
   const pausedSeconds = useMemo(() => {
     const { pausedAt, accumulatedMs } = pausedRef.current
     const extra = pausedAt ? Date.now() - pausedAt : 0
     return (accumulatedMs + extra) / 1000
   }, [now])
+
 
   const display = useMemo(() => {
     if (!session) return { remaining: null, elapsed: 0 }
@@ -711,6 +723,7 @@ function AuthedStudyTimer() {
         completion: 'completed',
         durationMinutes: minutes,
       })
+
       setRecord(created)
       setSession(null)
       setRestore(null)
@@ -719,6 +732,7 @@ function AuthedStudyTimer() {
       if (created.recommendation?.recommendationId) {
         setRecReady(false)
         setRecId(created.recommendation.recommendationId)
+
       }
     } catch {
       setPopupError('处理失败，请稍后再试')
@@ -920,9 +934,11 @@ function AuthedStudyTimer() {
               subjectLabel={subjectLabel}
               saving={busy}
               error={popupError}
+
               onKeep={handleVerdictFinish}
               onManual={handleVerdictFinish}
               onDiscard={handleVerdictDiscard}
+
             />
           )}
           {stage === 'settle' && record && (
@@ -956,6 +972,20 @@ function AuthedStudyTimer() {
             />
           )}
         </div>
+      )}
+
+      {/* C 计时页随手问：不打断专注，仅 Q&A */}
+      <button
+        type="button"
+        className={styles.floatFab}
+        onClick={() => setFloatOpen((v) => !v)}
+        aria-label="随手问"
+        title="随手问"
+      >
+        ？
+      </button>
+      {floatOpen && (
+        <FloatChat standalone initialText="" onAddToMain={() => {}} onClose={() => setFloatOpen(false)} />
       )}
     </div>
   )

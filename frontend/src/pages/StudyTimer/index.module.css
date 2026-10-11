@@ -1,4 +1,4 @@
-﻿.app {
+.app {
   /* v0.3:局部别名桥接到 tokens.css,自动跟随日夜间主题切换 */
   --primary: var(--primary);
   --primary-soft: var(--sky-hi);
@@ -658,6 +658,30 @@
   background: linear-gradient(120deg, var(--primary-deep), var(--primary));
   border-color: var(--primary);
   color: #ffffff;
+}
+
+/* ---------- C 计时页随手问入口 ---------- */
+.floatFab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 500;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-deep), var(--primary));
+  box-shadow: 0 8px 22px rgba(31, 90, 148, 0.35);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.floatFab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(31, 90, 148, 0.45);
 }
 
 @keyframes popDrop {

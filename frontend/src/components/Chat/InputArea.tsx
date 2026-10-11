@@ -6,6 +6,8 @@
  */
 
 import { useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from 'react'
+import type { RefChip } from './types'
+import ReferenceChips from './ReferenceChips'
 
 interface InputAreaProps {
   value: string
@@ -16,6 +18,9 @@ interface InputAreaProps {
   inputRef: MutableRefObject<HTMLTextAreaElement | null>
   /** 「+」浮层内容（ReferencePanel 精简版）；浮层内点击后应调用 onQuickDone 关闭 */
   renderQuickPanel: (close: () => void) => ReactNode
+  /** 引用块（D51）：划选主路径 / 随手问浮窗「添加到主对话」挂在输入框上方 */
+  refs?: RefChip[]
+  onRemoveRef?: (id: string) => void
 }
 
 export default function InputArea({
@@ -25,6 +30,8 @@ export default function InputArea({
   disabled,
   inputRef,
   renderQuickPanel,
+  refs = [],
+  onRemoveRef,
 }: InputAreaProps) {
   const [quickOpen, setQuickOpen] = useState(false)
 
@@ -47,6 +54,9 @@ export default function InputArea({
 
   return (
     <div className="chat-input-wrap">
+      {/* 引用块（D51 / F 板块复用的通用组件） */}
+      <ReferenceChips refs={refs} onRemoveRef={onRemoveRef} />
+
       {/* 快捷引用浮层 */}
       {quickOpen && (
         <>

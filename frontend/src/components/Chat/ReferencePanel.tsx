@@ -12,16 +12,24 @@ import { KNOWLEDGE_BASE, masteryTone } from '@/utils/matchKnowledge'
 import { QUICK_QUESTIONS } from '@/pages/Chat/mockData'
 import { fetchErrorBook, type ErrorRecord } from '@/services/errorBook'
 import {
+  BUILTIN_ACTIONS,
+  addPhrase,
+  phraseGroups,
+  readPhrases,
+  removePhrase,
+} from './phrases'
+import {
   readAllErrors,
   relativeTime,
   REASON_LABEL,
   SUBJECT_LABEL,
   type ErrorItem,
   type ErrorReason,
+  type PhraseItem,
   type Subject,
 } from './types'
 
-type TabKey = 'errors' | 'knowledge' | 'quick'
+type TabKey = 'errors' | 'knowledge' | 'quick' | 'phrases'
 
 interface ReferencePanelProps {
   /** 填入输入框并聚焦（错题 / 知识点） */
@@ -40,6 +48,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'errors', label: '我的错题' },
   { key: 'knowledge', label: '知识点速查' },
   { key: 'quick', label: '快捷提问' },
+  { key: 'phrases', label: '常用语' },
 ]
 
 const VALID_SUBJECTS: Subject[] = ['YW', 'SX', 'YY', 'LS', 'DL', 'ZZ', 'WL', 'HX', 'SW']
@@ -64,6 +73,17 @@ export default function ReferencePanel({
 }: ReferencePanelProps) {
   const [tab, setTab] = useState<TabKey>('errors')
   const [errors, setErrors] = useState<(ErrorItem & { subject: Subject })[]>([])
+
+  // 常用语（D23）：localStorage 持久化；组过滤 + 新增
+  const [phrases, setPhrases] = useState<PhraseItem[]>([])
+  const [phraseGroup, setPhraseGroup] = useState('全部')
+  const [showAdd, setShowAdd] = useState(false)
+  const [label, setLabel] = useState('')
+  const [content, setContent] = useState('')
+  const [group, setGroup] = useState('我的常用语')
+
+  const refreshPhrases = () => setPhrases(readPhrases())
+  useEffect(refreshPhrases, [])
 
   // 初次挂载 + 录入新错题后重读；优先走真接口，后端未就绪回退 localStorage
   useEffect(() => {
@@ -182,6 +202,115 @@ export default function ReferencePanel({
               </svg>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Tab D：常用语（D23：内置快捷动作 + 用户自定义两种形态 + 分组，localStorage） */}
+      {tab === 'phrases' && (
+        <div className="ref-list" role="tabpanel">
+          <div className="ref-phrase-section">
+            <span className="ref-section-title">内置快捷动作</span>
+            {BUILTIN_ACTIONS.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                className="ref-item ref-item-quick"
+                onClick={() => pickSend(a.send)}
+              >
+                <span className="ref-item-text">{a.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="ref-phrase-section">
+            <div className="ref-section-row">
+              <span className="ref-section-title">我的常用语</span>
+              <button type="button" className="ref-add-btn" onClick={() => setShowAdd((v) => !v)}>
+                {showAdd ? '收起' : '＋ 新增'}
+              </button>
+            </div>
+
+            {/* 分组过滤 */}
+            <div className="ref-phrase-groups">
+              {['全部', ...phraseGroups(phrases)].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={`ref-phrase-group ${phraseGroup === g ? 'ref-phrase-group-active' : ''}`}
+                  onClick={() => setPhraseGroup(g)}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+
+            {showAdd && (
+              <div className="ref-phrase-add">
+                <input className="ref-phrase-label" placeholder="名称，如：语文复盘" value={label} onChange={(e) => setLabel(e.target.value)} />
+                <textarea
+                  className="ref-phrase-content"
+                  placeholder="内容；以 / 开头即固化 prompt（如：/任务 每天背 20 个单词并打卡）"
+                  value={content}
+                  rows={2}
+                  onChange={(e) => setContent(e.target.value)}
+                />
+                <input className="ref-phrase-label" placeholder="分组（默认：我的常用语）" value={group} onChange={(e) => setGroup(e.target.value)} />
+                <button
+                  type="button"
+                  className="ref-phrase-save"
+                  disabled={!label.trim() || !content.trim()}
+                  onClick={() => {
+                    addPhrase({
+                      label: label.trim(),
+                      content: content.trim(),
+                      group: group.trim() || '我的常用语',
+                      kind: content.trim().startsWith('/') ? 'prompt' : 'text',
+                    })
+                    setLabel('')
+                    setContent('')
+                    setGroup('我的常用语')
+                    setShowAdd(false)
+                    refreshPhrases()
+                  }}
+                >
+                  保存
+                </button>
+              </div>
+            )}
+
+            {phrases.filter((p) => phraseGroup === '全部' || p.group === phraseGroup).length === 0 && (
+              <p className="ref-empty">还没有常用语，点「＋ 新增」添加一条吧</p>
+            )}
+            {phrases
+              .filter((p) => phraseGroup === '全部' || p.group === phraseGroup)
+              .map((p) => (
+                <div key={p.id} className="ref-phrase-item">
+                  <button
+                    type="button"
+                    className="ref-phrase-item-main"
+                    onClick={() => (p.kind === 'prompt' ? pickSend(p.content) : pickFill(p.content))}
+                    title={p.kind === 'prompt' ? '以固化 prompt 发送' : '填入输入框'}
+                  >
+                    <span className="ref-phrase-item-label">
+                      {p.label}
+                      {p.kind === 'prompt' && <span className="ref-phrase-prompt-tag">prompt</span>}
+                    </span>
+                    <span className="ref-phrase-item-ghost">{p.content}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="ref-phrase-del"
+                    onClick={() => {
+                      removePhrase(p.id)
+                      refreshPhrases()
+                    }}
+                    aria-label="删除常用语"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+          </div>
         </div>
       )}
 

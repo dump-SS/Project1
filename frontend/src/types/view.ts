@@ -160,6 +160,8 @@ export interface GoalCard {
   completedTasks: number;
   /** 完成总结；接口暂无此字段时为 null */
   completionNote: string | null;
+  /** 目标完成（归档）时间；接口暂无此字段时为 null */
+  completedAt?: string | null;
 }
 
 export interface GoalPanel {

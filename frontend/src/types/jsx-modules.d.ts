@@ -8,5 +8,6 @@ declare module '*/context/ThemeContext.jsx' {
   export function useTheme(): {
     theme: ThemeMode
     toggleTheme: () => void
+    setTheme: (mode: ThemeMode) => void
   }
 }

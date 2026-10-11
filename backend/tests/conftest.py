@@ -82,7 +82,7 @@ def _reset_db():
     # 板块二 v2.2：goals.point_ids 也是新列，老库需重建
     if insp.has_table("goals"):
         cols = {c["name"] for c in insp.get_columns("goals")}
-        if "point_ids" not in cols:
+        if "point_ids" not in cols or "completed_at" not in cols:
             Base.metadata.drop_all(bind=engine)
     # S0-T6：user_weight_configs.m1 内容权重列，老库需重建
     if insp.has_table("user_weight_configs"):

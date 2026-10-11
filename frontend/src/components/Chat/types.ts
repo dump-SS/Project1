@@ -8,11 +8,87 @@
 
 export type ChatRole = 'user' | 'ai'
 
+/** 后端 Chat 返回的结构化卡片（schemas.chat.ChatCard，D22） */
+export interface ChatCardDisplayItem {
+  label: string
+  value: string
+}
+
+export interface ChatCardGoalPayload {
+  subject: string
+  title: string
+  description?: string
+  /** 目标类型（create_goal 用） */
+  type?: 'short_term' | 'long_term'
+  /** 目标日期（create_goal 用，YYYY-MM-DD） */
+  targetDate?: string
+}
+
+export interface ChatCardPlanPayload {
+  availableMinutes: number
+}
+
+export interface ChatCardPayload {
+  /** 动作标识：start_study / create_goal / delete_goal / navigate / set_theme */
+  action?: string
+  goal?: ChatCardGoalPayload
+  plan?: ChatCardPlanPayload
+  /** 任务文案（后端确定性卡片从用户原话抽取，如「地理 · 背书」），优先于计划引擎的话题模板 */
+  task?: string
+  /** navigate 动作的目标路径 */
+  path?: string
+  /** set_theme 动作的目标主题：day / night */
+  theme?: string
+  /** knowledge_point 卡：真实知识点 */
+  pointId?: string
+  name?: string
+  subject?: string
+}
+
+export interface ChatCard {
+  type: string
+  title: string
+  payload?: ChatCardPayload
+  display?: {
+    summary?: string
+    items?: ChatCardDisplayItem[]
+  }
+}
+
 export interface ChatMessage {
   id: string
   role: ChatRole
   content: string
   createdAt: number
+  cards?: ChatCard[]
+}
+
+/** 引用块协议（D51 / F 板块复用）：划选主路径 / 随手问浮窗「添加到主对话」
+ * 都会在输入框上方垫一个可移除的引用。source 标记来源，供其它板块（如 F 收藏/讲解）打标。 */
+export interface RefChip {
+  id: string
+  /** 展示标签：引用 / 浮窗对话 / 收藏 / 讲解 */
+  label: string
+  /** 置入输入的正文（用户可先在输入框续写，发送时拼入消息原文） */
+  text: string
+  /** 来源标记（协议字段，F 板块可用来区分来源） */
+  source?: string
+}
+
+/** 随手问浮窗·浮窗内单轮消息（只用于 ephemeral 请求的 floatContext，不回流主对话） */
+export interface FloatMsg {
+  id: string
+  role: 'user' | 'ai'
+  content: string
+}
+
+/** 自定义常用语条目（D23）：纯文本 或 固化 prompt（content 自带 /前缀 时即带意图前缀）。 */
+export interface PhraseItem {
+  id: string
+  label: string
+  content: string
+  group: string
+  kind: 'text' | 'prompt'
 }
 
 export type Subject = 'YW' | 'SX' | 'YY' | 'LS' | 'DL' | 'ZZ' | 'WL' | 'HX' | 'SW'

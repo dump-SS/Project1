@@ -38,6 +38,8 @@ const MAX_MINUTES = 600
 export default function TaskList({ plan, onTaskUpdated }) {
   // 当前正在提交的任务 id，用于按钮 busy 态
   const [busyTaskId, setBusyTaskId] = useState(null)
+  // 正在删除的任务 id
+  const [deletingTaskId, setDeletingTaskId] = useState(null)
   // 行内错误（按 taskId 存，5s 自动清）
   const [rowErrors, setRowErrors] = useState({})
   // 本地覆盖：用户刚改过的字段，优先于 props（父级不回调也不影响显示）
@@ -49,6 +51,7 @@ export default function TaskList({ plan, onTaskUpdated }) {
   const [draftMinutes, setDraftMinutes] = useState('')
 
   if (!plan || !Array.isArray(plan.tasks) || plan.tasks.length === 0) return null
+
 
   const rows = plan.tasks
     .filter((t) => !removedIds.includes(t.taskId))
@@ -76,11 +79,7 @@ export default function TaskList({ plan, onTaskUpdated }) {
 
   const patchTask = async (task, patch, onOk) => {
     setBusyTaskId(task.taskId)
-    setRowErrors((prev) => {
-      const next = { ...prev }
-      delete next[task.taskId]
-      return next
-    })
+    clearError(task.taskId)
     try {
       const updated = await updatePlanTask(plan.planId, task.taskId, patch)
       onOk(updated)
@@ -90,12 +89,14 @@ export default function TaskList({ plan, onTaskUpdated }) {
       const msg = err?.status === 404
         ? '后端尚未实现 PATCH 接口'
         : (err?.message ?? '更新失败，请稍后再试')
+
       showError(task.taskId, msg)
       return false
     } finally {
       setBusyTaskId(null)
     }
   }
+
 
   const handleComplete = (task) => {
     if (task.status === 'completed') return
@@ -134,6 +135,7 @@ export default function TaskList({ plan, onTaskUpdated }) {
       {rows.map((task) => {
         const isDone = task.status === 'completed'
         const isBusy = busyTaskId === task.taskId
+        const isDeleting = deletingTaskId === task.taskId
         const subjectLabel = subjectLabels[task.subject] ?? task.subject
         const statusLabel = STATUS_LABELS[task.status] ?? task.status
         const errMsg = rowErrors[task.taskId]
@@ -207,6 +209,7 @@ export default function TaskList({ plan, onTaskUpdated }) {
               )}
               <button
                 type="button"
+
                 className="task-remove-btn"
                 title="从今天的计划里移除"
                 onClick={() => handleRemove(task)}
