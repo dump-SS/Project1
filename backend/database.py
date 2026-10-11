@@ -28,6 +28,16 @@ engine = create_engine(
     settings.database_url,
     connect_args=_connect_args,
     echo=settings.app_debug,  # debug 模式打印 SQL，生产关掉
+    # 连接池取用前先 ping 一次，失效连接自动丢弃重建。
+    #
+    # 为什么必须开（2026-10-11 生产事故）：Neon 在 compute 缩容时会单方面掐断
+    # 已建立的连接，SQLAlchemy 默认**不知道**池里的连接已经死了，下次取用直接
+    # 拿坏连接发 SQL，于是报
+    #     psycopg2.OperationalError: SSL connection has been closed unexpectedly
+    # 症状极具迷惑性：`/health` 用 engine.connect() 每次新建连接所以一直 200，
+    # 而所有走 `Depends(get_db)` 请求级 session 的接口集体失败——
+    # 表现为「health 绿但服务大面积不可用」。加 pre_ping 是标准解法。
+    pool_pre_ping=True,
     future=True,
 )
 

@@ -7,7 +7,7 @@ SMTP 配置从环境变量读（SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS）
 与 mock-server/.env 对齐。
 
 发送路由（按 SMTP_PROVIDER 自动切换）：
-- real：真实 smtplib.SMTP_SSL 连接，失败抛异常
+- real：真实 SMTP（`SMTP` + `starttls()`，587），失败抛异常
 - mock：写到 logger "auth.email.mock"，团队测试时直接看后端日志取验证码
   （scripts/test-accounts/ 默认会切到 mock）
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
@@ -64,9 +65,22 @@ def _build_html(code_type: str, code: str) -> str:
 
 
 def _send_real(code_type: str, email: str, code: str) -> None:
-    """真实 SMTP 发送。失败抛异常，调用方 catch 后记日志。"""
+    """真实 SMTP 发送。失败抛异常，调用方 catch 后记日志。
+
+    ⚠️ 这里的两处都是 2026-10-11 生产事故逼出来的，别退回旧写法：
+
+    1) **必须有 timeout**。旧代码 `smtplib.SMTP_SSL(host, port)` 没传 timeout，
+       TCP 层连不通时会一直等到系统级放弃——实测一次发信**挂死约 17 分钟**。
+       期间它所在的请求一直持有 DB session，Neon 连接被缩容掐断后又回到池里，
+       连带把整个服务拖成「health 绿但接口大面积不可用」。
+    2) **走 587 STARTTLS 而非 465 SMTPS**。实测 `smtp.resend.com` 的 **465 端口在这条
+       网络上不稳定**（同一分钟内时而 1.5s 连通、时而 12s 超时，多 IP 部分被墙），
+       587 则稳定。**注意不能只把端口号改成 587**——`SMTP_SSL` 会对 587 直接做 TLS
+       握手而失败，必须用 `SMTP` + `starttls()` 两步。
+    """
     smtp_host = getattr(settings, "smtp_host", "smtp.resend.com")
-    smtp_port = getattr(settings, "smtp_port", 465)
+    # 默认 587（STARTTLS）。仍可用 SMTP_PORT 覆盖：587 才是实测稳定的那个。
+    smtp_port = getattr(settings, "smtp_port", 587)
     smtp_user = getattr(settings, "smtp_user", "")
     smtp_pass = getattr(settings, "smtp_pass", "")
     # 发件地址独立于 smtp_user：Resend 的 SMTP 用户名是字面量 "resend"，
@@ -91,7 +105,13 @@ def _send_real(code_type: str, email: str, code: str) -> None:
     msg.attach(MIMEText(text, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
 
-    with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+    # 15s 是刻意压低的：SMTP 握手 + 发一封信正常在 1-4s 内完成（实测 587 约 1.6s）。
+    # 上限设太长会让验证码接口跟着一起挂起，设成 SYSTEM 级的默认可就是这次事故的放大器。
+    timeout = getattr(settings, "smtp_timeout", 15) or 15
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=timeout) as server:
+        server.ehlo()
+        server.starttls(context=ssl.create_default_context())
+        server.ehlo()
         server.login(smtp_user, smtp_pass)
         # envelope sender 用发件地址（不是 smtp_user）：Resend 校验 From 与发信域一致。
         server.sendmail(smtp_from, [email], msg.as_string())

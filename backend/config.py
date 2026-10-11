@@ -88,9 +88,18 @@ class Settings(BaseSettings):
 
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
     # 2026-10-06 迁至 Resend（sky 拍板）：host=smtp.resend.com、user 为字面量 "resend"、
-    # password 填 Resend API key；端口 465 = SMTPS 隐式 TLS，与下方 SMTP_SSL 用法一致。
+    # password 填 Resend API key。
+    #
+    # ⚠️ 2026-10-11 生产事故后改为 **587 = STARTTLS**（原 465 = SMTPS 隐式 TLS）：
+    # 实测 smtp.resend.com 的 465 端口在这条网络上不稳定（同一分钟内时而 1.5s 连通、
+    # 时而 12s 超时，多 IP 部分被墙），587 则稳定。
+    # 注意必须与 auth/email.py 的 `SMTP` + `starttls()` 两步写法配套——
+    # 只把端口号改成 587 而仍用 `SMTP_SSL` 会对 587 直接做 TLS 握手而必然失败。
     smtp_host: str = "smtp.resend.com"
-    smtp_port: int = 465
+    smtp_port: int = 587
+    # 单次 SMTP 操作的上限（秒）。缺它会让一次连不通的发信挂到系统级放弃：
+    # 实测曾挂死约 17 分钟，并把该请求持有的 Neon 连接拖成失效连接。
+    smtp_timeout: int = 15
     smtp_user: str = ""
     smtp_pass: str = ""
     # 发件人地址。**必须与 smtp_user 分开**：Resend 的 SMTP 用户名是字面量 "resend"，

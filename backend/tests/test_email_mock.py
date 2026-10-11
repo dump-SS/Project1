@@ -92,8 +92,12 @@ def test_smtp_defaults_point_to_resend():
 
     fields = Settings.model_fields
     assert fields["smtp_host"].default == "smtp.resend.com"
-    assert fields["smtp_port"].default == 465
+    # 2026-10-11 生产事故后由 465(SMTPS) 改为 587(STARTTLS)：465 在这条网络上不稳定。
+    # 该端口必须与 auth/email.py 的 `SMTP` + `starttls()` 配套，不能只改端口号。
+    assert fields["smtp_port"].default == 587
     assert fields["smtp_from"].default == "no-reply@send.epochx.net"
+    # 缺 timeout 会让一次连不通的发信挂到系统级放弃（实测曾挂死约 17 分钟）
+    assert fields["smtp_timeout"].default == 15
 
 
 def test_send_real_uses_smtp_from_not_smtp_user(monkeypatch):
@@ -101,20 +105,31 @@ def test_send_real_uses_smtp_from_not_smtp_user(monkeypatch):
 
     原因：Resend 的 SMTP 用户名是字面量 "resend"，若沿用旧写法
     `formataddr(("EpochX", smtp_user))` 会拼出无效地址 `EpochX <resend>` 被拒信。
-    本用例不发真邮件——把 SMTP_SSL 换成假的，只检查构造出的消息头。
+    本用例不发真邮件——把 `smtplib.SMTP` 换成假的，只检查构造出的消息头。
+
+    2026-10-11 起走 587 STARTTLS，故假对象需实现 ehlo/starttls/sendmail 全链路；
+    若实现缺失，测试会因 AttributeError 而红——这正是我们要的：
+    **协议一旦回退到 SMTP_SSL，这个用例会立刻失败**。
     """
     sent: dict = {}
 
     class _FakeSMTP:
-        def __init__(self, host, port):
+        def __init__(self, host, port, timeout=None):
             sent["host"] = host
             sent["port"] = port
+            sent["timeout"] = timeout
 
         def __enter__(self):
             return self
 
         def __exit__(self, *exc):
             return False
+
+        def ehlo(self):
+            sent["ehlo"] = sent.get("ehlo", 0) + 1
+
+        def starttls(self, context=None):
+            sent["starttls"] = True
 
         def login(self, user, pwd):
             sent["login"] = (user, pwd)
@@ -123,18 +138,23 @@ def test_send_real_uses_smtp_from_not_smtp_user(monkeypatch):
             sent["envelope_from"] = frm
             sent["msg"] = msg
 
-    monkeypatch.setattr("auth.email.smtplib.SMTP_SSL", _FakeSMTP)
+    monkeypatch.setattr("auth.email.smtplib.SMTP", _FakeSMTP)
     monkeypatch.setattr(settings, "smtp_user", "resend")
     monkeypatch.setattr(settings, "smtp_pass", "re_dummy")
     monkeypatch.setattr(settings, "smtp_host", "smtp.resend.com")
-    monkeypatch.setattr(settings, "smtp_port", 465)
+    monkeypatch.setattr(settings, "smtp_port", 587)
     monkeypatch.setattr(settings, "smtp_from", "no-reply@send.epochx.net")
 
     from auth.email import _send_real
 
     _send_real("register", "to@epochx.dev", "654321")
 
-    assert sent["host"] == "smtp.resend.com" and sent["port"] == 465
+    assert sent["host"] == "smtp.resend.com" and sent["port"] == 587
+    # STARTTLS 两步式：必须真的调了 starttls，且 ehlo 在其前后各一次
+    assert sent["starttls"] is True
+    assert sent["ehlo"] == 2
+    # timeout 必须显式传下去，否则又回到「挂到系统级放弃」的老问题
+    assert sent["timeout"] is not None and sent["timeout"] <= 30
     assert sent["login"] == ("resend", "re_dummy")
     assert "no-reply@send.epochx.net" in sent["msg"]
     assert "EpochX <resend>" not in sent["msg"]  # 旧写法的产物绝不能出现
