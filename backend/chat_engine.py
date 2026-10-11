@@ -31,7 +31,7 @@ from llm_provider import get_provider
 from models.chat import ChatRawMessage, ChatSession, TopicSummary, UserProfile
 from models.governance import UsageLedger
 from privacy_filter import sanitize_text
-from safety_filter import CRISIS_RESPONSE, check as safety_check, is_crisis_signal
+from safety_filter import CRISIS_RESPONSE, check as safety_check, crisis_check
 from schemas.chat import ChatCard, ChatReply
 
 logger = logging.getLogger(__name__)
@@ -775,9 +775,14 @@ def handle_message(
     """
     content = (content or "").strip()
 
-    # 1. 危机前置检查（确定性，不过 LLM；事件细节绝不进画像）
-    if is_crisis_signal(content):
-        return _handle_crisis(db, user_id, content)
+    # 1. 危机前置检查。第 1 层确定性（不过 LLM）；第 2 层语义兜底仅在本路径启用——
+    #    chat 消息本就要发给 LLM（不产生新增出域），而学习记录 note 属不出域硬约束、
+    #    不接兜底（见 safety_filter 模块 docstring）。事件细节绝不进画像。
+    crisis = crisis_check(content)
+    if crisis.is_crisis:
+        if crisis.layer == "l2_semantic" and crisis.usage != (0, 0):
+            _record_usage(db, user_id, content, CRISIS_RESPONSE)  # 兜底调用计费留痕
+        return _handle_crisis(db, user_id, content, crisis)
 
     intent = detect_intent(content, explicit_intent)
     safe_content = sanitize_text(content) or content
@@ -896,8 +901,11 @@ def handle_ephemeral(
     - **计费**：照常记 usage_ledger。
     """
     content = (content or "").strip()
-    if is_crisis_signal(content):
-        return _handle_crisis(db, user_id, content)
+    crisis = crisis_check(content)
+    if crisis.is_crisis:
+        if crisis.layer == "l2_semantic" and crisis.usage != (0, 0):
+            _record_usage(db, user_id, content, CRISIS_RESPONSE)
+        return _handle_crisis(db, user_id, content, crisis)
 
     intent = detect_intent(content, None)
     safe = sanitize_text(content) or content
@@ -939,13 +947,19 @@ def handle_ephemeral(
     )
 
 
-def _handle_crisis(db: Session, user_id: str, content: str) -> ChatReply:
+def _handle_crisis(db: Session, user_id: str, content: str, decision=None) -> ChatReply:
     session = _get_or_create_session(db, user_id)
     session.last_active_at = _utcnow()
     _persist_raw(db, user_id, session.id, "user", content)
     _persist_raw(db, user_id, session.id, "assistant", CRISIS_RESPONSE)
     db.commit()
-    logger.info("[CHAT] L3 危机转介：不过 LLM，事件细节不进画像")
+    # 留痕「为什么这样判」：命中层 / 类别 / 理由（评审机制据此复核，不是黑箱）
+    logger.info(
+        "[CHAT] L3 危机转介：layer=%s cls=%s 理由=%s（事件细节不进画像）",
+        getattr(decision, "layer", "l1_deterministic"),
+        getattr(decision, "cls", None),
+        getattr(decision, "reason", None),
+    )
     return ChatReply(
         reply=CRISIS_RESPONSE,
         intent="emotional",
