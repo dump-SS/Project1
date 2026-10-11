@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.8.0
+  version: 1.9.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -99,6 +99,9 @@ tags:
       板块 B：首页 Chat 真链路（M1 最小真链路）。意图三通道（斜杠命令 / 按钮 / 模型裸判）、
       单对话 + 上下文栈（深度=3、LIFO）、画像四组按意图选组注入、情绪安全与危机转介。
       **无对话历史列表、无「新建对话」**（D45）。
+      危机检测为两层：第 1 层确定性（不过 LLM）命中即转介；第 2 层语义兜底（LLM 仅做分类
+      判定，留痕，失败 fail-toward-refer）覆盖措辞变体。**最终转介文案为硬编码常量、事件细节
+      不进画像**（D37）。
 
   - name: 考试
     description: |
@@ -752,6 +755,26 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /chat/greeting:
+    get:
+      tags: [Chat]
+      operationId: getChatGreeting
+      summary: 获取 AI 页问候语
+      description: >-
+        回到 AI 页时的问候语（冷启动时注入上次话题摘要，#34）。不产生对话轮次，
+        不影响上下文栈。
+      responses:
+        '200':
+          description: 问候语
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatGreeting'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /chat:
     post:
       tags: [Chat]
@@ -761,7 +784,8 @@ paths:
         首页 Chat 的真链路入口。单对话模型：无历史列表、无「新建对话」（D45）。
         意图走三通道（斜杠命令 / 按钮 / 模型裸判，D3）；动作类请求（加题本 / 改画像 / 建目标）
         由模型出锚定确认卡交用户确认，不在本接口直接执行（#17 第三层）；危机信号走 L3 转介，
-        事件细节不进画像（D37）。
+        事件细节不进画像（D37）。浮窗路径（ephemeral=true，D51）走受限问答：不入上下文栈、
+        不回流主对话、不出卡。
       requestBody:
         required: true
         content:
@@ -887,6 +911,35 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
+    delete:
+      tags: [学习目标]
+      operationId: deleteAllActiveGoals
+      summary: 批量删除全部进行中（active）目标
+      description: >-
+        删除当前用户全部 status=active 的目标（供 Chat 指令「删除所有未完成目标」）。
+        已归档目标不受影响。返回删除数量与被删 id 列表。
+      responses:
+        '200':
+          description: 删除完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, goalIds]
+                properties:
+                  deleted:
+                    type: integer
+                    description: 删除的目标数量
+                  goalIds:
+                    type: array
+                    items:
+                      type: string
+                    description: 被删除的目标 id 列表
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/GuardianAuthorizationExpired'
+
   /goals/{goalId}:
     get:
       tags: [学习目标]
@@ -912,7 +965,9 @@ paths:
       tags: [学习目标]
       operationId: updateGoal
       summary: 更新 / 归档目标
-      description: 归档代替删除，保留历史数据供复盘引用。
+      description: >-
+        归档代替删除，保留历史数据供复盘引用。归档（status=archived）时自动写入
+        completedAt；取消归档（改回其他状态）时清空。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/GoalId'
@@ -956,6 +1011,34 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
   # ==================== 考试（D49 独立实体） ====================
+    delete:
+      tags: [学习目标]
+      operationId: deleteGoal
+      summary: 删除目标（物理删除）
+      description: >-
+        物理删除（区别于归档 status=archived——归档保留历史数据供复盘引用）。
+        删除前解除两处引用：引用该目标的计划任务 goal_id 与子目标的 parent_goal_id 置空，
+        避免悬挂引用。请优先用归档；此接口供「确实要删」的场景与 Chat 指令调用。
+      parameters:
+        - $ref: '#/components/parameters/GoalId'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, goalId]
+                properties:
+                  deleted:
+                    type: boolean
+                  goalId:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /exams:
     get:
       tags: [考试]
@@ -1418,6 +1501,8 @@ paths:
         语义是「请求生成一份计划」。服务端规则引擎结合最近一次状态评估决定任务强度，同步返回，不走 LLM
         （PRD 8.2：AI 不可用时仍能看计划）。同一 planDate 已有计划时返回 409，可传 regenerate=true 覆盖。
         新用户无历史数据时 adaptedFrom 为 null，走规则模板生成。
+        任务拆分规则：单目标时整段可用时间合成 1 个任务（estimatedMinutes=可用总时长，
+        番茄钟拆分交给 StudyTimer）；多目标时按核心任务拆分。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1449,18 +1534,11 @@ paths:
                 tasks:
                   - taskId: t_30011
                     subject: SX
-                    topic: 函数图像与性质 · 巩固已学
-                    estimatedMinutes: 40
+                    topic: 函数图像与性质 · 整段承接
+                    estimatedMinutes: 120
                     priority: 1
                     status: pending
                     goalId: g_5501
-                  - taskId: t_30012
-                    subject: YY
-                    topic: 单词短时高频复习
-                    estimatedMinutes: 20
-                    priority: 2
-                    status: pending
-                    goalId: null
                 createdAt: '2026-08-16T18:00:00+08:00'
         '500':
           $ref: '#/components/responses/InternalServerError'
@@ -3970,6 +4048,11 @@ components:
           type: string
           description: 目标状态
           enum: [active, archived]
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 归档（完成）时间；进行中为 null。由 PATCH status=archived 自动写入、取消归档清空。
         outcome:
           type: string
           nullable: true
@@ -4035,6 +4118,11 @@ components:
           type: string
           description: 目标状态
           enum: [active, archived]
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 归档（完成）时间；进行中为 null。由 PATCH status=archived 自动写入、取消归档清空。
         outcome:
           type: string
           nullable: true
@@ -6179,6 +6267,47 @@ components:
           description: >-
             显式意图（按钮通道）；取值 chat / search / explain / practice / task / goal /
             question / emotional。为空时由斜杠命令或模型裸判确定。
+        ephemeral:
+          type: boolean
+          default: false
+          description: >-
+            随手问浮窗（D51）：true 时不入上下文栈、不回流主对话、不出卡，
+            走受限问答（隐式上下文不带入）。
+        floatContext:
+          type: array
+          description: 浮窗内前几轮问答（仅 ephemeral=true 时传递；主对话路径忽略）。
+          items:
+            $ref: '#/components/schemas/FloatTurn'
+    FloatTurn:
+      type: object
+      description: 随手问浮窗的一轮问答（浮窗专用，显式上下文）。
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          maxLength: 4000
+    ChatGreeting:
+      type: object
+      description: >-
+        AI 页问候语（差异 #34：冷启动时注入上次话题摘要，避免每次回来都像第一次）。
+      required: [greeting, isColdStart, showGreeting]
+      properties:
+        greeting:
+          type: string
+          description: 问候文本
+        summary:
+          type: string
+          nullable: true
+          description: 上次话题摘要（冷启动时有值）
+        isColdStart:
+          type: boolean
+          description: 是否冷启动（距离上次会话超过阈值）
+        showGreeting:
+          type: boolean
+          description: 是否展示问候（false 时前端静默）
     ChatCard:
       type: object
       description: >-
@@ -6188,7 +6317,10 @@ components:
       properties:
         type:
           type: string
-          description: 卡片类型：task_card / knowledge_point / confirmation 等
+          description: >-
+            卡片类型（与 docs/refactor-module-contracts.md §3.1 一致）：
+            task_card（C 计划任务）/ knowledge_point（D）/ confirmation（X1 确认卡）/
+            calculator（F）/ collection（E）/ file_summary（F）。
         title:
           type: string
           maxLength: 60
@@ -6203,7 +6335,9 @@ components:
       type: object
       description: >-
         一次 Chat 的响应：真实文案 + 意图 + 可选卡片 + 会话/上下文栈状态。crisis=true 表示触发
-        L3 危机转介（不过 LLM、事件细节不进画像）。
+        L3 危机转介：检测为两层——第 1 层确定性（不过 LLM）命中即转介；第 2 层语义兜底
+        （LLM 仅做分类判定、留痕、失败 fail-toward-refer）。**最终转介文案为硬编码常量、
+        事件细节不进画像**。
       required: [reply, crisis, sessionId]
       properties:
         reply:

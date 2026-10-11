@@ -68,7 +68,7 @@ backend/
 │   ├── assessment.py        AssessmentSnapshot
 │   ├── recommendation.py    Recommendation
 │   └── summary.py           Summary
-├── schemas/                 Pydantic v2 模型（17 个文件，契约 174 schema，严格对齐 openapi.yaml v1.7.1）
+├── schemas/                 Pydantic v2 模型（18 个文件，契约 179 schema，严格对齐 openapi.yaml v1.9.0）
 │   ├── enums.py             Subject / StateLabel / ...
 │   ├── common.py            Error / Pagination / GenerationStatus / RatingFeedback
 │   ├── user.py              User / UserProfilePut / Settings / SettingsUpdate / GuardianAuthorizationRequest
@@ -77,8 +77,9 @@ backend/
 │   ├── learning_record.py   LearningRecord / RecordInput / ...
 │   ├── assessment.py        StateResult / AssessmentHistory
 │   ├── recommendation.py    Recommendation / RecommendationCreate
-│   └── summary.py           Summary / SummaryContent
-├── routes/                  FastAPI 路由（22 个文件 / 20 个 router，契约 64 paths / 84 operations / 16 个 tag）
+│   ├── summary.py           Summary / SummaryContent
+│   └── chat.py              ChatMessageRequest / ChatReply / ChatCard / ChatGreeting / FloatTurn
+├── routes/                  FastAPI 路由（23 个文件；main.py 注册 22 个 router，契约 66 paths / 88 operations / 16 个 tag）
 │   ├── health.py            /health（带 DB 探活）
 │   ├── user.py              /me, /me/settings, /me/guardian-authorization
 │   ├── goal.py              /goals
@@ -86,8 +87,11 @@ backend/
 │   ├── learning_record.py   /learning-records
 │   ├── assessment.py        /assessments
 │   ├── recommendation.py    /recommendations（ORM + ai_suggestion）
-│   └── summary.py           /summaries（ORM + ai_suggestion）
+│   ├── summary.py           /summaries（ORM + ai_suggestion）
+│   └── chat.py              /chat, /chat/greeting（Chat 真链路入口，编排在 chat_engine）
+├── jobs/                    后台 job：chat_ttl_cleanup（对话原文 TTL）/ community_aggregate / community_extraction / weekly_knowledge_summary
 ├── state_calculator.py      编排层：ORM ↔ 引擎输入 ↔ 契约 dict（阶段 3 接入点）
+├── chat_engine.py           Chat 真链路编排：意图三通道 / 上下文栈 / 画像注入 / 卡片 / 危机前置
 ├── ai_suggestion.py         AI 编排：provider → 安全审核 → 兜底/失败 → ORM
 ├── llm_provider.py          供应商抽象：MockProvider / OpenAICompatibleProvider
 ├── template_fallback.py     规则模板兜底（PRD 5.3）
