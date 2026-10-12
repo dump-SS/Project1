@@ -97,7 +97,10 @@ def test_smtp_defaults_point_to_resend():
     assert fields["smtp_port"].default == 587
     assert fields["smtp_from"].default == "no-reply@send.epochx.net"
     # 缺 timeout 会让一次连不通的发信挂到系统级放弃（实测曾挂死约 17 分钟）
-    assert fields["smtp_timeout"].default == 15
+    # 2026-10-12 由 15 放宽到 30：network-flow 实证容器到 587 能建连且服务端有应答，
+    # 真卡在 starttls 多 IP 重试，单次发码累计 30-40s。
+    # ⚠️ 放宽必须与 routes/auth.py 的后台化配套，否则失败时仍会长时间占住请求线程。
+    assert fields["smtp_timeout"].default == 30
 
 
 def test_send_real_uses_smtp_from_not_smtp_user(monkeypatch):
@@ -160,3 +163,46 @@ def test_send_real_uses_smtp_from_not_smtp_user(monkeypatch):
     assert "EpochX <resend>" not in sent["msg"]  # 旧写法的产物绝不能出现
     # envelope sender 也应是发件地址，不是 smtp_user
     assert sent["envelope_from"] == "no-reply@send.epochx.net"
+
+def test_code_send_is_backgrounded_not_synchronous():
+    """🔴 发验证码必须走 BackgroundTasks，**不得**在请求线程里同步发信。
+
+    2026-10-11 生产事故的治本修复。同步发信时，一次连不通的 SMTP 会占住请求线程
+    数十秒（实测 41s；加 timeout 之前更是一次挂死约 17 分钟），而该请求全程持有
+    DB session——期间 Neon 连接被掐断、回池成为失效连接，配合「连接池缺 pre_ping」
+    把服务打成「/health 绿但接口大面积不可用」。
+
+    本用例用 AST 静态检查（不依赖运行行为），锁死三点：
+      1) send-code 三个端点都注入了 BackgroundTasks
+      2) 都把 background_tasks 传给了 _send_code
+      3) _send_code 里发信动作确实走 background_tasks.add_task
+    **一旦有人改回同步调用，这个用例会立刻红。**
+    """
+    import ast
+    import pathlib
+
+    src = pathlib.Path(__file__).resolve().parents[1] / "routes" / "auth.py"
+    tree = ast.parse(src.read_text(encoding="utf-8"))
+
+    funcs = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    endpoints = ("send_register_code", "send_reset_code", "send_login_code")
+    for name in endpoints:
+        fn = funcs.get(name)
+        assert fn is not None, f"找不到 {name}"
+        args = [a.arg for a in fn.args.args]
+        assert "background_tasks" in args, (
+            f"{name} 没有注入 background_tasks —— 发信会退回同步，正是事故根因"
+        )
+        kw_names = {kw.arg for kw in ast.walk(fn) if isinstance(kw, ast.Call)
+                    for kw in kw.keywords if kw.arg}
+        assert "background_tasks" in kw_names or any(
+            isinstance(c, ast.Name) and c.id == "background_tasks"
+            for c in ast.walk(fn)
+        ), f"{name} 没有把 background_tasks 传给 _send_code"
+
+    inner = funcs.get("_send_code")
+    assert inner is not None, "找不到 _send_code"
+    assert any(
+        isinstance(n, ast.Attribute) and n.attr == "add_task"
+        for n in ast.walk(inner)
+    ), "_send_code 里没有 background_tasks.add_task —— 发信仍是同步调用"

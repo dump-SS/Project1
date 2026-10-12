@@ -172,6 +172,18 @@ def _llm_generate_calls() -> list[tuple[str, int, str | None]]:
         rel = path.relative_to(BACKEND_ROOT)
         if rel.parts[0] in {"tests", ".pytest_data", "alembic", "versions_archive"}:
             continue
+        # ⚠️ 必须排除虚拟环境与依赖包目录（2026-10-12 修）。
+        # 漏掉它会让任何装了 .venv 的本地环境**误报**：.venv/site-packages 里
+        # passlib 等第三方库的测试文件含 `.generate(...)` 调用，被当成业务代码扫进来。
+        # CI 上查不到只是因为 CI 不建 .venv——不是没问题，是环境恰好没触发。
+        # 判据统一走「任一路径段命中即跳过」，这样 .venv / venv / site-packages /
+        # node_modules / __pycache__ 都能覆盖，不依赖具体目录名。
+        _SKIP_DIRS = {
+            ".venv", "venv", "env", "site-packages", "node_modules",
+            "__pycache__", ".git", ".pytest_cache", "build", "dist",
+        }
+        if any(part in _SKIP_DIRS or part.startswith(".") for part in rel.parts):
+            continue
         if path.name.startswith("_"):
             continue
         try:

@@ -86,6 +86,21 @@ class Settings(BaseSettings):
     # 比检索降级更糟）。≠基准时先查 refs.json 与库是否同步，**不要直接重建索引**。
     kb_vector_expected_count: int = 3391
 
+    # --- R2 对象访问（F 板块：用户上传的题目图片）---
+    # ⚠️ 刻意**复用** KB_VECTOR_* 这一组变量名，不另造 R2_*：用户图片与向量索引
+    # 存在**同一个桶** epoch-x（2026-10-06 定的合规约束：桶必须私有，访问走 SigV4），
+    # 同一组 S3 凭据天然覆盖两者。复用 = Railway 上无需新增变量。
+    #
+    # 变量名与 scripts/railway_build.py 下载向量索引时用的是同一组；那边只在
+    # **构建期**用，F 板块的媒体读写是**运行期**用——所以 pydantic 侧必须声明它们，
+    # 否则 settings 读不到（extra="ignore" 会让多余环境变量被静默丢弃）。
+    #
+    # 三个都留空 = 未配置 R2。此时**不报错**（本地开发/测试环境没有 R2 也应能起），
+    # 由调用点在真正需要时判断并返回明确错误，避免误报成 500。
+    kb_vector_url: str = ""
+    kb_vector_access_key_id: str = ""
+    kb_vector_secret_access_key: str = ""
+
     # --- SMTP（验证码邮件，auth 迁移后从 mock-server 接管）---
     # 2026-10-06 迁至 Resend（sky 拍板）：host=smtp.resend.com、user 为字面量 "resend"、
     # password 填 Resend API key。
@@ -99,7 +114,13 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     # 单次 SMTP 操作的上限（秒）。缺它会让一次连不通的发信挂到系统级放弃：
     # 实测曾挂死约 17 分钟，并把该请求持有的 Neon 连接拖成失效连接。
-    smtp_timeout: int = 15
+    #
+    # 30s 的由来（2026-10-12 实测）：network-flow 显示容器到 smtp.resend.com:587 的
+    # TCP **能建连且服务端有应答**，真卡在 starttls 握手阶段多 IP 重试，
+    # 单次发码累计 30-40s。取 30s 让慢网络有机会跑完。
+    # ⚠️ 这个值放大必须与 auth.py 的后台化配套：只有接口已立即返回，
+    #    放宽后的等待才不占住请求线程与 DB session。
+    smtp_timeout: int = 30
     smtp_user: str = ""
     smtp_pass: str = ""
     # 发件人地址。**必须与 smtp_user 分开**：Resend 的 SMTP 用户名是字面量 "resend"，

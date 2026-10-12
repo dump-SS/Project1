@@ -20,7 +20,7 @@ import re
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -121,10 +121,29 @@ class ResetPasswordRequest(BaseModel):
 
 # ---------- 1-3. 发送验证码 ----------
 
-def _send_code(code_type: str, email: str, db: Session, check_registered: bool | None = None) -> dict:
+def _send_code(
+    code_type: str,
+    email: str,
+    db: Session,
+    check_registered: bool | None = None,
+    background_tasks: BackgroundTasks | None = None,
+) -> dict:
     """发送验证码的共用逻辑。
 
     check_registered: True=要求已注册(login/reset)，False=要求未注册(register)，None=不检查。
+
+    ⚠️ 发信必须走后台任务（2026-10-11 生产事故的第二条根因）：
+    同步调用时，一次连不通的 SMTP 会**占住请求线程数十秒**（实测 41s，
+    修 timeout 前更是一次挂死约 17 分钟），而该请求全程持有 DB session。
+    期间 Neon 连接被掐断、回池后成为失效连接，配合「连接池缺 pre_ping」
+    直接把服务打成「health 绿但接口大面积不可用」。
+
+    改为后台任务后，接口立即返回、请求线程与 DB session 立刻释放，
+    无论 SMTP 多慢或失败都不再拖累服务。
+
+    **为什么可以安全地放到后台**：``send_code_email`` 只用 SMTP、不访问 DB，
+    所以不需要把 ``db`` 带进后台任务（请求结束时 session 已关闭，带进去反而出错）。
+    后台任务只捕获 ``code_type`` / ``email`` / ``code`` 三个标量。
     """
     if not EMAIL_RE.match(email):
         raise _validation_error("邮箱格式不正确", "email")
@@ -139,29 +158,49 @@ def _send_code(code_type: str, email: str, db: Session, check_registered: bool |
         raise _error(429, "RATE_LIMITED", "验证码发送过于频繁，请稍后再试")
 
     code = store_code(db, code_type, email)
-    try:
-        send_code_email(code_type, email, code)
-    except Exception:
-        # SMTP 失败不阻断——验证码已存 DB，开发环境可通过日志拿到
-        import logging
-        logging.getLogger(__name__).exception("[SMTP] 发送 %s 验证码失败: %s", code_type, email)
+
+    def _deliver() -> None:
+        """后台发信。失败只记日志——验证码已存 DB，不阻断流程。"""
+        try:
+            send_code_email(code_type, email, code)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("[SMTP] 发送 %s 验证码失败: %s", code_type, email)
+
+    if background_tasks is not None:
+        background_tasks.add_task(_deliver)
+    else:
+        # 没有 BackgroundTasks 时退化为同步（仅测试或未来非 HTTP 调用可能走到）
+        _deliver()
 
     return {"ok": True, "sent": True}
 
 
 @router.post("/send-register-code", summary="发送注册验证码")
-def send_register_code(body: EmailRequest, db: Session = Depends(get_db)):
-    return _send_code("register", body.email, db, check_registered=False)
+def send_register_code(
+    body: EmailRequest,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+):
+    return _send_code("register", body.email, db, check_registered=False, background_tasks=background_tasks)
 
 
 @router.post("/send-reset-code", summary="发送重置密码验证码")
-def send_reset_code(body: EmailRequest, db: Session = Depends(get_db)):
-    return _send_code("reset", body.email, db, check_registered=True)
+def send_reset_code(
+    body: EmailRequest,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+):
+    return _send_code("reset", body.email, db, check_registered=True, background_tasks=background_tasks)
 
 
 @router.post("/send-login-code", summary="发送登录验证码")
-def send_login_code(body: EmailRequest, db: Session = Depends(get_db)):
-    return _send_code("login", body.email, db, check_registered=True)
+def send_login_code(
+    body: EmailRequest,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+):
+    return _send_code("login", body.email, db, check_registered=True, background_tasks=background_tasks)
 
 
 # ---------- 4. 注册 ----------
