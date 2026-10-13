@@ -157,7 +157,7 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, chat, community, daily_summary, error_book, exam, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight
+from routes import assessment, auth, chat, community, daily_summary, error_book, exam, f_media, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -187,6 +187,10 @@ api_v1.include_router(community.router)
 api_v1.include_router(community.aggregate_router)
 # G 板块（pilot 运营与治理）：用量查询 / 报错 / 违规留痕 / 奖章 / 埋点（openapi v1.7.0）
 api_v1.include_router(governance.router)
+# F 板块（多模态拍题）：题目图片上传/取回，后端代理 R2 私有桶。
+# 契约由 dev-3 在契约同步那轮补（含 calculator / file_summary 与本组 path），
+# 版本号以其合入结果为准——这里不预写，避免与最终版本对不上。
+api_v1.include_router(f_media.router)
 
 app.include_router(health.router)
 app.include_router(api_v1)

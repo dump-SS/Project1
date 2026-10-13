@@ -252,3 +252,66 @@ export async function apiGetAllPages<T>(
 
   return collected;
 }
+
+/**
+ * 二进制上传（raw body，**非** multipart/form-data）。
+ *
+ * ## 为什么单独加这个方法，而不复用 apiPost
+ *
+ * F 板块「多模态拍题」要上传题目图片。后端 `backend/routes/f_media.py` 收的是**原始字节**，
+ * 原因在那边有注释：`python-multipart` 没装，写 `File(...)` 会让 FastAPI **启动即报错**。
+ * 所以这里必须能「把 Blob 原样当请求体发出去」，而 apiPost 会 `JSON.stringify(body)` ——
+ * 那是错的（会把图片序列化成 JSON，且体积膨胀）。
+ *
+ * ## 为什么放在 http.ts 而不是 services/fMedia.ts 里自己 fetch
+ *
+ * 为了复用 `throwIfNotOk`：它统一处理了两件容易漏的事——把后端 `{error:{code,message}}`
+ * 翻成 `ApiError`（否则调用方得自己判形状），以及 401 时广播 `AUTH_EXPIRED_EVENT`
+ * 触发全局登出。复制一份必然随时间漂移（这文件已经 254 行，再复制一份错误处理是负债）。
+ *
+ * 改动范围说明（共享文件，按规矩写清）：**纯新增两个导出函数，既有 5 个方法一行未动。**
+ */
+export async function apiPostBinary<T>(
+  path: string,
+  body: Blob,
+  contentType: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  // Content-Type 用**真实类型**：后端会拿它和文件魔数交叉校验，不一致直接 400。
+  const headers: HeadersInit = { 'Content-Type': contentType, Accept: 'application/json' };
+
+  const response = await fetch(buildUrl(path), {
+    method: 'POST',
+    headers,
+    body,
+    credentials: 'include',
+    signal,
+  });
+
+  await throwIfNotOk(response);
+
+  const text = await response.text().catch(() => '');
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}
+
+/**
+ * 取回二进制（图片字节）。
+ *
+ * 返回 Blob 而不是 dataURL：base64 会让体积涨约 33%，且 `createObjectURL` 是浏览器
+ * 唯一不需要复制整份数据的路径。调用方记得在组件卸载时 `revokeObjectURL`。
+ */
+export async function apiGetBlob(
+  path: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await fetch(buildUrl(path), {
+    method: 'GET',
+    headers: { Accept: '*/*' },
+    credentials: 'include',
+    signal,
+  });
+
+  await throwIfNotOk(response);
+  return response.blob();
+}
