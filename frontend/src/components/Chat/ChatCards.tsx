@@ -8,13 +8,14 @@
  *
  * 「#17 第三层」：模型只提案，落库动作绝不直接执行，必须用户点确认。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ChatCard } from './types'
 import { createGoal, deleteAllActiveGoals, deleteGoal, fetchGoals } from '@/services/goals'
 import { createPlan, localDateString } from '@/services/plans'
 import type { GoalType, Subject } from '@/types/api'
 import { useTheme } from '../../context/ThemeContext.jsx'
+import { trackCardClicked, trackCardShown } from './cardAnalytics'
 
 const SUBJECT_CODES: Subject[] = ['SX', 'YY', 'WL', 'HX', 'YW', 'LS', 'DL', 'ZZ', 'SW', 'other']
 
@@ -31,6 +32,24 @@ function asSubject(value: unknown): Subject {
   if (typeof value !== 'string') return 'other'
   if ((SUBJECT_CODES as string[]).includes(value)) return value as Subject
   return SUBJECT_CN_MAP[value] ?? 'other'
+}
+
+/**
+ * 卡片曝光埋点包装器（§5 #2 · card_shown）。
+ *
+ * 用包装组件而不是在 ChatCards 里写一个大 useEffect：每张卡各挂一次、各报一次，
+ * 粒度天然按卡走；ref 守卫保证同一次挂载只发一次，重渲染不会重复计数
+ * —— 曝光数虚高会直接让 §1.2 的点击率变成假数。
+ * 只做观测，不影响卡片渲染。
+ */
+function CardExposure({ card, children }: { card: ChatCard; children: ReactNode }) {
+  const reportedRef = useRef(false)
+  useEffect(() => {
+    if (reportedRef.current) return
+    reportedRef.current = true
+    trackCardShown(card)
+  }, [])
+  return <>{children}</>
 }
 
 function CardItems({ items }: { items?: { label: string; value: string }[] }) {
@@ -110,6 +129,8 @@ function StartStudyCard({ card }: { card: ChatCard }) {
   const pomodoroText = pomodoroParts.join(' + ')
 
   const onConfirm = async () => {
+    // 埋点（§5 #2 card_clicked）：放在 busy/done 守卫之后，被禁用的重复点击不算有效点击
+    trackCardClicked(card, 'start_study')
     if (busy || done) return
     setBusy(true)
     setError(null)
@@ -245,6 +266,8 @@ function CreateGoalCard({ card }: { card: ChatCard }) {
   const goal = card.payload?.goal
 
   const onConfirm = async () => {
+    // 埋点（§5 #2 card_clicked）
+    trackCardClicked(card, 'create_goal')
     if (busy || done) return
     setBusy(true)
     setError(null)
@@ -341,6 +364,8 @@ function DeleteGoalCard({ card }: { card: ChatCard }) {
   }, [])
 
   const onConfirm = async () => {
+    // 埋点（§5 #2 card_clicked）
+    trackCardClicked(card, 'delete_goal')
     if (busy || done) return
     if (!isBatch && !matched) return
     setBusy(true)
@@ -407,7 +432,10 @@ function UnknownConfirmationCard({ card }: { card: ChatCard }) {
       {done ? (
         <div className="chat-card-summary">该操作请前往对应功能页完成</div>
       ) : (
-        <button type="button" className="chat-card-btn" onClick={() => setDone(true)}>
+        <button type="button" className="chat-card-btn" onClick={() => {
+          trackCardClicked(card, 'dismiss')
+          setDone(true)
+        }}>
           知道了
         </button>
       )}
@@ -423,7 +451,10 @@ function KnowledgeCard({ card }: { card: ChatCard }) {
     <div className="chat-card chat-card-knowledge">
       <div className="chat-card-title">{card.title}</div>
       {card.display?.summary && <div className="chat-card-summary">{card.display.summary}</div>}
-      <button type="button" className="chat-card-btn" onClick={() => navigate('/knowledge')}>
+      <button type="button" className="chat-card-btn" onClick={() => {
+        trackCardClicked(card, 'view_knowledge')
+        navigate('/knowledge')
+      }}>
         查看知识点
       </button>
     </div>
@@ -446,22 +477,36 @@ function ConfirmationCard({ card }: { card: ChatCard }) {
 
 export default function ChatCards({ cards }: { cards: ChatCard[] }) {
   if (!cards || cards.length === 0) return null
+  // key 从纯下标改为「下标+类型+动作」：曝光埋点挂在 CardExposure 的挂载上，
+  // key 不稳定会让卡片被重新挂载 → 同一次曝光重复上报 → §1.2 点击率变假数。
+  // 这是纯 reconciliation 层面的改动，用户看不到任何行为变化。
+  const keyOf = (card: ChatCard, i: number) =>
+    `${i}:${card.type}:${typeof card.payload?.action === 'string' ? card.payload.action : 'na'}`
+
+  const withExposure = (card: ChatCard, i: number, node: ReactNode) => (
+    <CardExposure key={keyOf(card, i)} card={card}>
+      {node}
+    </CardExposure>
+  )
+
   return (
     <>
       {cards.map((card, i) => {
         if (card.type === 'command') {
-          return <CommandCard key={i} card={card} />
+          return withExposure(card, i, <CommandCard card={card} />)
         }
         if (card.type === 'knowledge_point') {
-          return <KnowledgeCard key={i} card={card} />
+          return withExposure(card, i, <KnowledgeCard card={card} />)
         }
         if (card.type === 'confirmation' || card.payload?.action) {
-          return <ConfirmationCard key={i} card={card} />
+          return withExposure(card, i, <ConfirmationCard card={card} />)
         }
-        return (
-          <div key={i} className="chat-card chat-card-unknown">
+        return withExposure(
+          card,
+          i,
+          <div className="chat-card chat-card-unknown">
             <div className="chat-card-title">{card.title}</div>
-          </div>
+          </div>,
         )
       })}
     </>
