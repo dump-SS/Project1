@@ -144,19 +144,41 @@ def recompute_snapshot(
     return window_to_snapshot_payload(window, subject, None)
 
 
-def _sync_plan_task(db: Session, user_id: str, plan_task_id: str, completion: str) -> None:
+def _sync_plan_task(db: Session, user_id: str, plan_task_id: str) -> None:
     """关联计划任务时同步任务状态（PRD 5.3：计划完成计数应实时反映）。
+
+    任务状态**只看累计专注时长是否跑满 `estimated_minutes`**，
+    **不看**单次自评的 completed/partial/abandoned——单次「放弃」只落到 learning_record 的
+    行为数据（behavior_completion），不把整个任务划成「已放弃」。任务放弃应由用户在
+    任务列表显式操作（PATCH /plans/{id}/tasks/{id} status=abandoned）。（PRD 5.3 修正）
 
     只改状态，不动 `user_adjusted`——那是"用户手动调整过算法建议"的信号，
     由用户在任务卡上的显式操作（PATCH /plans/{id}/tasks/{id}）标记，
     记录提交带来的自动同步不算。
+
+    ⚠️ `abandoned` 是**用户显式声明**「这个任务我不做了」，自动同步不得把它翻回
+    completed/partial——否则用户放弃后补一条历史记录，任务会自己活过来，
+    与上面「放弃由用户显式操作」直接矛盾。
     """
     from models.plan import PlanTask as PlanTaskORM
 
     task = db.get(PlanTaskORM, plan_task_id)
-    if task is not None and task.user_id == user_id:
-        task.status = completion
-        db.commit()
+    if task is None or task.user_id != user_id:
+        return
+    if task.status == "abandoned":
+        # 用户已显式放弃，本函数无权改写；原实现会把它翻回 completed。
+        return
+
+    accumulated = (
+        db.execute(
+            select(func.coalesce(func.sum(LearningRecordORM.duration_minutes), 0)).where(
+                LearningRecordORM.plan_task_id == task.id
+            )
+        ).scalar_one()
+        or 0
+    )
+    task.status = "completed" if accumulated >= (task.estimated_minutes or 0) else "partial"
+    db.commit()
 
 
 def persist_record(
@@ -205,7 +227,8 @@ def persist_record(
     db.commit()
 
     if body.plan_task_id:
-        _sync_plan_task(db, user_id, body.plan_task_id, body.behavior.completion.value)
+        # 状态按累计时长推进，不按单次自评（PRD 5.3 修正，见 _sync_plan_task）
+        _sync_plan_task(db, user_id, body.plan_task_id)
 
     assessment = recompute_snapshot(db, user_id, body.subject.value, record_id)
 
