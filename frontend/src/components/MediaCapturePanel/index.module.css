@@ -1,0 +1,100 @@
+/* 多模态拍题面板（F 板块）—— 只引用 tokens.css 的语义 token，不写死色值 */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--lg-fill, rgba(255, 255, 255, 0.72));
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-sans, inherit);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink, #1f2937);
+}
+
+.subtitle {
+  margin: 0;
+  font-family: var(--font-sans, inherit);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-muted, #8a94a6);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pick {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--accent, #2563eb);
+  color: var(--on-accent, #ffffff);
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pick:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.clear {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.12));
+  background: transparent;
+  color: var(--ink-muted, #8a94a6);
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.error {
+  margin: 0;
+  font-family: var(--font-sans, inherit);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--danger, #b91c1c);
+}
+
+.previewWrap {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview {
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--lg-stroke-soft, rgba(0, 0, 0, 0.1));
+  background: var(--lg-fill, rgba(255, 255, 255, 0.72));
+}
+
+.caption {
+  font-family: var(--font-sans, inherit);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-muted, #8a94a6);
+  word-break: break-all;
+}
