@@ -219,7 +219,8 @@
 ### 3.1 Chat 引用块协议（B 产出 → F/D/E 消费）
 
 一条引用块 = `{ type, title, payload, display }`：
-- `type`：`calculator`（F）/ `knowledge_point`（D）/ `plan_task`（C）/ `collection`（E）/ `file_summary`（F）
+- `type`：`task_card`（C）/ `knowledge_point`（D）/ `confirmation`（X1 确认卡）/ `calculator`（F）/ `collection`（E）/ `file_summary`（F）——与 `docs/openapi.yaml` 的 `ChatCard.type` 描述逐字一致。
+  （2026-10-12 对齐：原 `plan_task` 按契约更正为 `task_card`——契约是唯一真相源（铁律 1）；同时补 `confirmation`/`calculator`/`collection`/`file_summary`，消除同名不同字。）
 - `payload`：结构化数据（注入模型上下文用）；`display`：渲染数据
 - 规则：添加到主对话**只带显式输入输出、不带隐式上下文**（D51/#45）；引用块可 ✕ 移除，移除即出上下文栈。
 
