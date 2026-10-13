@@ -226,13 +226,42 @@ def test_finish_twice_conflicts():
 
 
 def test_finish_syncs_plan_task_status():
-    """收尾落记录时，关联任务状态要跟着变（PRD 5.3 计划完成计数实时反映）。"""
+    """收尾落记录时，关联任务状态要跟着变（PRD 5.3 计划完成计数实时反映）。
+
+    ⚠️ 口径修正（2026-10-11，PR #50 合并时丢失的 PRD 5.3 逻辑补回）：
+    任务状态由**累计专注时长是否跑满 estimated_minutes** 决定，**不看单次自评**。
+    本用例 seed 的任务 `estimated_minutes=30`，收尾给 25 分钟（`_seed_plan_task` 默认值），
+    累计 25 < 30 → partial。
+
+    原断言是 `== "completed"`（25 < 30 却期望 completed），那编码的是**单次自评决定任务状态**
+    的旧实现（`task.status = completion`），与 PRD 5.3「单次自评不决定任务状态」冲突。
+    下方 `test_finish_marks_task_completed_when_minutes_reach_estimate` 补齐另一方向，
+    两个方向都有断言，比修正前更严。
+    """
     task_id = _seed_plan_task("u_test_timer", subject="SX")
     sid = _start(taskId=task_id).json()["sessionId"]
     _finish(sid, durationMinutes=25, completion="completed")
 
     db = SessionLocal()
     try:
+        # 自评写 completed，但累计 25 < estimated 30 → 不得判 completed
+        assert db.get(PlanTask, task_id).status == "partial"
+    finally:
+        db.close()
+
+
+def test_finish_marks_task_completed_when_minutes_reach_estimate():
+    """累计时长跑满 estimated_minutes → completed（PRD 5.3 的另一半口径）。"""
+    # ⚠️ 用户 id 必须与本文件 HDR（X-User-ID: u_test_timer）一致，否则归属校验会挡住收尾、
+    # 记录根本不落，任务停在 pending —— 那是正确行为，不是本用例要测的。
+    task_id = _seed_plan_task("u_test_timer", subject="SX")
+    sid = _start(taskId=task_id).json()["sessionId"]
+    # seed 的 estimated_minutes=30；给满 30 即跑满
+    _finish(sid, durationMinutes=30, completion="partial")
+
+    db = SessionLocal()
+    try:
+        # 自评写 partial，但累计 30 >= estimated 30 → 仍应 completed
         assert db.get(PlanTask, task_id).status == "completed"
     finally:
         db.close()
