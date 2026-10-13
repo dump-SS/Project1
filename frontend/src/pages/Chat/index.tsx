@@ -20,6 +20,8 @@ import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
+import MediaCapturePanel from '@/components/MediaCapturePanel'
+import type { FCard, MediaUploadResult } from '@/services/fMedia'
 import {
   genId,
   type ChatMessage,
@@ -101,6 +103,36 @@ export default function ChatPage() {
   const addFloatRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
   const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
+
+  /**
+   * F 板块：上传成功 → 把媒体 key 垫成引用块（§3.1 的 file_summary 就是同构的 ChatCard）。
+   *
+   * ## 为什么垫 key 而不是垫图片
+   *
+   * 后端 `ChatMessageRequest` 只收 `content / intent / ephemeral / float_context`（schemas/chat.py），
+   * **没有结构化媒体字段**，而图片是按 key 存私有 R2 的。所以现在唯一能进上下文的载体是
+   * `RefChip.text`——它会被 `composeWithRefs` 拼成 `[题目图片] user/x/a.png` 随 content 上送，
+   * AI 据此知道「这道题有一张图、图在哪个 key」。
+   *
+   * ## 这里**没有**做到的事（别当成已完成）
+   *
+   * AI 目前**看不到图片内容**——后端还没有取图/OCR/多模态链路。要把图真正喂给模型，
+   * 得后端按 key 从 R2 取回字节再送模型，那是另一件事、不在本轮。
+   *
+   * `source: 'f_media'` 是协议里的来源标记字段，供后续收藏/讲解打标（见 RefChip 注释）。
+   */
+  const addMediaRef = (result: MediaUploadResult) =>
+    setRefs((prev) => [
+      ...prev,
+      { id: genId('ref'), label: '题目图片', text: result.key, source: 'f_media' },
+    ])
+  /** 清除图片时把对应引用块一起撤掉，避免栈里留孤儿 chip */
+  const removeMediaRef = (key: string) =>
+    setRefs((prev) => prev.filter((r) => !(r.source === 'f_media' && r.text === key)))
+
+  const handleMediaCard = useCallback((_card: FCard, result: MediaUploadResult) => {
+    addMediaRef(result)
+  }, [])
 
   // D51 主路径：引用块的正文随消息原文一起发出（让后端看到被引用内容）
   const composeWithRefs = (draft: string, refsList: RefChip[]) =>
@@ -229,6 +261,13 @@ export default function ChatPage() {
               inputRef={inputRef}
               refs={refs}
               onRemoveRef={removeRef}
+              renderMediaCapture={() => (
+                <MediaCapturePanel
+                  compact
+                  onCard={handleMediaCard}
+                  onClear={(key) => removeMediaRef(key)}
+                />
+              )}
               renderQuickPanel={(close) => (
                 <ReferencePanel
                   compact

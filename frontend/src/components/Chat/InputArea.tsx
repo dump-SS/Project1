@@ -21,6 +21,16 @@ interface InputAreaProps {
   /** 引用块（D51）：划选主路径 / 随手问浮窗「添加到主对话」挂在输入框上方 */
   refs?: RefChip[]
   onRemoveRef?: (id: string) => void
+  /**
+   * 多模态拍题面板（F 板块）的挂载槽位。
+   *
+   * 做成 render prop 而不是在这里 import MediaCapturePanel，是为了让 F 的依赖单向：
+   * 本文件完全不认识 F，F 通过这个槽位把自己的 UI 塞进来。这样 B 侧（输入区）不会
+   * 因为 F 的实现变化而被动改动，也不会出现「B 引用 F」这种方向混乱的依赖。
+   *
+   * {@link https://github.com/vercel/composition-patterns}
+   */
+  renderMediaCapture?: () => ReactNode
 }
 
 export default function InputArea({
@@ -32,6 +42,7 @@ export default function InputArea({
   renderQuickPanel,
   refs = [],
   onRemoveRef,
+  renderMediaCapture,
 }: InputAreaProps) {
   const [quickOpen, setQuickOpen] = useState(false)
 
@@ -53,11 +64,15 @@ export default function InputArea({
   const closeQuick = () => setQuickOpen(false)
 
   return (
-    <div className="chat-input-wrap">
-      {/* 引用块（D51 / F 板块复用的通用组件） */}
-      <ReferenceChips refs={refs} onRemoveRef={onRemoveRef} />
+      <div className="chat-input-wrap">
+        {/* 引用块（D51 / F 板块复用的通用组件） */}
+        <ReferenceChips refs={refs} onRemoveRef={onRemoveRef} />
 
-      {/* 快捷引用浮层 */}
+        {/* 多模态拍题（F 板块）：挂在输入框上方、引用块下方，随消息一起发出。
+            放在 chat-input-bar 之前而非之后，是为了不让它把底栏顶出可视区。 */}
+        {renderMediaCapture?.()}
+
+        {/* 快捷引用浮层 */}
       {quickOpen && (
         <>
           <div className="chat-quick-mask" onClick={closeQuick} aria-hidden="true" />
