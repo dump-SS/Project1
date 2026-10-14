@@ -159,7 +159,12 @@ async def upload_media(
     request: Request,
     user: User = Depends(current_user),
 ) -> MediaUploadResponse:
-    """收原始字节 -> R2 私有桶。请求体直接是图片字节，类型放 query。"""
+    """收原始字节 -> R2 私有桶。请求体直接是图片字节。
+
+    ⚠️ 内容类型走 **`Content-Type` 请求头**（`request.headers.get("content-type")`），
+    **不是 query 参数**。旧注释误写为「类型放 query」，与实现不符，会误导调用方。
+    另注意该头**可伪造**，故类型还要经 `_sniff_image_type` 的**文件魔数二次校验**。
+    """
     body = await request.body()
 
     if not body:
