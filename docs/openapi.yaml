@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.9.0
+  version: 1.10.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -49,6 +49,19 @@ info:
     - **群体参照开启前校验授权（D41）**：`PUT /me/community-consent` **开启**（enabled=true）时
       要求监护人授权 `active`：无记录/待确认 → 403 `GUARDIAN_AUTHORIZATION_REQUIRED`，
       已失效 → 403 `GUARDIAN_AUTHORIZATION_EXPIRED`；**撤回（enabled=false）不受限制**。
+
+    **v1.10.0（F 板块 · 多模态拍题存储链路）**——纯增量，无字段改名、无既有取值语义变化：
+    - **新增 `POST /f/media`**：上传题目图片。**收 raw body 而非 multipart**——后端
+      `backend/routes/f_media.py` 因未安装 `python-multipart`，写 `File(...)`/`UploadFile`
+      会让 FastAPI **启动即报错**，故请求体直接是图片字节，类型走 `Content-Type` 头。
+      key **由服务端生成**（`user/{userId}/{uuid}{ext}`），调用方无法指定——否则传
+      `embeddings.index` 即可覆盖桶内的生产向量索引。
+    - **新增 `GET /f/media/{key}`**：取回题目图片（后端代理，二进制）。**只能取自己的**，
+      非本人 key 一律 **403 而非 404**——不泄露「该 key 是否存在」。
+    - **新增 schema `MediaUploadResponse`**。
+    - **新增 4 个复用错误响应**：`Forbidden` / `PayloadTooLarge` / `ServiceUnavailable` / `BadGateway`。
+    - 内容类型经**文件魔数二次校验**（不只信请求头——请求头可伪造）。
+    - 存储为 Cloudflare R2 私有桶 `epoch-x`（与向量索引同桶但仅私有访问，走 S3 SigV4）。
 
 servers:
   - url: /api/v1
@@ -112,6 +125,13 @@ tags:
       D30/D31/D32/#14：服务端持久化"进行中的计时会话"，前端只是视图。
       双模式（倒计时/正计时）按 mode 恢复；僵尸会话走恢复裁决卡，**不自动记账**；
       有效时长 ≠ 墙上时长；一会话内分段，不允许并行计时。
+  - name: F 板块·媒体
+    description: |
+      F 板块（多模态、文件与学科工具）的**存储链路**：题目图片上传/取回。
+      只打通「上传 → 存储 → 取回」，**不含**图像识别/OCR（D32 已把 OCR 链路彻底放开，
+      F 板块本来就没有 /ocr 路径）。
+      R2 私有桶 `epoch-x` 与向量索引同桶并存，但**只允许私有访问**（S3 SigV4，
+      不开公开读、不挂自定义域）——桶里是学生拍的题目照片，属用户数据。
 
 paths:
   # ==================== 鉴权会话（外部账号体系，登录前公开） ====================
@@ -3376,6 +3396,161 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # ==================== F 板块 · 媒体（题目图片上传/取回） ====================
+  # 按 backend/routes/f_media.py 的**实际行为**写，不按想象写。
+  # 说明一处刻意的形式选择：path 写作 {key}（OpenAPI 3.0 规范的写法），
+  # 而不是 Starlette 的 {key:path}。原因：:path 是 Starlette 转换器语法，
+  # 不在 OpenAPI 规范内，且 FastAPI 自己的 app.openapi() 会归一成 {key}——
+  # 契约若写 :path 就与运行时产物不一致。key 含多个 `/` 这件事改在
+  # 参数 description 里写明（消费方须按多段路径处理，不可按单段截断）。
+  /f/media:
+    post:
+      tags: [F 板块·媒体]
+      operationId: uploadMedia
+      summary: 上传题目图片（raw body，非 multipart）
+      description: |
+        收原始字节 → 存入 R2 私有桶 → 返回 key 与取回路径。
+
+        ## ⚠️ 请求体是「裸字节」，不是 multipart/form-data
+
+        后端未安装 `python-multipart`，写 `File(...)`/`UploadFile` 会让 FastAPI
+        **启动即报错**（不是运行时报）。所以这里**没有文件名字段**，
+        请求体直接是图片字节。前端对应写法：`fetch(url, { method: 'POST', body: file })`
+        并带真实 `Content-Type`。上传后前端拿 `key` 自己拼取回路径。
+
+        ## ⚠️ key 由服务端生成，调用方无法影响
+
+        请求里**不存在** `key` 参数（query/form 都不收）。key 形如
+        `user/{userId}/{uuid4-hex}{ext}`。这是硬约束：R2 桶内同时有生产向量索引
+        （`embeddings.index` / `refs.json`），若 key 可指定，传 `embeddings.index`
+        就能覆盖检索索引。
+
+        ## 内容类型二次校验
+
+        声明在 `Content-Type` 头里的 MIME 会与**文件魔数**交叉验证：
+        二者不一致 → 400。所以伪造头把 HTML/可执行文件塞进来会被挡下
+        （HTML 若被同源回显就是存储型 XSS）。支持 jpeg / png / webp / gif；
+        webp 必须同时满足 `RIFF` 与第 8 字节的 `WEBP`（`RIFF` 是容器魔数，
+        WAV/AVI 也以它开头，只查前缀等于放行任意 RIFF 文件）。
+      requestBody:
+        required: true
+        description: 裸图片字节。**不是** multipart/form-data；图片类型放 Content-Type 头。
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+          image/gif:
+            schema:
+              type: string
+              format: binary
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: 上传成功，返回 key 与取回路径
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaUploadResponse'
+        '400':
+          description: |
+            空 body，或声明的 MIME 与文件魔数不一致，或不是受支持的图片类型。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: VALIDATION_FAILED
+                  message: 内容是 image/png，与声明的 image/jpeg 不一致
+                  field: contentType
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /f/media/{key}:
+    get:
+      tags: [F 板块·媒体]
+      operationId: getMedia
+      summary: 取回题目图片（后端代理，二进制）
+      description: |
+        取回自己的题目图片。响应是**图片原始字节**，`Content-Type` 由 R2 侧对象
+        的实际类型决定（上传时写进去的那个）。
+
+        ## 只允许取自己的
+
+        key 必须以 `user/{当前 userId}/` 开头，否则 **403**。
+
+        **刻意用 403 而不是 404**：不是为了省一个状态码，而是不泄露「该 key 是否存在」——
+        返回 404 等于给了一个探测接口，可以拿它枚举别人的对象名。
+
+        ## 缓存
+
+        响应带 `Cache-Control: private, no-store`。这是**用户私有数据**，
+        禁止中间层与浏览器缓存复用（共享设备上尤其要紧）。
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: |
+             上传时返回的 R2 对象 key，形如 `user/u_xxx/<uuid.hex>.png`。
+
+             ⚠️ **该 key 自身含多个 `/`**（`user/{userId}/{uuid}.ext`），
+             即它是一个**多段路径**而非单段标识符。OpenAPI 3.0 的 path templating
+             只定义 `{name}`，`:path` 是 Starlette 的转换器语法、不在规范内，
+             故此处按规范写 `{key}`；**消费方实现时必须让它匹配含斜杠的整串**，
+             不要按「单段」处理（那会在第一个 `/` 处截断）。
+             FastAPI 自身的 `app.openapi()` 也是归一成 `{key}` 输出的。
+          schema:
+            type: string
+          example: user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
+      responses:
+        '200':
+          description: 图片字节（Content-Type 为 R2 对象的实际类型）
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            image/gif:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
 components:
   securitySchemes:
     sessionCookie:
@@ -3605,7 +3780,52 @@ components:
           example:
             error:
               code: KB_INSUFFICIENT_MASTERY_DATA
-              message: 该知识点样本不足，继续积累后会生成掌握度
+              message: 璇ョ煡璇嗕笉瓒筹紝鏃犳硶鐢熸垚鍞竴鍐呭
+    Forbidden:
+      description: |
+        已登录但**无权访问该资源**。刻意与 404 区分：返回 404 会泄露「key 是否存在」，
+        等于提供一个可枚举他人对象名的探测接口。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: FORBIDDEN
+              message: 无权访问该媒体
+    PayloadTooLarge:
+      description: 请求体超过大小上限（题目图片 5MB）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: VALIDATION_FAILED
+              message: 图片超过上限 5MB
+              field: body
+    ServiceUnavailable:
+      description: |
+        对象存储**未配置**（部署问题，不是业务错误）。
+        与 502 分开：503 表示「服务端忘配凭据」，应由管理员修部署而非用户重试。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: R2_NOT_CONFIGURED
+              message: 对象存储未配置，请联系管理员
+    BadGateway:
+      description: 对象存储调用失败（上游 5xx、连接失败或签名构造失败）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: STORAGE_FAILED
+              message: 图片存储失败，请稍后再试
 
   schemas:
     # ---------- 枚举字典（PRD 0.4） ----------
@@ -6705,3 +6925,34 @@ components:
           format: date-time
           description: 展示时间（冷却窗口的计算基准）
         createdAt: { type: string, format: date-time }
+
+    # ---------- F 板块：题目图片上传回执（v1.10.0 新增） ----------
+    MediaUploadResponse:
+      description: |
+        题目图片上传成功后的回执。前端凭 key / getUrl 取回图片。
+
+        字段名为 camelCase 而非 snake_case，因为后端用 pydantic alias
+        （populate_by_name=True）声明字段；FastAPI 的 response_model 按 alias
+        序列化，所以线上 JSON 里就是 mediaId / contentType / getUrl。
+        这与契约其余部分（camelCase 为主）一致，不自立第二套命名。
+      properties:
+        mediaId:
+          type: string
+          description: 服务端生成的媒体 ID（key 去掉目录与扩展名后的部分，可当短标识用）
+        key:
+          type: string
+          description: 'R2 对象 key，形如 user/{userId}/{uuid4十六进制}.{ext}（花括号为占位说明，非真实字符）'
+          example: user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
+        contentType:
+          type: string
+          description: 图片 MIME（经魔数校验后的实际类型，**不是**请求头声明值）
+          enum: [image/jpeg, image/png, image/webp, image/gif]
+        size:
+          type: integer
+          format: int64
+          description: 字节数
+        getUrl:
+          type: string
+          description: '取回路径（相对 API 基址 /api/v1；即本文件 paths 段的完整路径，servers 前缀已省去）'
+          example: /f/media/user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
+      required: [mediaId, key, contentType, size, getUrl]
