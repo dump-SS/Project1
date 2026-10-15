@@ -164,9 +164,21 @@ def test_sign_request_percent_encodes_non_ascii_key(frozen_clock):
 
 
 def test_sign_request_includes_content_type_when_given(frozen_clock):
+    """缺陷修复：Content-Type 既然要随请求发出，就必须**签进** SignedHeaders。
+
+    修复前这里断言「不该出现它」，那条断言本身就是 bug 的固化——
+    它对应的 docstring 断言「S3 允许发而不签」未经 R2 实证，生产 PUT 实测 502。
+    """
     h = sign_request("PUT", f"{BASE}/k", AK, SK, body=b"x", content_type="image/png")
     assert h["Content-Type"] == "image/png"
-    # Content-Type 发出但不参与签名：SignedHeaders 里不该出现它
+    # AWS 规范要求 header 名小写并按字典序：content-type 排在 host 之前
+    assert "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date" in h["Authorization"]
+
+
+def test_sign_request_omits_content_type_when_not_given(frozen_clock):
+    """没给 content_type 时不应凭空签它（否则签名与实际请求不符）。"""
+    h = sign_request("GET", f"{BASE}/k", AK, SK)
+    assert "Content-Type" not in h
     assert "SignedHeaders=host;x-amz-content-sha256;x-amz-date" in h["Authorization"]
 
 
@@ -200,11 +212,30 @@ def test_object_url_tolerates_trailing_slash_on_base():
     assert object_url(BASE, "embeddings.index") == f"{BASE}/embeddings.index"
 
 
-def test_object_url_does_not_double_encode():
-    """key 保持未编码，编码只发生在 sign_request 里 —— 否则会变成 %2520。"""
+def test_object_url_encodes_key_exactly_once():
+    """缺陷修复：编码统一收在 object_url，所以这里**必须**看到编码后的结果。
+
+    修复前 key 保持未编码、编码发生在 sign_request，两边不一致 →
+    R2 判 SignatureDoesNotMatch。空格/中文的 key 连请求都发不出去。
+    """
     got = object_url(BASE, "user/u 1/题目.png")
-    assert got == f"{BASE}/user/u 1/题目.png"
-    assert "%20" not in got
+    assert got == f"{BASE}/user/u%201/%E9%A2%98%E7%9B%AE.png"
+    # 关键：只编码一次。若再编码一次会变 %2520 / %25E9…
+    assert "%2520" not in got
+    assert "%25E9" not in got
+
+
+def test_object_url_keeps_slash_unencoded():
+    """`/` 是 key 内部的目录分隔符，不能被编码掉，否则对象名就变了。"""
+    got = object_url(BASE, "user/u_10237/" + "a" * 32 + ".png")
+    assert got == f"{BASE}/user/u_10237/" + "a" * 32 + ".png"
+
+
+def test_object_url_encodes_at_in_email_style_user_id():
+    """user_id 是邮箱时（dev-4 的测试账号就是这种形态）必现的那一类。"""
+    got = object_url(BASE, "user/dev6-r2-e2e-test@epochx.dev/x.png")
+    assert "@" not in got
+    assert got.endswith("/user/dev6-r2-e2e-test%40epochx.dev/x.png")
 
 
 def test_object_url_rejects_empty_inputs():
