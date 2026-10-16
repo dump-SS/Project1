@@ -2,13 +2,17 @@
 
 ## 范围（lead-1 定的「先做最小可用」）
 
-只打通 **上传 -> 存储 -> 取回** 这条链路，不做图像识别（那是二期）。
+只打通 **上传 -> 存储 -> 取回 -> 删除** 这条链路，不做图像识别（那是二期）。
 存储用 Cloudflare R2 私有桶 ``epoch-x``，后端做 S3 SigV4 代理。
 
 ## 架构：服务端代理（架构 A，lead-1 裁定）
 
     前端 --POST raw bytes--> 后端 --PUT SigV4--> R2
-    前端 <--GET 二进制----  后端 --GET SigV4--> R2
+    前端<--GET 二进制----  后端 --GET SigV4--> R2
+    前端 --DELETE--------> 后端 --DELETE SigV4-> R2
+
+删除是 v1.11.0 补的：v1.10.0 只有上传/取回，用户清掉面板上的图片后字节仍留在桶里，
+「撤回即删除」在用户上传的图片上落不了地。
 
 不用「浏览器直传 + 预签名 URL」的理由（lead-1 采纳并补充）：
 1. 不需要给 R2 配 CORS（实测该桶 CORS 未配置）；
@@ -244,3 +248,49 @@ async def get_media(key: str, user: User = Depends(current_user)) -> Response:
         # 私有用户数据：禁止任何中间层/浏览器缓存复用
         headers={"Cache-Control": "private, no-store"},
     )
+
+
+@router.delete(
+    "/{key:path}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除自己上传的题目图片",
+)
+async def delete_media(key: str, user: User = Depends(current_user)) -> Response:
+    """删除自己的图片。
+
+    ## 为什么一律 204，不返回 404
+
+    契约 openapi v1.11.0 把删除定为**幂等**：删自己的、删别人的（403）之外，
+    「删一个本来就不存在的 key」也返回 204。理由与取舍写在契约的 description 里，
+    这里只留实现要点：
+
+    - **DELETE 按 HTTP 规范就该可安全重试**。最常见的失败不是「key 不存在」，
+      而是「第一次删成功了、但响应在路上丢了」；此时重试必须仍报成功。
+    - 要区分「不存在」就得先 HEAD 探测存在性 → 多一次网络往返 + TOCTOU 竞态窗口，
+      而这个区分调用方其实用不上（为了重试正确性，它照样得把 404 当成功）。
+    - 真的需要知道存不存在，先 ``GET``（它对不存在返回 404）——那才是正门。
+
+    ## 鉴权与 GET 一致
+
+    复用 :func:`_assert_owner`：非本人 key -> 403，路径穿越 -> 403，
+    且这两类请求**不会触达 R2**（归属校验在最前面）。
+    """
+    _assert_owner(key, user.user_id)
+
+    try:
+        await asyncio.to_thread(r2_storage.delete_object, key)
+    except r2_storage.R2NotConfigured as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "R2_NOT_CONFIGURED", "message": "对象存储未配置，请联系管理员"},
+        ) from e
+    except (r2_storage.R2Error, SigV4Error) as e:
+        # 走到这里说明删除**真的没成功**（非幂等分支已经在 r2_storage 里归一掉了）
+        logger.warning("[F-MEDIA] 删除失败 user=%s key=%s: %s", user.user_id, key, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "STORAGE_FAILED", "message": "图片删除失败，请稍后再试"},
+        ) from e
+
+    logger.info("[F-MEDIA] 删除成功 user=%s key=%s", user.user_id, key)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

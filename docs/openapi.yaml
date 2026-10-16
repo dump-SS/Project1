@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.10.0
+  version: 1.11.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -62,6 +62,17 @@ info:
     - **新增 4 个复用错误响应**：`Forbidden` / `PayloadTooLarge` / `ServiceUnavailable` / `BadGateway`。
     - 内容类型经**文件魔数二次校验**（不只信请求头——请求头可伪造）。
     - 存储为 Cloudflare R2 私有桶 `epoch-x`（与向量索引同桶但仅私有访问，走 S3 SigV4）。
+
+    **v1.11.0（F 板块 · 媒体删除）**——纯增量，只新增一个 operation，无字段改名、
+    无既有取值语义变化，`POST /f/media` 与 `GET /f/media/{key}` 一字未改：
+    - **新增 `DELETE /f/media/{key}`**：删除自己上传的题目图片。补的是产品缺口——
+      v1.10.0 只给了上传/取回，用户在 Chat 里清掉面板上的图片后**字节仍留在 R2**，
+      「撤回即删除」在图片这类用户数据上落不了地。
+    - **鉴权与 `GET` 完全对齐**：非本人 key 一律 **403**（不泄露 key 是否存在），
+      路径穿越同样 403。
+    - **幂等性：重复调用一律 204，不返回 404**（与 S3/R2 原生语义一致）。
+      调用方**不要**用状态码判断「删成功 / 本来就没有」——两者都是 204。
+      详见该operation description 里的「为什么是 204 而不是 404」。
 
 servers:
   - url: /api/v1
@@ -3546,6 +3557,75 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+    delete:
+      tags: [F 板块·媒体]
+      operationId: deleteMedia
+      summary: 删除自己上传的题目图片
+      description: |
+        删除 R2 私有桶里的这个对象。用于「用户在 Chat 里清掉了面板上的图片」这个动作
+        —— v1.10.0 只有上传/取回，字节会一直留在桶里，等于用户以为删了其实没删；
+        对用户数据而言「撤回即删除」要求落不了地。
+
+        ## 幂等性：重复调用一律 204，**不返回 404**
+
+        对同一个 key 调用一次、两次、十次，或调用一个根本不存在的 key，
+        **返回的都是 `204 No Content`**。所以调用方**不要**用状态码去区分
+        「我刚删成功」和「它本来就不存在」——本契约刻意把这两者抹平了。
+
+        **为什么是 204 而不是 404**（lead-1 倾向 404，此处记录采用 204 的理由）：
+        1. **HTTP 语义**：DELETE 按规范就是幂等的，客户端**应当可以安全重试**。
+           最常见的失败场景不是「key 不存在」，而是「第一次删除其实成功了、
+           但响应在网络上丢了」——此时重试必须仍然报成功。若返回 404，
+           每个客户端为了重试正确性都得硬编码「404 视作成功」，
+           那样其实**并不能真正区分**两种情况，只是多绕一层。
+        2. **实现代价与竞态**：S3/R2 的 DELETE 对「存在」与「不存在」都返204，
+           后端拿不到区分信息。要返回 404 就得先发一次 HEAD/GET 探测存在性——
+           **一次网络往返变两次**，且探测与删除之间存在 TOCTOU 窗口
+           （对象可能在中间被创建或删掉）。为一个用不上的区分度付这个代价不划算。
+        3. **与底层一致**：不制造「我们的 API 比它底下的存储更严」这种意外分歧。
+
+        确实需要知道「这个 key 当时到底存不存在」的场景，请先 `GET`——它对不存在
+        的对象返回 404 `RESOURCE_NOT_FOUND`，那才是该语义的正门。
+
+        ## 鉴权与 `GET` 完全一致
+
+        非本人 key 一律 **403 `FORBIDDEN`**（不是 404），同样是为了不泄露
+        「该 key 是否存在」；路径穿越同样 403。越权与非法 key 的请求**不会触达 R2**。
+
+        ## ⚠️ 不可恢复
+
+        删除是**即时真删**，没有软删除、没有回收站、没有撤销窗口。
+        若产品上需要「用户按错了还能撤回」，得由调用方在**调用本接口之前**
+        自己把图片缓存下来；本接口不提供找回能力。
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: |
+             上传时返回的 R2 对象 key，形如 `user/u_xxx/<uuid.hex>.png`。
+
+             ⚠️ **该 key 自身含多个 `/`**（`user/{userId}/{uuid}.ext`），
+             即它是一个**多段路径**而非单段标识符。OpenAPI 3.0 的 path templating
+             只定义 `{name}`，`:path` 是 Starlette 的转换器语法、不在规范内，
+             故此处按规范写 `{key}`；**消费方实现时必须让它匹配含斜杠的整串**，
+             不要按「单段」处理（那会在第一个 `/` 处截断）。
+             FastAPI 自身的 `app.openapi()` 也是归一成 `{key}` 输出的。
+          schema:
+            type: string
+          example: user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
+      responses:
+        '204':
+          description: |
+            删除成功，**或该 key 本就不存在**——两种情况都返回 204 且响应体为空。
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '502':
           $ref: '#/components/responses/BadGateway'
         '503':

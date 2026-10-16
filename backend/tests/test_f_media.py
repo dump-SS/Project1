@@ -53,6 +53,24 @@ def r2_calls(monkeypatch):
 
 
 @pytest.fixture
+def r2_delete(monkeypatch):
+    """把 R2 删除换成记录调用的假实现，返回被删 key 的列表。
+
+    单独一个fixture 而不并进 ``r2_calls``：删除测试要断言的是
+    「**哪些 key 试图触达了 R2**」——尤其是越权时这个列表必须为空。
+    混进 ``r2_calls`` 会让 (方法, key, body, ctype) 四元组挤在一起更难读。
+    """
+    deleted: list[str] = []
+
+    def fake_delete(key):
+        deleted.append(key)
+        return {}
+
+    monkeypatch.setattr(r2_storage, "delete_object", fake_delete)
+    return deleted
+
+
+@pytest.fixture
 def r2_offline(monkeypatch):
     """模拟 R2 未配置。"""
 
@@ -61,6 +79,7 @@ def r2_offline(monkeypatch):
 
     monkeypatch.setattr(r2_storage, "put_object", boom)
     monkeypatch.setattr(r2_storage, "get_object", boom)
+    monkeypatch.setattr(r2_storage, "delete_object", boom)
 
 
 @pytest.fixture
@@ -277,3 +296,105 @@ def test_get_maps_upstream_404_to_404(client, monkeypatch):
 def test_get_returns_503_when_not_configured(client, r2_offline):
     r = client.get("/api/v1/f/media/user/u_test1/a.png", headers=HEADERS)
     assert r.status_code == 503
+
+
+# ---------------------------------------------------------------- 删除（v1.11.0）
+
+
+def test_delete_own_key_returns_204(client, r2_delete):
+    """删自己的 -> 204 空响应体，且确实把 key 交给了 R2。"""
+    r = client.delete("/api/v1/f/media/user/u_test1/abc.png", headers=HEADERS)
+    assert r.status_code == 204, r.text
+    assert r.content == b"", "204 不应有响应体"
+    assert r2_delete == ["user/u_test1/abc.png"]
+
+
+def test_delete_rejects_other_users_key(client, r2_delete):
+    """**越权**：删别人的图片 -> 403，且**不触达 R2**（与 GET 同一条防线）。"""
+    r = client.delete("/api/v1/f/media/user/u_someone_else/abc.png", headers=HEADERS)
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "FORBIDDEN"
+    assert r2_delete == [], "越权请求不该触达 R2"
+
+
+def test_delete_rejects_vector_index_key(client, r2_delete):
+    """最危险的一条：即便能算出合法前缀，也不许删生产向量索引。
+
+    有了删除能力，这条比GET 时期更要紧——原来覆盖不了，现在能删了。
+    """
+    r = client.delete("/api/v1/f/media/embeddings.index", headers=HEADERS)
+    assert r.status_code == 403
+    assert r2_delete == []
+
+
+def test_delete_rejects_path_traversal(client, r2_delete):
+    r = client.delete("/api/v1/f/media/user/u_test1/../../embeddings.index", headers=HEADERS)
+    assert r.status_code in (403, 404)
+    assert r2_delete == [], "路径穿越不该触达 R2"
+
+
+def test_delete_is_idempotent_repeated_calls_all_204(client, r2_delete):
+    """契约 v1.11.0：**重复删一律 204**，不返回 404。
+
+    理由：DELETE 按规范应可安全重试；「第一次删成功但响应丢了」是最常见失败，
+    重试必须仍报成功。所以调用方不能用状态码区分「刚删成」与「本来就没有」。
+    """
+    for _ in range(3):
+        r = client.delete("/api/v1/f/media/user/u_test1/abc.png", headers=HEADERS)
+        assert r.status_code == 204, r.text
+    assert len(r2_delete) == 3
+
+
+def test_delete_treats_upstream_404_as_success(client, monkeypatch):
+    """上游对「删不存在的 key」回 404 时，必须归一成 204 而不是翻成 502。
+
+    背景：S3 兼容实现对这件事**不统一**（有的回 204，有的回 404），本机无法连 R2
+    验证。若不兜底，同一个幂等调用会因上游实现差异被翻成 502 —— 既违反契约又误导
+    调用方。这条测试就是那道兜底的护栏。
+
+    ⚠️ 这里 patch 的是 ``_call``（更底一层）而**不是** ``delete_object``：
+    patch 后者会把归一逻辑整个绕过去，等于什么都没验。patch ``_call`` 才能
+    真正跑到 ``delete_object`` 里的 404 兜底分支。
+    """
+    calls: list[str] = []
+
+    def upstream_404(method, key, **kw):
+        calls.append(method)
+        raise r2_storage.R2Error("R2 DELETE 失败：HTTP 404", status=404)
+
+    monkeypatch.setattr(r2_storage, "_call", upstream_404)
+    r = client.delete("/api/v1/f/media/user/u_test1/abc.png", headers=HEADERS)
+    # 若实现改成「不兜底」，这里会变成 502，测试即红
+    assert r.status_code == 204, r.text
+    assert calls == ["DELETE"], "应真的发过一次 DELETE 到 R2"
+
+
+def test_delete_returns_502_on_real_upstream_failure(client, monkeypatch):
+    """非 404 的上游错误仍然要报 502——幂等不能把真故障也吞掉。"""
+
+    def boom(key):
+        raise r2_storage.R2Error("R2 DELETE 失败：HTTP 500", status=500)
+
+    monkeypatch.setattr(r2_storage, "delete_object", boom)
+    r = client.delete("/api/v1/f/media/user/u_test1/abc.png", headers=HEADERS)
+    assert r.status_code == 502
+    assert r.json()["error"]["code"] == "STORAGE_FAILED"
+
+
+def test_delete_returns_503_when_not_configured(client, r2_offline):
+    r = client.delete("/api/v1/f/media/user/u_test1/a.png", headers=HEADERS)
+    assert r.status_code == 503
+    assert r.json()["error"]["code"] == "R2_NOT_CONFIGURED"
+
+
+def test_delete_requires_auth(client, r2_delete):
+    from config import settings as s
+
+    old = s.allow_insecure_user_header
+    s.allow_insecure_user_header = False
+    try:
+        r = client.delete("/api/v1/f/media/user/u_test1/abc.png")
+        assert r.status_code == 401
+        assert r2_delete == []
+    finally:
+        s.allow_insecure_user_header = old
