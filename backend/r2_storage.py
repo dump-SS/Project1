@@ -120,3 +120,28 @@ def get_object(key: str) -> tuple[bytes, str]:
     body, headers = _call("GET", key)
     ctype = headers.get("Content-Type") or headers.get("content-type") or "application/octet-stream"
     return body, ctype
+
+
+def delete_object(key: str) -> dict[str, str]:
+    """DELETE 一个对象（走同一套 SigV4 签名），返回 R2 回的头。
+
+    ## 幂等：删不存在的对象**不算失败**
+
+    S3/R2 的 DELETE 对「对象存在」与「对象不存在」都回 ``204``，所以本函数通常
+    什么都不用判断即可成功。契约（openapi v1.11.0）据此把「删成功」与
+    「本来就没有」都定为 204。
+
+    但仍然兜住上游的 404：不同 S3 兼容实现对「删不存在的 key」是否回 404
+    并不统一（有的回 204，有的回 404）。若不兜，同一个幂等调用会因实现差异
+    被路由层翻成 502 —— 那就既违反契约又误导调用方。故显式吞掉 404，
+    把它归一为「已删除」。这让本函数在两种上游行为下都给出同一结果。
+    """
+    try:
+        _body, headers = _call("DELETE", key)
+    except R2Error as e:
+        if e.status == 404:
+            # 幂等：已经不在了，等价于删除成功
+            logger.info("[R2] DELETE %s -> 上游回 404，按幂等视作已删除", key)
+            return {}
+        raise
+    return headers
