@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.11.0
+  version: 1.12.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -73,6 +73,37 @@ info:
     - **幂等性：重复调用一律 204，不返回 404**（与 S3/R2 原生语义一致）。
       调用方**不要**用状态码判断「删成功 / 本来就没有」——两者都是 204。
       详见该operation description 里的「为什么是 204 而不是 404」。
+
+    **v1.12.0（F 板块 · Chat 识图）**——纯增量，给 `ChatMessageRequest` 加一个可选字段，
+    无字段改名、无既有取值语义变化：
+    - **新增 `ChatMessageRequest.mediaKey`（可选）**：本轮附带的题目图片引用。
+      **只传 key 引用、不传字节**——图片不base64 进 JSON 请求体；后端按 key 从 R2
+      取回字节再送模型。归属校验与 `/f/media` 同源（`user/{userId}/` 前缀，否则 403）。
+    - 取图失败**不让整轮失败**：降级为纯文本问答，并在 prompt 里要求模型**照实告知
+      用户「看不到图」**——不假装看懂、不猜题目内容。
+    - 走的仍是既有 Chat 链路（`OpenAICompatibleProvider`），未引入第二家供应商。
+
+    #### ⚠️ 本条的合规判断（**lead-1 判断，待 Skyer 复核**）
+
+    「把用户上传的题目图片字节送给第三方 LLM」属于用户内容出域。判断依据（lead-1 原文）：
+
+    > - `userContentEmbeddingApiEnabled` 管的是 **embedding（向量化）**，不是 LLM 对话调用。
+    > - **Chat 本身一直在走第三方 LLM**（`OpenAICompatibleProvider`），用户用 Chat 就是这个链路。
+    > - **拍题是用户主动上传并求解答的动作** —— 用户的意图就是「让 AI 看这张图」，
+    >   这与「系统悄悄把用户数据送出去」不是一回事。
+    >
+    > **所以拍题送图走模型，不额外挂那个开关。**
+
+    旁证（本次核实到的既有代码事实，非本次新增）：
+    `backend/egress_guard.py` 的 `USER_ERROR_CONTENT` 判定规则里**已白纸黑字列出
+    「用户在对话里当场输入 / **拍照搜题** ✅ 允许」**，其判定原则是
+    「不看『存没存过』，看『这次是不是用户主动发起 + 内容是不是用户自己的』」。
+
+    **⚠️ 已知不一致（本条引入，待复核）**：`backend/routes/search.py` 对**同类数据**
+    （用户当场输入 / 拍照的题面送模型）挂的是 `settings.knowledge_ai_egress_enabled`
+    门控，且该开关**数据库默认 False**，其文档承诺「关闭时题面一个字都不出去」。
+    本次按 lead-1 判断**未挂**该门控，因此：关闭了该开关的用户，改用 Chat 发题图时
+    图片仍会出域。两条路径目前口径不同。若 Skyer 要求对齐，加一处门控即可。
 
 servers:
   - url: /api/v1
@@ -6578,6 +6609,23 @@ components:
           description: 浮窗内前几轮问答（仅 ephemeral=true 时传递；主对话路径忽略）。
           items:
             $ref: '#/components/schemas/FloatTurn'
+        mediaKey:
+          type: string
+          nullable: true
+          maxLength: 512
+          description: >-
+            本轮附带的题目图片**引用**（`POST /f/media` 返回的 R2 对象 key，形如
+            `user/{userId}/{uuid}.png`）。**只传 key 引用，不传字节**——图片绝不能
+            base64 进 JSON 请求体（会让请求体膨胀一个数量级，且把用户图片复制到
+            日志/中间件里）。后端按 key 从 R2 取回字节再送模型。
+
+            归属校验：key 必须以 `user/{当前 userId}/` 开头，否则 **403**
+            （与 `/f/media` 同一套校验，不泄露 key 是否存在）。
+
+            取图失败（R2 不可用 / 对象已不存在）时**不会让整轮失败**：后端降级为
+            纯文本问答，并在 prompt 里明确要求模型**照实告知用户「看不到图」**，
+            不允许假装看懂、也不允许凭空猜题目内容。
+          example: user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
     FloatTurn:
       type: object
       description: 随手问浮窗的一轮问答（浮窗专用，显式上下文）。

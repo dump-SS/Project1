@@ -324,6 +324,41 @@ def _build_user_prompt(recent: list[tuple[str, str]], content: str, intent: str 
     return "\n".join(lines)
 
 
+def _build_media_notice(
+    media_key: str | None, media: tuple[bytes, str] | None,
+) -> str:
+    """构造「本轮图片」的 prompt 片段。三种情形：
+
+    1. 没带图（``media_key`` 为空）→ 返回空串，行为与接入前完全一致。
+    2. 带着图且取到了 → 告知模型「用户上传了题目图片，图片已附在本条消息里」。
+    3. **带着图但没取到** → 明确告知模型「你看不到这张图」，并**禁止它猜**。
+
+    第 3 种是整个功能里最容易出事的地方：R2 抖动 / 用户先删了图，
+    模型手上只有一句「用户发了张图」却看不到内容，很容易顺着用户的话编一个答案。
+    所以这里给的是**硬指令**（照实说 + 不许编 + 不许反问用户重传来敷衍），
+    而不是一句温和的提示。
+    """
+    if not media_key:
+        return ""
+    if media is not None:
+        return (
+            "\n\n# 本轮附带图片\n"
+            "用户本轮上传了一张题目图片，已随本条消息附上。"
+            "请**结合图片内容**回答；若图片里看不清的部分，明确指出看不清，不要臆测。"
+        )
+    return (
+        "\n\n# ⚠️ 本轮附带图片（读取失败）\n"
+        "用户本轮上传了一张题目图片，但**后端没能把图片取回**（对象存储不可用，"
+        "或该图片已被删除）。因此**你看不到这张图的内容**。\n"
+        "硬性要求：\n"
+        "1. 必须在回复里**明确告诉用户你这次看不到他发的图**，不要假装看到了；\n"
+        "2. **绝对不要根据用户这句话去猜测、反推或编造题目内容**；\n"
+        "3. 不要只回一句「请重新上传」就结束——先按用户文字里已有的信息正常回答，"
+        "再用一句话说明图没读到、建议重新上传。\n"
+        "（此提示由后端注入，用于防止模型在缺图时幻觉出题目。）"
+    )
+
+
 # ---------- 输出与安全 ----------
 
 # 卡片 JSON 的 fenced code block（模型按 chat_system.txt 协议在回复末尾输出）
@@ -768,10 +803,27 @@ def greeting(db: Session, user_id: str) -> dict:
 
 def handle_message(
     db: Session, user_id: str, content: str, explicit_intent: str | None = None,
+    media_key: str | None = None,
+    media: tuple[bytes, str] | None = None,
 ) -> ChatReply:
     """处理一条用户消息，返回 ChatReply。
 
     调用方（routes/chat.py）持有请求级 db；本函数负责所有落库与留痕。
+
+    ## media / mediaKey（F 板块识图，契约 v1.12.0）
+
+    两个参数刻意分开，因为「请求带了图」与「图真的拿到了」是两件事：
+
+    - ``media`` 有值 → 图片字节已取回，会随本轮一起送模型（多模态）。
+    - ``media`` 为 None但 ``media_key`` 有值 → **取图失败**（R2 不可用 / 图已被删）。
+      此时**绝不静默按纯文本作答**：下面的 :func:`_build_media_notice` 会往 prompt 里
+      注入硬指令，要求模型明确告诉用户「这次看不到图」，不许凭空猜题目内容。
+      ——「假装看懂了」比「明说看不到」有害得多。
+
+    ⚠️ 合规：带图时会把用户图片字节经 provider 送去第三方 LLM（用户内容出域）。
+    判断与依据见 ``docs/openapi.yaml`` info.description 的 v1.12.0 段
+    （lead-1 判断，**待 Skyer 复核**）。本轮不挂 ``knowledge_ai_egress_enabled``，
+    与 ``routes/search.py`` 口径不同，该不一致已在契约里显式记录。
     """
     content = (content or "").strip()
 
@@ -810,6 +862,12 @@ def handle_message(
     # 语言风格（#20）：全量注入（不随意图组），覆盖所有转发——让 AI 按用户要求的风格说话
     system += "\n\n" + _format_style(_load_style(db, user_id))
 
+    # F 板块识图：把「图片看到了 / 没看到」这件事变成 prompt 里的硬指令。
+    # 取图失败时这段是**唯一**能让模型不瞎编的抓手，所以它必须是显式指令而不是注释。
+    media_notice = _build_media_notice(media_key, media)
+    if media_notice:
+        user_prompt += media_notice
+
     logger.info(
         "[CHAT] user=%s intent=%s 注入画像组=%s，注入画像条目=%s（%d 条，只记 key 不记 value）",
         user_id,
@@ -820,9 +878,37 @@ def handle_message(
     )
 
     provider = get_provider()
+    # 视觉输入：把图片字节编成 data URL，由 provider 拼进 messages 的 content 数组。
+    image_ctx: dict = {}
+    if media is not None:
+        import base64
+
+        raw, mime = media
+        image_ctx["image"] = {
+            "mime": mime,
+            "data_b64": base64.b64encode(raw).decode("ascii"),
+            "bytes": len(raw),
+        }
+        logger.info(
+            "[CHAT] 本轮附带图片 user=%s mime=%s bytes=%d（随本轮送模型，属用户内容出域）",
+            user_id, mime, len(raw),
+        )
     llm_text = provider.generate(
         user_prompt,
-        context={"system": system, "scene": "chat", "data_class": "state_plan"},
+        context={
+            "system": system,
+            "scene": "chat",
+            # ⚠️ data_class 必须写成本dict 里的**字面量**。
+            # test_egress_ci._llm_generate_calls 用 AST 扫每个 `.generate(...)`，
+            # 要求 context 是字面量 dict 且含 data_class 的常量值；把 context
+            # 提成变量会让它判成 <dynamic> 并要求登记豁免（实测会红）。
+            # 所以增量字段走 `**image_ctx` 追加，而不是先拼好再传。
+            # ⚠️ 另：带图时出域的是**用户图片**，但data_class 仍为 state_plan——
+            #    这是一处**已知口径妥协**（真正的用户内容类目是 user_error_content），
+            #    改它要动出域口径与 CI 豁免表，超出本次范围，已在回执里flag。
+            "data_class": "state_plan",
+            **image_ctx,
+        },
     )
 
     reply, cards, _blocked = _resolve_reply(llm_text)

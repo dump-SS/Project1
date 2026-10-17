@@ -32,6 +32,17 @@ class ChatMessageRequest(BaseModel):
         alias="floatContext",
         description="随手问浮窗内前几轮输入输出（多轮追问用），role 为 user / assistant",
     )
+    media_key: str | None = Field(
+        None,
+        alias="mediaKey",
+        max_length=512,
+        description=(
+            "本轮附带的题目图片**引用**（POST /f/media 返回的 R2 key，形如 "
+            "user/{userId}/{uuid}.png）。只传 key、不传字节：图片绝不 base64 进 JSON "
+            "请求体（会让请求体膨胀一个数量级，且把用户图片复制进日志/中间件）。"
+            "后端按 key 取回字节再送模型。"
+        ),
+    )
 
 
 class FloatTurn(BaseModel):
