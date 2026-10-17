@@ -1,6 +1,6 @@
 # 板块契约（所有权 · 协议 · 禁止越界）
 
-> 版本：v1.0 · 2026-09-18
+> 版本：v1.1 · 2026-10-17（v1.0 · 2026-09-18；本次只修 §1 D 卡依赖指向 + 加「两个意图不得互相赋值」防线，未动任何协议定义）
 > 用途：多人 / 多 agent 并行的**边界法**。每个板块一张卡：你拥有什么、你对外提供什么、你不许碰什么。
 > 主计划见 [refactor-development-plan.md](./refactor-development-plan.md)；决策归属见 [refactor-decision-mapping.md](./refactor-decision-mapping.md)。
 
@@ -87,8 +87,44 @@
 | 服务层 | `knowledge.ts`/`knowledgeV2.ts`（**合并归一**）、`errorBook.ts`、`mastery.ts`、`knowledgeSummary.ts` |
 | 测试 | `test_knowledge*.py`、`test_mastery*.py`、`test_error_book.py`、`test_rag_retrieval.py`、`test_vector_store.py`、新建 `test_topic_book.py` |
 | 对外提供 | **知识引用协议**（§3.3，给 F/B）；题本锚定（给 C 锚定回溯）；知识点卡数据 |
-| 依赖 | X0（kb_subjects 数据、explanations 表）、B（意图管道） |
+| 依赖 | X0（kb_subjects 数据、explanations 表）；B（**引用块协议 §3.1** —— 协议文本已落定，2026-10-12 对齐；⚠️ **D 侧消费尚未落地**，见下方「两个「意图」是同名不同义」小节末段） |
 | 禁止 | **错题/学习记录 embedding 不出域**（本地模型，PRD 12.6）；知识库向量走智谱 API 是既定口径，两条链路不得混；不硬塞库外知识进 mastery |
+
+> #### ⚠️ 两个「意图」是同名不同义的两条正交轴，不得互相赋值
+>
+> 2026-10-17 核实（dev-1，thread `d-intent-pipeline`）。**本条是防线，不是待办。**
+>
+> - **B 的 Chat 意图管道**（`chat_engine.detect_intent`）=
+>   **用户想让 AI 做什么动作**。8 个取值（`chat_engine._KNOWN_INTENTS`）：
+>   `chat` / `search` / `explain` / `practice` / `task` / `goal` / `question` / `emotional`。
+>   由服务端三通道判定：**显式按钮 > 斜杠命令 > 模型裸判（返回 `None`）**。
+> - **D 的 `kb_errors.intent`**（契约 schema `ErrorIntent`）=
+>   **学生记录这道错题时的主观意图**：`review` / `good` / `typical` / `doubtful`
+>   （ORM 见 `models/knowledge.py` 的 `ErrorBook.intent` 列注释）。**由用户在 UI 上点选，不是服务端判定。**
+>
+> **正交性证据（为什么不得互相赋值）**：
+>
+> 1. **可同时成立**：一条 Chat 消息的意图可以是 `explain`（想让 AI 讲一下），
+>    同一份内容归档进题本时 `intent` 可以是 `doubtful`（学生自己没把握）
+>    —— **两值同时为真、互不推导**。
+> 2. **不在同一时间轴**：B 是「一次请求」一个值（消息级、瞬时）；
+>    D 是「一道题」一个值（题级、持久）。不存在一对一映射。
+> 3. **契约形态不同**：`ChatReply.intent` 是自由字符串（`type: string / nullable: true`，
+>    描述「本轮解析出的意图」，**既无 enum 也无 maxLength**）；
+>    D 侧是独立 schema `ErrorIntent`（描述「用户主观意图（D48）」，
+>    `enum: [review, good, typical, doubtful]`）。同名不同 schema。
+>
+> **误接后果**：把 Chat 动作覆盖到错题分类，会直接毁掉 D48「错因 + 意图两正交维度」的标注，
+> 且**不会立刻被发现**——两条链路的取值域不重叠，错误值会一路静默存进 `kb_errors`。
+>
+> **口径一致的出处**（三处互证，均在 `docs/openapi.yaml` 的 D48 分节注释、
+> `docs/refactor-decision-mapping.md`、docs/product-redesign-target.md`）：
+> 「题本升格：错因 + 意图两个正交维度（D48）」。
+>
+> **与 D 消费 §3.1 的现状**（同轮核实）：`routes/knowledge_kb.py`、`routes/knowledge.py`、
+> `routes/error_book.py`、`routes/search.py` 四个路由对 §3.1 的卡片类型与 `detect_intent`
+> **命中均为 0**；当前实际发出 `knowledge_point` 卡的是 **B 自己的 `chat_engine`**（内部调 `_retrieve_knowledge_points`）。
+> 故 §3.1 把 `knowledge_point` 标注为「(D)」属**目标态**（D 应按该协议发卡），现状由 B 代发。
 
 ### E · 个人中心、收藏、社区与设置
 
