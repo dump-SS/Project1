@@ -636,3 +636,161 @@ def test_style_write_and_notify(monkeypatch):
     assert len(rows) == 1
     assert rows[0].profile_group == "interest"
     assert rows[0].value == "简洁"
+
+
+# ---------- F 板块识图（契约 v1.12.0） ----------
+
+# 1x1 像素 PNG（魔数 + 合法 IHDR），与 test_f_media 用的是同一份
+PNG = (
+    b"\x89PNG\r\n\x1a\n"
+    b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
+    b"\x1f\x15\xc4\x89"
+)
+_UID = "u_chatimg"
+
+
+def _stub_r2(monkeypatch, *, ok: bool):
+    """把 R2 取图换成桩。ok=False 模拟 R2 挂了 / 图已被删。"""
+    import r2_storage
+
+    calls: list[str] = []
+
+    def fake_get(key):
+        calls.append(key)
+        if not ok:
+            raise r2_storage.R2Error("R2 GET 失败：HTTP 404", status=404)
+        return PNG, "image/png"
+
+    monkeypatch.setattr(r2_storage, "get_object", fake_get)
+    return calls
+
+
+def _post_with_media(user_id: str, key: str | None, content: str = "这道题怎么做"):
+    payload = {"content": content}
+    if key is not None:
+        payload["mediaKey"] = key
+    return client.post("/api/v1/chat", json=payload, headers={"X-User-ID": user_id})
+
+
+def test_chat_without_media_unchanged_behaviour(monkeypatch):
+    """**回归护栏**：不带 mediaKey 时行为与接入前一致。
+
+    守的是「有无图走同一条路」——无图不得因为多模态改造而变形。
+    """
+    fake = _stub_provider(monkeypatch, "正常回答。")
+    r = _post_with_media(_UID, None)
+    assert r.status_code == 200, r.text
+    ctx = fake.captured[-1]["context"]
+    assert "image" not in ctx, "无图时不该带 image 字段"
+    assert ctx["data_class"] == "state_plan", "data_class 字面量不能被这次改造动到"
+
+
+def test_chat_with_media_sends_image_to_provider(monkeypatch):
+    """带图且取到字节 -> 图片随本轮送模型（base64 data URL）。"""
+    fake = _stub_provider(monkeypatch, "看图作答。")
+    calls = _stub_r2(monkeypatch, ok=True)
+    key = f"user/{_UID}/abc123.png"
+
+    r = _post_with_media(_UID, key)
+    assert r.status_code == 200, r.text
+
+    # 后端确实按 key 取了图
+    assert calls == [key]
+
+    ctx = fake.captured[-1]["context"]
+    img = ctx["image"]
+    assert img["mime"] == "image/png"
+    assert img["bytes"] == len(PNG)
+    # base64 必须能解回原始字节（别把图片编坏了）
+    import base64
+
+    assert base64.b64decode(img["data_b64"]) == PNG
+
+    # prompt 里要告诉模型「图附上了」
+    assert "本轮附带图片" in fake.captured[-1]["prompt"]
+
+
+def test_chat_media_key_of_other_user_is_403(monkeypatch):
+    """**越权**：传别人的 key -> 403，且**不触达 R2**（归属校验在最前）。"""
+    fake = _stub_provider(monkeypatch)
+    calls = _stub_r2(monkeypatch, ok=True)
+
+    r = _post_with_media(_UID, "user/u_someone_else/abc.png")
+    assert r.status_code == 403, r.text
+    assert calls == [], "越权请求不该触达 R2"
+    assert fake.captured == [], "越权请求不该走到 LLM"
+
+
+def test_chat_media_fetch_failure_degrades_and_forbids_hallucination(monkeypatch):
+    """🔴 本任务最关键的一条：取图失败**不许假装看懂**。
+
+    R2 读不到图时，整轮**不能失败**（要降级成纯文本），
+    且 prompt 里必须带「你看不到这张图 + 不许猜」的硬指令。
+    """
+    fake = _stub_provider(monkeypatch, "我看不到你发的图，请重新上传。")
+    _stub_r2(monkeypatch, ok=False)
+
+    r = _post_with_media(_UID, f"user/{_UID}/gone.png")
+    # 关键：降级，不是 5xx
+    assert r.status_code == 200, r.text
+
+    prompt = fake.captured[-1]["prompt"]
+    # 必须明确告知「看不到」
+    assert "看不到" in prompt
+    # 必须禁止臆测
+    assert "不要" in prompt and ("猜测" in prompt or "编造" in prompt)
+    # 降级时**不能**带 image 字段（否则等于骗模型说有图）
+    assert "image" not in fake.captured[-1]["context"]
+
+
+def test_chat_media_rejects_vector_index_key(monkeypatch):
+    """即便前缀合法，也不许拿媒体字段碰生产向量索引。"""
+    _stub_provider(monkeypatch)
+    calls = _stub_r2(monkeypatch, ok=True)
+    r = _post_with_media(_UID, "embeddings.index")
+    assert r.status_code == 403
+    assert calls == []
+
+
+def test_chat_media_rejected_on_ephemeral(monkeypatch):
+    """随手问浮窗不支持附件 —— **显式 400**，不静默忽略。
+
+    静默忽略会让用户以为 AI 看到了图，正是本任务要消灭的行为。
+    """
+    _stub_provider(monkeypatch)
+    calls = _stub_r2(monkeypatch, ok=True)
+    r = client.post(
+        "/api/v1/chat",
+        json={"content": "这道题怎么做", "ephemeral": True,
+              "mediaKey": f"user/{_UID}/a.png"},
+        headers={"X-User-ID": _UID},
+    )
+    assert r.status_code == 400, r.text
+    assert r.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert calls == [], "被拒的请求不该取图"
+
+
+def test_media_key_never_persisted_as_raw_bytes(monkeypatch):
+    """契约要求「只传 key 不传字节」：落库的原文里不应出现 base64 图片。
+
+    这是防止将来有人把 bytes 直接塞进 ChatRawMessage.content 的护栏。
+    """
+    _stub_provider(monkeypatch)
+    _stub_r2(monkeypatch, ok=True)
+    r = _post_with_media(_UID, f"user/{_UID}/a.png", content="看这道题")
+    assert r.status_code == 200
+
+    from database import SessionLocal
+    from models.chat import ChatRawMessage
+    from sqlalchemy import select
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(
+            select(ChatRawMessage).where(ChatRawMessage.user_id == _UID)
+        ).scalars().all()
+    finally:
+        db.close()
+    for row in rows:
+        assert "base64" not in (row.content or "")
+        assert "iVBORw0KGgo" not in (row.content or "")  # PNG 的 base64 前缀

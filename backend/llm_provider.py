@@ -123,7 +123,26 @@ class OpenAICompatibleProvider:
         system_prompt = (context or {}).get("system")
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        # 视觉输入（F 板块识图，契约 v1.12.0）：context["image"] 存在时把本条 user
+        # 消息的 content 从字符串升级成 OpenAI 多模态数组（text part + image_url part）。
+        #
+        # 为什么不用 `prompt` 直接收 list：那会改 Protocol 签名，11 个调用点全要跟着改，
+        # 且历史轮次现在是「折成纯文本塞进 prompt」（见 chat_engine._build_user_prompt），
+        # 两者形态不同，硬改会把改动面放大到整个 Chat。走 context 增量的好处是
+        # **无图的调用点一行都不动**，行为逐字节不变。
+        img = (context or {}).get("image")
+        if img:
+            data_url = f"data:{img['mime']};base64,{img['data_b64']}"
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            })
+            logger.info("[LLM] 本次请求含视觉输入 mime=%s bytes=%s", img["mime"], img.get("bytes"))
+        else:
+            messages.append({"role": "user", "content": prompt})
         payload = json.dumps({
             "model": settings.llm_model,
             "messages": messages,
