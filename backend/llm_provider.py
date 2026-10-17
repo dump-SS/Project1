@@ -146,9 +146,16 @@ class OpenAICompatibleProvider:
         payload = json.dumps({
             "model": settings.llm_model,
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 1024,
-            # 关闭思维链：Doubao-Seed-2.0-mini 是推理模型，思维链会吃光 token 导致 content 为空
+            # 生成参数读配置，不再硬编码（2026-10-18）。
+            # llm_max_tokens 默认 4096 的实测依据见 config.py 同名字段的注释：
+            # 1024 时「长prompt + 图」会让推理模型把预算烧光、content 返空串。
+            "temperature": settings.llm_temperature,
+            "max_tokens": settings.llm_max_tokens,
+            # 关闭思维链：Doubao-Seed-2.0-mini 是推理模型，思维链会吃光 token 导致 content 为空。
+            # ⚠️ 但注意：**这个参数在部分供应商上并不真的关闭思维链**（实测 aiping.cn 的
+            # GLM-5.3-Flash 仍回 reasoning_content）。所以真正的安全网是上面的
+            # llm_max_tokens —— 预算够大时思维链烧完仍有余额留给正文。
+            # 换模型时若又出现「content 为空」，先查这里和 max_tokens，别只查这一个参数。
             "thinking": {"type": "disabled"},
         }).encode("utf-8")
         headers = {
