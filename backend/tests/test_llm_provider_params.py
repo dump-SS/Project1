@@ -1,55 +1,275 @@
-"""LLM 生成参数配置化的回归测试（2026-10-18）。\n\n独立成文件是因为它盯的是 config/llm_provider 的**契约**：\n生成参数必须来自 settings，且默认值不得退回 1024。\n"""
+"""2026-10-18：生成参数可配置 + 空串显式失败 + record_usage 真实计量。
+
+三个 brief 点的回归：
+
+1. ``llm_max_tokens`` / ``llm_temperature`` / ``llm_request_timeout`` 都走 settings，
+   而不是 llm_provider 里的硬编码字面量。
+2. **空串 = 失败**：原判据是 ``text is not None``，推理模型烧光 max_tokens、
+   ``finish_reason='length'``、``content=''`` 会被当成成功——``log_call`` 记
+   ``success=True``，日志上完全看不出问题，上层 ``if not llm_text`` 回落兜底话术。
+   生产实测带图提问 20 次里 7 次这样（35%）。现在空串走重试。
+3. ``record_usage`` 只在拿到 ``user_id`` 时才写行（否则 no-op），且写成功后置线程
+   局部标记，调用方据此不再补 len//4 估算行。
+"""
+
 from __future__ import annotations
 
+import types
 
-# ---------- 生成参数配置化（2026-10-18，max_tokens 天花板） ----------
+import pytest
+
+import llm_provider
+from config import settings
+
+
+# --------------------------------------------------------------------------
+# 1. 生成参数 / 超时走 settings
+# --------------------------------------------------------------------------
 
 
 def test_generation_params_come_from_settings(monkeypatch):
-    """🔴 llm_provider 不得再把 max_tokens / temperature 写成字面量。
+    """payload 里的 max_tokens / temperature 必须取自 settings，不是硬编码。"""
+    import json
+    import urllib.request
 
-    背景：原先硬编码 `max_tokens: 1024`，而生产模型GLM-5.3-Flash 是推理模型——
-    带图时长prompt(1252 tok)+图 会让思维链把 1024 预算烧光（finish_reason='length'），
-    content 返空串，上层回落成兜底话术「我暂时接不上你的话」。
-    实测同一请求 max_tokens=4096 即正确返回。
+    captured: dict = {}
 
-    这条测试从**真正构造的 payload** 上断言，而不是断言源码里有某个字符串——
-    源码断言挡不住「换个地方再硬编码一次」。
-    """
-    import json as _json
+    class _Resp:
+        def __enter__(self):
+            return self
 
-    import llm_provider
-    from config import settings as s
+        def __exit__(self, *a):
+            return False
 
-    monkeypatch.setattr(s, "llm_api_key", "AK")
-    monkeypatch.setattr(s, "llm_base_url", "https://example.invalid/v1")
-    monkeypatch.setattr(s, "llm_model", "fake-model")
-    monkeypatch.setattr(s, "llm_max_tokens", 12345)
-    monkeypatch.setattr(s, "llm_temperature", 0.77)
+        def read(self):
+            return b'{"choices":[{"message":{"content":"ok"}}],"usage":{}}'
 
-    seen: list[bytes] = []
+    def _fake_urlopen(req, timeout=None):
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        captured["payload_bytes"] = req.data
+        captured["timeout"] = timeout
+        return _Resp()
 
-    def fake_call_once(self, url, payload, headers):
-        seen.append(payload)
-        return "好的", {}
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(settings, "llm_api_key", "sk-test")
+    monkeypatch.setattr(settings, "llm_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr(settings, "llm_model", "m")
+    monkeypatch.setattr(settings, "llm_max_tokens", 4096)
+    monkeypatch.setattr(settings, "llm_temperature", 0.3)
+    monkeypatch.setattr("usage_ledger.record_usage", lambda *a, **k: None)
 
-    monkeypatch.setattr(llm_provider.OpenAICompatibleProvider, "_call_once", fake_call_once)
-    p = llm_provider.OpenAICompatibleProvider()
-    p.generate("hi", context={"data_class": "state_plan"})
+    p = llm_provider.OpenAICompatibleProvider.__new__(llm_provider.OpenAICompatibleProvider)
+    p.MAX_RETRIES = 0
+    p.generate("hi", context={"user_id": "u_param_1"})
 
-    assert seen, "generate 没真的发出请求"
-    body = _json.loads(seen[0].decode("utf-8"))
-    assert body["max_tokens"] == 12345, body
-    assert body["temperature"] == 0.77, body
+    payload = captured["payload"]
+    assert payload["max_tokens"] == 4096, "max_tokens 应来自 settings"
+    assert payload["temperature"] == pytest.approx(0.3), "temperature 应来自 settings"
+
+    # 改配置 -> payload 跟着变，证明不是硬编码
+    monkeypatch.setattr(settings, "llm_max_tokens", 777)
+    p.generate("hi", context={"user_id": "u_param_1"})
+    assert json.loads(captured["payload_bytes"].decode("utf-8"))["max_tokens"] == 777
 
 
-def test_default_max_tokens_is_4096():
-    """默认值必须是 4096（实测带图+推理模型的够用预算），别被改回 1024。
+def test_request_timeout_used_in_call(monkeypatch):
+    """_call_once 必须用 settings.llm_request_timeout，而不是类属性 60。"""
+    seen: list[object] = []
 
-    另外钉住「上限≠消耗」这个前提：它正是放宽该值不增加成本的理由。
-    """
-    from config import Settings
+    class _Resp:
+        def __enter__(self):
+            return self
 
-    s = Settings(_env_file=None)
-    assert s.llm_max_tokens == 4096
-    assert s.llm_temperature == 0.3
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":2}}'
+
+    import urllib.request
+
+    def _fake_urlopen(req, timeout=None):
+        seen.append(timeout)
+        return _Resp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(settings, "llm_request_timeout", 7)
+
+    p = llm_provider.OpenAICompatibleProvider.__new__(llm_provider.OpenAICompatibleProvider)
+    text, usage = p._call_once("http://x", b"{}", {})
+    assert text == "ok"
+    assert usage == {"prompt_tokens": 1, "completion_tokens": 2}
+    assert seen == [7], f"urlopen 应该收到配置的 7 秒，实际收到 {seen}"
+
+
+# --------------------------------------------------------------------------
+# 2. 空串显式失败
+# --------------------------------------------------------------------------
+
+
+def _provider_with(monkeypatch, texts: list[str | None]) -> llm_provider.OpenAICompatibleProvider:
+    """造一个 _call_once 按 texts 依次返回的 provider。"""
+    p = llm_provider.OpenAICompatibleProvider.__new__(llm_provider.OpenAICompatibleProvider)
+    seq = list(texts)
+
+    def _fake(url, payload, headers):
+        value = seq.pop(0) if seq else None
+        return value, {"prompt_tokens": 7, "completion_tokens": 9}
+
+    p._call_once = _fake  # type: ignore[method-assign]
+    p.MAX_RETRIES = 1
+    return p
+
+
+def test_empty_string_is_treated_as_failure_and_retried(monkeypatch):
+    """第一次空串 -> 不算成功，继续重试；第二次拿到正文 -> 成功。"""
+    calls: list[tuple] = []
+
+    def _fake_log_call(context, latency_ms, success, error_msg=None):
+        calls.append((success, error_msg))
+
+    import ai_call_log
+
+    monkeypatch.setattr(ai_call_log, "log_call", _fake_log_call)
+    monkeypatch.setattr(settings, "llm_api_key", "sk-test")
+    monkeypatch.setattr(settings, "llm_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr(settings, "llm_model", "m")
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    monkeypatch.setattr("usage_ledger.record_usage", lambda *a, **k: None)
+
+    p = _provider_with(monkeypatch, ["", " 真实回复"])
+    out = p.generate("hi", context={"user_id": "u1"})
+
+    assert out == " 真实回复", "空串后重试拿到正文，应返回正文"
+    assert calls == [(True, None)], f"只应记一次成功，实际 {calls}"
+
+
+def test_empty_string_on_first_attempt_still_recovers(monkeypatch):
+    """空串 + 供应商报 usage 时也要能重试，不能直接返回 ''。"""
+    monkeypatch.setattr(settings, "llm_api_key", "sk-test")
+    monkeypatch.setattr(settings, "llm_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr(settings, "llm_model", "m")
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    monkeypatch.setattr("usage_ledger.record_usage", lambda *a, **k: None)
+
+    import ai_call_log
+
+    monkeypatch.setattr(ai_call_log, "log_call", lambda *a, **k: None)
+
+    p = _provider_with(monkeypatch, ["", "second"])
+    assert p.generate("hi", context={"user_id": "u1"}) == "second"
+
+
+def test_all_attempts_empty_returns_none_and_logs_failure(monkeypatch):
+    """两次都空串 -> 返回 None（上层兜底话术），且 log_call 记 success=False。"""
+    calls: list[tuple] = []
+    import ai_call_log
+
+    monkeypatch.setattr(
+        ai_call_log, "log_call", lambda c, latency_ms, success, error_msg=None: calls.append((success, error_msg))
+    )
+    monkeypatch.setattr(settings, "llm_api_key", "sk-test")
+    monkeypatch.setattr(settings, "llm_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr(settings, "llm_model", "m")
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    p = _provider_with(monkeypatch, ["", "   "])
+    out = p.generate("hi", context={"user_id": "u1"})
+
+    assert out is None, "全空必须返回 None，不能返回空串"
+    assert calls == [(False, "retries_exhausted")], f"应记一次失败，实际 {calls}"
+
+
+def test_none_return_is_still_failure(monkeypatch):
+    """供应商抛错返回 None 的老路径不变：失败 + retries_exhausted。"""
+    calls: list[tuple] = []
+    import ai_call_log
+
+    monkeypatch.setattr(
+        ai_call_log, "log_call", lambda c, latency_ms, success, error_msg=None: calls.append((success, error_msg))
+    )
+    monkeypatch.setattr(settings, "llm_api_key", "sk-test")
+    monkeypatch.setattr(settings, "llm_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr(settings, "llm_model", "m")
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    p = _provider_with(monkeypatch, [None, None])
+    assert p.generate("hi", context={"user_id": "u1"}) is None
+    assert calls == [(False, "retries_exhausted")]
+
+
+# --------------------------------------------------------------------------
+# 3. record_usage：拿不到 user_id 是 no-op，拿到就写行 + 置标记
+# --------------------------------------------------------------------------
+
+
+def test_record_usage_is_noop_without_user_id():
+    """边界不变：context 无 user_id 时不写行（这是原行为，防脏数据）。"""
+    import usage_ledger
+
+    usage_ledger.begin_call()
+    usage_ledger.record_usage({}, model="m", tokens_in=10, tokens_out=5)
+    assert usage_ledger.recorded_real_usage() is False
+
+
+def test_record_usage_sets_flag_when_row_written():
+    """拿到 user_id 就写行并置位，供调用方跳过估算行。"""
+    from sqlalchemy import select
+
+    import usage_ledger
+    from database import SessionLocal
+    from models.governance import UsageLedger
+
+    usage_ledger.begin_call()
+    assert usage_ledger.recorded_real_usage() is False
+
+    usage_ledger.record_usage(
+        {"user_id": "u_flag_1", "feature_tier": "multimodal"},
+        model="m",
+        tokens_in=11,
+        tokens_out=7,
+    )
+    assert usage_ledger.recorded_real_usage() is True, "写行成功后必须置位"
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(select(UsageLedger).where(UsageLedger.user_id == "u_flag_1")).scalars().all()
+        assert len(rows) == 1
+        # 真实 token，而不是 len//4 估算
+        assert rows[0].tokens_in == 11
+        assert rows[0].tokens_out == 7
+        assert rows[0].feature_tier == "multimodal"
+    finally:
+        db.close()
+
+
+def test_begin_call_resets_flag():
+    """begin_call 清标记，避免上一轮置位污染下一轮。"""
+    import usage_ledger
+
+    usage_ledger.begin_call()
+    usage_ledger.record_usage({"user_id": "u_flag_2"}, model="m", tokens_in=1, tokens_out=1)
+    assert usage_ledger.recorded_real_usage() is True
+    usage_ledger.begin_call()
+    assert usage_ledger.recorded_real_usage() is False
+
+
+def test_flag_is_thread_local():
+    """并发安全：标记必须是线程局部，不能是全局。"""
+    import threading
+
+    import usage_ledger
+
+    usage_ledger.begin_call()
+    usage_ledger.record_usage({"user_id": "u_flag_3"}, model="m", tokens_in=1, tokens_out=1)
+    assert usage_ledger.recorded_real_usage() is True
+
+    seen: list[bool] = []
+
+    def _worker():
+        seen.append(usage_ledger.recorded_real_usage())
+
+    t = threading.Thread(target=_worker)
+    t.start()
+    t.join()
+    assert seen == [False], "另一个线程不该看到本线程的标记"

@@ -14,15 +14,24 @@ reasoning_tier。context 缺 user_id 时不写行（无法归属成本），仅 
 现有「无身份调用」留给 AICallLog 审计，两套表各司其职。
 """
 from __future__ import annotations
-
 import logging
+
+import threading
+
 import uuid
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["record_usage", "compute_cost", "resolve_pricing", "FEATURE_TIERS"]
+__all__ = [
+    "record_usage",
+    "compute_cost",
+    "resolve_pricing",
+    "FEATURE_TIERS",
+    "begin_call",
+    "recorded_real_usage",
+]
 
 # 合法功能档位（openapi UsageFeatureTier）。chat=用户主动有感；embedded=系统自动无感；
 # advanced=高级稀有调用；multimodal=文件解析。新增档位属契约变更。
@@ -43,6 +52,35 @@ FALLBACK_PRICING: tuple[float, float] = (2.0, 8.0)
 
 _warned_models: set[str] = set()
 _parsed_spec_cache: tuple[str, dict[str, tuple[float, float]]] | None = None
+
+
+# 🔴 「本次调用是否已记真实行」的线程局部标记（2026-10-18）
+#
+# 背景：chat_engine 除了 provider 那条真实行，还有一条 len//4 的**估算**行。
+# 两边都写，一次调用留两行、token 数翻倍，铁律 5 的口径就废了；
+# 只留估算，「是否撞 max_tokens」又永远查不出来。
+#
+# 为什么不把标记塞进 context dict：chat_engine 把 context 写成**内联字面量**
+# （test_egress_ci 用 AST 扫 `.generate(...)`，提成变量会判 <dynamic> 而红），
+# 调用返回后拿不到那个 dict 对象的引用。
+#
+# 为什么不用全局计数器：FastAPI 是多线程的，并发请求会互相污染——
+# A 请求误以为「我记过了」而漏记，或 B 请求误以为「没记过」而重复记。
+_tls = threading.local()
+
+
+def _flag():
+    return _tls
+
+
+def begin_call() -> None:
+    """在调用 provider.generate 之前清标记。"""
+    _tls.recorded = False
+
+
+def recorded_real_usage() -> bool:
+    """True = 这次调用已经写过一条**真实**用量行，调用方不要再补估算行。"""
+    return bool(getattr(_tls, "recorded", False))
 
 
 def _parse_pricing_spec(spec: str) -> dict[str, tuple[float, float]]:
@@ -143,5 +181,9 @@ def record_usage(context: dict | None, model: str, tokens_in: int, tokens_out: i
             db.commit()
         finally:
             db.close()
+        # 🔴 置位「本次调用已记真实行」。用线程局部而不是全局计数：
+        #    FastAPI 是多线程，一个全局计数器会被并发请求互相污染，
+        #    导致某个请求误以为「我记过了」而漏掉该记的行。
+        _flag().recorded = True
     except Exception as e:  # noqa: BLE001 — 计量失败绝不阻断业务
         logger.debug("[usage_ledger] 写入失败（已忽略）: %s", e)

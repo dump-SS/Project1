@@ -75,10 +75,14 @@ class OpenAICompatibleProvider:
     """
 
     # PRD 6.4：超时上限与重试次数。示例值 10s 对慢供应商（如 aiping Step-3.5）
-    # 实测响应 17-30s+ 波动，取 60s 上限；重试 1 次（共 2 次尝试）。
-    # 注意：同步生成模式下最坏 POST 耗时 ~2min，这是 MVP 已知限制，
-    # 异步化（BackgroundTasks/队列）后才符合 PRD 6.4"不阻塞主流程"。
-    REQUEST_TIMEOUT = 60
+    # 实测响应 17-30s+ 波动。
+    #
+    # ⚠️ 超时已**移出**类属性、改为配置项 ``settings.llm_request_timeout``
+    #    （默认 180，依据见 config.py 同名字段的注释）。
+    #    原 REQUEST_TIMEOUT=60 是硬编码，对「推理模型 + 图片」明显不够：
+    #    生产实测最大 125.5s，日志里直接超时失败，带图提问 35% 失败率。
+    #    留这个类属性只为兼容可能引用它的旧代码/测试，实际读取走 settings。
+    REQUEST_TIMEOUT = 60  # deprecated：不再被使用，见 settings.llm_request_timeout
     MAX_RETRIES = 1  # 共 2 次尝试：1 次原始 + 1 次重试
 
     def __init__(self) -> None:
@@ -100,7 +104,7 @@ class OpenAICompatibleProvider:
 
         try:
             req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=settings.llm_request_timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
                 usage = body.get("usage") or {}
                 return body["choices"][0]["message"]["content"], usage
@@ -170,6 +174,22 @@ class OpenAICompatibleProvider:
                 time.sleep(1)
                 logger.info("[LLM] 第 %d 次重试", attempt + 1)
             text, usage = self._call_once(url, payload, headers)
+            # 🔴 空串 = **失败**，不是成功（2026-10-18）
+            #
+            # 原判据是 `if text is not None`，于是推理模型烧光 max_tokens、
+            # finish_reason='length'、content='' 的情况被当成成功：
+            #   · log_call 记 success=True -> 日志上完全看不出问题；
+            #   · 直接 return '' -> 上层 if not llm_text 回落兜底话术。
+            # 生产实测：带图提问 20 次里 7 次是这样，用户看到「我暂时接不上你的话」。
+            #
+            # 现在空串走重试：既然失败是概率性的（同一请求重试常常能拿到正文），
+            # 给它第二次机会比直接放弃划算得多。全部尝试都空才判 exhausted。
+            if text is not None and not text.strip():
+                logger.warning(
+                    "[LLM] 返回空串（推理模型可能烧光了 max_tokens=%s），按失败重试",
+                    settings.llm_max_tokens,
+                )
+                text = None
             if text is not None:
                 if attempt > 0:
                     logger.info("[LLM] 重试成功")

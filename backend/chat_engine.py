@@ -33,6 +33,8 @@ from models.governance import UsageLedger
 from privacy_filter import sanitize_text
 from safety_filter import CRISIS_RESPONSE, check as safety_check, crisis_check
 from schemas.chat import ChatCard, ChatReply
+from usage_ledger import begin_call as _usage_begin_call
+from usage_ledger import recorded_real_usage
 
 logger = logging.getLogger(__name__)
 
@@ -893,6 +895,9 @@ def handle_message(
             "[CHAT] 本轮附带图片 user=%s mime=%s bytes=%d（随本轮送模型，属用户内容出域）",
             user_id, mime, len(raw),
         )
+    # 清一次「已记真实行」标记：本轮 generate 若成功写了真实用量行，标记会置位，
+    # 之后就不再补 len//4 估算行（见本函数末尾）。
+    _usage_begin_call()
     llm_text = provider.generate(
         user_prompt,
         context={
@@ -907,6 +912,14 @@ def handle_message(
             #    这是一处**已知口径妥协**（真正的用户内容类目是 user_error_content），
             #    改它要动出域口径与 CI 豁免表，超出本次范围，已在回执里flag。
             "data_class": "state_plan",
+            # 🔴 传 user_id：没有它 usage_ledger.record_usage 会直接 return（no-op），
+            #    导致 usage_ledger 里只剩 len//4 的**估算**，既违反铁律 5
+            #    「按用户记录数值成本」，也让「是否撞 max_tokens」永远无法事后定位
+            #    （2026-10-18 生产排查就被这个卡住过）。
+            "user_id": user_id,
+            # 带图与纯文本分开计档：usage_ledger 的 FEATURE_TIERS 里早就有
+            # "multimodal"，但一直没有任何调用点用它——这轮正好是它的用武之地。
+            "feature_tier": "multimodal" if media is not None else "chat",
             **image_ctx,
         },
     )
@@ -959,7 +972,14 @@ def handle_message(
     _persist_raw(db, user_id, session.id, "user", safe_content)
     _persist_raw(db, user_id, session.id, "assistant", reply)
     # 仅真实调用成功才计费（Mock/失败不产生数值流水）
-    if llm_text is not None:
+    #
+    # 🔴 2026-10-18：只有在 provider **没有**写下真实用量行时，才补这条估算行。
+    # 现在 context 带了 user_id，真实 provider 会经 usage_ledger.record_usage
+    # 写入供应商回报的真实 tokens（铁律 5「按用户记录数值成本」）。
+    # 两边都写会让一次调用留下两行、token 翻倍；只写估算又查不出是否撞 max_tokens。
+    # 标记是线程局部的（usage_ledger.recorded_real_usage），并发安全。
+    # 失败（llm_text is None）与 MockProvider 行为不变：不写任何用量行。
+    if llm_text is not None and not recorded_real_usage():
         _record_usage(db, user_id, user_prompt, reply)
 
     db.commit()
