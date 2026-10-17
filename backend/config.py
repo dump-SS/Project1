@@ -58,6 +58,26 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
 
+    # LLM 生成参数（2026-10-18 由字面量改为配置项）
+    #
+    # ⚠️ llm_max_tokens 的 4096 **不是拍脑袋，是实测出来的**：
+    # 生产模型 GLM-5.3-Flash 是**推理模型**，思维链（reasoning_tokens）与正文
+    # 共用 max_tokens 预算。原先硬编码 1024 时，带图的请求会——
+    #   长prompt(1252 tok) + 图  ->  finish_reason='length'、reasoning_tokens=1024
+    #                             ->  content 为空串 -> 上层回落兜底话术
+    # 同一请求把 max_tokens 提到 4096 即正确返回。纯文本请求在 1024 下正常
+    # （推理只用 168 tok），所以这是**带图才会触发**的天花板。
+    # 反面教材就在同文件 llm_provider.py：那里早有同类注释（Doubao-Seed-2.0-mini
+    # 思维链吃光 token 导致 content 为空），当年为纯文本处理过，但没考虑带图会
+    # 成倍放大推理开销。改成配置项就是为了下次换模型时**只改环境变量**。
+    #
+    # 💡 max_tokens 是**上限、不是实际消耗**：放宽它不会让每次调用变贵，
+    #    只决定「最长允许输出多少」。真正计费看 usage_ledger 记的实际 token。
+    llm_max_tokens: int = 4096
+
+    # 采样温度。0.3 = 偏确定性，解题场景要稳定；调高会让同一道题每次答法不同。
+    llm_temperature: float = 0.3
+
     # --- 计量计价（#9 / D38）---
     # 格式："模型名=输入元,输出元;模型名2=输入元,输出元"，单位均为 **元 / 1M tokens**。
     # 留空则全部走 FALLBACK_PRICING。运营核定单价后**只改环境变量、不用改代码**。
