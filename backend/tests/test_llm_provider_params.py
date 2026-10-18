@@ -338,3 +338,26 @@ def test_retry_success_log_is_warning_level(caplog, monkeypatch):
         f"「重试成功」当前是 {hits[0].levelname}，Railway 不持久化 INFO，"
         "「空串->重试」这条机制就变成了看不见的黑盒"
     )
+
+
+def test_retry_success_log_wording_is_not_polluted(caplog, monkeypatch):
+    """⚠️ 防「日志文案污染」回退。
+
+    早期文案是 `重试成功（首次返回空串，重试拿到正文）` —— 它**含有「返回空串」子串**，
+    于是任何按该关键词统计空串次数的脚本都会把每次成功重试多算成一次空串。
+    我自己的第一版统计脚本就被坑过，一度算出「两次空串却成功」的自相矛盾结果。
+
+    日志文案是会被 grep 的，所以这条断言锁死它：重试成功的文案里不得再出现「返回空串」。
+    """
+    _run_and_capture(caplog, monkeypatch, ["", "重试后拿到的正文"])
+
+    hits = [r for r in caplog.records if "重试成功" in r.getMessage()]
+    assert len(hits) == 1
+    msg = hits[0].getMessage()
+    assert "返回空串" not in msg, (
+        f"「重试成功」文案里又出现了「返回空串」子串：{msg!r} —— "
+        "按该关键词统计空串次数的脚本会把成功重试误算成空串"
+    )
+    # 同时确认真正的空串警告仍然带着那个关键词（否则统计脚本就彻底瞎了）
+    empty_hits = [r for r in caplog.records if "返回空串" in r.getMessage()]
+    assert len(empty_hits) == 1, "真正的空串警告必须仍然含「返回空串」以便统计"
