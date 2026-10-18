@@ -28,13 +28,29 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 import r2_storage
 from chat_engine import greeting, handle_ephemeral, handle_message
+from chat_jobs import (
+    MAX_ACTIVE_JOBS_PER_USER,
+    POLL_AFTER_MS,
+    count_active_jobs,
+    new_job_id,
+    run_chat_job,
+    to_schema,
+)
 from database import get_db
-from schemas.chat import ChatGreeting, ChatMessageRequest, ChatReply
+from models.chat import ChatJob
+from schemas.chat import (
+    ChatGreeting,
+    ChatJob as ChatJobSchema,
+    ChatMediaJobAccepted,
+    ChatMediaJobRequest,
+    ChatMessageRequest,
+    ChatReply,
+)
 from schemas.user import User
 from .deps import current_user
 from .f_media import _assert_owner
@@ -113,3 +129,97 @@ def send_message(
         media_key=payload.media_key,
         media=media,
     )
+
+
+# ---------------------------------------------------------------------------
+# 带图异步（契约 v1.13.0）
+#
+# 为什么**另开一个端点**而不是给 /chat 加个 ?async=1：
+# 纯文本 tier=chat 的 tokens_out 只有 5~107，延迟远低于带图。为了带图的慢把整个
+# Chat 改成异步，会让绝大多数对话体验变差、还要大改前端。带图是少数派路径，
+# 就该走少数派的端点——同步 /chat 的响应形状一字未改。
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/media",
+    response_model=ChatMediaJobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="发送一条带图消息，立即入队并返回 jobId（异步）",
+)
+def send_media_message_async(
+    payload: ChatMediaJobRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _user: User = Depends(current_user),
+) -> ChatMediaJobAccepted:
+    """入队一个带图任务，**立即返回 202**；结果用 ``GET /chat/jobs/{jobId}`` 轮询。
+
+    归属校验 / 429 上限 / 失败语义都刻意与同步路径共用同一套口径，不另立规则。
+    """
+    # 1) 归属校验先行：越权 key 在这里就 403，且**不触达 R2**。
+    #    与同步路径复用同一个 _assert_owner，不重写——重写就会出现第二份
+    #    「谁能用自己的图」的判定，迟早漂移。
+    _assert_owner(payload.media_key, _user.user_id)
+
+    # 2) 并发上限：带图任务每跑一个就占住一个 worker 线程 + 一条 100~250 秒的
+    #    LLM 长连接。不设上限的话，一个连发 20 张图的用户就能占满槽位，
+    #    把**别的用户**的带图提问全堵在后面。宁可明确 429，也不要静默吞掉
+    #    他刚拍的照片（详见 chat_jobs.MAX_ACTIVE_JOBS_PER_USER 的注释）。
+    if count_active_jobs(db, _user.user_id) >= MAX_ACTIVE_JOBS_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "TOO_MANY_MEDIA_JOBS",
+                "message": "你还有带图提问在处理中，请稍后再试",
+            },
+        )
+
+    # 3) 落库再入队。**顺序不能反**：状态行先提交，BackgroundTasks 才会执行。
+    #    若先入队后提交，worker 可能在提交前就去 get(job_id) 拿到 None。
+    job = ChatJob(
+        id=new_job_id(),
+        user_id=_user.user_id,
+        status="queued",
+        content=payload.content,
+        media_key=payload.media_key,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)  # created_at 是 server_default，需要回读
+
+    background_tasks.add_task(run_chat_job, job.id)
+
+    return ChatMediaJobAccepted(
+        status="queued",
+        jobId=job.id,
+        pollAfterMs=POLL_AFTER_MS,
+        acceptedAt=job.created_at,
+    )
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=ChatJobSchema,
+    summary="轮询带图 Chat 任务状态",
+)
+def get_chat_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(current_user),
+) -> ChatJobSchema:
+    """查一个带图任务。拿到 ``done`` / ``failed`` 后前端必须停止轮询。"""
+    job = db.get(ChatJob, job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "任务不存在"},
+        )
+    # 与 /f/media 同一套口径：越权用 403 而非 404，因为语义是「你无权访问」，
+    # 不是「资源不存在」；用 404 会让前端分不清该重试还是该放弃。
+    if job.user_id != _user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "无权访问该任务"},
+        )
+    return to_schema(job)

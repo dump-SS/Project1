@@ -18,11 +18,14 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
+    Index,
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -120,4 +123,77 @@ class TopicSummary(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False, index=True
+    )
+
+
+# ---------------------------------------------------------------------------
+# 带图 Chat 异步任务（契约 v1.13.0：POST /chat/media + GET /chat/jobs/{jobId}）
+# ---------------------------------------------------------------------------
+
+#: 合法状态集合。queued/processing 是非终态，done/failed 是**终态**——
+#: 契约要求前端拿到终态就停止轮询，所以集中定义，避免散落的字符串比较。
+CHAT_JOB_TERMINAL_STATUSES = ("done", "failed")
+CHAT_JOB_ACTIVE_STATUSES = ("queued", "processing")
+
+
+class ChatJob(Base):
+    """一个带图 Chat 异步任务。
+
+    **为什么必须落库、不能只放内存**：进程内队列在实例重启时会连同未完成任务一起消失，
+    而 brief 要求「实例重启，队列里还有 job」必须有确定行为。落库后这件事由
+    `chat_jobs.reconcile_on_startup()` 在启动时统一对账（把残留的 queued/processing
+    置为 failed + `CHAT_JOB_INTERRUPTED`），而不是让用户对着一个永远转圈的进度条。
+
+    结构刻意照抄既有的 Recommendation / Summary「异步生成」范式
+    （generation_status / completed_at / JSON 列 / message 失败原因），
+    这样 `routes/recommendation.py:72-107` + `ai_suggestion.py:610-634` 的读法能平移过来。
+
+    结果字段（reply / intent / crisis / cards / session_id / context_stack_json）
+    在 done 时与同步 `ChatReply` 逐字段对应，前端拿到 done 可复用同一套渲染逻辑。
+    """
+
+    __tablename__ = "chat_jobs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="queued", server_default="queued"
+    )
+
+    # ---- 入参快照（worker 不依赖请求上下文，所以必须存下来）----
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    media_key: Mapped[str] = mapped_column(String(512), nullable=False)
+
+    # ---- 结果（done 时填；其余状态为 NULL）----
+    reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    intent: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    crisis: Mapped[bool] = mapped_column(
+        # ⚠️ 必须用 `false()` 而不是 sa.text('0') / "0"：
+        #    BOOLEAN 列上的整数字面量默认值在 SQLite 被动态类型照单全收，
+        #    但 Postgres 会报 `DatatypeMismatch: column is of type boolean but
+        #    default expression is of type integer`（2026-10-01 事故，见 AGENTS.md §四·六）。
+        #    `false()` 由方言各自编译：SQLite 出 0、PG 出 false。
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    #: JSON 数组，与 ChatReply.cards 同构
+    cards_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: JSON 数组，与 ChatReply.contextStack 同构（深度 ≤3）
+    context_stack_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ---- 失败信息（failed 时非空；契约要求前端能展示原因，不允许「用户干等」）----
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(256), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False, index=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # 查「某人当前有几个在途任务」用 user_id + status 组合；给 status 单独建索引
+        # 对本表查询无意义，所以用复合索引让并发上限查询走索引而不是全表扫。
+        Index("ix_chat_jobs_user_status", "user_id", "status"),
     )

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.12.0
+  version: 1.13.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -873,6 +873,173 @@ paths:
                 contextStack: []
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /chat/media:
+    post:
+      tags: [Chat]
+      operationId: sendMediaMessageAsync
+      summary: 发送一条**带图**消息，立即入队并返回 jobId（异步）
+      description: >-
+        带图 Chat 的**异步**入口。带图推理（GLM-5.3-Flash + 图片）实测单次延迟
+        中位 105.7s、最大 245.8s（契约 v1.13.0 之前的生产实测），同步等待不可接受，
+        因此带图走「立即返回 jobId + 前端轮询」。
+
+        ⚠️ **纯文本 Chat 不走这里**，仍用同步的 `POST /chat`，响应形状一字未改。
+        原因：纯文本 `tier=chat` 的 tokens_out 只有 5~107，延迟远低于带图；
+        为了带图的慢把整个 Chat 改成异步，会让 90% 的对话体验变差并大改前端。
+
+        与同步路径的差异（也是本接口存在的理由）：
+        · `mediaKey` **必填**（同步路径里它是可选的）
+        · 返回 **202 + jobId**，不返回 reply
+        · 结果通过 `GET /chat/jobs/{jobId}` 轮询取
+
+        降级语义与同步路径**完全一致**、不与异步混在一起：R2 取图失败时
+        任务仍会正常完成，回复里明确告知模型看不到图、且不允许编造
+        （见 ChatReply 对应字段与既有 `/chat` 降级逻辑）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMediaJobRequest'
+            example:
+              content: 这道题怎么做？
+              mediaKey: user/u_10237/2f1c9a7b.png
+      responses:
+        '202':
+          description: 已入队（不代表已完成）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMediaJobAccepted'
+              example:
+                status: queued
+                jobId: cj_7f3a91c2
+                pollAfterMs: 2000
+                acceptedAt: '2026-10-18T08:41:00'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: >-
+            mediaKey 不属于当前用户。复用共享 `Forbidden` 组件——与 `/f/media`
+            同一套归属口径，同样是 403 而不是 404（404 会泄露 key 是否存在）。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: FORBIDDEN
+                  message: 这张图片不属于你
+        '429':
+          description: >-
+            队列已满（同一用户在进行 + 排队的带图任务达上限，默认 4）。
+            复用共享 `RateLimited` 组件，但**错误码语义不同**：这里不是「今日
+            手动生成次数达上限」，而是「你还有带图提问在处理中」。
+            pilot 期选择「排队 + 有上限」而不是丢弃：宁可让用户明确收到
+            「现在忙，请稍后再试」，也不要静默吞掉他刚拍的照片。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: TOO_MANY_MEDIA_JOBS
+                  message: 你还有带图提问在处理中，请稍后再试
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /chat/jobs/{jobId}:
+    get:
+      tags: [Chat]
+      operationId: getChatJob
+      summary: 轮询带图 Chat 任务状态
+      description: >-
+        查询一个带图 Chat 任务。**拿到 `done` 或 `failed` 后前端必须停止轮询**。
+        `done` 时返回的字段与同步 `ChatReply` 一致（`reply` / `cards` / `sessionId` /
+        `contextStack`），所以前端拿到 done 之后可以走与同步路径相同的渲染逻辑。
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: >-
+            任务 id，由 `POST /chat/media` 返回。
+      responses:
+        '200':
+          description: 任务状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatJob'
+              examples:
+                处理中:
+                  summary: 还没跑完
+                  value:
+                    jobId: cj_7f3a91c2
+                    status: processing
+                    reply: null
+                    intent: null
+                    crisis: false
+                    cards: []
+                    sessionId: null
+                    contextStack: []
+                    errorCode: null
+                    errorMessage: null
+                    createdAt: '2026-10-18T08:41:00'
+                    completedAt: null
+                完成:
+                  summary: 有结果了，前端应停止轮询并按 ChatReply 渲染
+                  value:
+                    jobId: cj_7f3a91c2
+                    status: done
+                    reply: 这道题可以先看题干第二个条件……
+                    intent: explain
+                    crisis: false
+                    cards: []
+                    sessionId: cs_8f3a1b2c
+                    contextStack: []
+                    errorCode: null
+                    errorMessage: null
+                    createdAt: '2026-10-18T08:41:00'
+                    completedAt: '2026-10-18T08:42:51'
+                失败:
+                  summary: 失败也有明确原因，前端不得让用户干等
+                  value:
+                    jobId: cj_7f3a91c2
+                    status: failed
+                    reply: null
+                    intent: null
+                    crisis: false
+                    cards: []
+                    sessionId: null
+                    contextStack: []
+                    errorCode: CHAT_JOB_INTERNAL_ERROR
+                    errorMessage: 处理带图提问时出错了，请再试一次
+                    createdAt: '2026-10-18T08:41:00'
+                    completedAt: '2026-10-18T08:41:03Z'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: >-
+            任务不属于当前用户。复用共享 `Forbidden` 组件——与 `/f/media`
+            同一套口径：用 403 而不是 404，因为语义是「你无权访问」而非
+            「资源不存在」，404 会让前端分不清该重试还是该放弃。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: FORBIDDEN
+                  message: 无权访问该任务
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -6626,6 +6793,120 @@ components:
             纯文本问答，并在 prompt 里明确要求模型**照实告知用户「看不到图」**，
             不允许假装看懂、也不允许凭空猜题目内容。
           example: user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
+    ChatMediaJobRequest:
+      type: object
+      required: [content, mediaKey]
+      description: >-
+        带图异步提问的请求体。与 `ChatMessageRequest` 的差别只有两点：
+        `mediaKey` **必填**（本接口的意义就是带图），且不接受 `ephemeral` /
+        `floatContext` / `intent`（浮窗那条受限问答链路保持同步，不参与异步）。
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: 用户消息正文
+        mediaKey:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: >-
+            本轮附带的题目图片引用（`POST /f/media` 返回的 R2 对象 key）。
+            归属校验与 `/chat` 同步路径**完全同一套**：key 必须以
+            `user/{当前 userId}/` 开头，否则 **403**。
+            取图失败时任务仍会完成，回复里明确告知看不到图（降级语义不变）。
+          example: user/u_10237/2f1c9a7b8d3e4f5061728394a5b6c7d8.png
+    ChatMediaJobAccepted:
+      type: object
+      required: [status, jobId, pollAfterMs, acceptedAt]
+      description: 入队成功。**注意 202 只代表「已受理」，不代表已有结果。**
+      properties:
+        status:
+          type: string
+          enum: [queued]
+          description: >-
+            刚入队、**尚未开始执行**，状态恒为 `queued`。worker 取到任务后会翻成
+            `processing`，所以这个值本身就是「worker 还没接手」的观测信号
+            （若长期停在 queued 说明 worker 没跑起来）。
+            终态请轮询 `GET /chat/jobs/{jobId}`。
+        jobId:
+          type: string
+          description: 任务 id，用于 `GET /chat/jobs/{jobId}` 轮询。
+          example: cj_7f3a91c2
+        pollAfterMs:
+          type: integer
+          description: >-
+            **建议**的轮询间隔（毫秒），由服务端下发而不是写死在前端。
+            这样调轮询节奏不需要重新发布前端。实测带图延迟中位 105.7s、最大 245.8s，
+            故默认 2000ms；拿到 `done` / `failed` 后前端必须停止轮询。
+          example: 2000
+        acceptedAt:
+          type: string
+          format: date-time
+          description: 入队时间（UTC）
+    ChatJob:
+      type: object
+      required: [jobId, status, crisis, cards, contextStack, createdAt]
+      description: >-
+        带图 Chat 任务状态。`done` 时 `reply` / `intent` / `sessionId` /
+        `contextStack` 的含义与同步 `ChatReply` 一致，前端可复用同一套渲染逻辑。
+      properties:
+        jobId:
+          type: string
+          example: cj_7f3a91c2
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+          description: >-
+            `queued` 已入队待执行；`processing` 执行中；`done` 成功（终态）；
+            `failed` 失败（终态）。**后两者必须停止轮询。**
+        reply:
+          type: string
+          nullable: true
+          description: 助手回复正文。`status != done` 时为 null。
+        intent:
+          type: string
+          nullable: true
+          description: 与 `ChatReply.intent` 同义。
+        crisis:
+          type: boolean
+          description: 与 `ChatReply.crisis` 同义（危机转介标记）。
+        cards:
+          type: array
+          description: 与 `ChatReply.cards` 同义。
+          items:
+            $ref: '#/components/schemas/ChatCard'
+        sessionId:
+          type: string
+          nullable: true
+          description: 与 `ChatReply.sessionId` 同义；`status != done` 时为 null。
+        contextStack:
+          type: array
+          maxItems: 3
+          description: 与 `ChatReply.contextStack` 同义。
+          items:
+            $ref: '#/components/schemas/ChatContextStackItem'
+        errorCode:
+          type: string
+          nullable: true
+          description: >-
+            失败原因码（`status=failed` 时非空）。前端据此给用户明确提示，
+            **不允许出现「用户干等」**。取值：
+            `CHAT_JOB_INTERNAL_ERROR`（worker 内部异常）、
+            `CHAT_JOB_INTERRUPTED`（实例重启，任务被启动对账置为失败）。
+          example: CHAT_JOB_INTERNAL_ERROR
+        errorMessage:
+          type: string
+          nullable: true
+          description: 面向用户的失败说明（可直接展示）。
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 进入终态的时间；未完成时为 null。
     FloatTurn:
       type: object
       description: 随手问浮窗的一轮问答（浮窗专用，显式上下文）。
@@ -7083,4 +7364,4 @@ components:
           type: string
           description: '取回路径（相对 API 基址 /api/v1；即本文件 paths 段的完整路径，servers 前缀已省去）'
           example: /f/media/user/u_10237/9f8e7d6c5b4a3210fedcba9876543210.png
-      required: [mediaId, key, contentType, size, getUrl]
+      required: [mediaId, key, contentType, size, getUrl]
