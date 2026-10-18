@@ -191,10 +191,19 @@ class OpenAICompatibleProvider:
                 )
                 text = None
             if text is not None:
+                # 🔴 这两条**故意用 WARNING 而不是 INFO**（2026-10-18）
+                #
+                # 原因：Railway 只持久化 WARNING 及以上日志，INFO 级的行在容器日志里
+                # **根本不存在**。上一轮「空串触发 12 次、靠重试救回 6 次」只能靠
+                # `空串数 - 耗尽数 x 2` 做算术推导——因为「重试成功」这行 INFO 被藏起来了。
+                #
+                # 这跟当初「空串当成功让 log_call 记 success=True」是同一类病：
+                # **不是没有数据，是数据被藏起来了**。可观测性缺口必须堵上。
+                # 代价：每次成功调用多一行 WARNING 日志。对 pilot 量级可接受。
                 if attempt > 0:
-                    logger.info("[LLM] 重试成功")
+                    logger.warning("[LLM] 重试成功（首次返回空串，重试拿到正文）")
                 else:
-                    logger.info("[LLM] 生成成功，长度 %d", len(text))
+                    logger.warning("[LLM] 生成成功，长度 %d", len(text))
                 log_call(context, latency_ms=int((time.monotonic() - start) * 1000), success=True)
                 # usage_ledger 计量（#9/D38）：真实调用必须可追溯到用户数值成本。
                 # 无论供应商是否回 usage 字段都记行（缺失记 0，调用本身可追溯）。

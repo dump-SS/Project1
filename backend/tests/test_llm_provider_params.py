@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-import types
+import logging
 
 import pytest
 
@@ -273,3 +273,68 @@ def test_flag_is_thread_local():
     t.start()
     t.join()
     assert seen == [False], "另一个线程不该看到本线程的标记"
+
+
+# --------------------------------------------------------------------------
+# 4. max_tokens 默认 8192（2026-10-18 生产复测 15% 失败后调整）
+# --------------------------------------------------------------------------
+
+
+def test_max_tokens_default_is_8192():
+    """8192 的依据：PR #63 上线后 20 次复测，3 次失败全是两次都烧光 4096。
+
+    usage_ledger 里 tokens_out 最大值正好等于当时 max_tokens(4096)，坐实顶到天花板；
+    且那 3 次只耗时 91~96s，远没到 180s 超时线，所以不可能是超时。
+    """
+    assert settings.llm_max_tokens == 8192
+
+
+# --------------------------------------------------------------------------
+# 5. 「重试成功 / 生成成功」必须是 WARNING 级（可观测性红线）
+# --------------------------------------------------------------------------
+
+
+def _run_and_capture(caplog, monkeypatch, texts):
+    import ai_call_log
+
+    monkeypatch.setattr(settings, "llm_api_key", "sk-test")
+    monkeypatch.setattr(settings, "llm_base_url", "https://example.invalid/v1")
+    monkeypatch.setattr(settings, "llm_model", "m")
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    monkeypatch.setattr("usage_ledger.record_usage", lambda *a, **k: None)
+    monkeypatch.setattr(ai_call_log, "log_call", lambda *a, **k: None)
+
+    p = _provider_with(monkeypatch, texts)
+    with caplog.at_level(logging.DEBUG, logger="llm_provider"):
+        return p.generate("hi", context={"user_id": "u_lvl"})
+
+
+def test_success_log_is_warning_level(caplog, monkeypatch):
+    """⚠️ 这条是**可观测性红线**，不是风格问题。
+
+    Railway 只持久化 WARNING 及以上；INFO 级的「生成成功」在容器日志里根本不存在。
+    上一轮「6 次靠重试救回」只能靠算术推导（空串数 - 耗尽数 x 2）算出来，
+    就是因为这条被降在 INFO 上没人看见。
+
+    如果哪天有人「清理日志噪音」把它改回 info，这条测试会红——那正是它存在的意义。
+    """
+    _run_and_capture(caplog, monkeypatch, ["正常回复"])
+
+    hits = [r for r in caplog.records if "生成成功" in r.getMessage()]
+    assert len(hits) == 1, f"应记录一次生成成功，实际 {len(hits)} 条"
+    assert hits[0].levelno >= logging.WARNING, (
+        f"「生成成功」当前是 {hits[0].levelname}，Railway 不持久化 INFO，"
+        "等于把这条数据藏起来了"
+    )
+
+
+def test_retry_success_log_is_warning_level(caplog, monkeypatch):
+    """同上：「重试成功」必须 WARNING，否则「重试救回次数」永远只能推导不能观测。"""
+    _run_and_capture(caplog, monkeypatch, ["", "重试后拿到的正文"])
+
+    hits = [r for r in caplog.records if "重试成功" in r.getMessage()]
+    assert len(hits) == 1, f"应记录一次重试成功，实际 {len(hits)} 条"
+    assert hits[0].levelno >= logging.WARNING, (
+        f"「重试成功」当前是 {hits[0].levelname}，Railway 不持久化 INFO，"
+        "「空串->重试」这条机制就变成了看不见的黑盒"
+    )
