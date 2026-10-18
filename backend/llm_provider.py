@@ -201,7 +201,13 @@ class OpenAICompatibleProvider:
                 # **不是没有数据，是数据被藏起来了**。可观测性缺口必须堵上。
                 # 代价：每次成功调用多一行 WARNING 日志。对 pilot 量级可接受。
                 if attempt > 0:
-                    logger.warning("[LLM] 重试成功（首次返回空串，重试拿到正文）")
+                    # ⚠️ 文案里**刻意不写「返回空串」四个字**（2026-10-18）
+                    # 原因：早期版本写成「重试成功（首次返回空串，重试拿到正文）」，
+                    # 而那句文案里含有「返回空串」子串 —— 任何按该关键词统计空串次数的
+                    # 人或脚本都会**把每次成功重试多算成一次空串**。
+                    # 我自己第一版统计脚本就被坑过，一度算出「两次空串却成功」的矛盾结果。
+                    # 日志文案是会被 grep 的，所以措辞必须能被机器无歧义地统计。
+                    logger.warning("[LLM] 重试成功（首次尝试无正文，重试拿到正文）")
                 else:
                     logger.warning("[LLM] 生成成功，长度 %d", len(text))
                 log_call(context, latency_ms=int((time.monotonic() - start) * 1000), success=True)
