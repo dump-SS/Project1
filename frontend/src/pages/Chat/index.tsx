@@ -23,6 +23,13 @@ import FloatChat from '@/components/Chat/FloatChat'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
 import type { FCard, MediaUploadResult } from '@/services/fMedia'
 import {
+  ChatJobAbortedError,
+  ChatJobTimeoutError,
+  pollChatJob,
+  sendMediaChat,
+} from '@/services/chat'
+import { ApiError } from '@/services/http'
+import {
   genId,
   type ChatMessage,
   type ErrorItem,
@@ -63,6 +70,8 @@ export default function ChatPage() {
   }, [])
   const [draft, setDraft] = useState('')
   const [typing, setTyping] = useState(false)
+  /** 带图异步提问时的「处理中」提示文案；null = 走的是同步路径，不显示 */
+  const [pendingHint, setPendingHint] = useState<string | null>(null)
   /** 录入错题后 +1，通知左侧错题列表重读 localStorage */
   const [refreshKey, setRefreshKey] = useState(0)
   /** 窄屏下右侧面板改为浮层 */
@@ -107,17 +116,14 @@ export default function ChatPage() {
   /**
    * F 板块：上传成功 → 把媒体 key 垫成引用块（§3.1 的 file_summary 就是同构的 ChatCard）。
    *
-   * ## 为什么垫 key 而不是垫图片
+   * ## media chip 现在是**真图**，不再只是文字
    *
-   * 后端 `ChatMessageRequest` 只收 `content / intent / ephemeral / float_context`（schemas/chat.py），
-   * **没有结构化媒体字段**，而图片是按 key 存私有 R2 的。所以现在唯一能进上下文的载体是
-   * `RefChip.text`——它会被 `composeWithRefs` 拼成 `[题目图片] user/x/a.png` 随 content 上送，
-   * AI 据此知道「这道题有一张图、图在哪个 key」。
+   * 后端 `ChatMessageRequest.mediaKey`（契约 v1.12.0）已支持多模态：按 key 从 R2
+   * 取回字节送给模型。所以带图提问现在走 `POST /chat/media` 异步路径，
+   * **真正的图片会进模型**，media chip 不再被拼成 `[题目图片] key` 文字。
    *
-   * ## 这里**没有**做到的事（别当成已完成）
-   *
-   * AI 目前**看不到图片内容**——后端还没有取图/OCR/多模态链路。要把图真正喂给模型，
-   * 得后端按 key 从 R2 取回字节再送模型，那是另一件事、不在本轮。
+   * ⚠️ 这段注释曾经写着"AI 目前看不到图片内容"——那是 v1.12.0 之前的状态，
+   * 留着会误导下一个人以为带图只是装饰。**别再照着旧注释理解这条链路。**
    *
    * `source: 'f_media'` 是协议里的来源标记字段，供后续收藏/讲解打标（见 RefChip 注释）。
    */
@@ -142,9 +148,48 @@ export default function ChatPage() {
       .filter((s) => s)
       .join('\n')
 
-  /** 发送一条用户消息，调用后端 /api/v1/chat 拿真实回复 */
+  /**
+   * 带图异步路径用：**剔除媒体 chip** 只拼文本引用。
+   *
+   * 为什么不能沿用 composeWithRefs：那条会把 `[题目图片] user/x/a.png` 拼进正文，
+   * 而异步路径是把图片**真正按 mediaKey 送进模型的**。两者叠加会让模型既看到图、
+   * 又看到一行"这里有个 key"的文字，纯属噪声。
+   */
+  const composeWithoutMedia = (draft: string, refsList: RefChip[]) =>
+    composeWithRefs(draft, refsList.filter((r) => r.source !== 'f_media'))
+
+  /**
+   * 「处理中」提示。
+   *
+   * 带图推理实测中位 105.7s、最大 245.8s，三点动画干转四分钟用户会以为卡死。
+   * 直接把预期耗时说清楚，比让用户猜要好。
+   */
+  const MEDIA_PENDING_HINT = '正在看图回答 · 带图通常要 1~4 分钟，可以先去做别的'
+
+  /** 在途的带图任务，用于组件卸载时中止轮询（否则关页面后仍在打接口） */
+  const mediaAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      mediaAbortRef.current?.abort()
+    }
+  }, [])
+
+  /**
+   * 发送一条用户消息，调用后端 /api/v1/chat 拿真实回复
+   *
+   * ## 两条路径（契约 v1.13.0）
+   *
+   * - **无 mediaKey → 同步**：走下面那段 fetch，**与本轮改动前逐字相同**。
+   * - **有 mediaKey → 异步**：`POST /chat/media` 入队拿 jobId，再轮询
+   *   `GET /chat/jobs/{jobId}`。
+   *
+   * 之所以分流而不是给 `/chat` 加个 async 参数：纯文本 tokens_out 只有 5~107，
+   * 延迟远低于带图。为了带图的慢把整个 Chat 改异步，会让绝大多数对话体验变差
+   * 还要大改前端。带图是少数派路径，就该走少数派的端点。
+   */
   const sendMessage = useCallback(
-    async (raw: string) => {
+    async (raw: string, mediaKey?: string) => {
       const content = raw.trim()
       if (!content || typing) return
       setMessages((prev) => [
@@ -153,6 +198,72 @@ export default function ChatPage() {
       ])
       setDraft('')
       setTyping(true)
+
+      // ---- 带图：异步路径 ----
+      if (mediaKey) {
+        const controller = new AbortController()
+        mediaAbortRef.current = controller
+        setPendingHint(MEDIA_PENDING_HINT)
+        try {
+          const accepted = await sendMediaChat({ content, mediaKey }, controller.signal)
+          // pollAfterMs 由服务端下发，这里原样透传，不在前端写死间隔
+          const job = await pollChatJob(accepted.jobId, {
+            pollAfterMs: accepted.pollAfterMs,
+            signal: controller.signal,
+          })
+
+          if (job.status === 'done') {
+            const cards = Array.isArray(job.cards) ? job.cards : []
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: genId('msg'),
+                role: 'ai',
+                content: job.reply || '（未收到回复）',
+                cards,
+                createdAt: Date.now(),
+              },
+            ])
+          } else {
+            // failed 也是**正常返回**，不是异常：契约要求用户能看到失败原因，
+            // 所以这里展示 errorMessage，而不是笼统的"出错了"。
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: genId('msg'),
+                role: 'ai',
+                content: job.errorMessage || '这次没答上来，请再发一次。',
+                createdAt: Date.now(),
+              },
+            ])
+          }
+        } catch (err) {
+          // 组件卸载导致的中止**不是错误**，别给用户弹失败提示
+          if (!(err instanceof ChatJobAbortedError)) {
+            console.error('[chat] media job failed', err)
+            const text =
+              err instanceof ChatJobTimeoutError
+                ? '这次等得太久了，我先停下了。你可以直接再发一次。'
+                : err instanceof ApiError
+                  ? err.message
+                  : '这次带图提问没跑完，请再发一次。'
+            setMessages((prev) => [
+              ...prev,
+              { id: genId('msg'), role: 'ai', content: text, createdAt: Date.now() },
+            ])
+          }
+        } finally {
+          if (mediaAbortRef.current === controller) mediaAbortRef.current = null
+          // 被中止 = 组件已卸载，此时不再 setState
+          if (!controller.signal.aborted) {
+            setPendingHint(null)
+            setTyping(false)
+          }
+        }
+        return
+      }
+
+      // ↓↓↓ 以下为**纯文本同步路径**，本轮改动**逐字未动**（diff 里只会是上下文行）↓↓↓
       try {
         const resp = await fetch('/api/v1/chat', {
           method: 'POST',
@@ -248,13 +359,34 @@ export default function ChatPage() {
         <div className="chat-layout">
           {/* 聊天主区域（快速引用收进输入框「+」浮层，不再常驻左栏） */}
           <section className="chat-center glass">
-            <MessageList messages={messages} typing={typing} />
+            <MessageList messages={messages} typing={typing} pendingHint={pendingHint} />
             <InputArea
               value={draft}
               onChange={setDraft}
               onSend={() => {
                 if (!draft.trim() && refs.length === 0) return
-                sendMessage(composeWithRefs(draft, refs))
+                // 媒体 chip 走异步、文本 chip 走同步，这里只负责分流
+                const mediaRefs = refs.filter((r) => r.source === 'f_media')
+                if (mediaRefs.length > 1) {
+                  // 契约 ChatMediaJobRequest 只收**一个** mediaKey。多图时
+                  // 明确拒绝并说明，绝不静默丢图——用户刚拍的照片被悄悄吞掉
+                  // 是最糟的失败方式（与后端并发上限 429 同一口径）。
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: genId('msg'),
+                      role: 'ai',
+                      content: '一次只能看一张题图，请先把多余的图片删掉再问。',
+                      createdAt: Date.now(),
+                    },
+                  ])
+                  return
+                }
+                const mediaKey = mediaRefs[0]?.text
+                sendMessage(
+                  mediaKey ? composeWithoutMedia(draft, refs) : composeWithRefs(draft, refs),
+                  mediaKey,
+                )
                 setRefs([])
               }}
               disabled={typing}

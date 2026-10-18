@@ -5,6 +5,12 @@
  * 新增字段前请先改 openapi.yaml —— 它是前后端与 QA 的唯一契约来源。
  */
 
+// 本文件至今**零 import**，保持「纯契约类型」定位。这里为了 ChatJob.cards 破例一次：
+// ChatCard 已在 components/Chat/types.ts 定义，若在此重复一份就会变成两处真相源
+// （与契约脱钩后要改两处，正是 services/fMedia.ts 注释里明确要避免的那种债）。
+// 单向 type-only import，不产生运行时依赖；components/Chat/types.ts 自身无 import，无循环风险。
+import type { ChatCard } from '@/components/Chat/types';
+
 /* ---------- 枚举字典（openapi.yaml 0.4 节） ---------- */
 
 /** 学科代码：拼音首字母大写（2026-08-26 与知识点库标准对齐），other 保留兜底 */
@@ -503,4 +509,64 @@ export interface RecommendationList {
 export interface RecommendationFeedbackResult {
   recommendationId: string;
   feedback: FeedbackRecord;
+}
+
+/* ---------- 带图 Chat 异步任务（openapi.yaml v1.13.0） ---------- */
+
+/**
+ * 带图 Chat 任务状态。
+ *
+ * `done` / `failed` 是**终态**：拿到任一个前端都必须停止轮询（契约硬要求）。
+ * 非终态只有 queued / processing —— 后者说明 worker 已经接手。
+ */
+export type ChatJobStatus = 'queued' | 'processing' | 'done' | 'failed';
+
+/**
+ * 失败原因码（契约 ChatJob.errorCode）。
+ *
+ * - `CHAT_JOB_INTERNAL_ERROR`：worker 内部异常
+ * - `CHAT_JOB_INTERRUPTED`：实例重启，任务被启动对账置为失败
+ *
+ * 两者都必须展示给用户 —— 契约明确要求「不允许用户干等」。
+ */
+export type ChatJobErrorCode = 'CHAT_JOB_INTERNAL_ERROR' | 'CHAT_JOB_INTERRUPTED';
+
+/** 带图异步提问请求体（契约 ChatMediaJobRequest）。mediaKey **必填**。 */
+export interface ChatMediaJobRequest {
+  content: string;
+  mediaKey: string;
+}
+
+/**
+ * 入队受理响应（契约 ChatMediaJobAccepted）。
+ *
+ * ⚠️ 202 只代表「已受理」，**不代表已有结果**。`pollAfterMs` 由服务端下发，
+ * 前端**不要写死轮询间隔** —— 调节奏不需要重新发布前端。
+ */
+export interface ChatMediaJobAccepted {
+  status: ChatJobStatus;
+  jobId: string;
+  pollAfterMs: number;
+  acceptedAt: string;
+}
+
+/**
+ * 带图 Chat 任务状态（契约 ChatJob）。
+ *
+ * `done` 时 reply / intent / crisis / cards / sessionId / contextStack 与同步
+ * ChatReply 逐字段同义，所以前端拿到 done 之后走的是**和同步路径一样的渲染逻辑**。
+ */
+export interface ChatJob {
+  jobId: string;
+  status: ChatJobStatus;
+  reply?: string | null;
+  intent?: string | null;
+  crisis?: boolean;
+  cards?: ChatCard[];
+  sessionId?: string | null;
+  contextStack?: unknown[];
+  errorCode?: ChatJobErrorCode | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
 }
