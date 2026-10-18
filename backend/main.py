@@ -50,6 +50,19 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001
         pass
 
+    # 带图 Chat 异步任务的启动对账（契约 v1.13.0）：BackgroundTasks 只活在
+    # 本实例内存里，上一实例遗留的 queued/processing 在这里统一置 failed
+    # （CHAT_JOB_INTERRUPTED），否则用户手里的 jobId 会永远转圈。
+    # **失败不阻断启动**：对账是善后，不是启动前置条件。
+    try:
+        from chat_jobs import reconcile_on_startup
+
+        reconcile_on_startup()
+    except Exception:  # noqa: BLE001
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("[MAIN] 带图任务启动对账失败")
+
     yield
 
     if scheduler_task is not None:

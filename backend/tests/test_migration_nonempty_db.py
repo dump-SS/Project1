@@ -260,6 +260,91 @@ def test_migration_uses_portable_boolean_default():
     assert not offenders, "迁移里出现 sa.text() 形式的 server_default，Postgres 会拒绝"
 
 
+def test_no_migration_pairs_boolean_with_text_default():
+    """🔴 全仓守卫：**任何**迁移都不许把 `sa.text(...)` 挂在 BOOLEAN 列上。
+
+    比 `test_migration_uses_portable_boolean_default` 更强：那个只盯着一个文件，
+    新迁移再犯同样的错就漏网。这里按「同一行同时出现 Boolean 与 sa.text(」判定，
+    因此不会误伤基线里合法的 `sa.text('(CURRENT_TIMESTAMP)')`（那是 DateTime 列）。
+    """
+    import re
+
+    offenders: list[str] = []
+    for path in sorted((BACKEND / "alembic/versions").glob("*.py")):
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            if "sa.Boolean()" in line and "sa.text(" in line:
+                offenders.append(f"{path.name}:{lineno}: {line.strip()}")
+    assert not offenders, "BOOLEAN 列配了 sa.text() 默认值，Postgres 会 DatatypeMismatch：\n" + "\n".join(offenders)
+
+
+# ---------- 带图 Chat 异步任务（chat_jobs · b8e2d4f1a7c3）----------
+
+
+def test_chat_jobs_table_created_at_head(db_at_head: pathlib.Path):
+    """建表 + 三个索引（并发上限查询要靠 ix_chat_jobs_user_status 走索引）。"""
+    c = sqlite3.connect(db_at_head)
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(chat_jobs)")]
+        assert cols == [
+            "id", "user_id", "status", "content", "media_key",
+            "reply", "intent", "crisis", "cards_json", "session_id",
+            "context_stack_json", "error_code", "error_message",
+            "created_at", "completed_at",
+        ], cols
+        idx = {
+            r[0]
+            for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='chat_jobs'"
+            )
+            if not r[0].startswith("sqlite_")
+        }
+        assert idx == {
+            "ix_chat_jobs_user_id",
+            "ix_chat_jobs_created_at",
+            "ix_chat_jobs_user_status",
+        }, idx
+    finally:
+        c.close()
+
+
+def test_chat_jobs_defaults_actually_apply(db_at_head: pathlib.Path):
+    """不指定 status / crisis 插入时，server_default 必须真生效。
+
+    这是「SQLite 动态类型照单全收」的另一面：默认值写错时 SQLite 也不会报错，
+    只会安静地存成你不想的值，所以只能断言实际落库结果。
+    """
+    c = sqlite3.connect(db_at_head)
+    try:
+        c.execute(
+            "INSERT INTO chat_jobs (id, user_id, content, media_key)"
+            " VALUES ('cj_probe', 'u_probe', 'x', 'user/u_probe/x.png')"
+        )
+        row = c.execute(
+            "SELECT status, crisis, created_at, reply, completed_at FROM chat_jobs"
+            " WHERE id='cj_probe'"
+        ).fetchone()
+        assert row[0] == "queued", row
+        assert row[1] == 0, row
+        assert row[2] is not None, "created_at 的 server_default 没生效"
+        assert row[3] is None and row[4] is None
+    finally:
+        c.close()
+
+
+def test_chat_jobs_crisis_default_compiles_portably():
+    """本迁移的 crisis 默认值在两种方言下分别渲染成 0 / false。"""
+    import sqlalchemy as sa
+
+    sqlite_dialect = sa.create_engine("sqlite://").dialect
+    pg_dialect = sa.create_engine("postgresql://").dialect
+
+    col = sa.Column("crisis", sa.Boolean(), nullable=False, server_default=sa.false())
+    assert str(col.server_default.arg.compile(dialect=sqlite_dialect)).strip() == "0"
+    assert str(col.server_default.arg.compile(dialect=pg_dialect)).strip() == "false"
+
+
 # ---------- 冗余 UNIQUE 约束（kb_point_mastery · b7d2e4f1a609）----------
 
 
