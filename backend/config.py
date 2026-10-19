@@ -11,6 +11,8 @@ from pathlib import Path
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from db_guard import apply_db_guard
+
 # 仓库根目录（与 docs/ 平级）
 BACKEND_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BACKEND_DIR.parent
@@ -194,6 +196,21 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _guard_shared_dev_db(cls, values):
+        """防「随手跑个脚本」误改共享开发库（见 db_guard.py 的完整说明）。
+
+        放在 before 校验器是因为它是**唯一**能同时看到「.env 解析结果」与
+        「环境变量是否被显式设置」的地方，而且跑在 engine 创建之前
+        （database.py 一 import 就 create_engine，那时再判断就晚了）。
+
+        ⚠️ 只有**一次性脚本**会被隔离：应用（uvicorn）、工具（alembic/pytest）、
+        仓库内正式工具脚本（scripts/*.py）行为一律不变。
+        """
+        values, _ = apply_db_guard(BACKEND_DIR, REPO_ROOT, values)
+        return values
 
     @model_validator(mode="after")
     def _normalize_sqlite_path(self) -> "Settings":
