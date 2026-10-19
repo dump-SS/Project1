@@ -20,6 +20,7 @@ import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
+import { startTextPendingHint } from '@/components/Chat/pendingHint'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
 import type { FCard, MediaUploadResult } from '@/services/fMedia'
 import {
@@ -264,6 +265,10 @@ export default function ChatPage() {
       }
 
       // ↓↓↓ 以下为**纯文本同步路径**，本轮改动**逐字未动**（diff 里只会是上下文行）↓↓↓
+      // ⚠️ 唯一新增：给纯文本也接上「在等」的预期提示（复用带图那套 pendingHint 机制）。
+      //    短问答是秒级，两档阈值都够不到，观感与从前完全一致；
+      //    长解释（实测 66s）才会升级文案。**请求与响应处理一行未改。**
+      const stopTextHint = startTextPendingHint(setPendingHint)
       try {
         const resp = await fetch('/api/v1/chat', {
           method: 'POST',
@@ -285,6 +290,10 @@ export default function ChatPage() {
           { id: genId('msg'), role: 'ai', content: '我暂时接不上你的话，能换个说法再跟我说一次吗？', createdAt: Date.now() },
         ])
       } finally {
+        // 清掉提示定时器 + 清掉提示文案：响应已到就不该再弹「在等」了。
+        // （文案也要清，否则下一次请求会残留上一条提示）
+        stopTextHint()
+        setPendingHint(null)
         setTyping(false)
       }
     },
