@@ -6,7 +6,28 @@
 .trae-html-share-packages/
 .cursor/
 node_modules/
+dist/
+backend/.pytest_data/
+backend/.pytest_cache/
 *.log
 *.db
 *.db.bak-*
 backend/kb_vectors/
+
+# ---- 密钥文件：前端构建用不到，绝不能上传到第三方 ----
+#
+# 为什么单独加这一段（2026-10-20 部署前预检发现）：
+# Vercel CLI 的文件收集规则是「有 .vercelignore 就用它，**不再看** .gitignore」。
+# 所以只被 .gitignore 忽略的文件**照样会被上传**——
+# 2026-10-07 那次部署的源文件树里就带着 `backend/.env`（含 LLM/R2/SMTP/数据库口令）
+# 和 `.neon`（Neon 连接串）。它们虽然不在 Vite 的输出目录里、不会被公开访问，
+# 但确实躺进了第三方的构建环境。
+#
+# 构建期需要的变量（VITE_API_BASE_URL 等）走 Vercel **项目环境变量**，
+# 不依赖仓库里的 .env 文件，所以排除它们对构建没有任何影响。
+.env
+.env.*
+**/.env
+**/.env.*
+.neon
+**/.neon
