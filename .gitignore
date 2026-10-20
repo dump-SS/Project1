@@ -57,6 +57,9 @@ reasonix.toml
 !backend/prompts/*.txt
 .neon
 
+# Vercel CLI 的项目链接目录（frontend/.gitignore 已单独忽略；根目录这份是部署时生成的）
+.vercel/
+
 # 内部分派文档(不上库，仅供团队内部发活用)
 docs/refactor-dispatch-cards.md
 
@@ -70,3 +73,5 @@ CLAUDE.md
 .windsurfrules
 .cursor/
 .github/copilot-instructions.md
+.vercel
+.env*
