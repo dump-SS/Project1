@@ -251,6 +251,21 @@ def test_evaluate_handles_relative_sqlite_path():
     assert d.action == db_guard.ACTION_REDIRECT
 
 
+def test_evaluate_empty_database_url_redirects_to_scratch():
+    """before-validator 在字段默认值应用前运行：若 values 里没有 database_url
+   （无 .env、无 DATABASE_URL 环境变量），pydantic 之后会用字段默认
+    "sqlite:///./data.db"，它解析后正好是共享开发库。不把默认值算进来
+    就会漏判成「不动」→ 一次性脚本静默写进共享库（fail-open）。
+    """
+    d = db_guard.evaluate(
+        BACKEND, REPO_ROOT, {}, ['-c', 'import config'], {}
+    )
+    assert d.action == db_guard.ACTION_REDIRECT
+    assert d.final == db_guard.scratch_url(BACKEND)
+    assert SCRATCH_DB.as_posix() in d.final
+    assert d.notice, "重定向必须带醒目说明"
+
+
 def test_summarize_target_does_not_leak_password():
     """日志里不能出现口令。"""
     out = db_guard.summarize_target("postgresql://user:sup3rsecret@host/db")

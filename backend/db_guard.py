@@ -243,6 +243,13 @@ def evaluate(
     mode = detect_mode(argv, backend_dir, repo_root, cwd)
     current = str(values.get("database_url") or "")
 
+    # mode="before" 校验器在字段默认值应用前运行：若 values 里没有 database_url
+    #（没写 .env、也没设 DATABASE_URL 环境变量），pydantic 之后会用字段默认
+    # 值 "sqlite:///./data.db"，它解析后正好是共享开发库。不把默认值算进来
+    # 就会漏判成「不动」→ 一次性脚本静默写进共享库（fail-open）。
+    if not current:
+        current = "sqlite:///./data.db"
+
     if mode in (MODE_APP, MODE_TOOL):
         return GuardDecision(mode, ACTION_KEEP, current, current, "应用/工具进程，不隔离")
 
