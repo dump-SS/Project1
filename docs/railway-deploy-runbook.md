@@ -228,6 +228,9 @@ Redis 留二期（brief 明确不引入）。
 | `LLM_BASE_URL` | `https://aiping.cn/api/v1`（字面量） | 同上 |
 | `LLM_MODEL` | `GLM-5.3-Flash`（字面量） | Skyer 指定，**不要自行替换** |
 | `LLM_API_KEY` | `preserve()` | 唯一真密钥，不落文件 |
+| `LLM_MAX_TOKENS` | `8192`（可选；不配则默认 8192） | 推理模型思维链与正文共用预算；4096 时带图 20 次仍有 3 次失败（PR #64） |
+| `LLM_TEMPERATURE` | `0.3`（可选；默认 0.3） | 解题场景要稳定；调高会让同一道题每次答法不同 |
+| `LLM_REQUEST_TIMEOUT` | `180`（可选；默认 180） | 带图实测中位 46.9s、最大 125.5s；60s 线会直接超时 |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | `preserve()` | 凭据 |
 | `SMTP_PROVIDER` | `real`（字面量） | — |
 

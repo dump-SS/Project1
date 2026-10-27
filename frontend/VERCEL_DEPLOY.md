@@ -200,6 +200,31 @@ routes.rewrite('/((?!api/).*)', '/index.html')
 
 > 已由 lead-2 裁决：**不加**，但配方保留在本文档里。
 
+### 4.5 `.vercelignore` 会取代 `.gitignore`（密钥上传防线，**已真实踩过**）
+
+Vercel 上传的是**项目源文件树**，不是只有 `vite build` 的产物。官方文档写明：
+除默认忽略项外，**没有在 `.vercelignore` 里排除的文件都会被上传**；该文件应放在
+**项目根目录**（本项目即 `Root Directory = frontend`）。monorepo 下项目级
+`.vercelignore` **优先于**仓库根级；项目级不存在时才回退到仓库根级
+（来源：https://vercel.com/docs/deployments/vercel-ignore 的 "Monorepos" 与
+"Uploaded Files" 两节）。
+
+**这条的坑**：Vercel 有 `.vercelignore` 时**不再看 `.gitignore`**
+（项目侧 2026-10-20 部署预检的结论，原文写在仓库根 `.vercelignore` 的注释里）。
+所以只被 `.gitignore` 忽略的文件**照样会被上传**。
+
+**本项目真实发生过**（2026-10-07 部署的源文件树）：`backend/.env`（含 LLM / R2 / SMTP /
+数据库口令）与 `.neon`（Neon 连接串）被打包进了 Vercel 的构建环境。它们不在 Vite 的输出
+目录里、不会被公开访问，但确实躺在了第三方构建环境中。
+
+**修复**：仓库根新增 `.vercelignore`（PR #71），显式排除 `.env` / `**/.env` / `.neon`
+等密钥文件。构建期需要的变量（`VITE_API_BASE_URL` 等）走 Vercel **项目环境变量**，
+不依赖仓库里的 `.env`，所以排除它们对构建没有影响。
+
+> ⚠️ **位置提醒**：当前只有**仓库根**一份 `.vercelignore`（项目级不存在 → 按官方规则回退到根级）。
+> 若将来在 `frontend/` 下再加一份，它会**整体优先**、根级那份不再生效——两处必须保持一致，
+> 否则密钥排除规则会被项目级文件悄悄遮掉。
+
 ---
 
 ## 5. 本地验证记录（**哪一次、跑了什么、结果是什么**）

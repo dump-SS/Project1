@@ -49,6 +49,13 @@ cp .env.example .env
 uvicorn main:app --reload --port 8000
 ```
 
+> **脚本的数据库隔离（db_guard）**：在 `backend/` 下跑一次性脚本/探针时，若没有显式设置
+> `DATABASE_URL`，`config.py` 会把指向共享开发库 `backend/data.db` 的连接**重定向**到
+> `backend/.scratch_data/scratch.db` 并打印醒目提示（该库默认没有表，脚本会以 `no such table`
+> 明确失败，而不是安静写进共享库）。要真连共享库，显式给 `DATABASE_URL`，或设
+> `EPOCHX_ALLOW_SHARED_DB=1`。`uvicorn` / `alembic` / `pytest` 与仓库 `scripts/` 下的正式工具
+> 不受影响。详见 `db_guard.py` 文件头。
+
 打开 <http://localhost:8000/docs> 看 Swagger UI，所有接口都能 `Try it out`。
 
 ## 项目结构
@@ -60,7 +67,7 @@ backend/
 ├── database.py              SQLAlchemy 2.0 + SessionLocal + get_db
 ├── middleware.py            请求 ID + 访问日志
 ├── mock_data.py             阶段 2 的硬编码假数据（直接复用 openapi.yaml example）
-├── models/                  SQLAlchemy ORM 模型（47 张表）
+├── models/                  SQLAlchemy ORM 模型（48 张表）
 │   ├── user.py              User / Settings / GuardianAuthorization
 │   ├── goal.py              Goal
 │   ├── plan.py              Plan / PlanTask
@@ -68,7 +75,7 @@ backend/
 │   ├── assessment.py        AssessmentSnapshot
 │   ├── recommendation.py    Recommendation
 │   └── summary.py           Summary
-├── schemas/                 Pydantic v2 模型（18 个文件，契约 179 schema，严格对齐 openapi.yaml v1.9.0）
+├── schemas/                 Pydantic v2 模型（18 个文件，契约 183 schema，严格对齐 openapi.yaml v1.14.0）
 │   ├── enums.py             Subject / StateLabel / ...
 │   ├── common.py            Error / Pagination / GenerationStatus / RatingFeedback
 │   ├── user.py              User / UserProfilePut / Settings / SettingsUpdate / GuardianAuthorizationRequest
@@ -79,7 +86,7 @@ backend/
 │   ├── recommendation.py    Recommendation / RecommendationCreate
 │   ├── summary.py           Summary / SummaryContent
 │   └── chat.py              ChatMessageRequest / ChatReply / ChatCard / ChatGreeting / FloatTurn
-├── routes/                  FastAPI 路由（23 个文件；main.py 注册 22 个 router，契约 66 paths / 88 operations / 16 个 tag）
+├── routes/                  FastAPI 路由（24 个文件 = 23 个 router + deps.py；main.py 挂 24 个 router 对象，契约 70 paths / 93 operations / 18 tags）
 │   ├── health.py            /health（带 DB 探活）
 │   ├── user.py              /me, /me/settings, /me/guardian-authorization
 │   ├── goal.py              /goals
@@ -88,10 +95,15 @@ backend/
 │   ├── assessment.py        /assessments
 │   ├── recommendation.py    /recommendations（ORM + ai_suggestion）
 │   ├── summary.py           /summaries（ORM + ai_suggestion）
-│   └── chat.py              /chat, /chat/greeting（Chat 真链路入口，编排在 chat_engine）
+│   ├── chat.py              /chat, /chat/greeting, /chat/media, /chat/jobs/{jobId}（入口，编排在 chat_engine / chat_jobs）
+│   └── f_media.py           /f/media 上传/取回/删除（R2 私有桶，raw body + SigV4）
 ├── jobs/                    后台 job：chat_ttl_cleanup（对话原文 TTL）/ community_aggregate / community_extraction / weekly_knowledge_summary
 ├── state_calculator.py      编排层：ORM ↔ 引擎输入 ↔ 契约 dict（阶段 3 接入点）
 ├── chat_engine.py           Chat 真链路编排：意图三通道 / 上下文栈 / 画像注入 / 卡片 / 危机前置
+├── chat_jobs.py             带图 Chat 异步任务（入队 / 轮询 / 重启对账；表 chat_jobs）
+├── r2_storage.py            R2 私有桶存取（S3 SigV4；不依赖 boto3）
+├── r2_sigv4.py              SigV4 签名原语（手写 hmac/sha256）
+├── db_guard.py              脚本入口数据库隔离（防误改共享开发库，见「快速开始」）
 ├── ai_suggestion.py         AI 编排：provider → 安全审核 → 兜底/失败 → ORM
 ├── llm_provider.py          供应商抽象：MockProvider / OpenAICompatibleProvider
 ├── template_fallback.py     规则模板兜底（PRD 5.3）
@@ -114,6 +126,9 @@ backend/
 ├── .env.example
 └── README.md
 ```
+
+> 仓库根 `scripts/r2_sweep.py` 是 R2 孤儿对象清理工具（按 manifest 删除、幂等、显式从环境变量/stdin 取
+> `DATABASE_URL`）；它不在 `backend/` 树内，故未列在上图。
 
 ## 关键约定
 
@@ -166,7 +181,7 @@ pytest                    # 跑全部
 pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 ```
 
-50 个测试文件 / 383 个用例（2026-09-27 实测 `pytest --collect-only`；上一版 README 写「20 个测试」已过期）。基础冒烟（`test_smoke.py`）覆盖：
+72 个测试文件 / 735 个用例（2026-10-22 实测 `pytest --collect-only`；上一版 README 写「50 个文件 / 383 例」已过期）。基础冒烟（`test_smoke.py`）覆盖：
 - 启动 + 导入
 - 枚举值与 openapi.yaml 一致性
 - mock 数据能通过 schema 校验
@@ -285,6 +300,9 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 - [x] **C 板块迁移**：`c7a1f2e4d9b3`，`down_revision = b81d83bafb89`，**单 head**。自评四列可空化 +
       `learning_records.source` / `source_exam_id` + `exams.duration_minutes`（变更单见
       `docs/refactor-c-handoff-to-x0.md`）。
+- [x] **带图 Chat 异步迁移**：`b8e2d4f1a7c3`，`down_revision = 4c0b1c004f69`，**单 head**。
+      新增 `chat_jobs` 表（带图异步任务的状态行：jobId / userId / status / content / mediaKey /
+      reply / errorMessage / 时间戳）；表数 47 → **48**。空库 `upgrade head` 实测通过。
 - [ ] ⚠️ **本地 `data.db` 落后于 head 是常见现象，pytest 抓不到**（2026-09-27 实际发生过一次）：
       拉了新代码后本地库还停在旧 revision，代码已在读新列 → 相关接口 `no such column`，
       但 `pytest` 仍全绿——因为 `tests/conftest.py` 把 `DATABASE_URL` 强制到独立的
