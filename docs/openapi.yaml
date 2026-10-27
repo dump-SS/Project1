@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.13.0
+  version: 1.14.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -35,6 +35,18 @@ info:
       不落库、不串号；登录/注册成功后试用数据直接清空（D1/D43）。A 板块落地时在此口径上叠加，
       **不得新增任何「游客可写」的接口**。
 
+    **v1.7.0（G 板块 · pilot 运营与治理）**——纯增量，新增 5 个 path 与 3 个包装 schema：
+    - `GET /me/usage`（月度只读用量，对应 usage_ledger）、`POST /error-reports`（#46 两处入口共用）、
+      `GET /me/violations`（#43 本人留痕可查）、`GET /me/medals`（#49 最小版）、
+      `POST /analytics/events`（D39 三块埋点，payload 入库前脱敏）。
+    - 新增 `MedalList` / `ViolationLogList` / `AnalyticsEventCreate`。
+    - 违规处置在 `governance_service.py`：1 警告 → 2-3 临时封 24h → ≥4 永久。
+
+    **v1.7.1（C 板块 · 学习流）**——纯增量，无字段改名：
+    - 自评四列放开为可空（D20/D34）；`learning_records` 新增 `source` / `sourceExamId`（D49 成绩回填）；
+      `exams` 新增 `durationMinutes`。`GET /learning-records` 支持按 `source` 过滤。
+    - 四字段齐全时状态分与放开前逐字节一致；缺项跳过并按可用项权重归一化（不按 0 分处理）。
+
     **v1.8.0（重构 M1 · A 板块：身份、入口与合规）**——纯增量，无字段改名、无枚举取值变更：
     - **邀请码注册（#50）**：`RegisterRequest` 新增必填 `inviteCode`（pilot 一码一用，注册成功后
       回写 `invite_codes.used_by` / `used_at` 供溯源）；新增错误码 `INVITE_CODE_INVALID`（422）、
@@ -49,6 +61,14 @@ info:
     - **群体参照开启前校验授权（D41）**：`PUT /me/community-consent` **开启**（enabled=true）时
       要求监护人授权 `active`：无记录/待确认 → 403 `GUARDIAN_AUTHORIZATION_REQUIRED`，
       已失效 → 403 `GUARDIAN_AUTHORIZATION_EXPIRED`；**撤回（enabled=false）不受限制**。
+
+    **v1.9.0（Chat 真链路 + 契约同步）**——纯增量，无既有字段改名：
+    - Chat 真链路：`GET /chat/greeting`；`ChatMessageRequest` 增补 `ephemeral` / `floatContext`；
+      `ChatReply.crisis` 改述为两层检测（确定性 + 语义兜底，转介文案仍硬编码）。
+    - 目标：`DELETE /goals`（批量归档启用中目标）与 `DELETE /goals/{goalId}`（物理删除并解引用）；
+      `Goal` / `GoalSummary` 新增 `completedAt`（归档时自动写入）。
+    - `/plans` 补单目标整段规则；Chat 卡片 `type` 对齐运行时 6 种：
+      `task_card` / `knowledge_point` / `confirmation` / `calculator` / `collection` / `file_summary`。
 
     **v1.10.0（F 板块 · 多模态拍题存储链路）**——纯增量，无字段改名、无既有取值语义变化：
     - **新增 `POST /f/media`**：上传题目图片。**收 raw body 而非 multipart**——后端
@@ -104,6 +124,18 @@ info:
     门控，且该开关**数据库默认 False**，其文档承诺「关闭时题面一个字都不出去」。
     本次按 lead-1 判断**未挂**该门控，因此：关闭了该开关的用户，改用 Chat 发题图时
     图片仍会出域。两条路径目前口径不同。若 Skyer 要求对齐，加一处门控即可。
+
+    **v1.13.0（F 板块 · 带图 Chat 异步化）**——纯增量，纯文本 `POST /chat` 一字未改：
+    - 新增 `POST /chat/media`：带图消息入队，立即返回 **202 + jobId + pollAfterMs**。
+    - 新增 `GET /chat/jobs/{jobId}`：轮询任务状态直到 `done` / `failed`。
+    - 新增 `ChatMediaJobRequest` / `ChatMediaJobAccepted` / `ChatJob` 与 `chat_jobs` 表。
+    - 理由：带图推理实测中位 105.7s、最大 245.8s，同步等待不可接受。
+
+    **v1.14.0（文档漂移收口）**——无 path / operation / schema 增删：
+    - `ChatMessageRequest.mediaKey` 标记 **deprecated**：前端自 v1.13.0 起带图统一走
+      `POST /chat/media`；该字段仅保留向后兼容（后端仍接受），新调用方不要再用。
+    - 补齐本节缺失的 v1.7.0 / v1.7.1 / v1.9.0 / v1.13.0 沿革记录。
+    - 补齐 `pilot 运营与治理` tag 声明（此前被 operation 引用但未在顶层 `tags` 声明）。
 
 servers:
   - url: /api/v1
@@ -174,6 +206,10 @@ tags:
       F 板块本来就没有 /ocr 路径）。
       R2 私有桶 `epoch-x` 与向量索引同桶并存，但**只允许私有访问**（S3 SigV4，
       不开公开读、不挂自定义域）——桶里是学生拍的题目照片，属用户数据。
+  - name: pilot 运营与治理
+    description: |
+      G 板块（pilot 运营与治理）：用量台账只读查询、报错/违规留痕、奖章、埋点上报。
+      埋点 payload 入库前脱敏；违规处置为服务层阶梯（警告 → 临时封禁 → 永久）。
 
 paths:
   # ==================== 鉴权会话（外部账号体系，登录前公开） ====================
@@ -848,6 +884,10 @@ paths:
         由模型出锚定确认卡交用户确认，不在本接口直接执行（#17 第三层）；危机信号走 L3 转介，
         事件细节不进画像（D37）。浮窗路径（ephemeral=true，D51）走受限问答：不入上下文栈、
         不回流主对话、不出卡。
+
+        ⚠️ 带图同步分支已由 v1.13.0 的 `POST /chat/media` 取代：前端自 v1.13.0 起不再向本接口
+        传 `mediaKey`。本接口仍接受该字段以保持向后兼容，但 `400`（ephemeral + 附件）与
+        `403`（越权 key）只可能由这条已废弃的带图分支触发，新调用方不要依赖。
       requestBody:
         required: true
         content:
@@ -6779,8 +6819,13 @@ components:
         mediaKey:
           type: string
           nullable: true
+          deprecated: true
           maxLength: 512
           description: >-
+            ⚠️ **已废弃（v1.14.0）**：带图 Chat 已统一走 `POST /chat/media` +
+            `GET /chat/jobs/{jobId}`。本字段仅保留向后兼容（后端仍接受，回归见
+            `test_sync_chat_still_accepts_media_key`），新调用方不要再用。
+
             本轮附带的题目图片**引用**（`POST /f/media` 返回的 R2 对象 key，形如
             `user/{userId}/{uuid}.png`）。**只传 key 引用，不传字节**——图片绝不能
             base64 进 JSON 请求体（会让请求体膨胀一个数量级，且把用户图片复制到
