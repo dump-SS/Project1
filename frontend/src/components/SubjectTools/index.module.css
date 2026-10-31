@@ -1,0 +1,289 @@
+/* D56 学科工具顶栏 · 样式。颜色全部引用 tokens / theme.subjectColors（铁律：不写死色值）。 */
+
+/* ① 上边界感应区：贴顶、极薄、透明，只负责「鼠标到了上边界」这件事 */
+.edgeSensor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: 160;
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* ② 小黑条：从上边界滑出的小把手，单击才展开菜单 */
+.peekStrip {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -110%);
+  z-index: 162;
+  width: 128px;
+  height: 26px;
+  border: none;
+  border-radius: 0 0 10px 10px;
+  background: var(--ink);
+  color: var(--bg-page);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: transform var(--t-base) var(--ease-air);
+}
+.peekStripOn {
+  transform: translate(-50%, 0);
+}
+
+/* ③ 背景模糊层：整个界面景深突出（§4.10.1 的「界面虚化」= 背景模糊） */
+.blurLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 163;
+  background: transparent;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ④ 下拉菜单：占据页面上部、左右抵边；收起时整体上移出屏 */
+.panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 165;
+  min-height: 300px;
+  padding: var(--sp-5) var(--sp-6) var(--sp-3);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--hairline);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
+  transform: translateY(-104%);
+  transition: transform var(--t-slow) var(--ease-air);
+  visibility: hidden;
+}
+.panelOn {
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-4);
+  overflow-x: auto;
+  padding-bottom: var(--sp-2);
+}
+
+/* 首卡：彩色学科卡（较窄），背景斜置学科字 */
+.subjectCard {
+  position: relative;
+  flex: 0 0 128px;
+  min-height: 168px;
+  border: none;
+  border-radius: var(--r-card);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: var(--sp-3);
+  color: var(--bg-page);
+  transition: transform var(--t-base) var(--ease-spring), box-shadow var(--t-base) var(--ease-air);
+}
+.subjectCard:hover,
+.subjectCard:focus-visible {
+  transform: translateY(-6px) scale(1.06); /* 略浮动放大 */
+  box-shadow: var(--glass-shadow);
+  z-index: 2;
+}
+.subjectGlyph {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  font-size: 88px;
+  font-weight: var(--w-semibold);
+  line-height: 1;
+  transform: rotate(-14deg); /* 斜置图标 */
+  opacity: 0.28;
+  pointer-events: none;
+}
+.subjectName {
+  font-size: var(--fs-h3);
+  font-weight: var(--w-semibold);
+}
+.subjectHint {
+  font-size: var(--fs-sm);
+  opacity: 0.85;
+}
+
+/* 后续卡：深灰工具卡（略宽于学科卡） */
+.toolCard {
+  position: relative;
+  flex: 0 0 168px;
+  min-height: 168px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  background: var(--ink-faint);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  transition: transform var(--t-base) var(--ease-air), border-color var(--t-base) var(--ease-air);
+}
+.toolCard:hover,
+.toolCard:focus-visible {
+  transform: translateY(-4px);
+  border-color: var(--ink-soft);
+}
+.toolIcon {
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ink-soft);
+}
+.toolName {
+  font-size: var(--fs-body);
+  font-weight: var(--w-medium);
+}
+.toolBadge {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+}
+
+/* 悬停学科卡 → 下方展开全部学科 */
+.subjects {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+  transition: max-height var(--t-slow) var(--ease-air), opacity var(--t-base) var(--ease-air),
+    margin-top var(--t-slow) var(--ease-air);
+}
+.subjectsOn {
+  max-height: 120px;
+  opacity: 1;
+  margin-top: var(--sp-4);
+}
+.subjectChip {
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 6px 16px;
+  color: var(--bg-page);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+.subjectChip:hover {
+  transform: scale(1.08);
+}
+.subjectChipOn {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.panelHint {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+/* ⑤ 学科工具浮窗：卡片扩大至页面居中 */
+.floatWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 166;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+}
+.floatCard {
+  width: min(520px, 92vw);
+  border-radius: var(--r-glass-lg);
+  overflow: hidden;
+  background: var(--surface-card);
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--hairline);
+}
+.floatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--bg-page);
+}
+.floatTitle {
+  font-size: var(--fs-h3);
+  font-weight: var(--w-semibold);
+}
+.floatClose {
+  border: none;
+  background: transparent;
+  color: var(--bg-page);
+  font-size: var(--fs-h3);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.floatBody {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-3);
+  gap: var(--sp-2);
+}
+.floatToolRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  background: transparent;
+  padding: var(--sp-3) var(--sp-4);
+  cursor: pointer;
+  position: relative;
+  transition: border-color var(--t-fast) var(--ease-air);
+}
+.floatToolRow:hover {
+  border-color: var(--ink-soft);
+}
+
+/* ⑥ 轻提示 */
+.toast {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 168;
+  background: var(--ink);
+  color: var(--bg-page);
+  border-radius: var(--r-pill);
+  padding: 8px 18px;
+  font-size: var(--fs-body);
+}
+
+/* 窄屏：卡片行横向滚动即可（D54 响应式不做特殊布局） */
+@media (max-width: 720px) {
+  .panel {
+    min-height: 240px;
+    padding: var(--sp-4);
+  }
+  .subjectCard {
+    flex-basis: 104px;
+    min-height: 132px;
+  }
+  .toolCard {
+    flex-basis: 140px;
+    min-height: 132px;
+  }
+}
