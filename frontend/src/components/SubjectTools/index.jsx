@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { subjectColors, subjectLabels } from '@/styles/theme'
+import ScientificCalculator from '../Tools/ScientificCalculator'
+import { setPendingToolRef } from '@/hooks/toolRefBus'
 import styles from './index.module.css'
 
 /**
@@ -21,9 +24,9 @@ import styles from './index.module.css'
  * 与收藏的「虚化」（文本模糊）是两回事，CSS 用 backdrop-filter 实现。
  */
 
-/** 每个学科的工具集。pilot：计算器（D57 未就绪 → 开发中占位）+ 通用占位一张。 */
+/** 每个学科的工具集。pilot：计算器（D57 已就绪）+ 通用占位一张。 */
 const TOOL_REGISTRY = {
-  calculator: { id: 'calculator', name: '科学计算器', ready: false },
+  calculator: { id: 'calculator', name: '科学计算器', ready: true },
   more: { id: 'more', name: '更多工具', ready: false },
 }
 const SUBJECT_TOOLS = [TOOL_REGISTRY.calculator, TOOL_REGISTRY.more]
@@ -36,21 +39,24 @@ export default function SubjectTools() {
   const [subject, setSubject] = useState('SX') // 当前学科（首卡）
   const [browsing, setBrowsing] = useState(false) // 悬停学科卡：背景模糊 + 展开全部学科
   const [floatOpen, setFloatOpen] = useState(false) // 学科工具浮窗（居中）
+  const [calcOpen, setCalcOpen] = useState(false) // D57 科学计算器浮窗
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
+  const navigate = useNavigate()
 
-  // Esc 关闭：面板 / 浮窗 / 展开态，一次一层
+  // Esc 关闭：面板 / 计算器 / 浮窗 / 展开态，一次一层（计算器在最上层，先关它）
   useEffect(() => {
-    if (!open && !floatOpen && !browsing) return
+    if (!open && !floatOpen && !browsing && !calcOpen) return
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (browsing) setBrowsing(false)
+      if (calcOpen) setCalcOpen(false)
+      else if (browsing) setBrowsing(false)
       else if (floatOpen) setFloatOpen(false)
       else if (open) setOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, floatOpen, browsing])
+  }, [open, floatOpen, browsing, calcOpen])
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
@@ -62,7 +68,12 @@ export default function SubjectTools() {
 
   const openTool = (tool) => {
     if (tool.ready) {
-      // D57 接线点：calculator.ready = true 后在这里打开计算器浮窗
+      // D57 接线点（dev-3 预留）：计算器就绪 → 开计算器浮窗
+      if (tool.id === 'calculator') {
+        setFloatOpen(false)
+        setCalcOpen(true)
+        return
+      }
       showToast(`${tool.name}即将可用`)
       return
     }
@@ -210,6 +221,19 @@ export default function SubjectTools() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ⑤·D57 科学计算器浮窗（§4.10.3）：右上角「添加到对话 / ✕」，
+          添加 = 递引用给 toolRefBus + 切至对话页；先递后切，Chat 页挂载时取信 */}
+      {calcOpen && (
+        <ScientificCalculator
+          onClose={() => setCalcOpen(false)}
+          onAddToChat={(text) => {
+            setPendingToolRef({ label: '科学计算器', text, source: 'f_calculator' })
+            setCalcOpen(false)
+            navigate('/chat')
+          }}
+        />
       )}
 
       {/* ⑥ 轻提示 */}
