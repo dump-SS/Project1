@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.15.0
+  version: 1.16.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -3601,6 +3601,227 @@ paths:
                   code: COMMUNITY_INSUFFICIENT_POOL
                   message: 群体数据积累中，暂不展示对比
 
+  /me/collection:
+    get:
+      tags: [收藏]
+      operationId: listCollections
+      summary: 获取用户的全部收藏分组
+      description: |
+        对照 product-redesign-target.md 第 966 行 D47：内置分组是筛选维度、自定义分组是标签字段，两者正交。
+        内置分组（学科/时间/掌握度）是筛选维度、不入表；此处仅返回用户自建分组。
+      responses:
+        '200':
+          description: 分组列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [收藏]
+      operationId: createCollection
+      summary: 创建自定义收藏分组
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionCreate'
+            example:
+              name: 计划
+      responses:
+        '201':
+          description: 创建后的分组
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /me/collection/{collectionId}:
+    patch:
+      tags: [收藏]
+      operationId: updateCollection
+      summary: 重命名收藏分组
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionUpdate'
+            example:
+              name: 闲聊
+      responses:
+        '200':
+          description: 重命名后的分组
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [收藏]
+      operationId: deleteCollection
+      summary: 删除自定义收藏分组（内置分组不可删）
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+      responses:
+        '204':
+          description: 已删除
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /me/collection/items:
+    get:
+      tags: [收藏]
+      operationId: listCollectionItems
+      summary: 获取用户全部收藏条目（按时间倒序）
+      description: |
+        对照 product-redesign-target.md 第 966 行 D47：chat 收藏→个人中心，只需自定义分组 + 时间排序。
+        不传 collectionId 返回全部条目；传 collectionId 仅返回该分组下的条目。
+      parameters:
+        - $ref: '#/components/parameters/CollectionIdQuery'
+      responses:
+        '200':
+          description: 条目列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionItemList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [收藏]
+      operationId: createCollectionItem
+      summary: 新增收藏条目（反复收藏同一内容 → 覆盖）
+      description: |
+        对照 product-redesign-target.md 第 966 行 D46：存快照不存引用，内容不可编辑；
+        第 828 行：反复收藏覆盖并轻提示「已更新这个收藏」。
+        必须携带 snapshot（内容快照），可选 collectionId（分组）、title、sourceRef（来源溯源）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionItemCreate'
+            example:
+              collectionId: null
+              title: 黑洞怎么形成的
+              snapshot:
+                content: "黑洞是时空的一个区域，其引力场强到没有任何物体或辐射可以从中逃逸。"
+                format: markdown
+              sourceRef:
+                type: chat_message
+                refId: msg_9f8e7d6c
+                label: 闲聊问答
+      responses:
+        '201':
+          description: 建档/覆盖后的条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionItem'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /me/collection/items/{itemId}:
+    get:
+      tags: [收藏]
+      operationId: getCollectionItem
+      summary: 获取单条收藏条目
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: 单条条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionItem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [收藏]
+      operationId: updateCollectionItem
+      summary: 局部更新收藏条目（只改分组/标题/高亮/虚化，内容不可编辑）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionItemUpdate'
+            example:
+              collectionId: null
+              highlights:
+                - start: 10
+                  end: 20
+      responses:
+        '200':
+          description: 更新后的条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionItem'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [收藏]
+      operationId: deleteCollectionItem
+      summary: 删除收藏条目（幂等）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '204':
+          description: 已删除（幂等，重复删除亦 204）
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /me/community-consent:
     get:
       tags: [用户与设置]
@@ -4059,6 +4280,20 @@ components:
       description: 可选幂等键，24 小时内重复键直接返回首次结果（用于弱网下重复提交学习记录）
       schema:
         type: string
+    CollectionId:
+      name: collectionId
+      in: path
+      required: true
+      description: 用户自建收藏分组 ID
+      schema:
+        type: string
+    CollectionIdQuery:
+      name: collectionId
+      in: query
+      required: false
+      description: 按自定义分组筛选收藏条目（不传则返回全部）
+      schema:
+        type: string
     GoalId:
       name: goalId
       in: path
@@ -4083,6 +4318,13 @@ components:
       in: path
       required: true
       description: 画像条目键
+      schema:
+        type: string
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      description: 收藏条目 ID
       schema:
         type: string
     PlanId:
