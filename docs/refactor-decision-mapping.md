@@ -69,6 +69,9 @@
 | D57 | 科学计算器 | F | M5 | 计算器浮窗；「添加到对话」注入全部计算历史（含未求值表达式） | history[] 含未按"="的条目；注入变输入框引用块 |
 | D58 | /题目排序 | F | M5 | 拍照后「+」首次光效引导；四选项（难易/掌握度/自定义/价值遴选） | 引导仅首次；价值遴选按知识点×解法交叉度排序 |
 | D59 | 阶段口径+稳定 ID | X0 | M0 | 三层身份（id 永不变/email 凭证/handle 对外）；users 加 email+handle；AuthUser 加 user_id；session 存 user_id | 改邮箱后全部历史数据保留；id 全流程不变；pytest 全绿 |
+| D61 | Chat 卡片番茄钟拆分 | B+X1 | M2（已落地） | task_card（start_study 确认卡）内置番茄钟拆段：默认时长 = min(25, 任务时长)，5–120 分钟步进 5 可调；确认后按番茄钟时长向上取整拆成 N 段带进计时页 | 2026-11-01 Skyer 拍板补设计（design-audit ⬜ 清理项 5）；实现先行 d2f3b78，本行补登记 |
+| D62 | 用户内容 embedding 出域开关 | A+D | 已落地（2026-10-05） | Settings 增 userContentEmbeddingApiEnabled（默认 false）；开启且 KB_EMBED_MODE=api 时用户内容 embedding 才允许出域，默认恒本地（PRD 12.6） | 2026-11-01 补登记（design-audit ⬜ 清理项 2）；真源 PRD 12.6；实现 b7e3b5d + 迁移 c8e4f2a71d35；契约字段已登记 |
+| D63 | /docs 公开文档站 | A | 已落地 | 面向公众的文档站（/docs，7 章 38 页）+ #29a 条款全稿公开页，登录前可读；真源 docs/docs-site-structure.md | 2026-11-01 补登记（design-audit ⬜ 清理项 3）；实现 03e9c12 / 条款 aa2c4b8 / 回写 200b764 |
 
 ## 表 2 · 执行项映射（implementation-notes 已拍板项）
 
@@ -110,5 +113,6 @@
 ## 覆盖性自检
 
 - D1–D59：**59/59 有板块与里程碑**（D10/D11 为被覆盖项，已注明归属 D50/D24，不另立任务）。
+- **2026-11-01 补登记 D61–D63**（design-audit ⬜ 清理产出：D61 番茄钟 Skyer 拍板补设计、D62/D63 账本外实现追认）；**D60 编号留空未用**。
 - 执行项：**17/17 有归属**。
 - pilot 外项：全部显式列于表 3，不会混进 M0–M6。
