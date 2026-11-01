@@ -7,7 +7,7 @@
 
 | 文档 | 角色 | 备注 |
 |---|---|---|
-| `openapi.yaml` | **唯一契约真相源**（v1.14.0 · 70 paths · 93 operations · 183 schemas · 表 48 张 / 单 head `b8e2d4f1a7c3`） | 改动走 X0 评审；v1.7.0 = G 板块增量（用量/报错/违规/奖章/埋点），v1.7.1 = C 板块增量（考试/计时会话/记录回写/目标树），v1.8.0 = A 板块增量（邀请码注册 / 出生年份 / 提升体验开关 / 监护人确认结果页 / 群体参照授权前置），2026-09-30；v1.9.0 = PR #50/#51 增量（Chat 真链路 / 目标删除与归档完成时间 / 危机两层检测 / 计划单目标整段规则），2026-10-12；v1.10.0 = F 媒体存储（`POST /f/media` + `GET /f/media/{key}` + `MediaUploadResponse`），2026-10-18；v1.11.0 = F 媒体删除（`DELETE /f/media/{key}`，幂等 204 / 越权 403），2026-10-18；v1.12.0 = Chat 识图（`ChatMessageRequest.mediaKey` + 多模态 content；出域口径按 lead-1 判断执行、待 Skyer 追认），2026-10-18；v1.13.0 = 带图 Chat 异步化（`POST /chat/media` 入队 202 + `GET /chat/jobs/{jobId}` 轮询；**纯文本 `POST /chat` 同步路径一字未改**），2026-10-18；v1.14.0 = 文档漂移收口（`ChatMessageRequest.mediaKey` 标记废弃、带图统一走 `/chat/media`；补齐版本沿革与 `pilot 运营与治理` tag 声明），2026-10-22 |
+| `openapi.yaml` | **唯一契约真相源**（v1.16.0 · 75 paths 105 operations 183 schemas · 表 48 张 / 单 head `b8e2d4f1a7c3`） | 改动走 X0 评审；v1.7.0 = G 板块增量（用量/报错/违规/奖章/埋点），v1.7.1 = C 板块增量（考试/计时会话/记录回写/目标树），v1.8.0 = A 板块增量（邀请码注册 / 出生年份 / 提升体验开关 / 监护人确认结果页 / 群体参照授权前置），2026-09-30；v1.9.0 = PR #50/#51 增量（Chat 真链路 / 目标删除与归档完成时间 / 危机两层检测 / 计划单目标整段规则），2026-10-12；v1.10.0 = F 媒体存储（`POST /f/media` + `GET /f/media/{key}` + `MediaUploadResponse`），2026-10-18；v1.11.0 = F 媒体删除（`DELETE /f/media/{key}`，幂等 204 / 越权 403），2026-10-18；v1.12.0 = Chat 识图（`ChatMessageRequest.mediaKey` + 多模态 content；出域口径按 lead-1 判断执行、待 Skyer 追认），2026-10-18；v1.13.0 = 带图 Chat 异步化（`POST /chat/media` 入队 202 + `GET /chat/jobs/{jobId}` 轮询；**纯文本 `POST /chat` 同步路径一字未改**），2026-10-18；v1.14.0 = 文档漂移收口（`ChatMessageRequest.mediaKey` 标记废弃、带图统一走 `/chat/media`；补齐版本沿革与 `pilot 运营与治理` tag 声明），2026-10-22 |
 | `openapi-usage.md` | 契约使用说明 | 内含历史校验记录，以文首当前口径为准 |
 | `product-redesign-target.md` | **产品目标态** v0.29（D1–D59） | 不含 UI 视觉细节 |
 | `visual-language.md` | **视觉语言基准** v0.2（品牌世界观 / 色板 / 字体时态 / 蓝色两种存在 / 文案红线 / 落地页八屏 / 动效分层） | 2026-09-25 新建、2026-09-27 落地页实现后回写 As-built（§7 顶部）。**落地页已实现（feat/landing-page 分支）**；**产品内视觉仍属讨论阶段（#51 未拍板）** |
@@ -18,6 +18,8 @@
 | `refactor-decision-mapping.md` | D1–D59 全量映射（零孤儿验收索引） | 四件套 ④ |
 | `refactor-dispatch-cards.md` | 十板块派发卡（边界 / 依赖 / 验收 / 禁止项） | 2026-10-04 补登记（dev-3 巡检发现漏登记）。⚠️ **卡内事实可能滞后于代码**——卡 E 曾误写「services 下没有 communityApi.ts」而实际早已存在，用前先回查代码 |
 | `pilot-crisis-review-template.md` | 危机响应评审模板 + 第 0 号实测记录 | 2026-10-04 补登记（dev-3 巡检发现漏登记）。红线「危机响应触发正确率 100%」的记录载体；召回缺口以 `xfail(strict)` 挂牌留痕 |
+| `x2-e2e-real-run-2026-10-30.md` | **X2 发布验收 · E2E 实测记录**（注册→登录→Chat 真链路→拍题→计划→用量，六步真实响应/耗时/失败点） | 2026-10-30 新增（dev-3，派单 x2-acceptance）。销掉主计划 §5 第 3/4 项「未在浏览器真跑过」的欠账；抓出 1 个 P0（计时页白屏）与 1 个 P1（慢 LLM 调用辅助写丢失） |
+| `x2-degradation-matrix-verified.md` | **X2 发布验收 · 降级矩阵实测记录**（13 行逐条真实触发，12 行有实测、1 行注明未测） | 2026-10-30 新增（dev-3）。主计划 §7 门 4「降级矩阵每条有实测记录」的第一份完整载体；mock/SMTP/重启对账/库不可用等口径全部实测坐实 |
 | `refactor-implementation-notes.md` | 执行细节（计量/上传/治理/稳定 ID 等） | 与目标态配套 |
 | `landing-page-dev-spec.md` | **落地页开发实施文档**（技术基线 / 动效引入与实测回填 / 逐屏规格 / 素材与占位 / 降级矩阵 / 性能终版数字 / 验收走查） | 2026-09-25 新建、2026-09-27 实现完成并走查（1440×900 + 375×720）；**视觉与文案的真源是 `visual-language.md`，本文只写实现**。⚠️ 此行曾在本分支合并 main 时被冲突解决误删，2026-09-27 恢复 |
 | `pilot-metrics-and-admission.md` | **pilot 核心指标 + pilot→beta 准入标准（#53）v1.0**（阈值已锁定） | 2026-09-25 v0.1 定口径 → **2026-10-02 阈值全部拍板升 v1.0**（次周留存降观察项、样本两期 20→50、5xx 监控列为一期必做）。⚠️ **§5 一期前置 6 项未销项前，§2 验收门无法判定**；决策记录见 `pilot-threshold-proposal.md` |

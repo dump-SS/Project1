@@ -141,6 +141,13 @@ def _reset_db():
         if "user_content_embedding_api_enabled" not in cols:
             Base.metadata.drop_all(bind=engine)
 
+    # 画像条目表新增 source_ref 列（契约 v1.15.0，db_guard 迁移 65cfc1fbf770）。
+    # 老测试库缺列会让 profile 路由测试报 no such column，需重建。
+    if insp.has_table("user_profiles"):
+        cols = {c["name"] for c in insp.get_columns("user_profiles")}
+        if "source_ref" not in cols:
+            Base.metadata.drop_all(bind=engine)
+
     # 确保表结构存在
     Base.metadata.create_all(bind=engine)
 
