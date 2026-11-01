@@ -38,6 +38,7 @@ import {
   type Subject,
 } from '@/components/Chat/types'
 import { useTheme } from '../../context/ThemeContext.jsx'
+import { takePendingToolRef, TOOL_REF_EVENT } from '@/hooks/toolRefBus'
 import { WELCOME_MESSAGE } from './mockData'
 import '@/components/Chat/chat.css'
 import './index.css'
@@ -113,6 +114,24 @@ export default function ChatPage() {
   const addFloatRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
   const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
+
+  // D57 科学计算器「添加到对话」（§4.10.3 第 873-875 行）：计算器在 AppShell 层任意页面
+  // 可开，「添加」= toolRefBus 递引用 + 切至本页。挂载时取一次（覆盖刚切页的时序），
+  // 再监听事件（覆盖「已在 /chat 直接添加」的时序）；take 即清空，不残留。
+  useEffect(() => {
+    const consume = () => {
+      const payload = takePendingToolRef()
+      if (payload) {
+        setRefs((prev) => [
+          ...prev,
+          { id: genId('ref'), label: payload.label, text: payload.text, source: payload.source },
+        ])
+      }
+    }
+    consume()
+    window.addEventListener(TOOL_REF_EVENT, consume)
+    return () => window.removeEventListener(TOOL_REF_EVENT, consume)
+  }, [])
 
   /**
    * F 板块：上传成功 → 把媒体 key 垫成引用块（§3.1 的 file_summary 就是同构的 ChatCard）。
