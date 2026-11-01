@@ -20,6 +20,7 @@ import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
+import SortTool from '@/components/Tools/SortTool'
 import { startTextPendingHint } from '@/components/Chat/pendingHint'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
 import type { FCard, MediaUploadResult } from '@/services/fMedia'
@@ -38,6 +39,7 @@ import {
   type Subject,
 } from '@/components/Chat/types'
 import { useTheme } from '../../context/ThemeContext.jsx'
+import { takePendingToolRef, TOOL_REF_EVENT } from '@/hooks/toolRefBus'
 import { WELCOME_MESSAGE } from './mockData'
 import '@/components/Chat/chat.css'
 import './index.css'
@@ -113,6 +115,24 @@ export default function ChatPage() {
   const addFloatRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
   const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
+
+  // D57 科学计算器「添加到对话」（§4.10.3 第 873-875 行）：计算器在 AppShell 层任意页面
+  // 可开，「添加」= toolRefBus 递引用 + 切至本页。挂载时取一次（覆盖刚切页的时序），
+  // 再监听事件（覆盖「已在 /chat 直接添加」的时序）；take 即清空，不残留。
+  useEffect(() => {
+    const consume = () => {
+      const payload = takePendingToolRef()
+      if (payload) {
+        setRefs((prev) => [
+          ...prev,
+          { id: genId('ref'), label: payload.label, text: payload.text, source: payload.source },
+        ])
+      }
+    }
+    consume()
+    window.addEventListener(TOOL_REF_EVENT, consume)
+    return () => window.removeEventListener(TOOL_REF_EVENT, consume)
+  }, [])
 
   /**
    * F 板块：上传成功 → 把媒体 key 垫成引用块（§3.1 的 file_summary 就是同构的 ChatCard）。
@@ -314,6 +334,34 @@ export default function ChatPage() {
     })
   }, [])
 
+  /**
+   * D58 /题目排序（§4.10.4）：难易/掌握度/价值遴选三选项的组发通道。
+   * 排序 prompt 随**已传图**走既有 /chat/media 异步链路（掌握度由 chat_engine
+   * 画像注入，无需新契约）。守卫与 onSend 同口径：契约只收一个 mediaKey，
+   * 多图明确拒绝不静默丢图；发完清引用块，与手动发送同一语义。
+   */
+  const sendSortPrompt = useCallback(
+    (prompt: string) => {
+      const mediaRefs = refs.filter((r) => r.source === 'f_media')
+      if (mediaRefs.length === 0) return
+      if (mediaRefs.length > 1) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId('msg'),
+            role: 'ai',
+            content: '一次只能看一张题图，请先把多余的图片删掉再问。',
+            createdAt: Date.now(),
+          },
+        ])
+        return
+      }
+      sendMessage(prompt, mediaRefs[0]?.text)
+      setRefs([])
+    },
+    [refs, sendMessage],
+  )
+
   /** 录入错题保存后：刷新左侧列表 + 自动发一条用户消息（走正常 mock 回复流程） */
   const handleErrorSaved = useCallback(
     (item: ErrorItem, _subject: Subject) => {
@@ -407,6 +455,13 @@ export default function ChatPage() {
                   compact
                   onCard={handleMediaCard}
                   onClear={(key) => removeMediaRef(key)}
+                />
+              )}
+              renderSortTool={() => (
+                <SortTool
+                  hasMedia={refs.some((r) => r.source === 'f_media')}
+                  onQuickSort={sendSortPrompt}
+                  onCustomSort={fillInput}
                 />
               )}
               renderQuickPanel={(close) => (

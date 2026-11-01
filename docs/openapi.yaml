@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.14.0
+  version: 1.15.0
   description: |
     中学学情导学与状态评估 API。
 
@@ -772,10 +772,160 @@ paths:
                       code: GUARDIAN_AUTHORIZATION_EXPIRED
                       message: 监护人授权已过期，请重新确认后继续使用
 
-  /me/guardian-authorization:
-    post:
+  /me/profile/{group}:
+    get:
+      tags: [用户与设置]
+      operationId: getProfileGroup
+      summary: 获取某组全部画像条目
+      description: |
+        对照 product-redesign-target.md 第 929 行 D10：「画像可改不可手动新建；
+        合规暂缓」（lead-1 已拍板：可见 / 可改 / 可删 / 不可手动新建，摘掉合规暂缓）。
+        group 取 learning / state / attribution / interest 四组之一。
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: 该组全部画像条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileList'
+              example:
+                items:
+                  - entryId: upe_1a2b3c4d
+                    group: learning
+                    key: 薄弱知识点
+                    value: 函数/单调性
+                    source: inferred
+                    confidence: 0.85
+                    sourceRef: msg_9f8e7d6c
+                    updatedAt: '2026-10-20T15:30:35.968Z'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /me/profile/{group}/{key}:
+    get:
+      tags: [用户与设置]
+      operationId: getProfileEntry
+      summary: 获取单条画像条目
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/ProfileKey'
+      responses:
+        '200':
+          description: 单条画像条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileEntry'
+              example:
+                entryId: upe_1a2b3c4d
+                group: learning
+                key: 薄弱知识点
+                value: 函数/单调性
+                source: inferred
+                confidence: 0.85
+                sourceRef: msg_9f8e7d6c
+                updatedAt: '2026-10-20T15:30:35.968Z'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/ProfileKey'
+      tags: [用户与设置]
+      operationId: putProfileEntry
+      summary: 幂等建档/更新画像条目（不提供独立创建 API）
+      description: |
+        对照 product-redesign-target.md 第 929 行 D10：「不可手动新建」。
+        PUT 幂等：条目不存在则创建、存在则覆盖更新。source/confidence 由后端按
+        提取来源自动判定，前端只需传 value（及可选 group 变更）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileEntryUpdate'
+            example:
+              value: 函数/单调性/复合函数
+      responses:
+        '200':
+          description: 建档/更新后的条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileEntry'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/ProfileKey'
+      tags: [用户与设置]
+      operationId: patchProfileEntry
+      summary: 局部更新画像条目（字段全可选）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileEntryUpdate'
+            example:
+              value: 函数/单调性/复合函数
+      responses:
+        '200':
+          description: 更新后的条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileEntry'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [用户与设置]
+      operationId: deleteProfileEntry
+      summary: 删除画像条目（撤回即删除，合规底线）
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/ProfileKey'
+      responses:
+        '204':
+          description: 已删除（幂等，重复删除亦 204）
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+
       tags: [用户与设置]
       operationId: submitGuardianAuthorization
       summary: 提交监护人联系方式并发送确认请求
@@ -3914,6 +4064,25 @@ components:
       in: path
       required: true
       description: 目标 ID
+      schema:
+        type: string
+    GroupId:
+      name: group
+      in: path
+      required: true
+      description: 画像四组（learning/state/attribution/interest）
+      schema:
+        type: string
+        enum:
+          - learning
+          - state
+          - attribution
+          - interest
+    ProfileKey:
+      name: key
+      in: path
+      required: true
+      description: 画像条目键
       schema:
         type: string
     PlanId:

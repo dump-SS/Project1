@@ -1,0 +1,117 @@
+/**
+ * D58 /题目排序样式。
+ * 铁律 3 / visual-language §8.1：只用语义 token，不写死色值；
+ * 光效用 color-mix 从 --accent 派生（不引入新色值）。
+ */
+
+.wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* 与相邻快捷引用「+」同族：34px 圆形、透明底 */
+.plus {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.plus:hover {
+  background: var(--code-bg);
+  color: var(--text-primary);
+}
+
+/* 首次拍照后的光效引导（§4.10.4 第 881 行）：呼吸式外圈，token 派生 */
+.glow {
+  animation: sort-glow-pulse 1.6s var(--ease-air) infinite;
+}
+
+@keyframes sort-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+/* ---------- 菜单 ---------- */
+
+.menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 264px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-card);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
+  padding: var(--sp-2);
+  z-index: 210; /* 页面级浮层层位之上（D56 让位 200+，菜单要在输入栏之外可见） */
+}
+
+.menuTitle {
+  margin: 0 0 var(--sp-1);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  font-weight: var(--w-semibold);
+  color: var(--text-tertiary);
+  padding: 0 var(--sp-2);
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-control);
+  padding: var(--sp-2);
+  cursor: pointer;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--code-bg);
+}
+
+.item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.itemLabel {
+  font-family: var(--font-heading);
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  font-weight: var(--w-medium);
+}
+
+.itemDesc {
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.hint {
+  margin: var(--sp-1) 0 0;
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+  padding: 0 var(--sp-2) var(--sp-1);
+}
+
+.item:focus-visible,
+.plus:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
