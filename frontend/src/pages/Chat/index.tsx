@@ -20,6 +20,7 @@ import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
+import SortTool from '@/components/Tools/SortTool'
 import { startTextPendingHint } from '@/components/Chat/pendingHint'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
 import type { FCard, MediaUploadResult } from '@/services/fMedia'
@@ -333,6 +334,34 @@ export default function ChatPage() {
     })
   }, [])
 
+  /**
+   * D58 /题目排序（§4.10.4）：难易/掌握度/价值遴选三选项的组发通道。
+   * 排序 prompt 随**已传图**走既有 /chat/media 异步链路（掌握度由 chat_engine
+   * 画像注入，无需新契约）。守卫与 onSend 同口径：契约只收一个 mediaKey，
+   * 多图明确拒绝不静默丢图；发完清引用块，与手动发送同一语义。
+   */
+  const sendSortPrompt = useCallback(
+    (prompt: string) => {
+      const mediaRefs = refs.filter((r) => r.source === 'f_media')
+      if (mediaRefs.length === 0) return
+      if (mediaRefs.length > 1) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId('msg'),
+            role: 'ai',
+            content: '一次只能看一张题图，请先把多余的图片删掉再问。',
+            createdAt: Date.now(),
+          },
+        ])
+        return
+      }
+      sendMessage(prompt, mediaRefs[0]?.text)
+      setRefs([])
+    },
+    [refs, sendMessage],
+  )
+
   /** 录入错题保存后：刷新左侧列表 + 自动发一条用户消息（走正常 mock 回复流程） */
   const handleErrorSaved = useCallback(
     (item: ErrorItem, _subject: Subject) => {
@@ -426,6 +455,13 @@ export default function ChatPage() {
                   compact
                   onCard={handleMediaCard}
                   onClear={(key) => removeMediaRef(key)}
+                />
+              )}
+              renderSortTool={() => (
+                <SortTool
+                  hasMedia={refs.some((r) => r.source === 'f_media')}
+                  onQuickSort={sendSortPrompt}
+                  onCustomSort={fillInput}
                 />
               )}
               renderQuickPanel={(close) => (
