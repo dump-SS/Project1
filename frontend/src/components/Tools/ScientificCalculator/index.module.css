@@ -1,0 +1,238 @@
+/**
+ * D57 科学计算器浮窗样式。
+ * 铁律 3 / visual-language §8.1：只用 tokens.css 语义层 token，不写色值；
+ * 浮窗投影沿用 SubjectTools（D56）的 rgba 黑阴影先例。
+ */
+
+.calc {
+  position: fixed;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  width: min(340px, calc(100vw - 32px));
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-card);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
+  padding: var(--sp-3);
+  z-index: 200; /* 页面级浮层层位（D56 让出的 200+ 区段） */
+}
+
+/* ---------- 头部 ---------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-h3);
+  font-weight: var(--w-semibold);
+  color: var(--text-primary);
+}
+
+.mode {
+  display: flex;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.modeBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.modeOn {
+  background: var(--accent);
+  color: var(--surface-card);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.addBtn {
+  border: none;
+  background: var(--accent);
+  color: var(--surface-card);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  padding: 5px 10px;
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+
+.addBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.closeBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-h3);
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  color: var(--text-primary);
+}
+
+/* ---------- 显示区 ---------- */
+
+.display {
+  margin-top: var(--sp-2);
+}
+
+.history {
+  max-height: 96px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border-hairline);
+  padding-bottom: var(--sp-1);
+}
+
+.historyEmpty {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.historyLine {
+  margin: 2px 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-family: var(--font-code);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.historyExpr {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyEq {
+  color: var(--text-tertiary);
+}
+
+.historyVal {
+  color: var(--text-primary);
+  font-weight: var(--w-semibold);
+}
+
+.historyAuto {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  color: var(--state-amber);
+  flex-shrink: 0;
+}
+
+.entry {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--sp-1);
+  border: none;
+  border-bottom: 1px solid var(--border-hairline-strong);
+  background: transparent;
+  text-align: right;
+  font-family: var(--font-code);
+  font-size: var(--fs-h2);
+  color: var(--text-primary);
+  padding: var(--sp-1) 2px;
+}
+
+.entry:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.entry::placeholder {
+  color: var(--text-tertiary);
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+}
+
+.feedback {
+  margin: 2px 0 0;
+  min-height: 18px;
+  font-family: var(--font-heading);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.feedbackError {
+  color: var(--state-red);
+}
+
+/* ---------- 键位 ---------- */
+
+.keypad {
+  margin-top: var(--sp-2);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.key {
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: var(--fs-body);
+  padding: 9px 0;
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+
+.key:hover {
+  background: var(--code-bg);
+  border-color: var(--border-hairline-strong);
+}
+
+.key:active {
+  transform: translateY(1px);
+}
+
+.key:focus-visible,
+.addBtn:focus-visible,
+.closeBtn:focus-visible,
+.modeBtn:focus-visible,
+.entry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 运算符：品牌蓝；函数键：次级灰；等号：实心 accent */
+.op {
+  color: var(--accent);
+}
+
+.fn {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.equals {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-card);
+}
+
+.equals:hover {
+  background: var(--accent);
+  opacity: 0.9;
+}

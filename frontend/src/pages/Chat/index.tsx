@@ -20,6 +20,7 @@ import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
+import SortOptionsList from '@/components/Tools/SortTool/SortOptionsList'
 import { startTextPendingHint } from '@/components/Chat/pendingHint'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
 import type { FCard, MediaUploadResult } from '@/services/fMedia'
@@ -38,6 +39,7 @@ import {
   type Subject,
 } from '@/components/Chat/types'
 import { useTheme } from '../../context/ThemeContext.jsx'
+import { takePendingToolRef, TOOL_REF_EVENT } from '@/hooks/toolRefBus'
 import { WELCOME_MESSAGE } from './mockData'
 import '@/components/Chat/chat.css'
 import './index.css'
@@ -113,6 +115,24 @@ export default function ChatPage() {
   const addFloatRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
   const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
+
+  // D57 科学计算器「添加到对话」（§4.10.3 第 873-875 行）：计算器在 AppShell 层任意页面
+  // 可开，「添加」= toolRefBus 递引用 + 切至本页。挂载时取一次（覆盖刚切页的时序），
+  // 再监听事件（覆盖「已在 /chat 直接添加」的时序）；take 即清空，不残留。
+  useEffect(() => {
+    const consume = () => {
+      const payload = takePendingToolRef()
+      if (payload) {
+        setRefs((prev) => [
+          ...prev,
+          { id: genId('ref'), label: payload.label, text: payload.text, source: payload.source },
+        ])
+      }
+    }
+    consume()
+    window.addEventListener(TOOL_REF_EVENT, consume)
+    return () => window.removeEventListener(TOOL_REF_EVENT, consume)
+  }, [])
 
   /**
    * F 板块：上传成功 → 把媒体 key 垫成引用块（§3.1 的 file_summary 就是同构的 ChatCard）。
@@ -314,6 +334,21 @@ export default function ChatPage() {
     })
   }, [])
 
+  /**
+   * D58 /题目排序（§4.10.4）：难易/掌握度/价值遴选三选项的统一组发通道。
+   * 2026-11-01 拍板形态下有两个入口——拍题栏按钮（key 来自拍题面板自身）与
+   * 快捷引用 Tab（key 来自引用块）——都收口到这里：排序 prompt 随**已传图**
+   * 走既有 /chat/media 异步链路（掌握度由 chat_engine 画像注入，无需新契约）。
+   * 发完撤掉该图对应的引用块：这张图已被这条消息消费，留着会让下次手动发送重复带图。
+   */
+  const sendSortWithKey = useCallback(
+    (prompt: string, key: string) => {
+      sendMessage(prompt, key)
+      setRefs((prev) => prev.filter((r) => !(r.source === 'f_media' && r.text === key)))
+    },
+    [sendMessage],
+  )
+
   /** 录入错题保存后：刷新左侧列表 + 自动发一条用户消息（走正常 mock 回复流程） */
   const handleErrorSaved = useCallback(
     (item: ErrorItem, _subject: Subject) => {
@@ -407,17 +442,40 @@ export default function ChatPage() {
                   compact
                   onCard={handleMediaCard}
                   onClear={(key) => removeMediaRef(key)}
+                  onSortPrompt={sendSortWithKey}
+                  onSortCustom={fillInput}
                 />
               )}
-              renderQuickPanel={(close) => (
-                <ReferencePanel
-                  compact
-                  onFillInput={fillInput}
-                  onSendQuick={sendMessage}
-                  refreshKey={refreshKey}
-                  onPicked={close}
-                />
-              )}
+              renderQuickPanel={(close) => {
+                // D58 快捷引用「题目排序」Tab：恰好一张题图时可用（多图无法确定
+                // 排序对象，置灰 + hover 提示；契约 ChatMediaJobRequest 只收一个 key）
+                const mediaRefs = refs.filter((r) => r.source === 'f_media')
+                const singleMediaKey = mediaRefs.length === 1 ? mediaRefs[0]?.text : undefined
+                const sortHint =
+                  mediaRefs.length === 0
+                    ? '先点「拍题」上传题目照片，排序才有对象'
+                    : '一次只能带一张题图，请先删掉多余的图片'
+                return (
+                  <ReferencePanel
+                    compact
+                    onFillInput={fillInput}
+                    onSendQuick={sendMessage}
+                    refreshKey={refreshKey}
+                    onPicked={close}
+                    renderSortTab={() => (
+                      <SortOptionsList
+                        enabled={singleMediaKey !== undefined}
+                        disabledHint={sortHint}
+                        onQuickSort={(prompt) => sendSortWithKey(prompt, singleMediaKey ?? '')}
+                        onCustomSort={(template) => {
+                          fillInput(template)
+                        }}
+                        onPicked={close}
+                      />
+                    )}
+                  />
+                )
+              }}
             />
           </section>
         </div>
