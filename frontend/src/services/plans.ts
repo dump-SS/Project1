@@ -27,6 +27,12 @@ export interface PlanCreatePayload {
    */
   subject?: string;
   topic?: string;
+  /**
+   * 可选（契约 v1.15.0）：显式任务列表，承接「作业单抽取 → 确认卡 → 落计划」链路
+   * （D55）。非空时服务端跳过规则引擎，按给定任务直接生成计划；与 goalIds 互斥。
+   * 游客态忽略此字段（游客计划就地成型，本就没有服务端任务结构）。
+   */
+  tasks?: { subject: string; topic: string; estimatedMinutes: number }[];
 }
 
 export interface CreatePlanResult {
