@@ -20,6 +20,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import PageTransition from '../PageTransition/index.jsx'
+import SubjectTools from '../SubjectTools/index.jsx'
 import styles from './index.module.css'
 
 // SVG 图标库 · 24x24 viewBox · currentColor 跟随主题色
@@ -244,6 +245,8 @@ export default function AppShell() {
 
   return (
     <div className={styles.shell}>
+      {/* ===== 学科工具顶栏（D56，F 板块 M5）：任意页面悬停上边界触发 ===== */}
+      <SubjectTools />
       {/* ===== 桌面:左侧边栏 ===== */}
       <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''}`}>
         {/* 品牌区 */}

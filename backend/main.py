@@ -170,7 +170,7 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, chat, community, daily_summary, error_book, exam, f_media, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight
+from routes import assessment, auth, chat, community, daily_summary, error_book, exam, f_media, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight, worksheet
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -191,6 +191,9 @@ api_v1.include_router(knowledge.router)
 api_v1.include_router(knowledge_kb.router)
 api_v1.include_router(error_book.router)
 api_v1.include_router(mastery.router)
+# D55 作业单抽取（F 板块，契约 v1.15.0）：与 f_media 同板块同 tag，媒体域内的新端点。
+# main.py 是共享文件：挂载行与 import 各一行，不动任何既有路由。
+api_v1.include_router(worksheet.router)
 # D 板块搜题与讲解（D24 三态 / D52 讲解归档）：/search-archives、/explanations
 # 路径用复数资源名（评审已确认），与历史单数 /error-book 不强行统一。
 api_v1.include_router(search.router)
