@@ -145,14 +145,14 @@
 | 项 | 内容 |
 |---|---|
 | 职责 | 图片/PDF/PPT 上传、题面与手写内容确认、作业单生成计划、/题目排序、科学计算器、学科工具顶栏与浮窗 |
-| 前端目录 | 新建 `pages/Tools/`（或组件目录）、上传组件、计算器组件、题目排序 UI |
-| 后端 | 新建 `routes/upload.py`（**全仓第一个 UploadFile**）；文件解析服务（会话内，不落库） |
-| 表 | 无（文件不落库）；消费 collections（经 E 的 API） |
-| 服务层 | 新建 `upload.ts`、`tools.ts` |
-| 测试 | 新建 `test_upload.py`（限页数/大小/不落库断言） |
+| 前端目录 | **实际**：`components/SubjectTools/`（D56 顶栏，PR #76）；Chat 页拍题面板与图片引用块（ReferencePanel/ReferenceChips）；`services/fMedia.ts`、`services/chat.ts`（sendMediaChat / pollChatJob）。原计划 `pages/Tools/`、`upload.ts`、`tools.ts` 未采用 |
+| 后端 | **实际**：`routes/f_media.py`（上传/取回/删除，收 raw body——python-multipart 未装，**非 UploadFile**）；`r2_storage.py` / `r2_sigv4.py`（S3 SigV4 私有桶）；`chat_jobs.py`（带图异步，v1.13.0）。原计划 `routes/upload.py` 未采用 |
+| 表 | **实际**：R2 私有桶 `epoch-x`（持久对象存储，2026-10 实测调整，PR #54/#57-#59）；`chat_jobs` 表（b8e2d4f1a7c3）；消费 collections（经 E 的 API——E 侧未落地） |
+| 服务层 | 见前端目录行（实际为 fMedia.ts / chat.ts 扩展，未新建 upload.ts/tools.ts） |
+| 测试 | **实际**：`test_f_media.py`、`test_r2_sigv4.py`、`test_r2_sigv4_wire.py`、`test_chat_async.py`（原计划 test_upload.py 未采用） |
 | 对外提供 | 上传→引用块（走 B 的引用块协议）；作业单→计划（调 C 的计划接口） |
 | 依赖 | **B 的引用块协议文本、D 的知识引用协议文本**（文本落定即可开工，不必等实现）；X0（限流与 egress 规则） |
-| 禁止 | 文件不落库、不建 R2（二期）；不复活 OCR；图片圈选不做（二期） |
+| 禁止 | 不复活 OCR；图片圈选不做（二期）。⚠️ 原「文件不落库、不建 R2（二期）」**已被实测推翻**（2026-10，PR #54/#57-#59）：现为 R2 持久私有桶 + 用户删除权（DELETE /f/media/{key}，v1.11.0）；最终存储定性待 Skyer（design-audit 拍板项 1） |
 
 ### G · pilot 运营与治理
 
