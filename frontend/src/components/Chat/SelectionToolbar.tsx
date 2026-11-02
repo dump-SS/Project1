@@ -1,8 +1,10 @@
 /**
- * D51 划选工具条：用户选中文本后，在选区附近浮出「引用到主对话 / 随手问」。
+ * D51 划选工具条：用户选中文本后，在选区附近浮出「引用到主对话 / 随手问 / 收藏」。
  *
  * - 引用到主对话（主路径）：回调 onQuote，调用方把选中文本挂成输入框上的引用块
  * - 随手问（旁路）：回调 onFloat，调用方打开随手问浮窗并预填选中文本
+ * - 收藏：回调 onCollect（§4.8.1 第 797 行「任何模型输出都可一键收藏」；
+ *   §3.9.2 第 523 行「收藏等同」——浮窗内划选享有同等能力）
  */
 import type { CSSProperties } from 'react'
 
@@ -12,6 +14,7 @@ interface SelectionToolbarProps {
   text: string
   onQuote: (text: string) => void
   onFloat: (text: string) => void
+  onCollect: (text: string) => void
   onDone?: () => void
 }
 
@@ -21,6 +24,7 @@ export default function SelectionToolbar({
   text,
   onQuote,
   onFloat,
+  onCollect,
   onDone,
 }: SelectionToolbarProps) {
   const style: CSSProperties = { left: x, top: y }
@@ -58,6 +62,17 @@ export default function SelectionToolbar({
         title="随手问"
       >
         随手问
+      </button>
+      <button
+        type="button"
+        className="chat-sel-btn"
+        onClick={() => {
+          onCollect(text)
+          done()
+        }}
+        title="收藏（存一份快照，原文过期也照样能读）"
+      >
+        收藏
       </button>
     </div>
   )
