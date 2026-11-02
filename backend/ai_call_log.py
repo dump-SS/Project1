@@ -47,7 +47,12 @@ def _persist(
         finally:
             db.close()
     except Exception as e:  # noqa: BLE001 — 留痕失败绝不阻断业务
-        logger.debug("[AICallLog] 写入失败（已忽略）: %s", e)
+        logger.warning(
+            "[AICallLog] 写入失败（已忽略，不阻断主流程）：function_type=%s, success=%s, error=%s",
+            function_type,
+            success,
+            e,
+        )
 
 
 def log_call(

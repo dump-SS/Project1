@@ -99,6 +99,7 @@ class UserProfile(Base):
     # explicit=用户显式填写 / inferred=模型推断 / self_report=自评叙事轨
     source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

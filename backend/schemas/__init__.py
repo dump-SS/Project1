@@ -10,13 +10,14 @@ Pydantic 模型集合，按 openapi.yaml 资源划分文件：
   - assessment.py        状态评估（StateResult / StateResultList / AssessmentHistory / ...）
   - recommendation.py    个性化建议
   - summary.py           学习总结与复盘
+  - collection.py        收藏条目（Collection / CollectionItem）
 
 所有 schema 字段、必填、可空、枚举范围都严格对齐 docs/openapi.yaml。
 mock 数据用 openapi.yaml 里的 example；下个 PR 接入真实计算 + LLM。
 """
 from __future__ import annotations
 
-from . import assessment, common, enums, goal, learning_record, plan, recommendation, summary, user
+from . import assessment, collection, common, enums, goal, learning_record, plan, recommendation, summary, user
 
 __all__ = [
     "common",
@@ -28,4 +29,5 @@ __all__ = [
     "assessment",
     "recommendation",
     "summary",
+    "collection",
 ]

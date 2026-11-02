@@ -20,7 +20,6 @@ import ReferencePanel from '@/components/Chat/ReferencePanel'
 import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
-import Toast from '@/components/Toast'
 import SortTool from '@/components/Tools/SortTool'
 import { startTextPendingHint } from '@/components/Chat/pendingHint'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
@@ -32,7 +31,6 @@ import {
   sendMediaChat,
 } from '@/services/chat'
 import { ApiError } from '@/services/http'
-import { collectItem } from '@/services/collection'
 import {
   genId,
   type ChatMessage,
@@ -87,8 +85,6 @@ export default function ChatPage() {
   const [refs, setRefs] = useState<RefChip[]>([])
   const [floatOpen, setFloatOpen] = useState(false)
   const [floatInit, setFloatInit] = useState('')
-  /** 轻提示文案（#52 覆盖提示用）；null = 不显示 */
-  const [toast, setToast] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -119,24 +115,6 @@ export default function ChatPage() {
   const addFloatRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
   const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
-
-  /**
-   * 划选收藏（§4.8.1 第 797 行「任何模型输出都可一键收藏」）。
-   *
-   * 建档与覆盖同为 201，只能靠响应里的 created 区分，据此决定 #52（第 828 行）
-   * 要求的轻提示文案——不给提示用户会以为没生效。
-   * format 记 plain：划选拿到的是 DOM 纯文本，存的就是用户所见，不去猜 markdown。
-   */
-  const collectSelected = (text: string) => {
-    collectItem({
-      snapshot: { content: text, format: 'plain' },
-      sourceRef: { type: 'chat_message', label: '划选收藏' },
-    })
-      .then((res) => setToast(res.created ? '已收藏' : '已更新这个收藏'))
-      .catch((err) =>
-        setToast(err instanceof ApiError ? `收藏失败：${err.message}` : '收藏失败，请稍后再试'),
-      )
-  }
 
   // D57 科学计算器「添加到对话」（§4.10.3 第 873-875 行）：计算器在 AppShell 层任意页面
   // 可开，「添加」= toolRefBus 递引用 + 切至本页。挂载时取一次（覆盖刚切页的时序），
@@ -499,7 +477,7 @@ export default function ChatPage() {
           </section>
         </div>
 
-        {/* D51 划选工具条（引用主对话 / 随手问 / 收藏） */}
+        {/* D51 划选工具条（引用主对话 / 随手问） */}
         {sel && (
           <SelectionToolbar
             x={sel.x}
@@ -510,12 +488,9 @@ export default function ChatPage() {
               setFloatInit(text)
               setFloatOpen(true)
             }}
-            onCollect={collectSelected}
             onDone={() => setSel(null)}
           />
         )}
-
-        {toast && <Toast text={toast} onDone={() => setToast(null)} />}
 
         {/* D51 随手问浮窗（受限 Chat 基础问答） */}
         {floatOpen && (

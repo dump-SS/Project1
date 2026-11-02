@@ -475,6 +475,152 @@ function ConfirmationCard({ card }: { card: ChatCard }) {
   return <UnknownConfirmationCard card={card} />
 }
 
+/* ============ worksheet_confirm：作业单确认卡（D55 / D17 一步轻确认） ============ */
+
+const SUBJECT_LABELS: Record<Subject, string> = {
+  SX: '数学', YY: '英语', WL: '物理', HX: '化学', YW: '语文',
+  LS: '历史', DL: '地理', ZZ: '政治', SW: '生物', other: '其他',
+}
+
+/**
+ * 作业单确认卡：LLM 抽取结果先给用户看一眼（可删/可改/可取消），确认后才落计划。
+ *
+ * 为什么放在 ChatCards 而不是 F 自己的组件：D17 锚定确认卡是 B 的卡片协议
+ * （模块契约 §3.1，type=confirmation 一族），本卡就是该协议的一个新形态——
+ * 复用既有确认卡框架（busy/error/done 状态机 + chat-card 样式），不另造一套。
+ * 与既有三张确认卡的区别：任务列表**可编辑**（LLM 抽取可能出错，17:03 更正
+ * 「直接生成=操作简便，不是跳过确认」）。
+ */
+function WorksheetConfirmCard({ card }: { card: ChatCard }) {
+  const navigate = useNavigate()
+  const initial = Array.isArray(card.payload?.worksheetItems) ? card.payload!.worksheetItems! : []
+  const [items, setItems] = useState(initial.map((it) => ({ ...it })))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<{ taskCount: number; totalMinutes: number } | null>(null)
+  const [cancelled, setCancelled] = useState(false)
+
+  const totalMinutes = items.reduce(    (sum, it) => sum + (Number.isFinite(it.estimatedMinutes) ? Math.round(it.estimatedMinutes) : 0),
+    0,
+  )
+  // 契约 availableMinutes 取值 10-600：任务合计极端短时垫到 10（规则引擎外路径同样受 schema 约束）
+  const availableMinutes = Math.min(600, Math.max(10, totalMinutes))
+
+  const update = (idx: number, patch: Partial<(typeof initial)[number]>) =>
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
+  const remove = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx))
+
+  const onConfirm = async () => {
+    trackCardClicked(card, 'worksheet_confirm')
+    if (busy || done || cancelled) return
+    if (items.length === 0) {
+      setError('没有可生成的任务，请取消后重新上传作业单')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await createPlan({
+        planDate: localDateString(),
+        availableMinutes,
+        tasks: items.map((it) => ({
+          subject: it.subject,
+          topic: it.topic,
+          estimatedMinutes: Math.round(it.estimatedMinutes),
+        })),
+      })
+      setDone({ taskCount: items.length, totalMinutes })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '计划生成失败，请稍后再试')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="chat-card chat-card-confirmation">
+      <div className="chat-card-title">{card.title || '作业单确认'}</div>
+      {done ? (
+        <>
+          <div className="chat-card-summary chat-card-worksheet-done">
+            ✓ 已生成今日计划：{done.taskCount} 项任务 · 共 {done.totalMinutes} 分钟
+          </div>
+          <div className="chat-card-actions">
+            <button type="button" className="chat-card-btn chat-card-btn-primary" onClick={() => navigate('/study-timer')}>
+              去计时开始学习
+            </button>
+          </div>
+        </>
+      ) : cancelled ? (
+        <div className="chat-card-summary">已取消，未生成计划。仍可重新上传作业单再试。</div>
+      ) : (
+        <>
+          <div className="chat-card-summary">认出的作业如下（可修改 / 删除），确认后生成今日计划：</div>
+          {items.map((it, idx) => (
+            <div key={idx} className="chat-card-worksheet-row">
+              <select
+                className="chat-card-worksheet-subject"
+                value={it.subject}
+                disabled={busy}
+                onChange={(e) => update(idx, { subject: e.target.value })}
+                aria-label="学科"
+              >
+                {SUBJECT_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {SUBJECT_LABELS[code]}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="chat-card-worksheet-topic"
+                value={it.topic}
+                maxLength={100}
+                disabled={busy}
+                onChange={(e) => update(idx, { topic: e.target.value })}
+                aria-label="作业内容"
+              />
+              <input
+                className="chat-card-worksheet-minutes"
+                type="number"
+                min={5}
+                max={240}
+                value={it.estimatedMinutes}
+                disabled={busy}
+                onChange={(e) => update(idx, { estimatedMinutes: Number(e.target.value) })}
+                aria-label="预计分钟"
+              />
+              <button
+                type="button"
+                className="chat-card-worksheet-remove"
+                disabled={busy}
+                onClick={() => remove(idx)}
+                aria-label={`删除「${it.topic}」`}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <div className="chat-card-worksheet-total">共 {items.length} 项 · 约 {totalMinutes} 分钟</div>
+          {error && <div className="chat-card-error">{error}</div>}
+          <div className="chat-card-actions">
+            <button type="button" className="chat-card-btn" disabled={busy} onClick={() => setCancelled(true)}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="chat-card-btn chat-card-btn-primary"
+              disabled={busy || items.length === 0}
+              onClick={onConfirm}
+            >
+              {busy ? '生成中…' : '确认，生成今日计划'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ChatCards({ cards }: { cards: ChatCard[] }) {
   if (!cards || cards.length === 0) return null
   // key 从纯下标改为「下标+类型+动作」：曝光埋点挂在 CardExposure 的挂载上，
@@ -497,6 +643,11 @@ export default function ChatCards({ cards }: { cards: ChatCard[] }) {
         }
         if (card.type === 'knowledge_point') {
           return withExposure(card, i, <KnowledgeCard card={card} />)
+        }
+        if (card.type === 'worksheet_confirm') {
+          // D55 作业单确认卡：前端本地类型（后端从不产出），须在 confirmation
+          // 兜底之前分发——它没有 payload.action，落进兜底会渲染成 title-only。
+          return withExposure(card, i, <WorksheetConfirmCard card={card} />)
         }
         if (card.type === 'confirmation' || card.payload?.action) {
           return withExposure(card, i, <ConfirmationCard card={card} />)

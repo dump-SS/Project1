@@ -1120,3 +1120,92 @@
 .ref-phrase-del:hover {
   color: var(--danger, #e5484d);
 }
+
+/* ============ D55 作业单确认卡（F 板块经 ChatCards 卡片协议接入） ============
+ * 追加区块，不动任何既有规则。色值沿用本文件的 token 惯例。 */
+
+.chat-card-worksheet-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.chat-card-worksheet-subject {
+  width: 74px;
+  flex-shrink: 0;
+  padding: 5px 4px;
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.12));
+  border-radius: var(--r-control, 6px);
+  background: transparent;
+  color: var(--ink, inherit);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.chat-card-worksheet-topic {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.12));
+  border-radius: var(--r-control, 6px);
+  background: transparent;
+  color: var(--ink, inherit);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.chat-card-worksheet-minutes {
+  width: 64px;
+  flex-shrink: 0;
+  padding: 5px 4px;
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.12));
+  border-radius: var(--r-control, 6px);
+  background: transparent;
+  color: var(--ink, inherit);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.chat-card-worksheet-remove {
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.chat-card-worksheet-remove:hover {
+  color: var(--danger, #e5484d);
+}
+
+.chat-card-worksheet-total {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.chat-card-worksheet-done {
+  color: var(--state-teal, #0f6e56);
+  font-weight: 600;
+}
+
+/* D55 确认卡的行动区 / 主按钮（既有卡只用 chat-card-btn 单类，这里补主次两档） */
+.chat-card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.chat-card-btn-primary {
+  background: var(--primary, #6fa8d6);
+  border-color: var(--primary, #6fa8d6);
+  color: var(--on-photo, #ffffff);
+}
+
+.chat-card-btn-primary:disabled {
+  opacity: 0.55;
+}
