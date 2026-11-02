@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 学习状态智能助手 API（板块一 + 板块二 MVP）
-  version: 1.17.0
+  version: 1.17.1
   description: "中学学情导学与状态评估 API。\n\n来源：`docs/api-design-unified.md`（唯一生效版本），对应 `PRD-学习状态智能助手.md`。\n\
     本文件严格按该设计文档生成，未引入文档之外的字段。\n\n主流程：创建目标 ① → 生成计划 ② → 提交学习记录 ③ → 计算状态 ④ → 返回建议 ⑤（外加周期复盘与反馈回路）。\n\
     \n约定要点：\n- 所有资源以当前 token 用户为作用域，不设 userId 路径参数，不存在跨用户读取接口。\n- 写接口可选携带 `Idempotency-Key`\
@@ -78,7 +78,7 @@ info:
     \ path / operation / schema 增删：\n- `ChatMessageRequest.mediaKey` 标记 **deprecated**：前端自\
     \ v1.13.0 起带图统一走\n  `POST /chat/media`；该字段仅保留向后兼容（后端仍接受），新调用方不要再用。\n- 补齐本节缺失的\
     \ v1.7.0 / v1.7.1 / v1.9.0 / v1.13.0 沿革记录。\n- 补齐 `pilot 运营与治理` tag 声明（此前被 operation\
-    \ 引用但未在顶层 `tags` 声明）。\n"
+    \ 引用但未在顶层 `tags` 声明）。\n\n**v1.17.1（E 板块 · 收藏前端接线）**——纯增量，无 path / operation 增删：\n- `CollectionItem` 补可选 `updatedAt`。后端 `collection_items.updated_at` 列自 M0 起就存在，但契约未下发，导致 `POST /me/collection/items` 建档与覆盖同为 201、前端无从区分该弹「已收藏」还是「已更新这个收藏」（#52，product-redesign-target.md 第 828 行）。lead-1 2026-11-02 拍板：改契约下发，不做前端会话内记账（刷新即丢、多标签页不同步）。\n- 新增 `CollectionItemCreateResult`（= `CollectionItem` 全字段 + `created` 布尔），`POST /me/collection/items` 的 201 改引它。lead-1 的拍板原文给了两个选项（下发 `updatedAt`「或加个 `created` vs `updated` 的标记」）；**实测时间戳方案不可靠**：SQLite `CURRENT_TIMESTAMP` 只有秒级精度，同一秒内覆盖时 `updatedAt == createdAt`；且覆盖分支在 body 未带可变字段时不产生 UPDATE、`updated_at` 根本不动（2026-11-02 dev8 用 ORM 实测四种路径坐实）。故按备选做显式标记，`updatedAt` 一并保留供展示。\n- 收掉两处既有契约漂移（lead-1 2026-11-03 派单）：`CollectionHighlight` / `CollectionBlurState` 的 `start` / `end` 由 optional 改为 **required**——后端 pydantic 本就必填，契约此前宽松于实现，客户端省略字段会拿到 400 却以为合法；同时纠正 `CollectionHighlight.start` 描述里「前端划选直接取 selection 的字符偏移」的错误表述（JS 的 selection 是 UTF-16 码元，不是码点）。\n- ⚠️ 顺带校正既有漂移（非本次引入）：v1.15.0 / v1.16.0 / v1.17.0 三次 bump 均未在本节与 docs/README.md 记录沿革，README 的规模数字停在 v1.16.0 的 75 paths / 105 operations / 183 schemas（v1.17.0 实测为 76 / 106 / 186），且 `test_version_synced_with_docs_readme` 在 main（767100a）上实测失败。本次把版本号与规模数字校正为真值；v1.15–v1.17 的沿革正文未补写（需逐个 PR 核，超出本单边界，已报 lead-1）。\n"
 servers:
 - url: /api/v1
   description: 基础路径，下文所有 URL 均省略此前缀
@@ -3823,11 +3823,11 @@ paths:
                 label: 闲聊问答
       responses:
         '201':
-          description: 建档/覆盖后的条目
+          description: 建档/覆盖后的条目。`created` 标明本次是新建还是覆盖——建档与覆盖同为 201，前端据此决定轻提示文案「已收藏」/「已更新这个收藏」（#52，product-redesign-target.md 第 828 行）。⚠️ 不要用 `updatedAt > createdAt` 判断：SQLite `CURRENT_TIMESTAMP` 只有秒级精度，同一秒内覆盖时两个时间戳相等；且覆盖分支在 body 未带可变字段时不产生 UPDATE、`updated_at` 根本不动（2026-11-02 dev8 实测）。
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CollectionItem'
+                $ref: '#/components/schemas/CollectionItemCreateResult'
         '400':
           $ref: '#/components/responses/ValidationFailed'
         '401':
@@ -7389,16 +7389,22 @@ components:
     CollectionHighlight:
       type: object
       description: 划选高亮（内容不可编辑，高亮只改显示）
+      required:
+      - start
+      - end
       properties:
         start:
           type: integer
-          description: 起始偏移（**按 Unicode 码点计**，不是字节；前端划选直接取 selection 的字符偏移）
+          description: 起始偏移（**按 Unicode 码点计**，不是字节，左闭右开）。⚠️ 前端不能直接提交 selection 的下标——JS 的 selection / String.slice 是 UTF-16 码元，含代理对时与码点不一致，需先换算（v1.17.1 纠正原描述「直接取 selection 的字符偏移」，那是错的）。与后端 pydantic 的必填口径对齐。
         end:
           type: integer
           description: 结束偏移（同上，左闭右开）
     CollectionBlurState:
       type: object
       description: 「虚化」标记（#41 / §4.8.4）：把选中文本做模糊显示，用于隐藏信息或自测（填空题）。 虚化不算编辑——只改显示不改内容，且状态必须持久化。
+      required:
+      - start
+      - end
       properties:
         start:
           type: integer
@@ -7439,6 +7445,21 @@ components:
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间（v1.17.1 补下发；后端 collection_items.updated_at 列自 M0 起已存在且带 onupdate，此前只是没进契约）。仅供展示「最近更新时间」。⚠️ 不要用它与 createdAt 比对来判断建档/覆盖——SQLite CURRENT_TIMESTAMP 只有秒级精度，同一秒内覆盖时两者相等；且覆盖分支在 body 未带可变字段时不产生 UPDATE，本字段根本不动（2026-11-02 dev8 实测）。判断覆盖请用 CollectionItemCreateResult.created。
+    CollectionItemCreateResult:
+      description: POST /me/collection/items 的响应体 = CollectionItem 全字段 + created 标记。建档与覆盖同为 201（#52，product-redesign-target.md 第 828 行），前端需要显式标记才能决定轻提示文案「已收藏」还是「已更新这个收藏」；时间戳比对不可靠（见 CollectionItem.updatedAt 的说明）。
+      allOf:
+      - $ref: '#/components/schemas/CollectionItem'
+      - type: object
+        required:
+        - created
+        properties:
+          created:
+            type: boolean
+            description: true = 本次新建条目；false = 命中同一快照、覆盖既有条目（返回同一个 itemId，只更新 title / collectionId / sourceRef）
     CollectionItemCreate:
       type: object
       description: 新增收藏。同一条内容反复收藏 → 覆盖并给轻提示（#52），不新增副本。

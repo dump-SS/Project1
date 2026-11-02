@@ -35,6 +35,7 @@ from schemas.collection import (
     CollectionCreate,
     CollectionItem,
     CollectionItemCreate,
+    CollectionItemCreateResult,
     CollectionItemList,
     CollectionItemUpdate,
     CollectionList,
@@ -90,6 +91,7 @@ def _serialize_item(row: CollectionItemORM) -> CollectionItem:
         highlights=_loads(row.highlight_json) or [],
         blurStates=_loads(row.blur_state_json) or [],
         createdAt=row.created_at,
+        updatedAt=row.updated_at,
     )
 
 
@@ -343,7 +345,7 @@ def get_collection_item(
 
 @router.post(
     "/me/collection/items",
-    response_model=CollectionItem,
+    response_model=CollectionItemCreateResult,
     status_code=status.HTTP_201_CREATED,
     summary="新增收藏条目（反复收藏同一内容 → 覆盖）",
 )
@@ -351,7 +353,7 @@ def create_collection_item(
     body: CollectionItemCreate,
     db: Session = Depends(get_db),
     user: UserORM = Depends(current_user),
-) -> CollectionItem:
+) -> CollectionItemCreateResult:
     if body.collectionId is not None:
         _get_owned_collection(db, user.user_id, body.collectionId)
 
@@ -382,7 +384,9 @@ def create_collection_item(
             existing.source_ref_json = source_ref_str
         db.commit()
         db.refresh(existing)
-        return _serialize_item(existing)
+        return CollectionItemCreateResult(
+            created=False, **_serialize_item(existing).model_dump()
+        )
 
     row = CollectionItemORM(
         id=_gen_id("citem"),
@@ -397,7 +401,7 @@ def create_collection_item(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _serialize_item(row)
+    return CollectionItemCreateResult(created=True, **_serialize_item(row).model_dump())
 
 
 @router.patch(

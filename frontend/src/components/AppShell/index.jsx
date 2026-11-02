@@ -170,6 +170,13 @@ const Icon = ({ name, size = 18 }) => {
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       )
+    case 'collection':
+      // 收藏 · 书签
+      return (
+        <svg {...props}>
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        </svg>
+      )
     default:
       return null
   }
@@ -187,6 +194,9 @@ const PRIMARY_NAV = [
   { to: '/goals', label: '目标', icon: 'goal', guestBlocked: true },
   { to: '/knowledge', label: '学科', icon: 'knowledge', guestBlocked: true },
   { to: '/error-book', label: '错题', icon: 'errorBook', guestBlocked: true },
+  // 收藏（E 板块）：与学科/错题同为「资产页」。target §2 第 89/93 行的个人中心容器化
+  // 还没做（goals 也仍是独立路由），所以这里先按现状结构挂独立路由。
+  { to: '/collection', label: '收藏', icon: 'collection', guestBlocked: true },
   { to: '/chat', label: 'AI辅导', icon: 'chat', guestBlocked: true },
   { to: '/community/upload', label: '群体', icon: 'community', guestBlocked: true },
 ]

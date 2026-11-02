@@ -49,7 +49,7 @@ class CollectionList(BaseModel):
 
 
 class CollectionUpdate(BaseModel):
-    """重命名收藏分组请求体。"""
+    """重命名收藏分组请求体（自定义分组是用户标签字段，与内置筛选维度正交）。"""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -128,6 +128,26 @@ class CollectionItem(BaseModel):
         default_factory=list, description="虚化区间；全屏展开时方向键切换焦点、空格临时解除"
     )
     createdAt: datetime = Field(..., description="创建时间")
+    updatedAt: datetime | None = Field(
+        None,
+        description=(
+            "最近更新时间（契约 v1.17.1 补下发）。collection_items.updated_at 列自 M0 起"
+            "就存在且带 onupdate，此前只是没进契约、没下发。仅供展示，不要用它判断建档/覆盖。"
+        ),
+    )
+
+
+class CollectionItemCreateResult(CollectionItem):
+    """POST /me/collection/items 的响应体：条目全字段 + created 标记（#52 轻提示的依据）。"""
+
+    created: bool = Field(
+        ...,
+        description=(
+            "true = 本次新建条目；false = 命中同一快照、覆盖既有条目（返回同一个 itemId）。"
+            "建档与覆盖同为 201，时间戳比对不可靠（SQLite 秒级精度，且覆盖分支在 body"
+            "未带可变字段时不产生 UPDATE），所以用显式标记。"
+        ),
+    )
 
 
 class CollectionItemCreate(BaseModel):
@@ -170,12 +190,4 @@ class CollectionItemUpdate(BaseModel):
         None,
         description="虚化区间**全量覆盖**；「全部虚化」一键即提交完整列表",
     )
-
-
-class CollectionUpdate(BaseModel):
-    """重命名收藏分组请求体（自定义分组是用户标签字段，与内置筛选维度正交）。"""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    name: str = Field(..., max_length=64, description="分组新名")
 

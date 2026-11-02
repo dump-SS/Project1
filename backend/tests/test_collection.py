@@ -179,6 +179,25 @@ def test_repeat_collect_overwrites_not_duplicates():
     assert len(r.json()["items"]) == 1
 
 
+def test_create_item_reports_created_true_for_new():
+    """v1.17.1：建档与覆盖同为 201，靠 created 区分（#52 轻提示文案的依据）。"""
+    r = _create_item(content="全新的一段内容。")
+    assert r.status_code == 201, r.text
+    assert r.json()["created"] is True
+
+
+def test_repeat_collect_reports_created_false_without_any_change():
+    """覆盖且 body 无可变字段时 created 仍为 False——此时不发 UPDATE，时间戳方案会误判成新建。"""
+    first = _create_item(content="完全相同的内容。")
+    assert first.status_code == 201, first.text
+    again = _create_item(content="完全相同的内容。")
+    assert again.status_code == 201, again.text
+    assert again.json()["created"] is False
+    assert again.json()["itemId"] == first.json()["itemId"]
+    # 时间戳在这一格区分不出来，正是要用显式标记的原因
+    assert again.json()["updatedAt"] == first.json()["updatedAt"]
+
+
 # ------------------------------------------------------------------ 条目：读取
 
 
