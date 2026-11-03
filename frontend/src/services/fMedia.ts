@@ -20,7 +20,7 @@
  * @see docs/refactor-module-contracts.md §3.1
  */
 
-import { apiGetBlob, apiPostBinary } from './http';
+import { apiGetBlob, apiPost, apiPostBinary } from './http';
 
 /** 与契约 ChatCard 同构的引用块（F 只用到其中两个 type）。 */
 export interface FCard {
@@ -124,4 +124,24 @@ export function mediaKeyOfCard(card: FCard): string | null {
   if (card.type !== F_CARD_TYPES.FILE_SUMMARY) return null;
   const key = (card.payload as { mediaKey?: unknown } | undefined)?.mediaKey;
   return typeof key === 'string' ? key : null;
+}
+/* ============ #47 要点摘要进收藏（契约 v1.18.0） ============ */
+
+export interface MediaSummaryResult {
+  /** 要点摘要（markdown 列表）——**服务端返回前已过 privacy_filter 脱敏**（M5 门） */
+  summary: string;
+  /** 学科归类；无法归类时为 other */
+  subject: string;
+}
+
+/**
+ * 生成上传照片的要点摘要。
+ * 摘要本身不落库；收藏动作由调用方经 collections.createCollectionItem 完成
+ * （sourceRef.type = 'upload_summary'）。
+ */
+export async function summarizeMedia(
+  key: string,
+  signal?: AbortSignal,
+): Promise<MediaSummaryResult> {
+  return apiPost<MediaSummaryResult>(`/f/media/${key}/summary`, undefined, signal);
 }
