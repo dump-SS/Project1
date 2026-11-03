@@ -10,11 +10,12 @@ from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .common import APIModel
 
 from .enums import Stage, Subject
 
 
-class GuardianAuthorizationInfo(BaseModel):
+class GuardianAuthorizationInfo(APIModel):
     """openapi.yaml User.guardianAuthorization 字段。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -23,7 +24,7 @@ class GuardianAuthorizationInfo(BaseModel):
     expires_at: datetime | None = Field(None, alias="expiresAt", description="授权到期时间")
 
 
-class User(BaseModel):
+class User(APIModel):
     """当前用户资料。"""
 
     model_config = ConfigDict(
@@ -59,7 +60,7 @@ class User(BaseModel):
     onboarding_completed: bool = Field(..., alias="onboardingCompleted", description="是否已完成建档")
 
 
-class UserProfilePut(BaseModel):
+class UserProfilePut(APIModel):
     """幂等建档请求体。stage / grade / subjects 必填；birthYear 由激活式建档采集（可空）。"""
 
     model_config = ConfigDict(
@@ -85,7 +86,7 @@ class UserProfilePut(BaseModel):
     )
 
 
-class UserProfilePatch(BaseModel):
+class UserProfilePatch(APIModel):
     """局部更新请求体，字段全可选。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -111,7 +112,7 @@ class ProfileGroup(str, Enum):
     INTEREST = "interest"
 
 
-class UserProfileEntry(BaseModel):
+class UserProfileEntry(APIModel):
     """单条画像条目（openapi.yaml UserProfileEntry，契约 v1.15.0）。
 
     对照 product-redesign-target.md 第 929 行 D10：四组（learning / state /
@@ -141,7 +142,7 @@ class UserProfileEntry(BaseModel):
     )
 
 
-class UserProfileEntryUpdate(BaseModel):
+class UserProfileEntryUpdate(APIModel):
     """局部更新画像条目（openapi.yaml UserProfileEntryUpdate，契约 v1.15.0）。
 
     只能改 value 与 group，**不能新建**（新建走 PUT 的幂等建档语义）。
@@ -153,7 +154,7 @@ class UserProfileEntryUpdate(BaseModel):
     group: str | None = Field(None, description="组变更（learning / state / attribution / interest）")
 
 
-class UserProfileList(BaseModel):
+class UserProfileList(APIModel):
     """某组全部画像条目（openapi.yaml UserProfileList，契约 v1.15.0）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -161,7 +162,7 @@ class UserProfileList(BaseModel):
     items: list[UserProfileEntry] = Field(default_factory=list, description="该组下的条目列表")
 
 
-class Settings(BaseModel):
+class Settings(APIModel):
     """用户设置。权重数值不通过任何用户侧接口暴露。"""
 
     model_config = ConfigDict(
@@ -201,7 +202,7 @@ class Settings(BaseModel):
     updated_at: datetime = Field(..., alias="updatedAt")
 
 
-class SettingsUpdate(BaseModel):
+class SettingsUpdate(APIModel):
     """设置更新请求体，至少传一项。"""
 
     model_config = ConfigDict(
@@ -237,7 +238,7 @@ class SettingsUpdate(BaseModel):
         return self
 
 
-class GuardianAuthorizationRequest(BaseModel):
+class GuardianAuthorizationRequest(APIModel):
     """监护人邮箱/手机号二选一必填（openapi.yaml GuardianAuthorizationRequest）。"""
 
     model_config = ConfigDict(

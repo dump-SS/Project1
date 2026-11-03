@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.learning_record import LearningRecord as LearningRecordORM
 from models.weight import UserWeightConfig, WeightAdjustLog
+from schemas.common import APIModel
 from schemas.user import User
 from state_calculator import compute_window_for_records, orm_record_to_engine_input
 from weight_tuning import _get_or_create_weight_config, tune_user_weights
@@ -27,7 +28,7 @@ from .deps import current_user
 router = APIRouter(prefix="/me", tags=["AI 调权"])
 
 
-class WeightSnapshot(BaseModel):
+class WeightSnapshot(APIModel):
     """某次调权前后的权重快照（PRD 5.2 调权留痕）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -42,7 +43,7 @@ class WeightSnapshot(BaseModel):
     w6: float
 
 
-class WeightAdjustLogItem(BaseModel):
+class WeightAdjustLogItem(APIModel):
     """单条调权日志（PRD 6.5 可解释性）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -56,7 +57,7 @@ class WeightAdjustLogItem(BaseModel):
     effective_at: datetime = Field(..., alias="effectiveAt")
 
 
-class WeightConfigResponse(BaseModel):
+class WeightConfigResponse(APIModel):
     """当前权重 + 最近 5 条调权日志。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -122,7 +123,7 @@ def get_weight_config(
     })
 
 
-class TuneNowResponse(BaseModel):
+class TuneNowResponse(APIModel):
     model_config = ConfigDict(populate_by_name=True)
     tuned: bool
     message: str
@@ -166,7 +167,7 @@ def post_tune_now(
 
 # ---------- 调权后算法计算结果（个人数据页 ⑧ 模块用） ----------
 
-class StateBreakdownResponse(BaseModel):
+class StateBreakdownResponse(APIModel):
     """按当前权重计算的窗口分 + 各子分贡献 + 占比 + 标签/趋势。
 
     让用户看到"调权改了 α/β → 状态分怎么变"。

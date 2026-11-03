@@ -8,18 +8,19 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 from .enums import StateLabel, Subject, Trend
 
 
-class StateBasedOn(BaseModel):
+class StateBasedOn(APIModel):
     """可解释性依据（PRD 8.3），不暴露权重与公式。"""
 
     record_ids: list[str] = Field(..., alias="recordIds")
     signals: list[str] = Field(..., description="面向用户的信号说明")
 
 
-class StateResult(BaseModel):
+class StateResult(APIModel):
     """单学科当前状态结果；数据不足时 assessmentId 为 null 且不输出 windowScore / trend。"""
 
     model_config = ConfigDict(
@@ -57,13 +58,13 @@ class StateResult(BaseModel):
     computed_at: datetime | None = Field(None, alias="computedAt")
 
 
-class StateResultList(BaseModel):
+class StateResultList(APIModel):
     """当前状态响应；不传 subject 时返回全部学科（不做跨学科加权综合）。"""
 
     items: list[StateResult]
 
 
-class AssessmentHistoryPoint(BaseModel):
+class AssessmentHistoryPoint(APIModel):
     """趋势曲线上的单个数据点。"""
 
     model_config = ConfigDict(
@@ -84,7 +85,7 @@ class AssessmentHistoryPoint(BaseModel):
     trend: Trend
 
 
-class AssessmentHistory(BaseModel):
+class AssessmentHistory(APIModel):
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={
@@ -103,7 +104,7 @@ class AssessmentHistory(BaseModel):
     items: list[AssessmentHistoryPoint]
 
 
-class AssessmentFeedback(BaseModel):
+class AssessmentFeedback(APIModel):
     """「这个判断准不准」反馈请求体。"""
 
     accurate: bool = Field(..., description="判断是否准确")

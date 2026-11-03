@@ -5,9 +5,10 @@ from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 
-class CommunityConsent(BaseModel):
+class CommunityConsent(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     enabled: bool
@@ -15,14 +16,14 @@ class CommunityConsent(BaseModel):
     updated_at: datetime = Field(..., alias="updatedAt")
 
 
-class CommunityConsentUpdate(BaseModel):
+class CommunityConsentUpdate(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     enabled: bool
     auto_participate: bool | None = Field(None, alias="autoParticipate")
 
 
-class CommunityHistogramBucket(BaseModel):
+class CommunityHistogramBucket(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     lo: float
@@ -30,7 +31,7 @@ class CommunityHistogramBucket(BaseModel):
     count: int
 
 
-class CommunityAggregateResponse(BaseModel):
+class CommunityAggregateResponse(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     stage: str

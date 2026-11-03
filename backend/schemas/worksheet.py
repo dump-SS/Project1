@@ -5,11 +5,12 @@
 `POST /plans` 的 tasks 字段（schemas/plan.PlanTaskInput）落库为计划任务。
 """
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 from schemas.enums import Subject
 
 
-class WorksheetExtractRequest(BaseModel):
+class WorksheetExtractRequest(APIModel):
     """抽取请求体：只需已上传照片的 key。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -17,7 +18,7 @@ class WorksheetExtractRequest(BaseModel):
     media_key: str = Field(..., alias="mediaKey", min_length=1, description="已上传的作业单照片 key")
 
 
-class WorksheetItem(BaseModel):
+class WorksheetItem(APIModel):
     """单个作业项。LLM 的越界输出由服务层截断后再构造本模型（见 worksheet_extract）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -33,7 +34,7 @@ class WorksheetItem(BaseModel):
     )
 
 
-class WorksheetExtraction(BaseModel):
+class WorksheetExtraction(APIModel):
     """抽取结果（不落库，只在本响应返回一次）。"""
 
     items: list[WorksheetItem] = Field(..., min_length=1, max_length=20)

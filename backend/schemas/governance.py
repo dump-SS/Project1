@@ -20,6 +20,7 @@ from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 
 class UsageFeatureTier(str, Enum):
@@ -63,7 +64,7 @@ class AnalyticsCategory(str, Enum):
     profile_trace = "profile_trace"        # 画像 trace（提取与改删事件）
 
 
-class UsageLedgerEntry(BaseModel):
+class UsageLedgerEntry(APIModel):
     """按用户记录的模型数值成本（只存数值，不含内容）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -78,7 +79,7 @@ class UsageLedgerEntry(BaseModel):
     created_at: datetime = Field(alias="createdAt")
 
 
-class UsageLedgerList(BaseModel):
+class UsageLedgerList(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     items: list[UsageLedgerEntry]
@@ -87,7 +88,7 @@ class UsageLedgerList(BaseModel):
     total_tokens_out: int | None = Field(None, alias="totalTokensOut")
 
 
-class ViolationLog(BaseModel):
+class ViolationLog(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -97,13 +98,13 @@ class ViolationLog(BaseModel):
     created_at: datetime = Field(alias="createdAt")
 
 
-class ViolationLogList(BaseModel):
+class ViolationLogList(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     items: list[ViolationLog]
 
 
-class ErrorReportCreate(BaseModel):
+class ErrorReportCreate(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     message_id: str | None = Field(None, alias="messageId")
@@ -112,7 +113,7 @@ class ErrorReportCreate(BaseModel):
     context: dict | None = Field(None, description="上下文快照（不含对话原文流水）")
 
 
-class ErrorReport(BaseModel):
+class ErrorReport(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -123,7 +124,7 @@ class ErrorReport(BaseModel):
     created_at: datetime = Field(alias="createdAt")
 
 
-class Medal(BaseModel):
+class Medal(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     medal_id: str = Field(alias="medalId")
@@ -131,13 +132,13 @@ class Medal(BaseModel):
     awarded_at: datetime = Field(alias="awardedAt")
 
 
-class MedalList(BaseModel):
+class MedalList(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     items: list[Medal]
 
 
-class AnalyticsEventCreate(BaseModel):
+class AnalyticsEventCreate(APIModel):
     """埋点上报体。服务端生成 id / createdAt。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -149,7 +150,7 @@ class AnalyticsEventCreate(BaseModel):
     occurred_at: datetime | None = Field(None, alias="occurredAt")
 
 
-class AnalyticsEvent(BaseModel):
+class AnalyticsEvent(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str

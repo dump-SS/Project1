@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 # 与契约 ErrorCause / ErrorIntent 枚举严格一致，不得另造取值
 ERROR_CAUSES = (
@@ -23,7 +24,7 @@ ERROR_CAUSES = (
 ERROR_INTENTS = ("review", "good", "typical", "doubtful")
 
 
-class ErrorRecordCreate(BaseModel):
+class ErrorRecordCreate(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     subject: str
@@ -39,7 +40,7 @@ class ErrorRecordCreate(BaseModel):
     source_exam_id: str | None = Field(None, alias="sourceExamId")
 
 
-class ErrorRecordUpdate(BaseModel):
+class ErrorRecordUpdate(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     error_type: str | None = Field(None, alias="errorType")
@@ -52,7 +53,7 @@ class ErrorRecordUpdate(BaseModel):
     source_exam_id: str | None = Field(None, alias="sourceExamId")
 
 
-class LinkedPoint(BaseModel):
+class LinkedPoint(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     point_id: str = Field(..., alias="pointId")
@@ -60,7 +61,7 @@ class LinkedPoint(BaseModel):
     confidence: float | None = None
 
 
-class ErrorRecord(BaseModel):
+class ErrorRecord(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     error_id: str = Field(..., alias="errorId")
@@ -80,27 +81,27 @@ class ErrorRecord(BaseModel):
     source_exam_id: str | None = Field(None, alias="sourceExamId")
 
 
-class ErrorBookList(BaseModel):
+class ErrorBookList(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     items: List[ErrorRecord]
     pagination: dict
 
 
-class ErrorRecordDeleted(BaseModel):
+class ErrorRecordDeleted(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     deleted: bool
     error_id: str = Field(..., alias="errorId")
 
 
-class ReviewSubmit(BaseModel):
+class ReviewSubmit(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     recall_correct: bool = Field(..., alias="recallCorrect")
 
 
-class ReviewResult(BaseModel):
+class ReviewResult(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     correct: bool

@@ -9,11 +9,11 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import Pagination
+from .common import APIModel, Pagination
 from .enums import GoalType, Subject
 
 
-class GoalProgress(BaseModel):
+class GoalProgress(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     planned_tasks: int = Field(..., alias="plannedTasks", description="已规划任务数")
@@ -21,7 +21,7 @@ class GoalProgress(BaseModel):
     ratio: float = Field(..., alias="ratio", ge=0.0, le=1.0, description="完成比例")
 
 
-class GoalBase(BaseModel):
+class GoalBase(APIModel):
     """Goal 与 GoalSummary 共享字段。"""
 
     goal_id: str = Field(..., alias="goalId")
@@ -80,7 +80,7 @@ class Goal(GoalSummary):
     created_at: datetime = Field(..., alias="createdAt")
 
 
-class GoalCreate(BaseModel):
+class GoalCreate(APIModel):
     """创建目标请求体。"""
 
     model_config = ConfigDict(
@@ -112,7 +112,7 @@ class GoalCreate(BaseModel):
     )
 
 
-class GoalUpdate(BaseModel):
+class GoalUpdate(APIModel):
     """更新 / 归档目标请求体，字段全可选。"""
 
     model_config = ConfigDict(
@@ -140,6 +140,6 @@ class GoalUpdate(BaseModel):
     target_score: float | None = Field(None, alias="targetScore", description="目标分数（配合 examId）")
 
 
-class GoalList(BaseModel):
+class GoalList(APIModel):
     items: list[GoalSummary]
     pagination: Pagination
