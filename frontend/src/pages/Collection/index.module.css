@@ -1,0 +1,297 @@
+/* 收藏页（E 板块）。只用 tokens.css 纸感层的语义 token，不写死色值（§8.1 第 1 条）。 */
+
+.page {
+  max-width: var(--page-max, 1080px);
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5) calc(var(--sp-6) + 64px);
+  font-family: var(--font-heading);
+  color: var(--text-primary);
+}
+
+.header {
+  margin-bottom: var(--sp-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-title);
+  font-weight: var(--w-semibold, 600);
+}
+
+/* 第 798 行的边界一句话：收藏 = 一切、无结构、不可评测 */
+.subtitle {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+/* ---------- 分组：自定义分组是标签字段，内置维度是筛选维度（第 815 行） ---------- */
+
+.groupBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.chip {
+  padding: 4px var(--sp-3);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease-air),
+    border-color var(--t-fast) var(--ease-air);
+}
+
+.chip:hover {
+  border-color: var(--border-hairline-strong);
+  color: var(--text-primary);
+}
+
+.chipActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.chipCount {
+  margin-left: var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.groupTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
+}
+
+.input {
+  padding: 6px var(--sp-3);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline-strong);
+  border-radius: var(--r-control);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.button {
+  padding: 6px var(--sp-3);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-air);
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--border-hairline-strong);
+}
+
+.button:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+/* 唯一主 CTA 用蓝（§2 品牌蓝双档：--accent 只给主行动）；字色走 --on-photo，不写死 */
+.buttonPrimary {
+  color: var(--on-photo);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  border-color: var(--accent);
+  opacity: 0.9;
+}
+
+.buttonDanger {
+  color: var(--state-red);
+}
+
+/* ---------- 卡片列表：卡片 + 来源引用，不做文本直列（第 817 行） ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.card {
+  padding: var(--sp-4);
+  background: var(--surface-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-card);
+}
+
+.cardTop {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--fs-h3);
+  line-height: var(--lh-title);
+  font-weight: var(--w-medium, 500);
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.tag {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-pill);
+  color: var(--text-secondary);
+}
+
+/* 未展开时只给两行预览：卡片形态，不是文本直列 */
+.preview {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-hairline);
+}
+
+/* 展开后的快照全文。第 821 行：内容不可编辑，所以这里没有输入框 */
+.snapshot {
+  margin-top: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--bg-page);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-control);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  /* 长文正文用衬线（§5 时态逻辑：已写下来的内容） */
+  font-family: var(--font-prose);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* 纯文本快照的宿主：textContent 必须与 snapshot.content 严格一致，
+   否则划选换算出的码点偏移会整体错位（见 SnapshotView 的注释） */
+.snapshotHost {
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.snapshotHost:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 标记：高亮 / 虚化（#41，§4.8.4 第 822-827 行） ---------- */
+
+.highlight {
+  background: color-mix(in srgb, var(--state-amber) 26%, transparent);
+  border-radius: 2px;
+}
+
+/* 虚化只改显示、不改内容（第 827 行），所以用 filter 而不是替换文本 */
+.blur {
+  filter: blur(5px);
+  opacity: 0.85;
+  border-radius: 2px;
+}
+
+.blurFocused {
+  outline: 1px dashed var(--accent);
+  outline-offset: 1px;
+}
+
+/* 空格临时解除（第 823 行）：松手即恢复 */
+.blurRevealed {
+  filter: none;
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.markBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-3);
+}
+
+.markHint {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-tertiary);
+}
+
+.markNote {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+}
+
+.snapshotImage {
+  display: block;
+  max-width: 100%;
+  margin-top: var(--sp-3);
+  border-radius: var(--r-control);
+}
+
+/* ---------- 状态 ---------- */
+
+.empty,
+.notice {
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  color: var(--text-secondary);
+  background: var(--surface-card);
+  border: 1px dashed var(--border-hairline-strong);
+  border-radius: var(--r-card);
+}
+
+.noticeError {
+  color: var(--state-red);
+  border-style: solid;
+  border-color: var(--state-red);
+}
