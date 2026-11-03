@@ -263,36 +263,55 @@ def create_plan(
         db.commit()
 
     # 取目标：goalIds 不传则全部 active
-    goal_query = select(GoalORM).where(
-        GoalORM.user_id == _user.user_id,
-        GoalORM.status == "active",
-    )
-    if body.goal_ids:
-        goal_query = goal_query.where(GoalORM.id.in_(body.goal_ids))
-    goals = list(db.execute(goal_query.order_by(GoalORM.created_at.asc())).scalars().all())
+    # ⚠️ tasks 覆写路径（v1.15.0，作业单确认卡）：显式任务直接落计划，跳过整个
+    #    规则引擎——不查目标（任务与目标无关联）、不做疲劳降载（用户在确认卡里
+    #    刚确认过的任务不该被静默改写）、adaptedFrom 保持 null。契约与实现一致。
+    task_dicts: list[dict]
+    goals: list[GoalORM] = []
+    if body.tasks:
+        task_dicts = [
+            {
+                "subject": t.subject.value if hasattr(t.subject, "value") else str(t.subject),
+                "topic": t.topic,
+                "estimated_minutes": t.estimated_minutes,
+                "priority": idx + 1,
+                "goal_id": None,
+            }
+            for idx, t in enumerate(body.tasks)
+        ]
+        adaptation = None
+        effective_minutes = body.available_minutes
+    else:
+        goal_query = select(GoalORM).where(
+            GoalORM.user_id == _user.user_id,
+            GoalORM.status == "active",
+        )
+        if body.goal_ids:
+            goal_query = goal_query.where(GoalORM.id.in_(body.goal_ids))
+        goals = list(db.execute(goal_query.order_by(GoalORM.created_at.asc())).scalars().all())
 
-    # adaptedFrom：最近一次状态评估（新用户为 None）
-    adaptation = _build_adapted_from(db, _user.user_id, body.available_minutes)
+        # adaptedFrom：最近一次状态评估（新用户为 None）
+        adaptation = _build_adapted_from(db, _user.user_id, body.available_minutes)
 
-    # 疲劳状态把可用时长降到 80%（reduce_load 的具象化）
-    effective_minutes = body.available_minutes
-    if adaptation and adaptation.adjustment == "reduce_load":
-        effective_minutes = max(_MIN_TASK_MINUTES, int(body.available_minutes * 0.8))
+        # 疲劳状态把可用时长降到 80%（reduce_load 的具象化）
+        effective_minutes = body.available_minutes
+        if adaptation and adaptation.adjustment == "reduce_load":
+            effective_minutes = max(_MIN_TASK_MINUTES, int(body.available_minutes * 0.8))
 
-    task_dicts = _split_tasks(effective_minutes, goals)
+        task_dicts = _split_tasks(effective_minutes, goals)
 
-    # P0-1 兜底：无目标（或可用时间不足以放任何任务）时，补一条通用任务，
-    # 保证 tasks 至少 1 条，前端推荐（取 tasks[0].topic）永远有内容可填。
-    # 若存在目标，兜底任务用该目标的学科 + 关联该目标（否则学科脱钩、目标进度恒 0%）。
-    if not task_dicts:
-        fallback_goal = goals[0] if goals else None
-        task_dicts = [{
-            "subject": fallback_goal.subject if fallback_goal else "other",
-            "topic": "自由学习 · 巩固已学",
-            "estimated_minutes": min(_DEFAULT_TASK_MINUTES, effective_minutes, _MAX_TASK_MINUTES),
-            "priority": 1,
-            "goal_id": fallback_goal.id if fallback_goal else None,
-        }]
+        # P0-1 兜底：无目标（或可用时间不足以放任何任务）时，补一条通用任务，
+        # 保证 tasks 至少 1 条，前端推荐（取 tasks[0].topic）永远有内容可填。
+        # 若存在目标，兜底任务用该目标的学科 + 关联该目标（否则学科脱钩、目标进度恒 0%）。
+        if not task_dicts:
+            fallback_goal = goals[0] if goals else None
+            task_dicts = [{
+                "subject": fallback_goal.subject if fallback_goal else "other",
+                "topic": "自由学习 · 巩固已学",
+                "estimated_minutes": min(_DEFAULT_TASK_MINUTES, effective_minutes, _MAX_TASK_MINUTES),
+                "priority": 1,
+                "goal_id": fallback_goal.id if fallback_goal else None,
+            }]
 
     plan_id = gen_id("p")
     plan_row = PlanORM(
@@ -323,8 +342,12 @@ def create_plan(
     db.refresh(plan_row)
 
     tasks = _load_plan_tasks(db, plan_id)
-    # 板块二短板提示（v2.3）：按用户目标涉及的学科查 mastery<0.7 升序 Top-3
-    subject_codes = sorted({g.subject for g in goals if getattr(g, "subject", None)})
+    # 板块二短板提示（v2.3）：按用户目标涉及的学科查 mastery<0.7 升序 Top-3；
+    # tasks 覆写路径下没有目标，改按显式任务的学科集合。
+    if body.tasks:
+        subject_codes = sorted({t.subject.value if hasattr(t.subject, "value") else str(t.subject) for t in body.tasks})
+    else:
+        subject_codes = sorted({g.subject for g in goals if getattr(g, "subject", None)})
     weakness = compute_weakness_hints(db, _user.user_id, subject_codes or None)
     return Plan.model_validate(_orm_plan_to_dict(plan_row, tasks, weakness=weakness))
 

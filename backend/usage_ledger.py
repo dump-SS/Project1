@@ -186,4 +186,12 @@ def record_usage(context: dict | None, model: str, tokens_in: int, tokens_out: i
         #    导致某个请求误以为「我记过了」而漏掉该记的行。
         _flag().recorded = True
     except Exception as e:  # noqa: BLE001 — 计量失败绝不阻断业务
-        logger.debug("[usage_ledger] 写入失败（已忽略）: %s", e)
+        logger.warning(
+            "[usage_ledger] 写入失败（已忽略，不阻断主流程）：user_id=%s, model=%s, "
+            "tokens_in=%s, tokens_out=%s, error=%s",
+            user_id,
+            model,
+            tokens_in,
+            tokens_out,
+            e,
+        )

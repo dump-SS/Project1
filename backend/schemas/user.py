@@ -7,6 +7,7 @@ User / UserProfilePut / UserProfilePatch / Settings / SettingsUpdate
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -95,6 +96,69 @@ class UserProfilePatch(BaseModel):
     birth_year: int | None = Field(
         None, alias="birthYear", ge=1900, le=2100, description="出生年份（4 位）"
     )
+
+
+class ProfileGroup(str, Enum):
+    """画像四组（openapi.yaml UserProfileGroup 枚举，契约 v1.15.0）。
+
+    对照 product-redesign-target.md 第 929 行 D10：learning / state /
+    attribution / interest。
+    """
+
+    LEARNING = "learning"
+    STATE = "state"
+    ATTRIBUTION = "attribution"
+    INTEREST = "interest"
+
+
+class UserProfileEntry(BaseModel):
+    """单条画像条目（openapi.yaml UserProfileEntry，契约 v1.15.0）。
+
+    对照 product-redesign-target.md 第 929 行 D10：四组（learning / state /
+    attribution / interest），同一 (user_id, group, key) 只保留一条。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entry_id: str = Field(..., alias="entryId", description="条目 id")
+    group: str = Field(
+        ..., description="learning / state / attribution / interest"
+    )
+    key: str = Field(..., description="条目键，如「薄弱知识点」")
+    value: str = Field(..., description="提取后的结构化值（非原始流水）")
+    source: str | None = Field(
+        None,
+        description="explicit=用户显式填写 / inferred=模型推断 / self_report=自评叙事轨",
+    )
+    confidence: float | None = Field(
+        None, description="推断置信度（显式来源为 null）"
+    )
+    source_ref: str | None = Field(
+        None, alias="sourceRef", description="提取来源引用（会话 id / 消息 id）"
+    )
+    updated_at: datetime | None = Field(
+        None, alias="updatedAt", description="条目最后更新时间"
+    )
+
+
+class UserProfileEntryUpdate(BaseModel):
+    """局部更新画像条目（openapi.yaml UserProfileEntryUpdate，契约 v1.15.0）。
+
+    只能改 value 与 group，**不能新建**（新建走 PUT 的幂等建档语义）。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    value: str | None = Field(None, description="条目新值")
+    group: str | None = Field(None, description="组变更（learning / state / attribution / interest）")
+
+
+class UserProfileList(BaseModel):
+    """某组全部画像条目（openapi.yaml UserProfileList，契约 v1.15.0）。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[UserProfileEntry] = Field(default_factory=list, description="该组下的条目列表")
 
 
 class Settings(BaseModel):

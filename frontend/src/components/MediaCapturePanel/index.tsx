@@ -29,6 +29,7 @@ import {
   validateImageFile,
 } from '../../services/fMedia'
 import styles from './index.module.css'
+import SortMenuButton from '../Tools/SortTool/SortMenuButton'
 
 export interface MediaCapturePanelProps {
   /** 上传成功回调：把 file_summary 引用块交给外层（通常塞进对话上下文栈）。 */
@@ -36,6 +37,14 @@ export interface MediaCapturePanelProps {
   /** 用户点「清除」时通知外层（带上被清的 key），让外层把对应引用块一起撤掉，
    * 否则上下文栈里会留一个指向已被清除图片的孤儿 chip。 */
   onClear?: (key: string) => void
+  /** D58 /题目排序（2026-11-01 拍板形态：入口放在拍题栏）：难易/掌握度/价值遴选
+   * 的组发回调（prompt + 本面板图片 key），由 Chat 页随图走既有 /chat/media 异步链路。 */
+  onSortPrompt?: (prompt: string, key: string) => void
+  /** D58 自定义排序：模板进输入框由用户续写 */
+  onSortCustom?: (template: string) => void
+  /** D55 作业单生成计划：用户点「生成计划」→ Chat 页抽取 → 确认卡 → 落计划。
+   *  只在展开态渲染（收起态看不到预览，无从确认处理哪张图）。 */
+  onGeneratePlan?: (key: string) => void
   /** 紧凑形态：内嵌在输入区时省掉大标题 */
   compact?: boolean
   /** 默认收起：只露出一枚触发按钮，展开后才占高度（避免常驻吃 Chat 页空间） */
@@ -47,6 +56,9 @@ type Phase = 'idle' | 'uploading' | 'loading' | 'ready' | 'error'
 export default function MediaCapturePanel({
   onCard,
   onClear,
+  onSortPrompt,
+  onSortCustom,
+  onGeneratePlan,
   compact = false,
   defaultOpen = false,
 }: MediaCapturePanelProps) {
@@ -137,6 +149,35 @@ export default function MediaCapturePanel({
 
   const busy = phase === 'uploading' || phase === 'loading'
 
+  /** D58「题目排序」按钮（拍题栏入口，收起/展开两态各一枚；光效只给收起态——
+   * 展开态本身就是用户正在和面板交互）。enabled = 本面板已有上传成功的图。 */
+  const renderSortButton = (glow: boolean) => (
+    <SortMenuButton
+      enabled={Boolean(result)}
+      disabledHint="先拍题上传题目照片，排序才有对象"
+      glow={glow}
+      onQuickSort={(prompt) => {
+        if (result) onSortPrompt?.(prompt, result.key)
+      }}
+      onCustomSort={(template) => onSortCustom?.(template)}
+    />
+  )
+
+  /** D55 作业单生成计划（两态都有——刚传完图时面板是收起的，入口不能藏起来） */
+  const renderGenerateButton = () =>
+    result && onGeneratePlan ? (
+      <button
+        type="button"
+        className={styles.trigger}
+        disabled={busy}
+        onClick={() => onGeneratePlan(result.key)}
+        title="从这张作业单抽取作业项，确认后生成今日计划"
+        data-testid="generate-plan-button"
+      >
+        生成计划
+      </button>
+    ) : null
+
   /** 收起态只露一枚触发按钮 —— 不占高度，也就不打扰 Chat 主流程 */
   if (!open) {
     return (
@@ -161,6 +202,8 @@ export default function MediaCapturePanel({
           </svg>
           拍题
         </button>
+        {renderSortButton(true)}
+        {renderGenerateButton()}
       </section>
     )
   }
@@ -195,6 +238,8 @@ export default function MediaCapturePanel({
         >
           {phase === 'uploading' ? '上传中…' : phase === 'loading' ? '取回中…' : '选择图片'}
         </button>
+        {renderSortButton(false)}
+        {renderGenerateButton()}
         {result && (
           <button type="button" className={styles.clear} onClick={clearAll}>
             清除

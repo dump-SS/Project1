@@ -14,18 +14,23 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
+from models.chat import UserProfile as ProfileORM
 from models.user import GuardianAuthorization as GuardianAuthorizationORM
 from models.user import User as UserORM
 from schemas.user import (
     GuardianAuthorizationRequest,
+    ProfileGroup,
     Settings,
     SettingsUpdate,
     User,
+    UserProfileEntry,
+    UserProfileEntryUpdate,
+    UserProfileList,
     UserProfilePatch,
     UserProfilePut,
 )
@@ -245,6 +250,223 @@ def patch_settings(
     db.commit()
     db.refresh(settings)
     return _serialize_settings(settings)
+
+
+# ---------- /me/profile/{group} 与 /me/profile/{group}/{key} ----------
+
+# 画像条目四组（D10：learning / state / attribution / interest；不可手动新建）
+_PROFILE_GROUPS = {
+    ProfileGroup.LEARNING,
+    ProfileGroup.STATE,
+    ProfileGroup.ATTRIBUTION,
+    ProfileGroup.INTEREST,
+}
+
+
+def _gen_id(prefix: str) -> str:
+    import uuid
+
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def _serialize_profile(row: ProfileORM) -> UserProfileEntry:
+    return UserProfileEntry(
+        entryId=row.id,
+        group=row.profile_group,
+        key=row.key,
+        value=row.value,
+        source=row.source,
+        confidence=row.confidence,
+        sourceRef=row.source_ref,
+        updatedAt=row.updated_at,
+    )
+
+
+def _get_or_404_profile(
+    db: Session, user_id: str, group: str, key: str
+) -> ProfileORM:
+    """查单条画像条目，不存在 404（契约 v1.15.0）。"""
+    row = (
+        db.query(ProfileORM)
+        .filter(
+            ProfileORM.user_id == user_id,
+            ProfileORM.profile_group == group,
+            ProfileORM.key == key,
+        )
+        .first()
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": "画像条目不存在"},
+        )
+    return row
+
+
+@router.get(
+    "/me/profile/{group}",
+    response_model=UserProfileList,
+    summary="获取某组全部画像条目（D10：可见）",
+)
+def get_profile_group(
+    group: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> UserProfileList:
+    """查某组全部画像条目。
+
+    group 取 learning / state / attribution / interest 四组之一（契约 v1.15.0，
+    对照 product-redesign-target.md 第 929 行 D10）。
+    """
+    if group not in _PROFILE_GROUPS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "VALIDATION_FAILED",
+                "message": f"不支持的画像组：{group}",
+                "field": "group",
+            },
+        )
+    rows = (
+        db.query(ProfileORM)
+        .filter(
+            ProfileORM.user_id == user.user_id,
+            ProfileORM.profile_group == group,
+        )
+        .all()
+    )
+    return UserProfileList(items=[_serialize_profile(r) for r in rows])
+
+
+@router.get(
+    "/me/profile/{group}/{key}",
+    response_model=UserProfileEntry,
+    summary="获取单条画像条目（D10：可见）",
+)
+def get_profile_entry(
+    group: str,
+    key: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> UserProfileEntry:
+    """查单条画像条目。不存在 404，非本人 403（current_user 已保证归属）。"""
+    return _serialize_profile(_get_or_404_profile(db, user.user_id, group, key))
+
+
+@router.put(
+    "/me/profile/{group}/{key}",
+    response_model=UserProfileEntry,
+    summary="幂等建档/更新画像条目（D10：不可手动新建，PUT 幂等）",
+)
+def put_profile_entry(
+    group: str,
+    key: str,
+    body: UserProfileEntryUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> UserProfileEntry:
+    """PUT 幂等：条目不存在则创建、存在则覆盖更新（不可手动新建的例外）。
+
+    source/confidence/sourceRef 由后端判定，前端只需传 value（及可选 group 变更）。
+    对照 product-redesign-target.md 第 929 行 D10。
+    """
+    row = (
+        db.query(ProfileORM)
+        .filter(
+            ProfileORM.user_id == user.user_id,
+            ProfileORM.profile_group == group,
+            ProfileORM.key == key,
+        )
+        .first()
+    )
+    if row is None:
+        # 路径 group 即目标组；body.group 若提供且不同，以 body 为准（移组语义）
+        target_group = body.group if body.group is not None else group
+        if target_group not in _PROFILE_GROUPS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "VALIDATION_FAILED",
+                    "message": f"不支持的画像组：{target_group}",
+                    "field": "group",
+                },
+            )
+        row = ProfileORM(
+            id=_gen_id("upe"),
+            user_id=user.user_id,
+            profile_group=target_group,
+            key=key,
+            value=body.value or "",
+            source="explicit",
+        )
+        db.add(row)
+    else:
+        if body.value is not None:
+            row.value = body.value
+        if body.group is not None and body.group in _PROFILE_GROUPS:
+            row.profile_group = body.group
+    db.commit()
+    db.refresh(row)
+    return _serialize_profile(row)
+
+
+@router.patch(
+    "/me/profile/{group}/{key}",
+    response_model=UserProfileEntry,
+    summary="局部更新画像条目（D10：可改）",
+)
+def patch_profile_entry(
+    group: str,
+    key: str,
+    body: UserProfileEntryUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> UserProfileEntry:
+    """局部更新。字段全可选，不存在 404（契约 v1.15.0）。"""
+    row = _get_or_404_profile(db, user.user_id, group, key)
+    if body.value is not None:
+        row.value = body.value
+    if body.group is not None:
+        if body.group not in _PROFILE_GROUPS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "VALIDATION_FAILED",
+                    "message": f"不支持的画像组：{body.group}",
+                    "field": "group",
+                },
+            )
+        row.profile_group = body.group
+    db.commit()
+    db.refresh(row)
+    return _serialize_profile(row)
+
+
+@router.delete(
+    "/me/profile/{group}/{key}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除画像条目（D10：可删，撤回即删除，合规底线）",
+)
+def delete_profile_entry(
+    group: str,
+    key: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """删除画像条目。幂等：重复删除亦 204（契约 v1.15.0）。"""
+    row = (
+        db.query(ProfileORM)
+        .filter(
+            ProfileORM.user_id == user.user_id,
+            ProfileORM.profile_group == group,
+            ProfileORM.key == key,
+        )
+        .first()
+    )
+    if row is not None:
+        db.delete(row)
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------- /me/guardian-authorization ----------

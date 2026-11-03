@@ -26,6 +26,7 @@
 | `/guardian-auth` | 需登录 | GuardianAuth | **零** | **真实路由**（非路由级重定向）；页面组件内部 `Navigate` → `/settings?tab=privacy`（index.tsx:16，保留路由兼容旧链接）；本体归 Settings 授权与隐私 | 不适用 |
 | `/knowledge` | 需登录 | Knowledge | knowledgeV2、mastery | 真接口（检索有降级，见 §4-2） | 见 §4-2 |
 | `/error-book` | 需登录 | ErrorBook | errorBook、knowledge | 真接口 | — |
+| `/collection` | 需登录 | Collection | **collection（9 个操作全接）**、http | 真接口 | 2026-11-03 新增（E 板块·契约 v1.17.1）；`format: markdown` 快照的高亮/虚化标记未开放、图片圈选小图展示未接，均见 `out/dev8/e-collection-前端接线.md` |
 | `/chat` | 需登录 | Chat | **零** | **纯本地 mock**（setTimeout+关键词匹配+mockData.ts；文件头自述「纯前端演示，无后端」；B 板块未开工） | 文件头有自述；UI 可见演示徽标未逐项核实 |
 | `/community/upload` | 需登录 | Community/Upload | communityApi、http | 真接口 | — |
 | `/community/compare` | 需登录 | Community/Compare | communityApi、user、http | 真接口 | — |
