@@ -11,11 +11,11 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import Pagination
+from .common import APIModel, Pagination
 from .enums import Subject
 
 
-class Exam(BaseModel):
+class Exam(APIModel):
     """考试。独立实体，不是 Goal 的一种；Goal 用 examId + targetScore 引用它。"""
 
     model_config = ConfigDict(
@@ -57,7 +57,7 @@ class Exam(BaseModel):
     updated_at: datetime | None = Field(None, alias="updatedAt", description="最近更新时间（考试可编辑）")
 
 
-class ExamCreate(BaseModel):
+class ExamCreate(APIModel):
     """创建考试请求体。score 可当场填（刚考完）也可留空（考前先记下日程）。"""
 
     model_config = ConfigDict(
@@ -80,7 +80,7 @@ class ExamCreate(BaseModel):
     duration_minutes: int | None = Field(None, alias="durationMinutes", ge=1, le=600)
 
 
-class ExamUpdate(BaseModel):
+class ExamUpdate(APIModel):
     """考试局部更新，至少传一项（考后回填成绩就走这里）。"""
 
     model_config = ConfigDict(
@@ -97,12 +97,12 @@ class ExamUpdate(BaseModel):
     duration_minutes: int | None = Field(None, alias="durationMinutes", ge=1, le=600)
 
 
-class ExamList(BaseModel):
+class ExamList(APIModel):
     items: list[Exam]
     pagination: Pagination
 
 
-class ExamDeleted(BaseModel):
+class ExamDeleted(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     deleted: bool

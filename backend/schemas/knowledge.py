@@ -10,9 +10,10 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 
-class KnowledgeSummaryCreate(BaseModel):
+class KnowledgeSummaryCreate(APIModel):
     """知识复盘请求（POST /api/v1/knowledge-summary）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -21,13 +22,13 @@ class KnowledgeSummaryCreate(BaseModel):
     period: str = Field(..., alias="period", description="复盘周期，如「本周」")
 
 
-class KnowledgeSummaryResponse(BaseModel):
+class KnowledgeSummaryResponse(APIModel):
     """知识复盘响应。"""
 
     summary: str = Field(..., description="LLM 生成的知识复盘文案")
 
 
-class ErrorParseRequest(BaseModel):
+class ErrorParseRequest(APIModel):
     """错题归因请求（合规形态）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -35,7 +36,7 @@ class ErrorParseRequest(BaseModel):
     error_id: str = Field(..., alias="errorId", description="已入库错题 ID（err_ 前缀），原文不出域")
 
 
-class ErrorParseResponse(BaseModel):
+class ErrorParseResponse(APIModel):
     """错题归因响应。"""
 
     parse: str = Field(..., description="LLM 生成的智能解析")

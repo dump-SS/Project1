@@ -22,6 +22,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Response, status
 from pydantic import BaseModel
+from schemas.common import APIModel
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -84,11 +85,11 @@ def _ensure_stable_user_id(db: Session, auth_user: AuthUser) -> str:
 
 # ---------- 请求体 schemas ----------
 
-class EmailRequest(BaseModel):
+class EmailRequest(APIModel):
     email: str
 
 
-class RegisterRequest(BaseModel):
+class RegisterRequest(APIModel):
     email: str
     code: str
     password: str
@@ -97,22 +98,22 @@ class RegisterRequest(BaseModel):
     inviteCode: str = ""
 
 
-class LoginCodeRequest(BaseModel):
+class LoginCodeRequest(APIModel):
     email: str
     code: str
 
 
-class LoginPasswordRequest(BaseModel):
+class LoginPasswordRequest(APIModel):
     email: str
     password: str
 
 
-class VerifyResetCodeRequest(BaseModel):
+class VerifyResetCodeRequest(APIModel):
     email: str
     code: str
 
 
-class ResetPasswordRequest(BaseModel):
+class ResetPasswordRequest(APIModel):
     email: str
     code: str
     newPassword: str

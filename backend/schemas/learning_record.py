@@ -10,11 +10,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import Pagination
+from .common import APIModel, Pagination
 from .enums import Completion, DifficultyFeel, Emotion, RecordSource, Subject
 
 
-class RecordBehavior(BaseModel):
+class RecordBehavior(APIModel):
     """行为数据（系统自动记录为主）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -25,7 +25,7 @@ class RecordBehavior(BaseModel):
     blur_count: int | None = Field(None, ge=0, alias="blurCount", description="页面失焦次数（小程序弱信号）")
 
 
-class RecordSelfReport(BaseModel):
+class RecordSelfReport(APIModel):
     """自评数据。
 
     ⚠️ 四字段**全部可空**（2026-09-25 放开，原为全必填）。依据目标态 §3.7(a)：
@@ -45,7 +45,7 @@ class RecordSelfReport(BaseModel):
     )
 
 
-class RecordInput(BaseModel):
+class RecordInput(APIModel):
     """提交学习记录请求体。"""
 
     model_config = ConfigDict(
@@ -81,7 +81,7 @@ class RecordInput(BaseModel):
     )
 
 
-class LearningRecord(BaseModel):
+class LearningRecord(APIModel):
     """已保存的学习记录。"""
 
     model_config = ConfigDict(
@@ -121,7 +121,7 @@ class LearningRecord(BaseModel):
     )
 
 
-class RecordUpdate(BaseModel):
+class RecordUpdate(APIModel):
     """事后回写请求体（D15：记录是活实体，正确率/完成度/备注可事后补）。
 
     语义：**只在字段被显式传入时才改**（路由侧用 `model_fields_set` 判定）——
@@ -144,7 +144,7 @@ class RecordUpdate(BaseModel):
     )
 
 
-class AssessmentSnapshot(BaseModel):
+class AssessmentSnapshot(APIModel):
     """提交/删除记录后同步重算得到的状态快照。
     v1.1 修订：assessmentId 可空、windowScore/trend 数据不足时不返回，
     与 GET /assessments/current 的 StateResult 语义一致。
@@ -180,7 +180,7 @@ class LearningRecordCreatedAssessment(AssessmentSnapshot):
     pass
 
 
-class LearningRecordCreatedRecommendation(BaseModel):
+class LearningRecordCreatedRecommendation(APIModel):
     """LearningRecordCreated 嵌套的 recommendation 句柄。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -198,12 +198,12 @@ class LearningRecordCreated(LearningRecord):
     recommendation: LearningRecordCreatedRecommendation | None = None
 
 
-class LearningRecordList(BaseModel):
+class LearningRecordList(APIModel):
     items: list[LearningRecord]
     pagination: Pagination
 
 
-class LearningRecordDeleted(BaseModel):
+class LearningRecordDeleted(APIModel):
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={
@@ -230,7 +230,7 @@ class LearningRecordDeleted(BaseModel):
     )
 
 
-class LearningRecordUpdated(BaseModel):
+class LearningRecordUpdated(APIModel):
     """事后回写的响应（D15）。
 
     带上 `recalculatedAssessment`：回写正确率/自评会改变状态分，

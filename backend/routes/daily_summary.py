@@ -12,13 +12,14 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from daily_summary import generate_day_summary
+from schemas.common import APIModel
 from schemas.user import User
 from .deps import current_user
 
 router = APIRouter(prefix="/daily-summary", tags=["日总结"])
 
 
-class DailySummaryResponse(BaseModel):
+class DailySummaryResponse(APIModel):
     """日总结响应（openapi 0.2 错误格式不在此处，单一成功字段）。"""
 
     model_config = ConfigDict(populate_by_name=True)

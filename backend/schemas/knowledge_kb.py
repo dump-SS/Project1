@@ -4,9 +4,10 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from .common import APIModel
 
 
-class KnowledgeSubject(BaseModel):
+class KnowledgeSubject(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     subject_code: str = Field(..., alias="subjectCode")
@@ -16,11 +17,11 @@ class KnowledgeSubject(BaseModel):
     version: str
 
 
-class KnowledgeSubjectList(BaseModel):
+class KnowledgeSubjectList(APIModel):
     items: List[KnowledgeSubject]
 
 
-class KnowledgePoint(BaseModel):
+class KnowledgePoint(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     point_id: str = Field(..., alias="pointId")
@@ -34,11 +35,11 @@ class KnowledgePoint(BaseModel):
     error_tip: str | None = Field(None, alias="errorTip")
 
 
-class KnowledgePointList(BaseModel):
+class KnowledgePointList(APIModel):
     items: List[KnowledgePoint]
 
 
-class KnowledgePointRelation(BaseModel):
+class KnowledgePointRelation(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     src_point_id: str = Field(..., alias="srcPointId")
@@ -77,7 +78,7 @@ class KnowledgePointDetail(KnowledgePoint):
         return []
 
 
-class KnowledgeGraph(BaseModel):
+class KnowledgeGraph(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     subject_code: str = Field(..., alias="subjectCode")
@@ -86,7 +87,7 @@ class KnowledgeGraph(BaseModel):
     weak_point_ids: List[str] = Field(default_factory=list, alias="weakPointIds")
 
 
-class KnowledgePointMatch(BaseModel):
+class KnowledgePointMatch(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     point_id: str = Field(..., alias="pointId")
@@ -96,12 +97,12 @@ class KnowledgePointMatch(BaseModel):
     matched_by: str = Field(..., alias="matchedBy")
 
 
-class KnowledgePointMatchList(BaseModel):
+class KnowledgePointMatchList(APIModel):
     items: List[KnowledgePointMatch]
     matched_by: str = Field(..., alias="matchedBy")
 
 
-class KnowledgeSummaryCreate(BaseModel):
+class KnowledgeSummaryCreate(APIModel):
     """知识复盘结构化入参。"""
 
     model_config = ConfigDict(populate_by_name=True)

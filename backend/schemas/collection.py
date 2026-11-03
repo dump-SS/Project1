@@ -17,11 +17,12 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 from .enums import Subject
 
 
-class Collection(BaseModel):
+class Collection(APIModel):
     """收藏的自定义分组。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -32,7 +33,7 @@ class Collection(BaseModel):
     createdAt: datetime = Field(..., description="创建时间")
     updatedAt: datetime | None = Field(None, description="最近更新时间（分组可重命名，见 CollectionUpdate）")
 
-class CollectionCreate(BaseModel):
+class CollectionCreate(APIModel):
     """新增收藏分组请求体。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -40,7 +41,7 @@ class CollectionCreate(BaseModel):
     name: str = Field(..., max_length=64, description="用户自建分组名（如「计划」「闲聊」）")
 
 
-class CollectionList(BaseModel):
+class CollectionList(APIModel):
     """分组列表。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -48,7 +49,7 @@ class CollectionList(BaseModel):
     items: list[Collection] = Field(..., description="分组条目")
 
 
-class CollectionUpdate(BaseModel):
+class CollectionUpdate(APIModel):
     """重命名收藏分组请求体（自定义分组是用户标签字段，与内置筛选维度正交）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -56,7 +57,7 @@ class CollectionUpdate(BaseModel):
     name: str = Field(..., max_length=64, description="分组新名")
 
 
-class CollectionSnapshot(BaseModel):
+class CollectionSnapshot(APIModel):
     """收藏内容的**快照**（D46 硬约束）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -72,7 +73,7 @@ class CollectionSnapshot(BaseModel):
     )
 
 
-class CollectionSourceRef(BaseModel):
+class CollectionSourceRef(APIModel):
     """来源引用（仅用于溯源标注，不承担内容可读性）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -86,7 +87,7 @@ class CollectionSourceRef(BaseModel):
     subject: Subject | None = Field(None, description="学科")
 
 
-class CollectionHighlight(BaseModel):
+class CollectionHighlight(APIModel):
     """划选高亮（内容不可编辑，高亮只改显示）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -95,7 +96,7 @@ class CollectionHighlight(BaseModel):
     end: int = Field(..., description="结束偏移（按 Unicode 码点计，左闭右开）")
 
 
-class CollectionBlurState(BaseModel):
+class CollectionBlurState(APIModel):
     """「虚化」标记（#41 / §4.8.4）：把选中文本做模糊显示，用于隐藏信息或自测（填空题）。
 
     虚化不算编辑——只改显示不改内容，状态必须持久化。
@@ -107,7 +108,7 @@ class CollectionBlurState(BaseModel):
     end: int = Field(..., description="结束偏移（按 Unicode 码点计，左闭右开）")
 
 
-class CollectionItem(BaseModel):
+class CollectionItem(APIModel):
     """收藏条目。内容不可编辑（保证留存真实性），只支持高亮与虚化标记。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -150,7 +151,7 @@ class CollectionItemCreateResult(CollectionItem):
     )
 
 
-class CollectionItemCreate(BaseModel):
+class CollectionItemCreate(APIModel):
     """新增收藏。同一条内容反复收藏 → 覆盖并给轻提示（#52），不新增副本。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -163,7 +164,7 @@ class CollectionItemCreate(BaseModel):
     )
 
 
-class CollectionItemList(BaseModel):
+class CollectionItemList(APIModel):
     """条目列表。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -171,7 +172,7 @@ class CollectionItemList(BaseModel):
     items: list[CollectionItem] = Field(..., description="条目列表")
 
 
-class CollectionItemUpdate(BaseModel):
+class CollectionItemUpdate(APIModel):
     """收藏条目的标记更新。**内容不可编辑**（保证留存真实性，D46），
     只能改分组、标题、高亮与虚化标记。虚化必须可持久化（#41）。
     """

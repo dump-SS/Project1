@@ -9,11 +9,11 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import Pagination
+from .common import APIModel, Pagination
 from .enums import StateLabel, Subject, TaskStatus
 
 
-class PlanTask(BaseModel):
+class PlanTask(APIModel):
     """计划内的单个任务。"""
 
     model_config = ConfigDict(
@@ -50,7 +50,7 @@ class PlanTaskDetail(PlanTask):
     updated_at: datetime = Field(..., alias="updatedAt")
 
 
-class PlanTaskUpdate(BaseModel):
+class PlanTaskUpdate(APIModel):
     """调整任务请求体，至少传一项。"""
 
     model_config = ConfigDict(
@@ -63,7 +63,7 @@ class PlanTaskUpdate(BaseModel):
     removed: bool | None = Field(None, description="true 表示删除该任务（软删除）")
 
 
-class PlanAdaptation(BaseModel):
+class PlanAdaptation(APIModel):
     """本次计划基于哪次状态评估做了强度调整。"""
 
     model_config = ConfigDict(
@@ -84,7 +84,7 @@ class PlanAdaptation(BaseModel):
     note: str = Field(..., description="面向用户的调整说明")
 
 
-class PlanWeaknessHint(BaseModel):
+class PlanWeaknessHint(APIModel):
     """板块二短板提示（v2.3 增量）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -95,7 +95,7 @@ class PlanWeaknessHint(BaseModel):
     subject_code: str | None = Field(None, alias="subjectCode")
 
 
-class Plan(BaseModel):
+class Plan(APIModel):
     """学习计划。"""
 
     model_config = ConfigDict(
@@ -140,7 +140,7 @@ class Plan(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
 
 
-class PlanTaskInput(BaseModel):
+class PlanTaskInput(APIModel):
     """显式任务输入（v1.15.0）：作业单确认卡路径，与 WorksheetItem 同构但归 C 板块所有。
 
     为什么不直接复用 schemas/worksheet.WorksheetItem：那是 F 板块抽取响应的形状，
@@ -155,7 +155,7 @@ class PlanTaskInput(BaseModel):
     estimated_minutes: int = Field(..., alias="estimatedMinutes", ge=5, le=240, description="预计时长（分钟）")
 
 
-class PlanCreate(BaseModel):
+class PlanCreate(APIModel):
     """生成计划请求体。"""
 
     model_config = ConfigDict(
@@ -186,6 +186,6 @@ class PlanCreate(BaseModel):
     )
 
 
-class PlanList(BaseModel):
+class PlanList(APIModel):
     items: list[Plan]
     pagination: Pagination

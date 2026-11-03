@@ -12,9 +12,10 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 
-class ChatMessageRequest(BaseModel):
+class ChatMessageRequest(APIModel):
     """用户发送的一条消息。intent 为可选的显式意图（按钮通道）。"""
 
     model_config = ConfigDict(
@@ -48,7 +49,7 @@ class ChatMessageRequest(BaseModel):
     )
 
 
-class FloatTurn(BaseModel):
+class FloatTurn(APIModel):
     """随手问浮窗内的单轮输入输出（多轮追问；不回流主对话）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -57,7 +58,7 @@ class FloatTurn(BaseModel):
     content: str = Field(..., max_length=4000, description="该轮文本")
 
 
-class ChatCard(BaseModel):
+class ChatCard(APIModel):
     """结构化产物卡片（D22 卡片协议）。type 决定前端渲染：task_card / knowledge_point / confirmation。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -70,7 +71,7 @@ class ChatCard(BaseModel):
     display: dict[str, Any] = Field(default_factory=dict, description="渲染数据")
 
 
-class ChatContextStackItem(BaseModel):
+class ChatContextStackItem(APIModel):
     """上下文栈的一层（D36，对齐 openapi ChatContextStackItem）。栈顶 = 最近切走的事。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -82,7 +83,7 @@ class ChatContextStackItem(BaseModel):
     entered_at: datetime | None = Field(None, alias="enteredAt", description="入栈时间")
 
 
-class ChatReply(BaseModel):
+class ChatReply(APIModel):
     """一次 Chat 的响应：真实文案 + 意图 + 可选卡片 + 会话/栈状态。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -97,7 +98,7 @@ class ChatReply(BaseModel):
     )
 
 
-class ChatGreeting(BaseModel):
+class ChatGreeting(APIModel):
     """回到 AI 页的问候语（#34）。冷启动时 summary 为上次话题摘要，供问候语动态填充。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -118,7 +119,7 @@ class ChatGreeting(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ChatMediaJobRequest(BaseModel):
+class ChatMediaJobRequest(APIModel):
     """带图异步提问的请求体。
 
     与 ChatMessageRequest 只差两点：``mediaKey`` **必填**（本接口的意义就是带图），
@@ -150,7 +151,7 @@ class ChatMediaJobRequest(BaseModel):
     )
 
 
-class ChatMediaJobAccepted(BaseModel):
+class ChatMediaJobAccepted(APIModel):
     """入队成功。**202 只代表「已受理」，不代表已有结果。**"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -175,7 +176,7 @@ class ChatMediaJobAccepted(BaseModel):
     )
 
 
-class ChatJob(BaseModel):
+class ChatJob(APIModel):
     """带图 Chat 任务状态。
 
     ``done`` 时 ``reply`` / ``intent`` / ``crisis`` / ``cards`` / ``sessionId`` /

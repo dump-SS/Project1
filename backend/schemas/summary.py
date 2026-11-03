@@ -10,11 +10,11 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import FeedbackRecord, GenerationStatus, Pagination
+from .common import APIModel, FeedbackRecord, GenerationStatus, Pagination
 from .enums import Subject
 
 
-class SummaryContent(BaseModel):
+class SummaryContent(APIModel):
     """复盘固定输出框架（PRD 5.4），数据不足时整体为 null。"""
 
     overview: str
@@ -23,7 +23,7 @@ class SummaryContent(BaseModel):
     encouragement: str
 
 
-class SummaryDataPoints(BaseModel):
+class SummaryDataPoints(APIModel):
     """复盘引用的数据点；数据不足时返回 recordCount 与 minRequired。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -38,7 +38,7 @@ class SummaryDataPoints(BaseModel):
     min_required: int | None = Field(None, alias="minRequired")
 
 
-class Summary(BaseModel):
+class Summary(APIModel):
     """复盘详情。"""
 
     model_config = ConfigDict(
@@ -80,7 +80,7 @@ class Summary(BaseModel):
     feedback: FeedbackRecord | None = None
 
 
-class SummaryPending(BaseModel):
+class SummaryPending(APIModel):
     """手动触发复盘后的受理响应。"""
 
     model_config = ConfigDict(
@@ -103,7 +103,7 @@ class SummaryPending(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
 
 
-class SummaryCreate(BaseModel):
+class SummaryCreate(APIModel):
     """手动触发复盘请求体。"""
 
     model_config = ConfigDict(
@@ -115,12 +115,12 @@ class SummaryCreate(BaseModel):
     period_end: date = Field(..., alias="periodEnd", description="区间长度 3-31 天")
 
 
-class SummaryList(BaseModel):
+class SummaryList(APIModel):
     items: list[Summary]
     pagination: Pagination
 
 
-class SummaryFeedbackResult(BaseModel):
+class SummaryFeedbackResult(APIModel):
     """复盘反馈提交结果。"""
 
     model_config = ConfigDict(

@@ -26,6 +26,7 @@ from database import get_db
 from llm_provider import get_provider
 from models.goal import Goal as GoalORM
 from models.learning_record import LearningRecord as LearningRecordORM
+from schemas.common import APIModel
 from schemas.user import User
 from .deps import current_user
 
@@ -39,7 +40,7 @@ MIN_RECENT_RECORDS = 3
 RECENT_WINDOW_DAYS = 7
 
 
-class RecommendationContentResponse(BaseModel):
+class RecommendationContentResponse(APIModel):
     """推荐内容响应。"""
 
     model_config = ConfigDict(populate_by_name=True)

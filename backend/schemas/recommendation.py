@@ -10,16 +10,16 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .common import FeedbackRecord, GenerationStatus, Pagination
+from .common import APIModel, FeedbackRecord, GenerationStatus, Pagination
 from .enums import RecScene, Subject, StateLabel
 
 
-class RecommendationItem(BaseModel):
+class RecommendationItem(APIModel):
     title: str
     content: str = Field(..., description="建议正文，口语化且贴合本次学习情况")
 
 
-class RecommendationBasedOn(BaseModel):
+class RecommendationBasedOn(APIModel):
     """建议的生成依据（PRD 6.5 留痕）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -30,7 +30,7 @@ class RecommendationBasedOn(BaseModel):
     explain: str
 
 
-class Recommendation(BaseModel):
+class Recommendation(APIModel):
     """建议详情；生成中时 items 为 null，兜底时 generation.source 为 template。"""
 
     model_config = ConfigDict(
@@ -71,7 +71,7 @@ class Recommendation(BaseModel):
     feedback: FeedbackRecord | None = None
 
 
-class RecommendationPending(BaseModel):
+class RecommendationPending(APIModel):
     """手动请求建议后的受理响应。"""
 
     model_config = ConfigDict(
@@ -94,7 +94,7 @@ class RecommendationPending(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
 
 
-class RecommendationCreate(BaseModel):
+class RecommendationCreate(APIModel):
     """手动请求生成建议请求体。"""
 
     model_config = ConfigDict(
@@ -107,12 +107,12 @@ class RecommendationCreate(BaseModel):
     record_id: str | None = Field(None, alias="recordId", description="post_session 场景关联的学习记录")
 
 
-class RecommendationList(BaseModel):
+class RecommendationList(APIModel):
     items: list[Recommendation]
     pagination: Pagination
 
 
-class RecommendationFeedbackResult(BaseModel):
+class RecommendationFeedbackResult(APIModel):
     """建议反馈提交结果。"""
 
     model_config = ConfigDict(

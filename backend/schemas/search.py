@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 # D24 三态：直给 / 解析式 / 引导式。**记忆上次选择**，故必须落库。
 SEARCH_MODES = ("direct", "analytic", "guided")
@@ -29,7 +30,7 @@ ExplanationMode = Literal["original", "regenerated"]
 MAX_SOLUTIONS = 3
 
 
-class KnowledgeRef(BaseModel):
+class KnowledgeRef(APIModel):
     """知识引用协议（`refactor-d-knowledge-ref-protocol.md`，文本已冻结）。
 
     四字段，消费方**不得自行扩展**——扩展即等于绕过 mastery 口径。
@@ -47,7 +48,7 @@ class KnowledgeRef(BaseModel):
     )
 
 
-class SearchArchiveCreate(BaseModel):
+class SearchArchiveCreate(APIModel):
     """发起一次搜题（用户即时动作）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -58,7 +59,7 @@ class SearchArchiveCreate(BaseModel):
     mode: Optional[SearchMode] = Field(None, alias="mode")
 
 
-class SearchArchive(BaseModel):
+class SearchArchive(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     archive_id: str = Field(..., alias="archiveId")
@@ -75,14 +76,14 @@ class SearchArchive(BaseModel):
     created_at: str = Field(..., alias="createdAt")
 
 
-class SearchArchiveList(BaseModel):
+class SearchArchiveList(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     items: List[SearchArchive]
     pagination: dict
 
 
-class ExplanationCreate(BaseModel):
+class ExplanationCreate(APIModel):
     """生成 / 取回一条讲解。
 
     ``mode=original``：回顾取原文（不调模型，取该用户该知识点最近一条归档）。
@@ -96,7 +97,7 @@ class ExplanationCreate(BaseModel):
     mode: ExplanationMode = Field("regenerated", alias="mode")
 
 
-class Explanation(BaseModel):
+class Explanation(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     explanation_id: str = Field(..., alias="explanationId")
@@ -108,7 +109,7 @@ class Explanation(BaseModel):
     created_at: str = Field(..., alias="createdAt")
 
 
-class ExplanationList(BaseModel):
+class ExplanationList(APIModel):
     model_config = ConfigDict(populate_by_name=True)
 
     items: List[Explanation]

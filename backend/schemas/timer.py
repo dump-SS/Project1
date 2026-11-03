@@ -12,12 +12,13 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+from .common import APIModel
 
 from .enums import Completion, Subject, TimerMode, TimerStatus
 from .learning_record import RecordSelfReport
 
 
-class TimerSegment(BaseModel):
+class TimerSegment(APIModel):
     """计时会话内的一段（#14 分段计时）。一个会话可挂多段，每段标注所属任务。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -29,7 +30,7 @@ class TimerSegment(BaseModel):
     seconds: int | None = Field(None, description="本段有效秒数（口径同 effectiveSeconds）")
 
 
-class TimerSession(BaseModel):
+class TimerSession(APIModel):
     """计时会话（服务端持久化的"进行中"记录 = 专注态的唯一真相源）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -51,7 +52,7 @@ class TimerSession(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
 
 
-class TimerSessionStart(BaseModel):
+class TimerSessionStart(APIModel):
     """开始一次计时。
 
     `targetMinutes` 仅 countdown 必填；countup 传了会被忽略（不报错，避免前端切换模式时多余的 400）。
@@ -72,7 +73,7 @@ class TimerSessionStart(BaseModel):
     subject: Subject | None = Field(None, description="不传则从 taskId 推导，推不出兜底 other")
 
 
-class TimerSegmentStart(BaseModel):
+class TimerSegmentStart(APIModel):
     """切换任务 → 开新的一段（#14：一会话内分段，不允许并行计时）。"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -80,7 +81,7 @@ class TimerSegmentStart(BaseModel):
     task_id: str | None = Field(None, alias="taskId", description="本段要做什么任务；不传表示自由学习")
 
 
-class TimerRestore(BaseModel):
+class TimerRestore(APIModel):
     """恢复视图（D30 按 mode 分支计算）。
 
     `needsVerdict=true` 表示识别到**异常会话**，前端必须弹**恢复裁决卡**（D31），**不得自动记账**。
@@ -100,7 +101,7 @@ class TimerRestore(BaseModel):
     )
 
 
-class TimerCurrent(BaseModel):
+class TimerCurrent(APIModel):
     """`GET /timer-sessions/current`：当前是否有进行中的会话。
 
     用 `active` 包装而不是"没有就 404"：前端每次进计时页都会问一次，
@@ -114,7 +115,7 @@ class TimerCurrent(BaseModel):
     restore: TimerRestore | None = None
 
 
-class TimerFinish(BaseModel):
+class TimerFinish(APIModel):
     """计时收尾（D20 三层形态：结束瞬间 0 步 → 轻收尾卡 → 正确率延后补）。
 
     必填只有 `completion`（唯一"半强制"问句）；`selfReport` **可整段省略**、
@@ -145,7 +146,7 @@ class TimerFinish(BaseModel):
     skip_recommendation: bool | None = Field(None, alias="skipRecommendation")
 
 
-class TimerDiscarded(BaseModel):
+class TimerDiscarded(APIModel):
     """裁决卡「丢弃」的结果。**不产生学习记录**（D31 验收：僵尸会话不产生记录）。"""
 
     model_config = ConfigDict(populate_by_name=True)
