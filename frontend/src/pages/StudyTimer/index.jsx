@@ -378,6 +378,10 @@ function AuthedStudyTimer() {
   const [showTaskPicker, setShowTaskPicker] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [switchError, setSwitchError] = useState(null)
+  // 浮动「随手问」入口的开关：FAB（aria-label=随手问）toggle、FloatChat onClose 收起。
+  // ⚠️ 此前漏声明——JSX 引用了不存在的变量，登录态进本页直接 ReferenceError 整页白屏
+  // （d2f3b78 引入，2026-10-30 E2E 真跑抓出；.jsx 不进 tsc/vitest，真跑是唯一能抓到的验证）。
+  const [floatOpen, setFloatOpen] = useState(false)
 
 
   // `now` 每秒更新，暂停时长自动跟着重算（暂停中也在涨）

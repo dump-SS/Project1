@@ -140,6 +140,21 @@ class Plan(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
 
 
+class PlanTaskInput(BaseModel):
+    """显式任务输入（v1.15.0）：作业单确认卡路径，与 WorksheetItem 同构但归 C 板块所有。
+
+    为什么不直接复用 schemas/worksheet.WorksheetItem：那是 F 板块抽取响应的形状，
+    C 的计划创建不该 import F 的 schema（板块边界）；字段口径以契约为准保持一致，
+    漂移由 openapi.yaml 单一真源约束。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    subject: Subject = Field(..., description="学科代码")
+    topic: str = Field(..., min_length=1, max_length=100, description="作业内容")
+    estimated_minutes: int = Field(..., alias="estimatedMinutes", ge=5, le=240, description="预计时长（分钟）")
+
+
 class PlanCreate(BaseModel):
     """生成计划请求体。"""
 
@@ -158,6 +173,17 @@ class PlanCreate(BaseModel):
     available_minutes: int = Field(..., alias="availableMinutes", ge=10, le=600)
     goal_ids: list[str] | None = Field(None, alias="goalIds", description="不传则使用全部 active 目标")
     regenerate: bool | None = Field(None, description="true 覆盖当日已有计划")
+    tasks: list[PlanTaskInput] | None = Field(
+        None,
+        alias="tasks",
+        min_length=1,
+        max_length=20,
+        description=(
+            "可选（v1.15.0）：显式任务列表（作业单确认卡路径）。非空时跳过规则引擎——"
+            "不查目标、不做疲劳降载，adaptedFrom 为 null，priority 按顺序 1..n。"
+            "与 goalIds 互斥：同时传时 goalIds 被忽略。不传时行为与 v1.14.0 一致。"
+        ),
+    )
 
 
 class PlanList(BaseModel):

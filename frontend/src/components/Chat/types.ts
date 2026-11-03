@@ -43,6 +43,12 @@ export interface ChatCardPayload {
   pointId?: string
   name?: string
   subject?: string
+  /**
+   * worksheet_confirm 卡（D55 作业单确认卡，前端本地类型）：抽取出的作业项，
+   * 确认卡里可删改后随 createPlan 的 tasks 落库。**后端从不产出本卡**——
+   * 它由 Chat 页在「生成计划」流程里就地构造，故不入契约 ChatCard.type 枚举。
+   */
+  worksheetItems?: { subject: string; topic: string; estimatedMinutes: number }[]
 }
 
 export interface ChatCard {

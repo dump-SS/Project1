@@ -23,6 +23,7 @@ import ProfileSetupPage from './pages/ProfileSetup/index.tsx'
 import GuardianAuthPage from './pages/GuardianAuth/index.tsx'
 import KnowledgePage from './pages/Knowledge/index.tsx'
 import ErrorBookPage from './pages/ErrorBook/index.tsx'
+import CollectionPage from './pages/Collection/index.tsx'
 import ChatPage from './pages/Chat/index.tsx'
 import CommunityUploadPage from './pages/Community/Upload.tsx'
 import CommunityComparePage from './pages/Community/Compare.tsx'
@@ -99,6 +100,7 @@ export default function App() {
                 <Route path="/guardian-auth" element={<GuardianAuthPage />} />
                 <Route path="/knowledge" element={<KnowledgePage />} />
                 <Route path="/error-book" element={<ErrorBookPage />} />
+                <Route path="/collection" element={<CollectionPage />} />
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/community" element={<Navigate to="/community/upload" replace />} />
                 <Route

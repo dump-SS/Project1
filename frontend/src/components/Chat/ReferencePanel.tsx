@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { KNOWLEDGE_BASE, masteryTone } from '@/utils/matchKnowledge'
 import { QUICK_QUESTIONS } from '@/pages/Chat/mockData'
 import { fetchErrorBook, type ErrorRecord } from '@/services/errorBook'
@@ -29,7 +30,7 @@ import {
   type Subject,
 } from './types'
 
-type TabKey = 'errors' | 'knowledge' | 'quick' | 'phrases'
+type TabKey = 'errors' | 'knowledge' | 'quick' | 'phrases' | 'sort'
 
 interface ReferencePanelProps {
   /** 填入输入框并聚焦（错题 / 知识点） */
@@ -42,9 +43,15 @@ interface ReferencePanelProps {
   refreshKey?: number
   /** 点击任意条目后的回调（浮层用来关闭自己） */
   onPicked?: () => void
+  /**
+   * D58 /题目排序（F 板块）的 Tab 槽位（2026-11-01 拍板：排序入口并入快捷引用）。
+   * 与 InputArea 的 renderMediaCapture 同一个模式：B 只提供 Tab 位置，不认识 F 的
+   * 实现；不传则不出现该 Tab，B 的默认行为完全不变。
+   */
+  renderSortTab?: () => ReactNode
 }
 
-const TABS: { key: TabKey; label: string }[] = [
+const BASE_TABS: { key: TabKey; label: string }[] = [
   { key: 'errors', label: '我的错题' },
   { key: 'knowledge', label: '知识点速查' },
   { key: 'quick', label: '快捷提问' },
@@ -70,7 +77,10 @@ export default function ReferencePanel({
   compact,
   refreshKey,
   onPicked,
+  renderSortTab,
 }: ReferencePanelProps) {
+  // F 的排序 Tab 经槽位注入时才出现在 Tab 头（保持 B 默认行为不变）
+  const TABS = renderSortTab ? [...BASE_TABS, { key: 'sort' as const, label: '题目排序' }] : BASE_TABS
   const [tab, setTab] = useState<TabKey>('errors')
   const [errors, setErrors] = useState<(ErrorItem & { subject: Subject })[]>([])
 
@@ -311,6 +321,13 @@ export default function ReferencePanel({
                 </div>
               ))}
           </div>
+        </div>
+      )}
+
+      {/* Tab E：题目排序（D58，F 经槽位注入；不传 renderSortTab 时本 Tab 不存在） */}
+      {tab === 'sort' && renderSortTab && (
+        <div className="ref-list" role="tabpanel">
+          {renderSortTab()}
         </div>
       )}
 

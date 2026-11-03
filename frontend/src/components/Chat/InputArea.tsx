@@ -31,6 +31,14 @@ interface InputAreaProps {
    * {@link https://github.com/vercel/composition-patterns}
    */
   renderMediaCapture?: () => ReactNode
+  /**
+   * D58 /题目排序（F 板块）的挂载槽位：输入框左侧的独立「+」按钮 + 菜单。
+   *
+   * 与 renderMediaCapture 同一个模式：B 只提供位置，不认识 F 的实现。
+   * 按派单形态要求做成独立按钮，不并进 renderQuickPanel 的快捷引用菜单，
+   * 也不碰拍题链路。
+   */
+  renderSortTool?: () => ReactNode
 }
 
 export default function InputArea({
@@ -43,6 +51,7 @@ export default function InputArea({
   refs = [],
   onRemoveRef,
   renderMediaCapture,
+  renderSortTool,
 }: InputAreaProps) {
   const [quickOpen, setQuickOpen] = useState(false)
 
@@ -81,6 +90,9 @@ export default function InputArea({
       )}
 
       <div className="chat-input-bar glass">
+        {/* D58 /题目排序（F 板块）：独立「+」按钮，输入框左侧、快捷引用之前 */}
+        {renderSortTool?.()}
+
         <button
           type="button"
           className="chat-input-plus"
