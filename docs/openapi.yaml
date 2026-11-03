@@ -78,7 +78,7 @@ info:
     \ path / operation / schema 增删：\n- `ChatMessageRequest.mediaKey` 标记 **deprecated**：前端自\
     \ v1.13.0 起带图统一走\n  `POST /chat/media`；该字段仅保留向后兼容（后端仍接受），新调用方不要再用。\n- 补齐本节缺失的\
     \ v1.7.0 / v1.7.1 / v1.9.0 / v1.13.0 沿革记录。\n- 补齐 `pilot 运营与治理` tag 声明（此前被 operation\
-    \ 引用但未在顶层 `tags` 声明）。\n\n**v1.17.1（E 板块 · 收藏前端接线）**——纯增量，无 path / operation 增删：\n- `CollectionItem` 补可选 `updatedAt`。后端 `collection_items.updated_at` 列自 M0 起就存在，但契约未下发，导致 `POST /me/collection/items` 建档与覆盖同为 201、前端无从区分该弹「已收藏」还是「已更新这个收藏」（#52，product-redesign-target.md 第 828 行）。lead-1 2026-11-02 拍板：改契约下发，不做前端会话内记账（刷新即丢、多标签页不同步）。\n- 新增 `CollectionItemCreateResult`（= `CollectionItem` 全字段 + `created` 布尔），`POST /me/collection/items` 的 201 改引它。lead-1 的拍板原文给了两个选项（下发 `updatedAt`「或加个 `created` vs `updated` 的标记」）；**实测时间戳方案不可靠**：SQLite `CURRENT_TIMESTAMP` 只有秒级精度，同一秒内覆盖时 `updatedAt == createdAt`；且覆盖分支在 body 未带可变字段时不产生 UPDATE、`updated_at` 根本不动（2026-11-02 dev8 用 ORM 实测四种路径坐实）。故按备选做显式标记，`updatedAt` 一并保留供展示。\n- 收掉两处既有契约漂移（lead-1 2026-11-03 派单）：`CollectionHighlight` / `CollectionBlurState` 的 `start` / `end` 由 optional 改为 **required**——后端 pydantic 本就必填，契约此前宽松于实现，客户端省略字段会拿到 400 却以为合法；同时纠正 `CollectionHighlight.start` 描述里「前端划选直接取 selection 的字符偏移」的错误表述（JS 的 selection 是 UTF-16 码元，不是码点）。\n- ⚠️ 顺带校正既有漂移（非本次引入）：v1.15.0 / v1.16.0 / v1.17.0 三次 bump 均未在本节与 docs/README.md 记录沿革，README 的规模数字停在 v1.16.0 的 75 paths / 105 operations / 183 schemas（v1.17.0 实测为 76 / 106 / 186），且 `test_version_synced_with_docs_readme` 在 main（767100a）上实测失败。本次把版本号与规模数字校正为真值；v1.15–v1.17 的沿革正文未补写（需逐个 PR 核，超出本单边界，已报 lead-1）。\n"
+    \ 引用但未在顶层 `tags` 声明）。\n\n**v1.17.1（E 板块 · 收藏前端接线）**——纯增量，无 path / operation 增删：\n- `CollectionItem` 补可选 `updatedAt`。后端 `collection_items.updated_at` 列自 M0 起就存在，但契约未下发，导致 `POST /me/collection/items` 建档与覆盖同为 201、前端无从区分该弹「已收藏」还是「已更新这个收藏」（#52，product-redesign-target.md 第 828 行）。lead-1 2026-11-02 拍板：改契约下发，不做前端会话内记账（刷新即丢、多标签页不同步）。\n- 新增 `CollectionItemCreateResult`（= `CollectionItem` 全字段 + `created` 布尔），`POST /me/collection/items` 的 201 改引它。lead-1 的拍板原文给了两个选项（下发 `updatedAt`「或加个 `created` vs `updated` 的标记」）；**实测时间戳方案不可靠**：SQLite `CURRENT_TIMESTAMP` 只有秒级精度，同一秒内覆盖时 `updatedAt == createdAt`；且覆盖分支在 body 未带可变字段时不产生 UPDATE、`updated_at` 根本不动（2026-11-02 dev8 用 ORM 实测四种路径坐实）。故按备选做显式标记，`updatedAt` 一并保留供展示。\n- **方案 C（Skyer 2026-11-03 拍板）**：`CollectionSnapshot` 增可选 `sourceMap`，新增 `SnapshotSourceMap` / `SnapshotSourceMapChunk` 两个 schema。markdown 快照在**保存时**一次性算好「渲染文本 ↔ 原文」映射存进快照，划选高亮/虚化查表换算、不实时算；区间仍落原文、按 Unicode 码点计。plain 快照不需要映射；无映射的老快照由前端展开时现算、不回填。\n- 收掉两处既有契约漂移（lead-1 2026-11-03 派单）：`CollectionHighlight` / `CollectionBlurState` 的 `start` / `end` 由 optional 改为 **required**——后端 pydantic 本就必填，契约此前宽松于实现，客户端省略字段会拿到 400 却以为合法；同时纠正 `CollectionHighlight.start` 描述里「前端划选直接取 selection 的字符偏移」的错误表述（JS 的 selection 是 UTF-16 码元，不是码点）。\n- ⚠️ 顺带校正既有漂移（非本次引入）：v1.15.0 / v1.16.0 / v1.17.0 三次 bump 均未在本节与 docs/README.md 记录沿革，README 的规模数字停在 v1.16.0 的 75 paths / 105 operations / 183 schemas（v1.17.0 实测为 76 / 106 / 186），且 `test_version_synced_with_docs_readme` 在 main（767100a）上实测失败。本次把版本号与规模数字校正为真值；v1.15–v1.17 的沿革正文未补写（需逐个 PR 核，超出本单边界，已报 lead-1）。\n"
 servers:
 - url: /api/v1
   description: 基础路径，下文所有 URL 均省略此前缀
@@ -7365,6 +7365,57 @@ components:
           type: string
           nullable: true
           description: 裁剪后小图的存储引用（图片圈选场景）
+        sourceMap:
+          nullable: true
+          description: markdown 快照的「渲染文本 ↔ 原文」映射（方案 C，Skyer 2026-11-03 拍板：保存时一次性算好存起来，划选时查表不实时算）。plain 快照不需要（一一对应）；本字段缺失的老快照由前端展开时现算、不回填。虚化/高亮区间按契约落在原文上，而划选发生在渲染后的 DOM 上，渲染会吃掉 ** / 反引号 / 围栏 / 表格管道符 / 链接 URL，没有这张表就无法换算。
+          $ref: '#/components/schemas/SnapshotSourceMap'
+    SnapshotSourceMap:
+      type: object
+      description: 渲染文本（react-markdown 输出的 textContent，即 mdast 的 text/inlineCode/code 三类节点值的文档序拼接）与原文之间的分段对齐表。
+      required:
+      - v
+      - chunks
+      properties:
+        v:
+          type: integer
+          description: 映射格式版本，当前 1；将来改结构靠它区分
+        total:
+          type: integer
+          description: 渲染文本总码点长（含块级之间的合成换行，与 DOM textContent 同一空间）。划选偏移的夹取上界；缺省时前端退化为各 chunk 渲染长之和。
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotSourceMapChunk'
+    SnapshotSourceMapChunk:
+      type: object
+      description: 一段对齐区间，偏移一律按 Unicode 码点计。chunk 内默认 1:1；含转义或字符引用时靠 jumps 精确对齐。
+      required:
+      - rs
+      - rl
+      - ss
+      - sl
+      properties:
+        rs:
+          type: integer
+          description: 渲染文本码点起点
+        rl:
+          type: integer
+          description: 渲染文本码点长度
+        ss:
+          type: integer
+          description: 原文码点起点
+        sl:
+          type: integer
+          description: 原文码点长度
+        jumps:
+          type: array
+          description: 仅 chunk 内含转义（如 \*）或字符引用（如 &amp;）时存在。每项为 [渲染 chunk 内偏移, 该偏移处累计多消耗的源码点数]，按偏移升序；被转义/实体化的那个渲染字符连语法字符一起计入原文区间。
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: integer
     CollectionSourceRef:
       type: object
       description: 来源引用（仅用于溯源标注，不承担内容可读性）
