@@ -23,7 +23,10 @@
     "react-router-dom": "^6.26.0",
     "recharts": "^2.13.3",
     "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.0.0",
     "three": "^0.180.0",
+    "unified": "^11.0.0",
     "vis-network": "^10.1.0"
   },
   "devDependencies": {

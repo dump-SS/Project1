@@ -18,9 +18,11 @@ interface MessageListProps {
    * 不传时行为与从前完全一致。
    */
   pendingHint?: string | null
+  /** 透传给 AI 气泡的收藏回调；不传则不渲染收藏按钮 */
+  onCollect?: (message: ChatMessage) => void
 }
 
-export default function MessageList({ messages, typing, pendingHint }: MessageListProps) {
+export default function MessageList({ messages, typing, pendingHint, onCollect }: MessageListProps) {
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export default function MessageList({ messages, typing, pendingHint }: MessageLi
   return (
     <div className="chat-list" ref={listRef}>
       {messages.map((m) => (
-        <MessageBubble key={m.id} message={m} />
+        <MessageBubble key={m.id} message={m} onCollect={onCollect} />
       ))}
       {/* 处理中说明：带图推理可能跑几分钟，只给三点动画用户会以为卡死 */}
       {typing && pendingHint && (

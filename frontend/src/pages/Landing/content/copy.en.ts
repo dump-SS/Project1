@@ -30,15 +30,17 @@ export const COPY_EN: LandingCopy = {
     realDialogue: 'Real conversation example',
     desktopSoonTitle: 'Desktop version not released yet',
   },
-  /** Hero slogan：同样的「退格换词」结构——Learning tools, built around questions →
-   *  Learning tools, built around you.（base 为公共前缀，strong = you 加粗，句点后落） */
+  /** Hero slogan：同样的「退格换词」结构——A study partner, built around questions →
+   *  A study partner, built around you.（base 为公共前缀，strong = you 加粗，句点后落）
+   *  2026-11-04 随中文 Slogan 主语变更（学习工具 → 学习伙伴）同步：
+   *    英文用 "study partner"，与页尾 tagline "A study partner that revolves around you." 用词统一。 */
   heroSlogan: {
     /* base = 公共前缀（退格退到这里）；strong = 新加段（加粗 = 中文「围着你转」的对应物）——
        2026-09-27 Skyer：原先 strong 只写 you，导致 "built around" 拿不到中文那套加粗/字重效果；
        现改为整段 "built around you" 加粗，其中 you 为蓝。 */
-    base: 'Learning tools, ',
-    initial: 'Learning tools, built around questions',
-    final: 'Learning tools, built around you.',
+    base: 'A study partner, ',
+    initial: 'A study partner, built around questions',
+    final: 'A study partner, built around you.',
     strong: 'built around you',
     highlight: 'you',
   },
