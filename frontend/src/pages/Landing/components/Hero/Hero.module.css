@@ -166,14 +166,14 @@
 .slogan {
   color: var(--lp-text);
   font-family: var(--lp-font-sans);
-  font-weight: 400; /* 前缀细（2026-09-25 Skyer：学习工具不够细） */
+  font-weight: 400; /* 前缀细（2026-09-25 Skyer：前缀文字不够细；主语 2026-11-04 改为「学习伙伴」） */
   font-size: clamp(30px, 4.6vw, 56px);
   line-height: 1.3;
   letter-spacing: 0.01em;
   min-height: 1.3em;
 }
 
-/* 英文档字号（2026-09-27）：同一句英文比中文长得多（"Learning tools, built around you."
+/* 英文档字号（2026-09-27）：同一句英文比中文长得多（"A study partner, built around you."
    ≈ 中文 11 字的 2 倍宽），沿用中文档 56px 会在中等宽度折行，故英文单独下调一档 */
 .sloganEn {
   font-size: clamp(26px, 3.5vw, 44px);

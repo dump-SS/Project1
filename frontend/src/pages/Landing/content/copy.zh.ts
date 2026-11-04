@@ -29,11 +29,13 @@ export const COPY_ZH: LandingCopy = {
   },
   /** Hero slogan 退格动效
    * 2026-09-25 Skyer 调整：初稿加逗号、退格改退后四字、新加段「围着你转」加粗。
-   * 2026-09-27 补 base：打字机从 initial 退格退到 base，再打 strong，最后落句末标点。 */
+   * 2026-09-27 补 base：打字机从 initial 退格退到 base，再打 strong，最后落句末标点。
+   * 2026-11-04 Skyer 变更 Slogan 主语：「学习工具」→「学习伙伴」。
+   *   只换 base/initial/final 的主语，退格换词结构（围着题转 → 围着你转）与加粗段保持不变。 */
   heroSlogan: {
-    base: '学习工具，',
-    initial: '学习工具，围着题转',
-    final: '学习工具，围着你转。',
+    base: '学习伙伴，',
+    initial: '学习伙伴，围着题转',
+    final: '学习伙伴，围着你转。',
     strong: '围着你转',
     highlight: '你',
   },

@@ -4,6 +4,8 @@
 > **定位**：落地页从"设计定稿"到"可上线"的施工说明。**视觉与文案的唯一真源是 [visual-language.md](./visual-language.md)**，本文只写"怎么实现"，不重复设计结论；两者冲突时以视觉语言文档为准并回来改本文。
 > **范围**：官网落地页（`域/`）。应用侧（`域/app`）与产品内视觉不在本文范围。
 > **实测状态（2026-09-25 回填）**：第 3 节组件选型与 React 18 兼容已实测回填（§3.2/§3.3），性能数字见 §7；§5.3 卡 3 素材状态已按实际核实更正。落地页已在 `feat/landing-page` 分支实现完毕；八屏走查 + 四类降级实测（reduced-motion / reduced-transparency / 触屏 / 键盘）+ typecheck/build 全部通过（走查中发现并修复 4 处实现问题，见 §8 备注）。
+>
+> **⭐ 文案变更（2026-11-04 Skyer）**：Hero Slogan 主语「学习工具」→「**学习伙伴**」，成稿「**学习伙伴，围着你转。**」；英文同构 `A study partner, built around you.`。本文下述动效描述已同步为新口径；**2026-09 的实测截图拍的是变更前文案**，但退格结构、加粗段、字号与时间线参数均未改变。文案真源见 `content/copy.zh.ts` / `copy.en.ts`，设计口径见 `visual-language.md`。
 
 ---
 
@@ -173,7 +175,7 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 ### 4.1 Hero
 
 - 布局：**上光下人**——上部 2/3 光场，底部"地平线"左 logo+slogan、右动作区。
-- slogan 退格：初稿「学习工具围着题转！」→ 删「题」「！」→ 打「你」「。」→ 成稿「学习工具围着你转。」节奏见视觉文档 §7.1（打完停 1s → 退格先快后慢 → 删到「题」前半秒停顿 → 句号落下光标熄灭）。
+- slogan 退格：初稿「学习伙伴围着题转！」→ 删「题」「！」→ 打「你」「。」→ 成稿「学习伙伴围着你转。」节奏见视觉文档 §7.1（打完停 1s → 退格先快后慢 → 删到「题」前半秒停顿 → 句号落下光标熄灭）。
 - 暗纹 × 手电：学习物件 monoline 线稿（近不可见 `#2A3542`），鼠标扫过照亮显形。**手电机制只在本屏使用**，不推广到卡片/截图。
 - **暗纹墙的「伪无限滚动」硬约束**（Skyer 2026-09-25 报「时不时刷新一下」→ 定位修复）：列内容 ×2 拼接后用 `translateY(±50%)` 循环，**前提是列元素高度 = 2 × 一个周期**。列作为行内 flex 项默认会被 `align-items: stretch` 拉伸到 `.colsWrap` 的高度（实测仅 881px），而内容高约 3058px → `-50%` 只有 −440px ≠ 周期 1529px → 每轮（80s）结束就整体跳一下。**修法**：`.wallCol { align-self: flex-start }`（按内容高，实测每列 half − period = 0）；时长同步 80s → 280s——位移从 440px 变 1529px，若仍取 80s 会快约 3.5 倍，调 280s 保持原观感速度（实测 ≈5px/s）。
 - 动作区三级：输入框（主焦点）→ 即刻开始（主 CTA）→ 桌面端（虚线灰，空位）。
@@ -346,7 +348,7 @@ React Bits **MIT + Commons Clause**：产品内可用（含商用），**禁止�
 - [x] 顶栏交互收尾（2026-09-25 实测回填）：菜单 hover 文字上滑出/下方滑入；面板格子自上而下逐项淡入（rAF 采样：42ms 全 0 → 202ms 0.88/0.46 → 401ms 1/0.99/0.94/0.71 → 702ms 全 1）；第二屏锁定区间内下滑常显、越过卡片收起点后恢复收起（实测 y=1929 常显 / y=2049 收起，卡片收起点 y≈1958）
   （实测：EX 标→全称滑出、mega 面板 click/hover 展开 + Esc 关闭、下滑收起/上滑弹出断言、劫持区间常显、`navFooter` 加深生效）
 - [x] Hero：退格时序、手电只照亮暗纹、三级动作、草稿跨登录
-  （实测：初稿「学习工具围着题转！|」打字态与成稿「围着你转。」截图、localStorage `epochx.landing.draft` 写入 + 刷新恢复、桌面端 disabled 虚线）
+  （实测：初稿「学习伙伴围着题转！|」打字态与成稿「围着你转。」截图、localStorage `epochx.landing.draft` 写入 + 刷新恢复、桌面端 disabled 虚线）
 - [x] 第二屏：三时代一屏内、视窗扩大动效、光收暗与回归
   （实测：斜切视窗、logo 段定格、sticky 跑道到底自动释放进入图标海）
 - [x] 功能屏 ×3：标题带「」逐字打出、只删句未改字、每屏一处蓝、打字机参数不雷同
@@ -403,8 +405,8 @@ Skyer 决策：**只做落地页**（应用内页面不动）、**全量翻译**
 
 ### 9.3 英文专属调整（待 review）
 
-- **Hero slogan 字号**：英文句（"Learning tools, built around you."）≈ 中文 11 字的 2 倍宽，沿用中文档 `clamp(30px,4.6vw,56px)` 会在中等宽度折行 → 英文档 `.sloganEn { font-size: clamp(26px,3.5vw,44px) }`（实测 1440×900 下成稿 695px 一行）。
-- **Hero slogan 换词结构**：中文「学习工具，围着**题**转」→「学习工具，围着**你**转」；英文同构 **Learning tools, built around _questions_** → **…_**you**_（`base` = 公共前缀，退格退到 base 再打 strong）。
+- **Hero slogan 字号**：英文句（"A study partner, built around you."）≈ 中文 11 字的 2 倍宽，沿用中文档 `clamp(30px,4.6vw,56px)` 会在中等宽度折行 → 英文档 `.sloganEn { font-size: clamp(26px,3.5vw,44px) }`（实测 1440×900 下成稿 695px 一行）。
+- **Hero slogan 换词结构**：中文「学习伙伴，围着**题**转」→「学习伙伴，围着**你**转」；英文同构 **A study partner, built around _questions_** → **…_**you**_（`base` = 公共前缀，退格退到 base 再打 strong）。
 - **真对话的翻译披露**：中文角标声明「对话为测试期间产品真实生成」；英文沿用同一句而不说明翻译＝夸大素材来源，故英文角标补 **(translated)**。
 - **不译项**：品牌名 EpochX / EpochX Web、版权持有者「未名_Official」（账号名，保留原写法，故英文页仍有一处中文，属有意）。
 - **CTA 末句**（Nothing, without you. / You're everything.）两种语言一致——本就是英文原句。
@@ -413,7 +415,7 @@ Skyer 决策：**只做落地页**（应用内页面不动）、**全量翻译**
 
 | 问题 | 根因 | 处理 |
 |---|---|---|
-| Hero slogan "built around" 没有中文那套加粗效果 | 英文 `strong` 原先只写 `you`，首尾段为空 → 不起 VariableProximity，而中文 `strong` = 「围着你转」整段加粗 | 英文 `strong` 改为整段 `built around you`（`base` 收到 `Learning tools, `），与中文同构；时间线按长度自降速率（初稿 >16 字符用 70ms/字、新段用 110ms，退格分 ≤6 步），否则英文要跑 8s+ |
+| Hero slogan "built around" 没有中文那套加粗效果 | 英文 `strong` 原先只写 `you`，首尾段为空 → 不起 VariableProximity，而中文 `strong` = 「围着你转」整段加粗 | 英文 `strong` 改为整段 `built around you`（`base` 收到 `A study partner, `），与中文同构；时间线按长度自降速率（初稿 >16 字符用 70ms/字、新段用 110ms，退格分 ≤6 步），否则英文要跑 8s+ |
 | 顶栏面板说明文字折行不符直觉 | `maxWidth: 200px` 是按中文断点（「下一代」后）定的 | 新增 `.panelLeadEn { max-width: 330px }` → 实测断成 "Explore the next-generation" / "product built around you"（299 / 269px） |
 | 第二屏标题两行行距、说明间距、整体位置 | 英文两行都是长句，1.3 行距显散；`gap:0`（Copy 中间还有一层 div，写 gap 不生效）；块偏右 | `.cardInnerEn`：`margin-left: -40px`（x 86 → 46）、行距 1.12、**`.cardInnerEn .sub { margin-top: 34px }`**（不能写 gap） |
 | 叙事屏首屏说明太长 | 初译照搬了中文信息量 | 英文说明压到约 260 字符（保留「双轨/分开计分/不是能力评价」三个要点） |
