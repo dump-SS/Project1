@@ -21,7 +21,7 @@ import ErrorEntryPanel from '@/components/Chat/ErrorEntryPanel'
 import SelectionToolbar from '@/components/Chat/SelectionToolbar'
 import FloatChat from '@/components/Chat/FloatChat'
 import Toast from '@/components/Toast'
-import SortTool from '@/components/Tools/SortTool'
+import SortOptionsList from '@/components/Tools/SortTool/SortOptionsList'
 import { startTextPendingHint } from '@/components/Chat/pendingHint'
 import MediaCapturePanel from '@/components/MediaCapturePanel'
 import type { FCard, MediaUploadResult } from '@/services/fMedia'
@@ -34,6 +34,8 @@ import {
 import { ApiError } from '@/services/http'
 import { collectItem } from '@/services/collection'
 import { buildSourceMap } from '@/utils/markdownSourceMap'
+import { extractWorksheet, type WorksheetItemInput } from '@/services/worksheet'
+import { summarizeMedia } from '@/services/fMedia'
 import {
   genId,
   type ChatMessage,
@@ -403,6 +405,102 @@ export default function ChatPage() {
     [refs, sendMessage],
   )
 
+  /**
+   * D55 作业单生成计划（§design 第 974 行 + lead-1 更正：要做前置确认卡）：
+   * 拍题面板「生成计划」→ 抽取（LLM）→ worksheet_confirm 确认卡（D17 形态，
+   * ChatCards 渲染，可删改/取消）→ 用户确认后才落计划。
+   */
+  const handleGeneratePlan = useCallback(
+    async (key: string) => {
+      if (typing) return
+      setTyping(true)
+      setPendingHint('正在识别作业单，通常要十几秒…')
+      try {
+        const extraction = await extractWorksheet(key)
+        const items: WorksheetItemInput[] = extraction.items
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId('msg'),
+            role: 'ai',
+            content:
+              items.length === 1 && items[0].topic === '未识别到作业项'
+                ? '这张照片里我没认出作业项。可以拍得再清楚一点，或换张光线好的照片再试。'
+                : '我从作业单里认出了这些作业，确认或改完后我就生成今天的计划：',
+            cards: [
+              {
+                type: 'worksheet_confirm',
+                title: '作业单确认',
+                payload: { worksheetItems: items },
+              },
+            ],
+            createdAt: Date.now(),
+          },
+        ])
+      } catch (err) {
+        // 403/404/502 的 ApiError.message 已是面向用户的中文（契约口径），直接展示
+        const text =
+          err instanceof ApiError
+            ? err.message
+            : '这次没能识别作业单，请稍后再试。'
+        setMessages((prev) => [
+          ...prev,
+          { id: genId('msg'), role: 'ai', content: text, createdAt: Date.now() },
+        ])
+      } finally {
+        setPendingHint(null)
+        setTyping(false)
+      }
+    },
+    [typing],
+  )
+
+  /**
+   * #47 摘要进收藏（design 第 974 行 D55 欠账）：拍题面板「摘要进收藏」→
+   * LLM 要点摘要（服务端返回前已过 privacy_filter，M5 门「入库前脱敏」）→
+   * file_summary 卡进消息流展示 → 用户点「存入收藏」才落收藏。
+   */
+  const handleSummarize = useCallback(
+    async (key: string) => {
+      if (typing) return
+      setTyping(true)
+      setPendingHint('正在生成要点摘要，通常要十几秒…')
+      try {
+        const { summary, subject } = await summarizeMedia(key)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId('msg'),
+            role: 'ai',
+            content: '照片要点摘要已生成（已脱敏），点「存入收藏」即可收进个人中心：',
+            cards: [
+              {
+                type: 'file_summary',
+                title: '要点摘要',
+                payload: { mediaKey: key, subject },
+                display: { summary },
+              },
+            ],
+            createdAt: Date.now(),
+          },
+        ])
+      } catch (err) {
+        const text =
+          err instanceof ApiError
+            ? err.message
+            : '这次没能总结这张照片，请稍后再试。'
+        setMessages((prev) => [
+          ...prev,
+          { id: genId('msg'), role: 'ai', content: text, createdAt: Date.now() },
+        ])
+      } finally {
+        setPendingHint(null)
+        setTyping(false)
+      }
+    },
+    [typing],
+  )
+
   /** 录入错题保存后：刷新左侧列表 + 自动发一条用户消息（走正常 mock 回复流程） */
   const handleErrorSaved = useCallback(
     (item: ErrorItem, _subject: Subject) => {
@@ -501,24 +599,42 @@ export default function ChatPage() {
                   compact
                   onCard={handleMediaCard}
                   onClear={(key) => removeMediaRef(key)}
+                  onSortPrompt={sendSortPrompt}
+                  onSortCustom={fillInput}
+                  onGeneratePlan={handleGeneratePlan}
+                  onSummarize={handleSummarize}
                 />
               )}
-              renderSortTool={() => (
-                <SortTool
-                  hasMedia={refs.some((r) => r.source === 'f_media')}
-                  onQuickSort={sendSortPrompt}
-                  onCustomSort={fillInput}
-                />
-              )}
-              renderQuickPanel={(close) => (
-                <ReferencePanel
-                  compact
-                  onFillInput={fillInput}
-                  onSendQuick={sendMessage}
-                  refreshKey={refreshKey}
-                  onPicked={close}
-                />
-              )}
+              renderQuickPanel={(close) => {
+                // D58 双入口的快捷引用侧：恰好一张题图时「题目排序」可用
+                // （多图无法确定排序对象，置灰 + hover 提示；契约只收一个 mediaKey）
+                const mediaRefs = refs.filter((r) => r.source === 'f_media')
+                const singleMediaKey = mediaRefs.length === 1 ? mediaRefs[0]?.text : undefined
+                const sortHint =
+                  mediaRefs.length === 0
+                    ? '先点「拍题」上传题目照片，排序才有对象'
+                    : '一次只能带一张题图，请先删掉多余的图片'
+                return (
+                  <ReferencePanel
+                    compact
+                    onFillInput={fillInput}
+                    onSendQuick={sendMessage}
+                    refreshKey={refreshKey}
+                    onPicked={close}
+                    renderSortTab={() => (
+                      <SortOptionsList
+                        enabled={singleMediaKey !== undefined}
+                        disabledHint={sortHint}
+                        onQuickSort={(prompt) => sendSortPrompt(prompt)}
+                        onCustomSort={(template) => {
+                          fillInput(template)
+                        }}
+                        onPicked={close}
+                      />
+                    )}
+                  />
+                )
+              }}
             />
           </section>
         </div>

@@ -51,7 +51,9 @@ from pydantic import BaseModel, ConfigDict, Field
 import r2_storage
 from r2_sigv4 import SigV4Error
 from schemas.common import APIModel
+from schemas.media_summary import MediaSummary
 from schemas.user import User
+from media_summary import MediaSummaryError, summarize_media
 from .deps import current_user
 
 logger = logging.getLogger(__name__)
@@ -295,3 +297,64 @@ async def delete_media(key: str, user: User = Depends(current_user)) -> Response
 
     logger.info("[F-MEDIA] 删除成功 user=%s key=%s", user.user_id, key)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- #47 要点摘要（契约 v1.18.0） ----------
+
+def _load_media_bytes_or_raise(key: str) -> tuple[bytes, str]:
+    """按 key 取媒体字节，错误按契约分档（404 / 503 / 502）。
+
+    summary 端点是同步 def（Starlette 自动丢线程池），不必像上传那样
+    asyncio.to_thread；GET/DELETE 的 async 版本保留各自的内联映射不动——
+    三个端点的业务错误码不同（STORAGE_FAILED / SUMMARY_FAILED），不强行合并。
+    """
+    try:
+        return r2_storage.get_object(key)
+    except r2_storage.R2NotConfigured as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "R2_NOT_CONFIGURED", "message": "对象存储未配置，请联系管理员"},
+        ) from e
+    except r2_storage.R2Error as e:
+        if e.status == 404:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "RESOURCE_NOT_FOUND", "message": "图片不存在或已被删除"},
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "STORAGE_FAILED", "message": "图片读取失败，请稍后再试"},
+        ) from e
+
+
+@router.post(
+    "/{key:path}/summary",
+    response_model=MediaSummary,
+    summary="上传照片的要点摘要（LLM 视觉，返回前脱敏，不落库）",
+)
+def summarize_media_endpoint(
+    key: str,
+    user: User = Depends(current_user),
+) -> MediaSummary:
+    """#47（design 第 974 行 D55 欠账）：要点摘要可进收藏（走 privacy_filter）。
+
+    返回的 summary **已过 privacy_filter.sanitize_text**（M5 门「摘要入库前脱敏」
+    的落点在服务层源头）——调用方原样作为 snapshot.content 存收藏即可。
+    摘要本身不落库；是否收藏由用户决定。
+    """
+    _assert_owner(key, user.user_id)
+    data, mime = _load_media_bytes_or_raise(key)
+    try:
+        summary, subject = summarize_media(data, mime, user.user_id)
+    except MediaSummaryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "SUMMARY_FAILED", "message": str(e)},
+        ) from e
+    except r2_storage.R2Error as e:  # 防御：r2 层故障不该伪装成 LLM 失败
+        logger.warning("[F-MEDIA] 摘要期间 R2 异常 user=%s key=%s: %s", user.user_id, key, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "STORAGE_FAILED", "message": "图片读取失败，请稍后再试"},
+        ) from e
+    return MediaSummary(summary=summary, subject=subject)
