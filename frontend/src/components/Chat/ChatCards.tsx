@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import type { ChatCard } from './types'
 import { createGoal, deleteAllActiveGoals, deleteGoal, fetchGoals } from '@/services/goals'
 import { createPlan, localDateString } from '@/services/plans'
+import { createCollectionItem } from '@/services/collections'
 import type { GoalType, Subject } from '@/types/api'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import { trackCardClicked, trackCardShown } from './cardAnalytics'
@@ -621,6 +622,72 @@ function WorksheetConfirmCard({ card }: { card: ChatCard }) {
   )
 }
 
+/* ============ file_summary：上传照片要点摘要（#47 摘要进收藏） ============ */
+
+/**
+ * 摘要卡：展示要点摘要 + 「存入收藏」。
+ *
+ * 摘要文本来自 POST /f/media/{key}/summary 的响应——**服务端返回前已过
+ * privacy_filter（M5 门「入库前脱敏」）**，所以这里存进收藏的 snapshot.content
+ * 就是已脱敏版本，不需要（也不应该）在前端再处理。
+ * 卡由 Chat 页在摘要流程里就地构造（前端本地，非后端产出）；type 沿用契约
+ * ChatCard.type 里 F 的 file_summary，ChatCards 此前没有它的渲染分支。
+ */
+function FileSummaryCard({ card }: { card: ChatCard }) {
+  const summary = card.display?.summary ?? ''
+  const mediaKey = typeof card.payload?.mediaKey === 'string' ? card.payload.mediaKey : ''
+  const subject = typeof card.payload?.subject === 'string' ? card.payload.subject : undefined
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const onSave = async () => {
+    trackCardClicked(card, 'save_to_collection')
+    if (busy || done || !summary.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      await createCollectionItem({
+        title: '上传照片摘要',
+        snapshot: { content: summary, format: 'markdown' },
+        sourceRef: {
+          type: 'upload_summary',
+          refId: mediaKey || null,
+          label: '上传照片摘要',
+          subject: subject as Subject | undefined,
+        },
+      })
+      setDone(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '收藏失败，请稍后再试')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="chat-card chat-card-confirmation">
+      <div className="chat-card-title">{card.title || '要点摘要'}</div>
+      <div className="chat-card-summary">{summary}</div>
+      {error && <div className="chat-card-error">{error}</div>}
+      <div className="chat-card-actions">
+        {done ? (
+          <span className="chat-card-worksheet-done">✓ 已存入收藏（可在个人中心查看）</span>
+        ) : (
+          <button
+            type="button"
+            className="chat-card-btn chat-card-btn-primary"
+            disabled={busy || !summary.trim()}
+            onClick={onSave}
+          >
+            {busy ? '收藏中…' : '存入收藏'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ChatCards({ cards }: { cards: ChatCard[] }) {
   if (!cards || cards.length === 0) return null
   // key 从纯下标改为「下标+类型+动作」：曝光埋点挂在 CardExposure 的挂载上，
@@ -643,6 +710,10 @@ export default function ChatCards({ cards }: { cards: ChatCard[] }) {
         }
         if (card.type === 'knowledge_point') {
           return withExposure(card, i, <KnowledgeCard card={card} />)
+        }
+        if (card.type === 'file_summary') {
+          // #47 摘要进收藏：F 的 file_summary 卡此前无渲染分支（落 unknown 兜底）。
+          return withExposure(card, i, <FileSummaryCard card={card} />)
         }
         if (card.type === 'worksheet_confirm') {
           // D55 作业单确认卡：前端本地类型（后端从不产出），须在 confirmation

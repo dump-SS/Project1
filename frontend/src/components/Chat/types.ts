@@ -49,6 +49,12 @@ export interface ChatCardPayload {
    * 它由 Chat 页在「生成计划」流程里就地构造，故不入契约 ChatCard.type 枚举。
    */
   worksheetItems?: { subject: string; topic: string; estimatedMinutes: number }[]
+  /**
+   * file_summary 卡（#47 摘要进收藏）：摘要对应的上传照片 key，
+   * 「存入收藏」时作 sourceRef.refId。与 worksheet_confirm 同理为前端本地构造
+   * （后端 v1.16.0 的 sourceRef.type 枚举已预留 upload_summary）。
+   */
+  mediaKey?: string
 }
 
 export interface ChatCard {
