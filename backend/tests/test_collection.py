@@ -428,3 +428,63 @@ def test_snapshot_without_source_map_still_round_trips():
     snap = r.json()["snapshot"]
     assert snap.get("sourceMap") is None
     assert snap["content"] == "没有映射的老快照内容。"
+
+
+def test_upload_summary_path_persists_source_map():
+    """#47 摘要进收藏链路：载荷与前端 ChatCards 的 FileSummaryCard 一致，
+    直查 snapshot_json 列原文含 sourceMap（证明并轨后这条入口也真落库，不是回显）。
+
+    前端并轨前走 services/collections.ts（无 sourceMap），方案 C 只覆盖 Chat 收藏一条；
+    并轨到 collectItem 后两条入口都带映射。
+    """
+    summary = "**要点**：牛顿第二定律 F = ma\n\n- 力是改变运动状态的原因\n"
+    map_payload = {
+        "v": 1,
+        "total": 24,
+        "chunks": [
+            {"rs": 0, "rl": 2, "ss": 2, "sl": 2},
+            {"rs": 2, "rl": 12, "ss": 4, "sl": 12, "jumps": [[4, 1]]},
+        ],
+    }
+    created = client.post(
+        "/api/v1/me/collection/items",
+        json={
+            "title": "上传照片摘要",
+            "snapshot": {
+                "content": summary,
+                "format": "markdown",
+                "sourceMap": map_payload,
+            },
+            "sourceRef": {
+                "type": "upload_summary",
+                "refId": "media_dev8_key",
+                "label": "上传照片摘要",
+            },
+        },
+        headers=_hdr(),
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["created"] is True
+    # 注意：pydantic 会把未提供的可选 jumps 序列化为 null，所以按字段断言，不做整字典相等
+    sm = body["snapshot"]["sourceMap"]
+    assert sm["v"] == 1 and sm["total"] == 24
+    assert len(sm["chunks"]) == 2
+    assert sm["chunks"][0] == {"rs": 0, "rl": 2, "ss": 2, "sl": 2, "jumps": None}
+    assert sm["chunks"][1] == {"rs": 2, "rl": 12, "ss": 4, "sl": 12, "jumps": [[4, 1]]}
+
+    from database import SessionLocal
+    from models.collection import CollectionItem as CollectionItemORM
+
+    db = SessionLocal()
+    try:
+        row = db.get(CollectionItemORM, body["itemId"])
+        assert row is not None
+        assert "sourceMap" in row.snapshot_json, row.snapshot_json
+        compact = row.snapshot_json.replace(" ", "")
+        assert '"total":24' in compact, row.snapshot_json
+        assert '"jumps":[[4,1]]' in compact, row.snapshot_json
+        # 来源类型存在 source_ref_json 列（sourceRef 不在 snapshot_json 里），#47 的溯源口径不变
+        assert '"type":"upload_summary"' in row.source_ref_json.replace(" ", ""), row.source_ref_json
+    finally:
+        db.close()
