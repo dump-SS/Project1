@@ -347,3 +347,84 @@ def test_cannot_delete_other_users_item():
         f"/api/v1/me/collection/items/{item_id}", headers=_hdr(OTHER)
     )
     assert still.status_code == 200, still.text
+
+
+# ---------------------------------------------------- sourceMap 真存（I5，方案 C 闭环）
+
+_SOURCE_MAP = {
+    "v": 1,
+    "total": 99,
+    "chunks": [
+        {"rs": 0, "rl": 7, "ss": 2, "sl": 7},
+        {"rs": 24, "rl": 5, "ss": 33, "sl": 5, "jumps": [[4, 1]]},
+    ],
+}
+
+
+def _post_item_with_map(user_id: str = U):
+    return client.post(
+        "/api/v1/me/collection/items",
+        json={
+            "title": "映射验证",
+            "snapshot": {
+                "content": "**复合函数单调性**的判断核心是「同增异减」原则：",
+                "format": "markdown",
+                "sourceMap": _SOURCE_MAP,
+            },
+            "sourceRef": {"type": "manual", "label": "映射验证"},
+        },
+        headers=_hdr(user_id),
+    )
+
+
+def test_source_map_survives_post_and_readback():
+    """I5 关键验收：POST 带 sourceMap → 响应 / 列表 / 单条三处都回读得到，chunks 一致。
+
+    断的是后端 pydantic 未声明该字段时 extra=ignore 静默丢弃：契约与前端都按「已存」写好，
+    只差后端收下（Skyer 2026-11-06 拍板真存）。
+    """
+    created = _post_item_with_map()
+    assert created.status_code == 201, created.text
+    body = created.json()
+    item_id = body["itemId"]
+
+    sm = body["snapshot"]["sourceMap"]
+    assert sm["v"] == 1 and sm["total"] == 99
+    assert len(sm["chunks"]) == 2
+    assert sm["chunks"][1] == {"rs": 24, "rl": 5, "ss": 33, "sl": 5, "jumps": [[4, 1]]}
+
+    listed = client.get("/api/v1/me/collection/items", headers=_hdr()).json()["items"]
+    got = next(i for i in listed if i["itemId"] == item_id)
+    assert got["snapshot"]["sourceMap"] == sm
+
+    single = client.get(f"/api/v1/me/collection/items/{item_id}", headers=_hdr())
+    assert single.status_code == 200, single.text
+    assert single.json()["snapshot"]["sourceMap"] == sm
+
+
+def test_source_map_is_persisted_not_just_echoed():
+    """防「只在响应里回显、没落库」：直接查 snapshot_json 列里的原文。"""
+    item_id = _post_item_with_map().json()["itemId"]
+
+    from database import SessionLocal
+    from models.collection import CollectionItem as CollectionItemORM
+
+    db = SessionLocal()
+    try:
+        row = db.get(CollectionItemORM, item_id)
+        assert row is not None, "条目没落库"
+        assert "sourceMap" in row.snapshot_json, row.snapshot_json
+        compact = row.snapshot_json.replace(" ", "")
+        assert '"total":99' in compact, row.snapshot_json
+        assert '"jumps":[[4,1]]' in compact, row.snapshot_json
+    finally:
+        db.close()
+
+
+def test_snapshot_without_source_map_still_round_trips():
+    """老快照（无 sourceMap）不受影响：不报错、字段缺省，前端展开时现算兜底不回归。"""
+    r = _create_item(content="没有映射的老快照内容。")
+    assert r.status_code == 201, r.text
+    snap = r.json()["snapshot"]
+    assert snap.get("sourceMap") is None
+    assert snap["content"] == "没有映射的老快照内容。"
