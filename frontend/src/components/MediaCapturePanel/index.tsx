@@ -43,8 +43,10 @@ export interface MediaCapturePanelProps {
   /** D58 自定义排序：模板进输入框由用户续写 */
   onSortCustom?: (template: string) => void
   /** D55 作业单生成计划：用户点「生成计划」→ Chat 页抽取 → 确认卡 → 落计划。
-   *  只在展开态渲染（收起态看不到预览，无从确认处理哪张图）。 */
+   *  收起/展开两态都有（刚传完图时面板是收起的，入口不能藏起来）。 */
   onGeneratePlan?: (key: string) => void
+  /** #47 摘要进收藏：生成要点摘要 → 确认卡展示 → 用户点存入收藏（两态同上） */
+  onSummarize?: (key: string) => void
   /** 紧凑形态：内嵌在输入区时省掉大标题 */
   compact?: boolean
   /** 默认收起：只露出一枚触发按钮，展开后才占高度（避免常驻吃 Chat 页空间） */
@@ -59,6 +61,7 @@ export default function MediaCapturePanel({
   onSortPrompt,
   onSortCustom,
   onGeneratePlan,
+  onSummarize,
   compact = false,
   defaultOpen = false,
 }: MediaCapturePanelProps) {
@@ -178,6 +181,21 @@ export default function MediaCapturePanel({
       </button>
     ) : null
 
+  /** #47 摘要进收藏（两态同上） */
+  const renderSummarizeButton = () =>
+    result && onSummarize ? (
+      <button
+        type="button"
+        className={styles.trigger}
+        disabled={busy}
+        onClick={() => onSummarize(result.key)}
+        title="生成这张照片的要点摘要，确认后存入收藏"
+        data-testid="summarize-button"
+      >
+        摘要进收藏
+      </button>
+    ) : null
+
   /** 收起态只露一枚触发按钮 —— 不占高度，也就不打扰 Chat 主流程 */
   if (!open) {
     return (
@@ -204,6 +222,7 @@ export default function MediaCapturePanel({
         </button>
         {renderSortButton(true)}
         {renderGenerateButton()}
+        {renderSummarizeButton()}
       </section>
     )
   }
@@ -240,6 +259,7 @@ export default function MediaCapturePanel({
         </button>
         {renderSortButton(false)}
         {renderGenerateButton()}
+        {renderSummarizeButton()}
         {result && (
           <button type="button" className={styles.clear} onClick={clearAll}>
             清除

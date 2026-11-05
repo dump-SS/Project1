@@ -29,6 +29,7 @@ export type CardClickButton =
   | 'delete_goal'
   | 'view_knowledge'
   | 'worksheet_confirm'
+  | 'save_to_collection'
   | 'dismiss'
 
 /** 送库的 payload 形状——刻意保持「结构化、可枚举、不含用户文本」 */
