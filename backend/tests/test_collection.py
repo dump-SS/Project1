@@ -347,3 +347,144 @@ def test_cannot_delete_other_users_item():
         f"/api/v1/me/collection/items/{item_id}", headers=_hdr(OTHER)
     )
     assert still.status_code == 200, still.text
+
+
+# ---------------------------------------------------- sourceMap 真存（I5，方案 C 闭环）
+
+_SOURCE_MAP = {
+    "v": 1,
+    "total": 99,
+    "chunks": [
+        {"rs": 0, "rl": 7, "ss": 2, "sl": 7},
+        {"rs": 24, "rl": 5, "ss": 33, "sl": 5, "jumps": [[4, 1]]},
+    ],
+}
+
+
+def _post_item_with_map(user_id: str = U):
+    return client.post(
+        "/api/v1/me/collection/items",
+        json={
+            "title": "映射验证",
+            "snapshot": {
+                "content": "**复合函数单调性**的判断核心是「同增异减」原则：",
+                "format": "markdown",
+                "sourceMap": _SOURCE_MAP,
+            },
+            "sourceRef": {"type": "manual", "label": "映射验证"},
+        },
+        headers=_hdr(user_id),
+    )
+
+
+def test_source_map_survives_post_and_readback():
+    """I5 关键验收：POST 带 sourceMap → 响应 / 列表 / 单条三处都回读得到，chunks 一致。
+
+    断的是后端 pydantic 未声明该字段时 extra=ignore 静默丢弃：契约与前端都按「已存」写好，
+    只差后端收下（Skyer 2026-11-06 拍板真存）。
+    """
+    created = _post_item_with_map()
+    assert created.status_code == 201, created.text
+    body = created.json()
+    item_id = body["itemId"]
+
+    sm = body["snapshot"]["sourceMap"]
+    assert sm["v"] == 1 and sm["total"] == 99
+    assert len(sm["chunks"]) == 2
+    assert sm["chunks"][1] == {"rs": 24, "rl": 5, "ss": 33, "sl": 5, "jumps": [[4, 1]]}
+
+    listed = client.get("/api/v1/me/collection/items", headers=_hdr()).json()["items"]
+    got = next(i for i in listed if i["itemId"] == item_id)
+    assert got["snapshot"]["sourceMap"] == sm
+
+    single = client.get(f"/api/v1/me/collection/items/{item_id}", headers=_hdr())
+    assert single.status_code == 200, single.text
+    assert single.json()["snapshot"]["sourceMap"] == sm
+
+
+def test_source_map_is_persisted_not_just_echoed():
+    """防「只在响应里回显、没落库」：直接查 snapshot_json 列里的原文。"""
+    item_id = _post_item_with_map().json()["itemId"]
+
+    from database import SessionLocal
+    from models.collection import CollectionItem as CollectionItemORM
+
+    db = SessionLocal()
+    try:
+        row = db.get(CollectionItemORM, item_id)
+        assert row is not None, "条目没落库"
+        assert "sourceMap" in row.snapshot_json, row.snapshot_json
+        compact = row.snapshot_json.replace(" ", "")
+        assert '"total":99' in compact, row.snapshot_json
+        assert '"jumps":[[4,1]]' in compact, row.snapshot_json
+    finally:
+        db.close()
+
+
+def test_snapshot_without_source_map_still_round_trips():
+    """老快照（无 sourceMap）不受影响：不报错、字段缺省，前端展开时现算兜底不回归。"""
+    r = _create_item(content="没有映射的老快照内容。")
+    assert r.status_code == 201, r.text
+    snap = r.json()["snapshot"]
+    assert snap.get("sourceMap") is None
+    assert snap["content"] == "没有映射的老快照内容。"
+
+
+def test_upload_summary_path_persists_source_map():
+    """#47 摘要进收藏链路：载荷与前端 ChatCards 的 FileSummaryCard 一致，
+    直查 snapshot_json 列原文含 sourceMap（证明并轨后这条入口也真落库，不是回显）。
+
+    前端并轨前走 services/collections.ts（无 sourceMap），方案 C 只覆盖 Chat 收藏一条；
+    并轨到 collectItem 后两条入口都带映射。
+    """
+    summary = "**要点**：牛顿第二定律 F = ma\n\n- 力是改变运动状态的原因\n"
+    map_payload = {
+        "v": 1,
+        "total": 24,
+        "chunks": [
+            {"rs": 0, "rl": 2, "ss": 2, "sl": 2},
+            {"rs": 2, "rl": 12, "ss": 4, "sl": 12, "jumps": [[4, 1]]},
+        ],
+    }
+    created = client.post(
+        "/api/v1/me/collection/items",
+        json={
+            "title": "上传照片摘要",
+            "snapshot": {
+                "content": summary,
+                "format": "markdown",
+                "sourceMap": map_payload,
+            },
+            "sourceRef": {
+                "type": "upload_summary",
+                "refId": "media_dev8_key",
+                "label": "上传照片摘要",
+            },
+        },
+        headers=_hdr(),
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["created"] is True
+    # 注意：pydantic 会把未提供的可选 jumps 序列化为 null，所以按字段断言，不做整字典相等
+    sm = body["snapshot"]["sourceMap"]
+    assert sm["v"] == 1 and sm["total"] == 24
+    assert len(sm["chunks"]) == 2
+    assert sm["chunks"][0] == {"rs": 0, "rl": 2, "ss": 2, "sl": 2, "jumps": None}
+    assert sm["chunks"][1] == {"rs": 2, "rl": 12, "ss": 4, "sl": 12, "jumps": [[4, 1]]}
+
+    from database import SessionLocal
+    from models.collection import CollectionItem as CollectionItemORM
+
+    db = SessionLocal()
+    try:
+        row = db.get(CollectionItemORM, body["itemId"])
+        assert row is not None
+        assert "sourceMap" in row.snapshot_json, row.snapshot_json
+        compact = row.snapshot_json.replace(" ", "")
+        assert '"total":24' in compact, row.snapshot_json
+        assert '"jumps":[[4,1]]' in compact, row.snapshot_json
+        # 来源类型存在 source_ref_json 列（sourceRef 不在 snapshot_json 里），#47 的溯源口径不变
+        assert '"type":"upload_summary"' in row.source_ref_json.replace(" ", ""), row.source_ref_json
+    finally:
+        db.close()

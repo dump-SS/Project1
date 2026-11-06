@@ -13,7 +13,8 @@ import { useNavigate } from 'react-router-dom'
 import type { ChatCard } from './types'
 import { createGoal, deleteAllActiveGoals, deleteGoal, fetchGoals } from '@/services/goals'
 import { createPlan, localDateString } from '@/services/plans'
-import { createCollectionItem } from '@/services/collections'
+import { collectItem } from '@/services/collection'
+import { buildSourceMap } from '@/utils/markdownSourceMap'
 import type { GoalType, Subject } from '@/types/api'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import { trackCardClicked, trackCardShown } from './cardAnalytics'
@@ -647,9 +648,12 @@ function FileSummaryCard({ card }: { card: ChatCard }) {
     setBusy(true)
     setError(null)
     try {
-      await createCollectionItem({
+      // 摘要正文来自服务端（已过 privacy_filter），原样存快照；
+      // 方案 C：markdown 快照在**保存时**算好渲染↔原文映射一起存，划选虚化/高亮才不用每次现算
+      const { map } = buildSourceMap(summary)
+      await collectItem({
         title: '上传照片摘要',
-        snapshot: { content: summary, format: 'markdown' },
+        snapshot: { content: summary, format: 'markdown', sourceMap: map },
         sourceRef: {
           type: 'upload_summary',
           refId: mediaKey || null,

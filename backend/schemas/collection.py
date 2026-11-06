@@ -57,6 +57,33 @@ class CollectionUpdate(APIModel):
     name: str = Field(..., max_length=64, description="分组新名")
 
 
+class SnapshotSourceMapChunk(APIModel):
+    """一段「渲染文本 ↔ 原文」对齐区间（码点），见契约 SnapshotSourceMapChunk。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    rs: int = Field(..., description="渲染文本码点起点")
+    rl: int = Field(..., description="渲染文本码点长度")
+    ss: int = Field(..., description="原文码点起点")
+    sl: int = Field(..., description="原文码点长度")
+    jumps: list[tuple[int, int]] | None = Field(
+        None,
+        description="转义/字符引用处的 [渲染 chunk 内偏移, 累计多消耗的源码点数]，升序",
+    )
+
+
+class SnapshotSourceMap(APIModel):
+    """方案 C（Skyer 2026-11-03 拍板）：保存时算好的渲染↔原文映射，划选时查表不实时算。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    v: int = Field(..., description="映射格式版本，当前 1")
+    total: int | None = Field(
+        None, description="渲染文本总码点长（含块间合成换行）；老映射可缺省"
+    )
+    chunks: list[SnapshotSourceMapChunk] = Field(default_factory=list)
+
+
 class CollectionSnapshot(APIModel):
     """收藏内容的**快照**（D46 硬约束）。"""
 
@@ -70,6 +97,14 @@ class CollectionSnapshot(APIModel):
     imageRef: str | None = Field(
         None,
         description="裁剪后小图的存储引用（图片圈选场景）",
+    )
+    sourceMap: SnapshotSourceMap | None = Field(
+        None,
+        description=(
+            "markdown 快照的渲染↔原文映射（方案 C：保存时一次性算好存起来，划选时查表）。"
+            "此前契约已声明、后端未声明该字段，pydantic 默认 extra=ignore 把它静默丢弃，"
+            "导致前端只能每次展开现算；本字段补上即兑现契约。后端只透传，不解释。"
+        ),
     )
 
 
