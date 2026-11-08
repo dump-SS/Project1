@@ -75,7 +75,7 @@ backend/
 │   ├── assessment.py        AssessmentSnapshot
 │   ├── recommendation.py    Recommendation
 │   └── summary.py           Summary
-├── schemas/                 Pydantic v2 模型（18 个文件，契约 183 schema，严格对齐 openapi.yaml v1.14.0）
+├── schemas/                 Pydantic v2 模型（18 个文件，契约 190 schema，严格对齐 openapi.yaml v1.20.0）
 │   ├── enums.py             Subject / StateLabel / ...
 │   ├── common.py            Error / Pagination / GenerationStatus / RatingFeedback
 │   ├── user.py              User / UserProfilePut / Settings / SettingsUpdate / GuardianAuthorizationRequest
@@ -86,7 +86,7 @@ backend/
 │   ├── recommendation.py    Recommendation / RecommendationCreate
 │   ├── summary.py           Summary / SummaryContent
 │   └── chat.py              ChatMessageRequest / ChatReply / ChatCard / ChatGreeting / FloatTurn
-├── routes/                  FastAPI 路由（24 个文件 = 23 个 router + deps.py；main.py 挂 24 个 router 对象，契约 70 paths / 93 operations / 18 tags）
+├── routes/                  FastAPI 路由（24 个文件 = 23 个 router + deps.py；main.py 挂 24 个 router 对象，契约 78 paths / 109 operations / 18 tags）
 │   ├── health.py            /health（带 DB 探活）
 │   ├── user.py              /me, /me/settings, /me/guardian-authorization
 │   ├── goal.py              /goals
@@ -259,7 +259,7 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 其中第 1 项尤其不是设计决策——`openapi.yaml` 早已写明「错题录入（原文只在本地 embedding，永不出域）」、
 「embedding 走本地模型，PRD 12.6」、「向量库/embedding 未就绪时降级为名称关键词模糊匹配（**接口形态不变**）」，
 代码是**违反了既有契约**；本次改动是把代码拉回契约，降级口径也与契约一致。
-所以 `openapi.yaml` 保持 **v1.7.1** 不变。
+所以 `openapi.yaml` 保持 **v1.7.1** 不变。（历史叙述：当时口径；现行契约版本与规模见文首结构树与 `docs/README.md` 文档地图。）
 
 ---
 
@@ -303,6 +303,8 @@ pytest tests/test_smoke.py::test_mock_data_validates -v   # 单个用例
 - [x] **带图 Chat 异步迁移**：`b8e2d4f1a7c3`，`down_revision = 4c0b1c004f69`，**单 head**。
       新增 `chat_jobs` 表（带图异步任务的状态行：jobId / userId / status / content / mediaKey /
       reply / errorMessage / 时间戳）；表数 47 → **48**。空库 `upgrade head` 实测通过。
+- [x] **D10 画像条目迁移**：`65cfc1fbf770`，`down_revision = b8e2d4f1a7c3`，**单 head**。
+      `user_profiles` 增 `source_ref` 列（画像条目来源引用，契约 v1.15.0 / PR #77）；表数 48 不变。
 - [ ] ⚠️ **本地 `data.db` 落后于 head 是常见现象，pytest 抓不到**（2026-09-27 实际发生过一次）：
       拉了新代码后本地库还停在旧 revision，代码已在读新列 → 相关接口 `no such column`，
       但 `pytest` 仍全绿——因为 `tests/conftest.py` 把 `DATABASE_URL` 强制到独立的
