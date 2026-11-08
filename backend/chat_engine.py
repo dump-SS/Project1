@@ -745,9 +745,16 @@ def _summarize_previous_period(
         # 用字面量而非 egress_guard.USER_ERROR_CONTENT：CI（test_egress_ci.py）
         # 是静态扫描源码文本的，常量变量会被判为「动态值、无法判定」。
         # 改动此值时必须与 egress_guard.USER_ERROR_CONTENT 同步。
+        # user_id（L174）：真实调用必须落 usage_ledger 数值流水且可追溯到用户
+        # （pilot 铁律 5）——与主 Chat 同一口径，见 handle_message 的 generate 段。
         out = get_provider().generate(
             prompt,
-            context={"scene": "chat_topic_summary", "data_class": "user_error_content"},
+            context={
+                "scene": "chat_topic_summary",
+                "data_class": "user_error_content",
+                "user_id": user_id,
+                "feature_tier": "chat",
+            },
         )
     except Exception as e:  # noqa: BLE001 — 摘要失败不阻断问候/聊天
         logger.warning("[CHAT] 话题摘要生成失败: %s", e)
@@ -832,10 +839,11 @@ def handle_message(
     # 1. 危机前置检查。第 1 层确定性（不过 LLM）；第 2 层语义兜底仅在本路径启用——
     #    chat 消息本就要发给 LLM（不产生新增出域），而学习记录 note 属不出域硬约束、
     #    不接兜底（见 safety_filter 模块 docstring）。事件细节绝不进画像。
-    crisis = crisis_check(content)
+    #    user_id（L174）：l2 语义兜底也是真实模型调用，落账要可追溯到用户。
+    crisis = crisis_check(content, user_id=user_id)
     if crisis.is_crisis:
-        if crisis.layer == "l2_semantic" and crisis.usage != (0, 0):
-            _record_usage(db, user_id, content, CRISIS_RESPONSE)  # 兜底调用计费留痕
+        if crisis.layer == "l2_semantic" and crisis.usage != (0, 0) and not recorded_real_usage():
+            _record_usage(db, user_id, content, CRISIS_RESPONSE)  # 兜底调用计费留痕（provider 未写真实行时才补估算）
         return _handle_crisis(db, user_id, content, crisis)
 
     intent = detect_intent(content, explicit_intent)
@@ -1007,9 +1015,9 @@ def handle_ephemeral(
     - **计费**：照常记 usage_ledger。
     """
     content = (content or "").strip()
-    crisis = crisis_check(content)
+    crisis = crisis_check(content, user_id=user_id)
     if crisis.is_crisis:
-        if crisis.layer == "l2_semantic" and crisis.usage != (0, 0):
+        if crisis.layer == "l2_semantic" and crisis.usage != (0, 0) and not recorded_real_usage():
             _record_usage(db, user_id, content, CRISIS_RESPONSE)
         return _handle_crisis(db, user_id, content, crisis)
 
@@ -1032,14 +1040,24 @@ def handle_ephemeral(
     user_prompt = "\n".join(lines)
 
     provider = get_provider()
+    # L174：generate 前清「已记真实行」标记 + context 带 user_id——真实调用落
+    # usage_ledger 数值流水且可追溯到用户（pilot 铁律 5），与主 Chat 同一口径；
+    # 失败/Mock 无真实行时由下方估算兜底补（不重复记账，见主 Chat 同款注释）。
+    _usage_begin_call()
     llm_text = provider.generate(
         user_prompt,
-        context={"system": system, "scene": "chat", "data_class": "state_plan"},
+        context={
+            "system": system,
+            "scene": "chat",
+            "data_class": "state_plan",
+            "user_id": user_id,
+            "feature_tier": "chat",
+        },
     )
 
     reply, _cards, _blocked = _resolve_reply(llm_text)
     # 基础问答：只回纯文本，剥离卡片；不入栈、不写回主对话原文
-    if llm_text is not None:
+    if llm_text is not None and not recorded_real_usage():
         _record_usage(db, user_id, user_prompt, reply)
     db.commit()
 
