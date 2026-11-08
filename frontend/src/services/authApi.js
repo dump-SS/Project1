@@ -1,10 +1,14 @@
 // 接口请求封装 —— 遵循 docs/api-design-unified.md 约定：
-// 1. 基础路径 /api/v1
+// 1. 基础路径默认 /api/v1；分域部署时读 VITE_API_BASE_URL
+//    （口径必须与 services/http.ts 的 BASE_URL 保持一致，改一处记得改另一处）
 // 2. 登录态通过 HttpOnly Session Cookie 维持，浏览器自动携带
 // 3. 统一错误格式 { error: { code, message, field } }
 // 4. 字段命名 camelCase
+//
+// ⚠️ 不要把 VITE_API_BASE_URL 留成空字符串：`??` 只在 null/undefined 时兜底，
+//    空串会丢掉 /api/v1 前缀且不报错（见 frontend/.env.example）。
 
-const BASE = '/api/v1'
+const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' }
