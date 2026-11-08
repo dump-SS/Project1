@@ -223,8 +223,13 @@ def _soft_marker_hit(text: str) -> str | None:
     return None
 
 
-def crisis_check(text: str) -> CrisisDecision:
+def crisis_check(text: str, user_id: str | None = None) -> CrisisDecision:
     """危机检测总入口：第 1 层（确定性）→ 第 2 层（语义兜底，仅软标记命中时）。
+
+    user_id（L174）：语义兜底也是真实模型调用，usage_ledger 数值流水要可追溯到
+    用户（pilot 铁律 5）；只进 usage_ledger 的归属字段，**不进日志/画像/事件细节**
+    （L103 合规门：危机事件细节不入画像——本函数对 user_id 的唯一用途是传给
+    provider 层的记账 context）。None 时 provider 层记账自然 no-op（兼容旧调用方）。
 
     失败方向：兜底调用异常 → 按危机处理（fail-toward-refer），并记 reason。
     """
@@ -242,13 +247,27 @@ def crisis_check(text: str) -> CrisisDecision:
 
     # ── 语义兜底：只在 chat 路径被调用（调用方保证）──
     # data_class 在调用点**字面**声明（egress CI 护栏要求静态可判，不登记动态豁免）
+    # user_id（L174）：真实调用落 usage_ledger 数值流水可追溯到用户；None 时
+    # provider 层记账自然 no-op（不造假流水）。
+    # begin_call（L174）：generate 前清「已记真实行」TLS 标记——本函数在
+    # chat 流程的**主 generate 之前**执行，不清标记会沿用上一轮调用的残留状态，
+    # 让调用方的估算兜底误判「真实行已写」而漏记（测试 test_crisis_l3_… 锁这条）。
+    from usage_ledger import begin_call
+
+    begin_call()
     t0 = time.monotonic()
     try:
         from llm_provider import get_provider
 
         raw = get_provider().generate(
             text,
-            context={"scene": "crisis_check_l3", "data_class": "state_plan", "system": _FALLBACK_SYSTEM},
+            context={
+                "scene": "crisis_check_l3",
+                "data_class": "state_plan",
+                "system": _FALLBACK_SYSTEM,
+                "user_id": user_id,
+                "feature_tier": "chat",
+            },
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
     except Exception as e:  # noqa: BLE001 — 兜底故障不得静默：fail-toward-refer
