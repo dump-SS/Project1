@@ -1,13 +1,11 @@
 /**
- * AI 辅导页 · 板块二核心交互页（纯前端演示，无后端）。
+ * AI 辅导页 · Chat 真链路（B 板块；头注释 2026-11-08 更正——
+ * 旧注释自述「纯前端演示，无后端 / setTimeout+关键词 mock / localStorage 共享错题」
+ * 已全部失实：真实响应来自 `/api/v1/chat` 与带图异步 `/chat/media`（services/chat.ts），
+ * 上传走 `/f/media`（services/fMedia.ts），错题走 services/errorBook，无 localStorage 错题存储。
  *
- * 三栏布局：
- * - 左侧 300px：快速引用（我的错题 / 知识点速查 / 快捷提问）
- * - 中间：消息列表 + 底部固定输入框
- * - 右侧 280px：录入新错题 + 最近录入记录
- *
- * AI 回复全部由 setTimeout + 关键词匹配 mock（见 mockData.ts），
- * 错题数据与错题本页共享 localStorage（errors_{subject}）。
+ * 布局：消息列表 + 底部固定输入框；拍题面板（MediaCapturePanel）承载 D55 上传与
+ * D58 /题目排序双入口（含首次光效引导）；「录入错题」入口接错题本服务。
  *
  * 日夜双模式：页面头部提供太阳/月亮切换，复用全局 ThemeContext
  * （localStorage 持久化 + 全站 600ms 平滑过渡，与边栏底部按钮同源）。
