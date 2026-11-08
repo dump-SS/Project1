@@ -87,7 +87,7 @@ export default function TaskList({ plan, onTaskUpdated }) {
       return true
     } catch (err) {
       const msg = err?.status === 404
-        ? '后端尚未实现 PATCH 接口'
+        ? '计划或任务已不存在（可能已被删除），请刷新后重试'
         : (err?.message ?? '更新失败，请稍后再试')
 
       showError(task.taskId, msg)
