@@ -170,7 +170,7 @@ async def validation_exception_handler(
 # /health 是基础设施探活、不属于契约资源，留在根路径。
 from fastapi import APIRouter as _APIRouter
 
-from routes import assessment, auth, chat, collection, community, daily_summary, error_book, exam, f_media, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight, worksheet
+from routes import assessment, auth, chat, collection, community, daily_summary, error_book, exam, f_media, goal, governance, knowledge, knowledge_kb, learning_record, mastery, plan, recommendation, recommendation_content, search, summary, timer, user, weight, worksheet, home_cards
 
 api_v1 = _APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -185,6 +185,8 @@ api_v1.include_router(learning_record.router)
 api_v1.include_router(assessment.router)
 api_v1.include_router(recommendation.router)
 api_v1.include_router(recommendation_content.router)
+# D21/D28 首页推荐卡（E 板块，契约 v1.21.0）：产卡 + 事件上报。
+api_v1.include_router(home_cards.router)
 api_v1.include_router(summary.router)
 api_v1.include_router(weight.router)
 api_v1.include_router(daily_summary.router)

@@ -8790,6 +8790,37 @@ components:
       - dismissed
     CardImpression:
       type: object
+      description: 卡片展示 / 点击 / 划掉事件。**D28 的冷却与去重规则直接依赖本表**—— 没有「已展示过什么」的记录，3 天 / 7
+        天 / 每周 1 的冷却就无从判断。 与 `recommendations`（AI 生成的建议）不是一回事，故单独记录。
+      required:
+      - id
+      - group
+      - cardType
+      - fingerprint
+      - action
+      - shownAt
+      properties:
+        id:
+          type: string
+        group:
+          $ref: '#/components/schemas/CardGroup'
+        cardType:
+          type: string
+          description: 卡面类型（D22 卡片协议）：continue_plan / state_advice / content_advice
+            / goal_planning / group_insight
+        fingerprint:
+          type: string
+          description: 去重指纹。Go on 用 planId/recordId；推荐用 type+pointId/subject；洞察用 维度+周期。
+            同指纹在冷却期内不重复出现。
+        action:
+          $ref: '#/components/schemas/CardAction'
+        shownAt:
+          type: string
+          format: date-time
+          description: 展示时间（冷却窗口的计算基准）
+        createdAt:
+          type: string
+          format: date-time
     HomeCard:
       type: object
       description: >-
@@ -8868,37 +8899,6 @@ components:
           format: date-time
           description: 展示时刻（可省略；省略时服务端记请求时刻）
 
-      description: 卡片展示 / 点击 / 划掉事件。**D28 的冷却与去重规则直接依赖本表**—— 没有「已展示过什么」的记录，3 天 / 7
-        天 / 每周 1 的冷却就无从判断。 与 `recommendations`（AI 生成的建议）不是一回事，故单独记录。
-      required:
-      - id
-      - group
-      - cardType
-      - fingerprint
-      - action
-      - shownAt
-      properties:
-        id:
-          type: string
-        group:
-          $ref: '#/components/schemas/CardGroup'
-        cardType:
-          type: string
-          description: 卡面类型（D22 卡片协议）：continue_plan / state_advice / content_advice
-            / goal_planning / group_insight
-        fingerprint:
-          type: string
-          description: 去重指纹。Go on 用 planId/recordId；推荐用 type+pointId/subject；洞察用 维度+周期。
-            同指纹在冷却期内不重复出现。
-        action:
-          $ref: '#/components/schemas/CardAction'
-        shownAt:
-          type: string
-          format: date-time
-          description: 展示时间（冷却窗口的计算基准）
-        createdAt:
-          type: string
-          format: date-time
     MediaSummary:
       type: object
       description: '要点摘要结果。**summary 已过 privacy_filter**（入库前脱敏，M5 验收门）——
