@@ -8828,8 +8828,11 @@ components:
         点击时把 payload 作为结构化上下文注入对话，而非拼字符串。
         type 取值（target.md:172-180 五类）：continue_plan / state_advice /
         content_advice / goal_planning / group_insight。
-      required: [type, display]
+      required: [type, display, fingerprint]
       properties:
+        fingerprint:
+          type: string
+          description: 去重指纹（后端产卡时已算好；前端原样回填到 POST /me/card-impressions，不在前端重算——规则真源在后端）。PR2 遗漏透传导致前端无法上报 shown/dismissed，v1.21.0 同版本内补全。
         type:
           type: string
           description: "卡面类型（决定标签/颜色/背景；#51 视觉未拍板前用文字标签区分）：continue_plan=继续计划 / state_advice=状态建议 / content_advice=内容建议 / goal_planning=目标规划 / group_insight=群体洞察"
