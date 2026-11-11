@@ -96,8 +96,8 @@ def _impression_note(db: Session, user_id: str, group: CardGroup, action: CardAc
     return set(rows)
 
 
-def _card(type_: str, title: str, subtitle: str | None, refs: dict | None, generated: dict | None, instruction: str | None) -> dict:
-    card: dict = {"type": type_, "display": {"title": title}}
+def _card(type_: str, title: str, subtitle: str | None, refs: dict | None, generated: dict | None, instruction: str | None, fingerprint: str) -> dict:
+    card: dict = {"type": type_, "display": {"title": title}, "fingerprint": fingerprint}
     if subtitle:
         card["display"]["subtitle"] = subtitle
     payload: dict = {}
@@ -160,6 +160,7 @@ def _go_on_cards(db: Session, user_id: str, now: datetime) -> list[dict]:
                     refs={"planId": latest_plan.id, "subject": subject},
                     generated=None,
                     instruction="基于计划现状继续",
+                    fingerprint=fp,
                 ))
 
     # 2) 待续复盘：self_report 记录近 7 天行为准确率未回填
@@ -184,6 +185,7 @@ def _go_on_cards(db: Session, user_id: str, now: datetime) -> list[dict]:
                 refs={"recordId": pending_review.id, "subject": pending_review.subject},
                 generated=None,
                 instruction="引导用户回填这次学习记录的正确率",
+                fingerprint=fp,
             ))
 
     return cards[:MAX_CARDS_PER_GROUP]
@@ -235,6 +237,7 @@ def _recommend_cards(db: Session, user_id: str, now: datetime) -> list[dict]:
                 refs={"subject": snap.subject, "stateLabel": snap.state_label, "trend": snap.trend},
                 generated={"结论": snap.state_label, "建议": adj},
                 instruction="展开成具体可执行建议",
+                fingerprint=fp,
             ), fp))
 
     # 2) 内容建议（content_advice）：掌握度最低且有样本的知识点
@@ -254,6 +257,7 @@ def _recommend_cards(db: Session, user_id: str, now: datetime) -> list[dict]:
                 refs={"pointId": weak.point_id, "subject": subject},
                 generated={"依据": f"你的掌握度 {round(weak.mastery * 100)}%，是当前最薄弱的知识点之一"},
                 instruction="解释为什么 + 怎么做",
+                fingerprint=fp,
             ), fp))
 
     # 3) 目标规划（goal_planning）：活跃目标且近期无对应计划的
@@ -272,6 +276,7 @@ def _recommend_cards(db: Session, user_id: str, now: datetime) -> list[dict]:
             refs={"goalId": goal.id, "subject": goal.subject},
             generated={"差距": "目标仍在进行中，缺少近期可执行步骤"},
             instruction="规划拆解",
+            fingerprint=fp,
         ), fp))
         break  # 目标规划至多一条
 
@@ -354,6 +359,7 @@ def _insight_cards(db: Session, user_id: str, now: datetime) -> list[dict]:
             refs={"stage": stage, "metric": metric, "period": period, "p50": p50},
             generated={"poolSize": row.pool_size, "percentiles": percentiles, "period": period},
             instruction="解释这个群体数据 + 我该怎么办",
+            fingerprint=fp,
         )]
     return []
 

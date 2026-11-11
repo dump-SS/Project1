@@ -311,6 +311,54 @@ def test_group_order_and_empty_groups_omitted():
         db.close()
 
 
+def test_get_home_cards_passes_fingerprint_through_and_cooldown_consumes_it(client):
+    """PR3 第 0 项：GET 返回的每张卡都带 fingerprint，且与冷却用的 fp 一致。
+
+    走真实 HTTP GET（不是直接调 build_home_cards）——PR2 的断点正是
+    response_model=list[HomeCardGroupResult] 把未声明字段丢掉，只有过响应模型才验得到。
+    再用返回的指纹原样上报 dismissed，Go on 组应立刻被冷却挡掉（证明前端拿到的指纹可用）。
+    """
+    db = _db()
+    try:
+        _mk_user(db)
+        pid = _mk_plan_with_pending_task(db)
+        _mk_records(db, n=3)
+        gid = _mk_active_goal(db)
+        _grant_consent(db)
+        _mk_community_agg(db, pool=30)
+    finally:
+        db.close()
+
+    resp = client.get("/api/v1/me/home-cards", headers={"X-User-ID": UID})
+    assert resp.status_code == 200, resp.text
+    groups = resp.json()
+    assert [g["group"] for g in groups] == ["go_on", "recommend", "insight"]
+
+    expected = {
+        "go_on": {f"go_on:plan:{pid}"},
+        "recommend": {f"recommend:goal:{gid}"},
+        "insight": {f"insight:junior:fatigue:{home_cards.iso_week_of(NOW)}"},
+    }
+    for g in groups:
+        fps = set()
+        for card in g["cards"]:
+            assert isinstance(card.get("fingerprint"), str) and card["fingerprint"], card
+            fps.add(card["fingerprint"])
+        assert fps == expected[g["group"]], (g["group"], fps)
+
+    # 原样回填上报 dismissed → Go on 同指纹 3 天内不再出
+    go_fp = groups[0]["cards"][0]["fingerprint"]
+    posted = client.post(
+        "/api/v1/me/card-impressions",
+        json={"group": "go_on", "cardType": "continue_plan", "fingerprint": go_fp, "action": "dismissed"},
+        headers={"X-User-ID": UID},
+    )
+    assert posted.status_code == 201, posted.text
+    again = client.get("/api/v1/me/home-cards", headers={"X-User-ID": UID})
+    assert again.status_code == 200, again.text
+    assert "go_on" not in [g["group"] for g in again.json()]
+
+
 # ---------------------------------------------------------------- 事件上报端点
 
 

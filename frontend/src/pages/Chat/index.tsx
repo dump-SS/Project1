@@ -36,11 +36,18 @@ import { extractWorksheet, type WorksheetItemInput } from '@/services/worksheet'
 import { summarizeMedia } from '@/services/fMedia'
 import {
   genId,
+  refChipWireText,
   type ChatMessage,
   type ErrorItem,
   type RefChip,
   type Subject,
 } from '@/components/Chat/types'
+import HomeCardsSection from '@/components/HomeCards'
+import {
+  HOME_CARD_TYPE_LABEL,
+  type HomeCard,
+  type HomeCardGroup,
+} from '@/services/homeCards'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import { takePendingToolRef, TOOL_REF_EVENT } from '@/hooks/toolRefBus'
 import { WELCOME_MESSAGE } from './mockData'
@@ -117,6 +124,20 @@ export default function ChatPage() {
 
   const addQuoteRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '引用', text }])
+
+  /** D22：推荐卡点击 → payload 作为结构化上下文进引用块（不拼字符串）；
+   *  wire 序列化在 refChipWireText（有 payload 走 JSON 引用块）。 */
+  const addHomeCardRef = (card: HomeCard, _group: HomeCardGroup) =>
+    setRefs((prev) => [
+      ...prev,
+      {
+        id: genId('ref'),
+        label: HOME_CARD_TYPE_LABEL[card.type],
+        text: card.display.title,
+        source: 'home_card',
+        payload: (card.payload ?? null) as Record<string, unknown> | null,
+      },
+    ])
   const addFloatRef = (text: string) =>
     setRefs((prev) => [...prev, { id: genId('ref'), label: '浮窗对话', text }])
   const removeRef = (id: string) => setRefs((prev) => prev.filter((r) => r.id !== id))
@@ -203,9 +224,10 @@ export default function ChatPage() {
   }, [])
 
   // D51 主路径：引用块的正文随消息原文一起发出（让后端看到被引用内容）
+  // D22 推荐卡 chip 带 payload：以 JSON 引用块序列化（结构化上下文），不摊成散文
   const composeWithRefs = (draft: string, refsList: RefChip[]) =>
     refsList
-      .map((r) => `[${r.label}] ${r.text}`)
+      .map((r) => refChipWireText(r))
       .concat(draft.trim())
       .filter((s) => s)
       .join('\n')
@@ -652,6 +674,12 @@ export default function ChatPage() {
             onDone={() => setSel(null)}
           />
         )}
+
+        {/* D21/D28 首页推荐卡区：登录态产品首页即 /chat，挂在对话下方；不改 App.jsx 路由 */}
+        <HomeCardsSection
+          onCardClick={addHomeCardRef}
+          onStarter={(text) => void sendMessage(text)}
+        />
 
         {toast && <Toast text={toast} onDone={() => setToast(null)} />}
 

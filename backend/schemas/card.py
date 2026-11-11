@@ -71,6 +71,14 @@ class HomeCard(APIModel):
     type: CardType
     display: HomeCardDisplay
     payload: HomeCardPayload | None = None
+    fingerprint: str = Field(
+        ...,
+        description=(
+            "去重指纹（后端产卡时已算好，前端原样回填到 POST /me/card-impressions）。"
+            "PR2 遗漏：此前只用于查冷却、没透传，response_model 会把未声明字段丢掉，"
+            "前端拿不到指纹就无法上报 shown/dismissed，冷却链路断。v1.21.0 同版本内补全。"
+        ),
+    )
 
 
 class HomeCardGroupResult(APIModel):

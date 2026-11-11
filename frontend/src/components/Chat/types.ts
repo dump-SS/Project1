@@ -85,6 +85,16 @@ export interface RefChip {
   text: string
   /** 来源标记（协议字段，F 板块可用来区分来源） */
   source?: string
+  /** D22 首页推荐卡点击注入的结构化意图层（refs/generated/instruction）。
+   *  有 payload 时发送以 JSON 引用块序列化（结构化上下文），不把 payload 摊成散文拼接。 */
+  payload?: Record<string, unknown> | null
+}
+
+/** 引用块 → 发送时的 wire 文本。抽成纯函数便于单测（payload 注入不拼字符串）。
+ *  无 payload 的旧 chip 行为与从前完全一致：`[label] text`。 */
+export function refChipWireText(chip: RefChip): string {
+  if (chip.payload) return `[${chip.label}] ${JSON.stringify(chip.payload)}`
+  return `[${chip.label}] ${chip.text}`
 }
 
 /** 随手问浮窗·浮窗内单轮消息（只用于 ephemeral 请求的 floatContext，不回流主对话） */
