@@ -653,24 +653,41 @@ def list_explanations(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> ExplanationList:
-    """列表。**精品样例（isCurated=true）与动态生成严格区分**，前端靠该字段分开展示。
+    """列表。**可见口径（L128 隐私边界，与契约 GET /explanations description 一致）**：
+    「本人动态行 OR 公共精品行」——
+    - `isCurated=true` 的精品样例为**公共内容、跨用户可见**（系统账号 u_curated
+      预制入库、长期保存）；
+    - `isCurated=false` 的动态生成**严格按当前用户隔离**——任何过滤组合下都
+      不得带出其他用户的动态行；
+    - total 与 items 用同一可见性口径，前端靠 `isCurated` 分开展示两类内容。
 
-    精品样例由 `scripts/seed_curated_explanations.py` 预制入库（pilot 3–5 个），
-    长期保存；动态生成的是 `isCurated=false`。
+    精品样例由 `scripts/seed_curated_explanations.py` 预制入库（pilot 5 条），
+    幂等 upsert 按 (subject, name)，只认 `is_curated=true` 且 `u_curated`。
     """
-    q = select(ExplanationORM).where(ExplanationORM.user_id == user.user_id)
+    is_public = ExplanationORM.is_curated.is_(True)
+    is_mine_dynamic = (
+        (ExplanationORM.user_id == user.user_id) & (ExplanationORM.is_curated.is_(False))
+    )
+    visibility = is_public | is_mine_dynamic
+
+    # 过滤条件收敛成列表：items 与 total 必须同一口径（漏一个过滤 total 就虚高）
+    conditions = [visibility]
     if point_id:
-        q = q.where(ExplanationORM.point_id == point_id)
+        conditions.append(ExplanationORM.point_id == point_id)
     if subject:
-        q = q.where(ExplanationORM.subject == subject)
+        conditions.append(ExplanationORM.subject == subject)
     if is_curated is not None:
-        q = q.where(ExplanationORM.is_curated.is_(is_curated))
+        # 语义护栏：isCurated=false 时绝不能带出公共精品行，
+        # isCurated=true 时绝不能带出任何人的动态行（动态行永非精品）
+        conditions.append(ExplanationORM.is_curated.is_(is_curated))
+
     rows = db.execute(
-        q.order_by(ExplanationORM.created_at.desc()).limit(limit).offset(offset)
+        select(ExplanationORM).where(*conditions)
+        .order_by(ExplanationORM.created_at.desc()).limit(limit).offset(offset)
     ).scalars().all()
     total = db.execute(
-        select(ExplanationORM.id).where(ExplanationORM.user_id == user.user_id)
-    ).all()
+        select(ExplanationORM.id).where(*conditions)
+    ).scalars().all()
     return ExplanationList(
         items=[Explanation.model_validate(_expl_to_item(r)) for r in rows],
         pagination={"total": len(total), "limit": limit, "offset": offset},

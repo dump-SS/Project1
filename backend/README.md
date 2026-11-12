@@ -75,7 +75,7 @@ backend/
 │   ├── assessment.py        AssessmentSnapshot
 │   ├── recommendation.py    Recommendation
 │   └── summary.py           Summary
-├── schemas/                 Pydantic v2 模型（18 个文件，契约 193 schema，严格对齐 openapi.yaml v1.21.0）
+├── schemas/                 Pydantic v2 模型（22 个文件，契约 194 schema，严格对齐 openapi.yaml v1.22.0）
 │   ├── enums.py             Subject / StateLabel / ...
 │   ├── common.py            Error / Pagination / GenerationStatus / RatingFeedback
 │   ├── user.py              User / UserProfilePut / Settings / SettingsUpdate / GuardianAuthorizationRequest
@@ -86,7 +86,7 @@ backend/
 │   ├── recommendation.py    Recommendation / RecommendationCreate
 │   ├── summary.py           Summary / SummaryContent
 │   └── chat.py              ChatMessageRequest / ChatReply / ChatCard / ChatGreeting / FloatTurn
-├── routes/                  FastAPI 路由（24 个文件 = 23 个 router + deps.py；main.py 挂 24 个 router 对象，契约 80 paths / 111 operations / 18 tags）
+├── routes/                  FastAPI 路由（27 个文件 = 26 个 router 文件 + deps.py；main.py 挂 25 个 router 对象——community.py 挂两个对象），契约 81 paths / 112 operations / 19 tags）
 │   ├── health.py            /health（带 DB 探活）
 │   ├── user.py              /me, /me/settings, /me/guardian-authorization
 │   ├── goal.py              /goals
