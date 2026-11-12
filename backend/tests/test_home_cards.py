@@ -311,13 +311,18 @@ def test_group_order_and_empty_groups_omitted():
         db.close()
 
 
-def test_get_home_cards_passes_fingerprint_through_and_cooldown_consumes_it(client):
+def test_get_home_cards_passes_fingerprint_through_and_cooldown_consumes_it(client, monkeypatch):
     """PR3 第 0 项：GET 返回的每张卡都带 fingerprint，且与冷却用的 fp 一致。
 
     走真实 HTTP GET（不是直接调 build_home_cards）——PR2 的断点正是
     response_model=list[HomeCardGroupResult] 把未声明字段丢掉，只有过响应模型才验得到。
     再用返回的指纹原样上报 dismissed，Go on 组应立刻被冷却挡掉（证明前端拿到的指纹可用）。
+
+    ⚠️ 本例走真实端点，端点内部 build_home_cards() 默认用 utcnow()。夹具时间固定在 NOW(2026-11-10)，
+    若不冻结端点时钟，plan_date >= today-1 天会随真实日期把计划过滤掉（11-12 起 Go on 组空、
+    断言失败），且跨周后 iso_week_of(NOW) 与洞察组指纹也不再一致。冻结到 NOW 与全文件策略一致。
     """
+    monkeypatch.setattr(home_cards, "utcnow", lambda: NOW)
     db = _db()
     try:
         _mk_user(db)
