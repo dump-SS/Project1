@@ -75,7 +75,7 @@ backend/
 │   ├── assessment.py        AssessmentSnapshot
 │   ├── recommendation.py    Recommendation
 │   └── summary.py           Summary
-├── schemas/                 Pydantic v2 模型（22 个文件，契约 194 schema，严格对齐 openapi.yaml v1.22.0）
+├── schemas/                 Pydantic v2 模型（22 个文件，契约 198 schema，严格对齐 openapi.yaml v1.23.0）
 │   ├── enums.py             Subject / StateLabel / ...
 │   ├── common.py            Error / Pagination / GenerationStatus / RatingFeedback
 │   ├── user.py              User / UserProfilePut / Settings / SettingsUpdate / GuardianAuthorizationRequest
