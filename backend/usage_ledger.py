@@ -162,36 +162,49 @@ def record_usage(context: dict | None, model: str, tokens_in: int, tokens_out: i
         feature_tier = "embedded"
     reasoning_tier = ctx.get("reasoning_tier")  # quick/standard/deep 或 None
 
-    try:
-        from database import SessionLocal
-        from models.governance import UsageLedger
+    # D13（矩阵）：主 session 在慢 LLM 调用窗口可能持 SQLite 写锁——独立短事务
+    # 的 INSERT 撞锁 busy 5s 后 ROLLBACK、真实用量行整行丢失（估算兜底行反而
+    # 幸存，成本口径失真）。chat_engine 已在 generate 前落盘主 session 挂起写；
+    # 此处再加**失败重试一次**兜底。失败仍 warning 上浮（不静默）。
+    import time as _time
 
-        db = SessionLocal()
+    last_err: Exception | None = None
+    for attempt in range(2):
         try:
-            db.add(UsageLedger(
-                id=f"ul_{uuid.uuid4().hex[:12]}",
-                user_id=user_id,
-                feature_tier=feature_tier,
-                reasoning_tier=reasoning_tier,
-                model=model or "unknown",
-                tokens_in=int(tokens_in or 0),
-                tokens_out=int(tokens_out or 0),
-                cost=compute_cost(model or "", int(tokens_in or 0), int(tokens_out or 0)),
-            ))
-            db.commit()
-        finally:
-            db.close()
-        # 🔴 置位「本次调用已记真实行」。用线程局部而不是全局计数：
-        #    FastAPI 是多线程，一个全局计数器会被并发请求互相污染，
-        #    导致某个请求误以为「我记过了」而漏掉该记的行。
-        _flag().recorded = True
-    except Exception as e:  # noqa: BLE001 — 计量失败绝不阻断业务
-        logger.warning(
-            "[usage_ledger] 写入失败（已忽略，不阻断主流程）：user_id=%s, model=%s, "
-            "tokens_in=%s, tokens_out=%s, error=%s",
-            user_id,
-            model,
-            tokens_in,
-            tokens_out,
-            e,
-        )
+            from database import SessionLocal
+            from models.governance import UsageLedger
+
+            db = SessionLocal()
+            try:
+                db.add(UsageLedger(
+                    id=f"ul_{uuid.uuid4().hex[:12]}",
+                    user_id=user_id,
+                    feature_tier=feature_tier,
+                    reasoning_tier=reasoning_tier,
+                    model=model or "unknown",
+                    tokens_in=int(tokens_in or 0),
+                    tokens_out=int(tokens_out or 0),
+                    cost=compute_cost(model or "", int(tokens_in or 0), int(tokens_out or 0)),
+                ))
+                db.commit()
+            finally:
+                db.close()
+            # 🔴 置位「本次调用已记真实行」。用线程局部而不是全局计数：
+            #    FastAPI 是多线程，一个全局计数器会被并发请求互相污染，
+            #    导致某个请求误以为「我记过了」而漏掉该记的行。
+            _flag().recorded = True
+            return  # 落库成功
+        except Exception as e:  # noqa: BLE001 — 计量失败绝不阻断业务
+            last_err = e
+            if attempt == 0:
+                _time.sleep(0.3)  # 短退避后重试一次
+
+    logger.warning(
+        "[usage_ledger] 写入失败（重试 1 次后仍失败，已忽略，不阻断主流程）：user_id=%s, model=%s, "
+        "tokens_in=%s, tokens_out=%s, error=%s",
+        user_id,
+        model,
+        tokens_in,
+        tokens_out,
+        last_err,
+    )
