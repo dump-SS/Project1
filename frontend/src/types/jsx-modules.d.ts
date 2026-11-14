@@ -11,3 +11,16 @@ declare module '*/context/ThemeContext.jsx' {
     setTheme: (mode: ThemeMode) => void
   }
 }
+
+/** 消息级报错按钮（G 板块可复用组件，L175 挂进 Chat AI 气泡）。 */
+declare module '*/components/ErrorReportButton' {
+  import type { ComponentType } from 'react'
+  export interface ErrorReportButtonProps {
+    messageId?: string
+    intent?: string
+    context?: Record<string, unknown>
+    label?: string
+  }
+  const ErrorReportButton: ComponentType<ErrorReportButtonProps>
+  export default ErrorReportButton
+}

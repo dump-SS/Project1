@@ -2,10 +2,13 @@
  * 消息气泡：用户右对齐（纯色蓝），AI 左对齐（液态玻璃 + markdown 渲染）。
  * AI 气泡带「收藏」按钮（§4.8.1 第 797 行：任何模型输出都可一键收藏）——
  * 收藏存的是 markdown 快照 + 保存时算好的渲染↔原文映射（方案 C）。
+ * AI 气泡另挂「报错」按钮（L175 只做一半：用户主动报错，#46 第②处入口）——
+ * 只挂 assistant 消息；不接任何违规检测/自动封禁（Skyer 2026-11-15 推迟到 beta/1.0）。
  */
 
 import ReactMarkdown from 'react-markdown'
 import ChatCards from './ChatCards'
+import ErrorReportButton from '@/components/ErrorReportButton'
 import { formatTime, type ChatMessage } from './types'
 
 interface MessageBubbleProps {
@@ -42,6 +45,10 @@ export default function MessageBubble({ message, onCollect }: MessageBubbleProps
             >
               收藏
             </button>
+          )}
+          {!isUser && (
+            // ChatMessage 无 intent 字段 → 省略不硬编；context 只放结构化角色信息
+            <ErrorReportButton messageId={message.id} context={{ role: 'assistant' }} />
           )}
           <span className="chat-bubble-time">{formatTime(message.createdAt)}</span>
         </div>
