@@ -903,6 +903,15 @@ def handle_message(
             "[CHAT] 本轮附带图片 user=%s mime=%s bytes=%d（随本轮送模型，属用户内容出域）",
             user_id, mime, len(raw),
         )
+    # 🔴 D13：generate（真实 LLM 调用可达 25s~180s）之前，把主 session 的挂起写
+    # 全部落盘。否则 _get_or_create_session 的 flush（INSERT/UPDATE）会让本请求
+    # session 整个慢调用窗口都持有 SQLite RESERVED 写锁——辅助写（ai_call_logs /
+    # usage_ledger，各自独立 SessionLocal）的 INSERT 撞锁，busy timeout 5s 后
+    # ROLLBACK，留痕与真实用量双双丢失（矩阵 D13 / E2E §2.2 实证）。
+    # commit 后 generate 窗口零持锁；若 generate 失败，用户消息已在库（本轮
+    # 兜底文案随后照常落库），行为无回退。
+    db.commit()
+
     # 清一次「已记真实行」标记：本轮 generate 若成功写了真实用量行，标记会置位，
     # 之后就不再补 len//4 估算行（见本函数末尾）。
     _usage_begin_call()
@@ -1040,6 +1049,10 @@ def handle_ephemeral(
     user_prompt = "\n".join(lines)
 
     provider = get_provider()
+    # 🔴 D13 同款（随手问路径）：generate 前落盘挂起写（session upsert 的 flush），
+    # 慢调用窗口不持 SQLite 写锁——辅助写（ai_call_logs / usage_ledger 独立
+    # session）不再撞锁丢失（L174 只修了 user_id，本条修的是整行被回滚）。
+    db.commit()
     # L174：generate 前清「已记真实行」标记 + context 带 user_id——真实调用落
     # usage_ledger 数值流水且可追溯到用户（pilot 铁律 5），与主 Chat 同一口径；
     # 失败/Mock 无真实行时由下方估算兜底补（不重复记账，见主 Chat 同款注释）。

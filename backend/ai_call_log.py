@@ -26,33 +26,46 @@ def _persist(
     cost_units: float | None = None,
     error_msg: str | None = None,
 ) -> None:
-    try:
-        from database import SessionLocal
-        from models.ai_call_log import AICallLog
+    # D13（矩阵）：主 session 在慢 LLM 调用窗口可能持 SQLite 写锁——独立短事务
+    # 的 INSERT 撞锁 busy 5s 后 ROLLBACK、整行丢失。generate 前已 commit 主
+    # session（chat_engine），此处再加**失败重试一次**兜底：即便撞上残余竞争，
+    # 第二次也能落（「账一定记上，而不是看起来没报错」）。失败仍 warning 上浮。
+    import time as _time
 
-        db = SessionLocal()
+    last_err: Exception | None = None
+    for attempt in range(2):
         try:
-            db.add(AICallLog(
-                id=f"acl_{uuid.uuid4().hex[:12]}",
-                function_type=function_type,
-                data_class=data_class,
-                input_digest=(input_digest[:256] if input_digest else None),
-                latency_ms=latency_ms,
-                success=success,
-                egress_blocked=egress_blocked,
-                cost_units=cost_units,
-                error_msg=(error_msg[:256] if error_msg else None),
-            ))
-            db.commit()
-        finally:
-            db.close()
-    except Exception as e:  # noqa: BLE001 — 留痕失败绝不阻断业务
-        logger.warning(
-            "[AICallLog] 写入失败（已忽略，不阻断主流程）：function_type=%s, success=%s, error=%s",
-            function_type,
-            success,
-            e,
-        )
+            from database import SessionLocal
+            from models.ai_call_log import AICallLog
+
+            db = SessionLocal()
+            try:
+                db.add(AICallLog(
+                    id=f"acl_{uuid.uuid4().hex[:12]}",
+                    function_type=function_type,
+                    data_class=data_class,
+                    input_digest=(input_digest[:256] if input_digest else None),
+                    latency_ms=latency_ms,
+                    success=success,
+                    egress_blocked=egress_blocked,
+                    cost_units=cost_units,
+                    error_msg=(error_msg[:256] if error_msg else None),
+                ))
+                db.commit()
+            finally:
+                db.close()
+            return  # 落库成功
+        except Exception as e:  # noqa: BLE001 — 留痕失败绝不阻断业务
+            last_err = e
+            if attempt == 0:
+                _time.sleep(0.3)  # 短退避后重试一次
+
+    logger.warning(
+        "[AICallLog] 写入失败（重试 1 次后仍失败，已忽略，不阻断主流程）：function_type=%s, success=%s, error=%s",
+        function_type,
+        success,
+        last_err,
+    )
 
 
 def log_call(
