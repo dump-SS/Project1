@@ -20,7 +20,7 @@
  * @see docs/refactor-module-contracts.md §3.1
  */
 
-import { apiGetBlob, apiPost, apiPostBinary } from './http';
+import { apiDelete, apiGetBlob, apiPost, apiPostBinary } from './http';
 
 /** 与契约 ChatCard 同构的引用块（F 只用到其中两个 type）。 */
 export interface FCard {
@@ -144,4 +144,48 @@ export async function summarizeMedia(
   signal?: AbortSignal,
 ): Promise<MediaSummaryResult> {
   return apiPost<MediaSummaryResult>(`/f/media/${key}/summary`, undefined, signal);
+}
+
+/* ============ 删除权接线（契约 v1.11.0，「撤回即删除」） ============ */
+
+/**
+ * 删除 R2 私有桶里的这个对象（用户在 Chat 清掉面板图片时调用）。
+ *
+ * key **原样拼接、不做 encodeURIComponent**：后端路由是 `/{key:path}`
+ * （routes/f_media.py），key 形如 `user/x/a.png`，斜杠是路径的一部分；
+ * 编码会把斜杠变成 %2F 删错对象。与 fetchMedia / summarizeMedia 的口径一致。
+ *
+ * 幂等：契约明写重复调用一律 204、不返 404。
+ */
+export function deleteMedia(key: string, signal?: AbortSignal): Promise<void> {
+  return apiDelete(`/f/media/${key}`, signal);
+}
+
+export interface ClearUploadedMediaDeps {
+  deleteMedia: (key: string) => Promise<void>;
+  /** 撤掉外层引用块（既有行为，保持不变） */
+  onClear?: (key: string) => void;
+  /** 删除失败必须可见（warning 日志 / 面板既有 alert），不许静默吞掉 */
+  onFail: (message: string) => void;
+}
+
+/**
+ * 「清除」的删除接线：**同步**撤引用与清 UI 由调用方先做，这里只负责异步删桶，
+ * 不阻塞 UI；无 key（没上传过）不调 DELETE；404 视为幂等成功不报错。
+ * 抽成纯函数便于 node 单测（组件不引 jsdom 的项目惯例）。
+ *
+ * 边界：只删本用户本次上传的这一个 key；不碰收藏快照（D46 存快照不存引用，
+ * 删原图不影响收藏可读）；不做会话卸载/定时自动删除（Skyer 已否定「关会话即失效」）。
+ */
+export function clearUploadedMedia(
+  key: string | undefined,
+  deps: ClearUploadedMediaDeps,
+): void {
+  if (key) deps.onClear?.(key);
+  if (!key) return;
+  void deps.deleteMedia(key).catch((err: unknown) => {
+    const status = (err as { status?: number } | null)?.status;
+    if (status === 404) return; // 对象已不在 = 删除目的已达成（幂等）
+    deps.onFail(err instanceof Error ? `图片删除失败：${err.message}` : '图片删除失败');
+  });
 }
