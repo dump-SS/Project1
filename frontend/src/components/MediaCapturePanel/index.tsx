@@ -21,6 +21,8 @@ import type { ChangeEvent } from 'react'
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_UPLOAD_BYTES,
+  clearUploadedMedia,
+  deleteMedia,
   fetchMedia,
   uploadMedia,
   type FCard,
@@ -92,11 +94,20 @@ export default function MediaCapturePanel({
 
   const clearAll = useCallback(() => {
     const key = result?.key
+    // UI 立刻清空，不等网络（删除异步进行）
     releasePreview()
     setResult(null)
     setPhase('idle')
     setTip(null)
-    if (key) onClear?.(key)
+    // 「撤回即删除」：撤引用块的同时真删 R2 字节；失败可见（warn + 既有 alert），不静默
+    clearUploadedMedia(key, {
+      deleteMedia,
+      onClear,
+      onFail: (message) => {
+        console.warn('[media-delete]', message)
+        setTip(message)
+      },
+    })
   }, [onClear, releasePreview, result])
 
   /** 取回预览：后端代理读 R2，而不是复用本地 file:// */
