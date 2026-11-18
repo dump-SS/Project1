@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     # 板块二自动周复盘定时任务（v2.2-4）：单机 asyncio 定时器，失败不阻断启动
     scheduler_task = None
     community_task = None
+    ttl_task = None
     try:
         from jobs.weekly_knowledge_summary import start_weekly_summary_scheduler
         scheduler_task = start_weekly_summary_scheduler()
@@ -47,6 +48,15 @@ async def lifespan(app: FastAPI):
     try:
         from jobs.community_aggregate import start_community_scheduler
         community_task = start_community_scheduler()
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Chat 原文 TTL 清除（D45，每天 30 天到期物理删除）：**之前只写了 job 没挂调度**
+    # （2026-11-18 由 pioneer-dlt 写脚本时对照代码发现），也就是说「30 天物理删除」
+    # 一直没真跑过。这里补上；失败同样不阻断启动。
+    try:
+        from jobs.chat_ttl_cleanup import start_chat_ttl_cleanup_scheduler
+        ttl_task = start_chat_ttl_cleanup_scheduler()
     except Exception:  # noqa: BLE001
         pass
 
@@ -69,6 +79,8 @@ async def lifespan(app: FastAPI):
         scheduler_task.cancel()
     if community_task is not None:
         community_task.cancel()
+    if ttl_task is not None:
+        ttl_task.cancel()
     engine.dispose()
 
 
