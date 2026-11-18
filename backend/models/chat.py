@@ -166,6 +166,10 @@ class ChatJob(Base):
     # ---- 入参快照（worker 不依赖请求上下文，所以必须存下来）----
     content: Mapped[str] = mapped_column(Text, nullable=False)
     media_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    # D22 结构化引用快照（契约 v1.24.0 的 structuredPayload）：JSON 文本，worker
+    # 解析后注入 prompt。可空 = 无结构化引用（旧客户端 / 普通消息）；解析失败按
+    # 无引用处理（chat_jobs worker 里 warning，不让用户任务 failed）。
+    structured_payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ---- 结果（done 时填；其余状态为 NULL）----
     reply: Mapped[str | None] = mapped_column(Text, nullable=True)

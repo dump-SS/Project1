@@ -205,6 +205,24 @@ def run_chat_job(job_id: str) -> None:
             media = _load_media_for_chat(job.media_key, job.user_id)
 
             from chat_engine import handle_message
+            from schemas.chat import ChatStructuredPayload
+
+            # 结构化引用快照（PR2）：解析失败 / 列为空一律按无引用处理并 warning
+            # —— worker 吞异常会把用户任务直接推成 failed，这里不让坏列杀死任务。
+            structured = None
+            raw_structured = getattr(job, "structured_payload_json", None)
+            if raw_structured:
+                try:
+                    import json as _json
+
+                    structured = ChatStructuredPayload.model_validate(
+                        _json.loads(raw_structured)
+                    )
+                except Exception as e:  # noqa: BLE001 — 坏列按无引用，任务照常
+                    logger.warning(
+                        "[CHAT-JOB] structured_payload_json 解析失败（按无引用处理）job=%s: %s",
+                        job.id, e,
+                    )
 
             reply = handle_message(
                 db,
@@ -213,6 +231,7 @@ def run_chat_job(job_id: str) -> None:
                 None,
                 media_key=job.media_key,
                 media=media,
+                structured=structured,
             )
 
             job.reply = reply.reply

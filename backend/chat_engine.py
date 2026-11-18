@@ -32,7 +32,7 @@ from models.chat import ChatRawMessage, ChatSession, TopicSummary, UserProfile
 from models.governance import UsageLedger
 from privacy_filter import sanitize_text
 from safety_filter import CRISIS_RESPONSE, check as safety_check, crisis_check
-from schemas.chat import ChatCard, ChatReply
+from schemas.chat import ChatCard, ChatReply, ChatStructuredPayload
 from usage_ledger import begin_call as _usage_begin_call
 from usage_ledger import recorded_real_usage
 
@@ -312,13 +312,40 @@ def _load_recent_messages(db: Session, user_id: str, session_id: str) -> list[tu
     return [(r.role, r.content) for r in reversed(rows)]
 
 
-def _build_user_prompt(recent: list[tuple[str, str]], content: str, intent: str | None) -> str:
+def _build_user_prompt(
+    recent: list[tuple[str, str]],
+    content: str,
+    intent: str | None,
+    structured: "ChatStructuredPayload | None" = None,
+) -> str:
     lines: list[str] = []
     if recent:
         lines.append("# 最近这几轮对话（仅用于衔接上下文，不是历史记录，不要主动复述给用户）")
         for role, text in recent:
             who = "用户" if role == "user" else "助手"
             lines.append(f"{who}：{text}")
+
+    # 结构化引用段（D22 卡片点击注入，PR2 / 口径卡三决策 ①②）：
+    # 系统提供的实体引用以**独立段落**进 prompt，绝不塞回 content / recent——
+    # content 与历史轮次逐字不变（口径卡决策 ②「无兼容层」）。
+    # 三键全空（None / 空 dict / 空串）→ 整段不出现；序列化 sort_keys + 不转义
+    # 非 ASCII，保证输出确定、测试可逐字断言。
+    structured_parts: list[str] = []
+    if structured is not None:
+        if structured.instruction and structured.instruction.strip():
+            structured_parts.append(f"instruction: {structured.instruction.strip()}")
+        if structured.refs:
+            structured_parts.append(
+                "refs: " + json.dumps(structured.refs, ensure_ascii=False, sort_keys=True)
+            )
+        if structured.generated:
+            structured_parts.append(
+                "generated: " + json.dumps(structured.generated, ensure_ascii=False, sort_keys=True)
+            )
+    if structured_parts:
+        lines.append("# 本轮结构化引用（系统提供的实体引用，不是用户原话；不要原样复述给用户看）")
+        lines.extend(structured_parts)
+
     lines.append("# 本轮消息")
     lines.append(content)
     if intent:
@@ -814,6 +841,7 @@ def handle_message(
     db: Session, user_id: str, content: str, explicit_intent: str | None = None,
     media_key: str | None = None,
     media: tuple[bytes, str] | None = None,
+    structured: ChatStructuredPayload | None = None,
 ) -> ChatReply:
     """处理一条用户消息，返回 ChatReply。
 
@@ -856,7 +884,7 @@ def handle_message(
     recent = _load_recent_messages(db, user_id, session.id)
 
     system = _build_system_prompt(profile_rows, stack)
-    user_prompt = _build_user_prompt(recent, safe_content, intent)
+    user_prompt = _build_user_prompt(recent, safe_content, intent, structured)
 
     # 目标/任务意图：注入该学生的目标清单（含归档），让模型删除/更新时能引用真实标题
     if intent in ("task", "goal"):
