@@ -292,6 +292,8 @@ def test_chat_jobs_table_created_at_head(db_at_head: pathlib.Path):
             "reply", "intent", "crisis", "cards_json", "session_id",
             "context_stack_json", "error_code", "error_message",
             "created_at", "completed_at",
+            # 结构化 refs PR2（a7c3e91b2d4f）：SQLite ADD COLUMN 追加到表尾
+            "structured_payload_json",
         ], cols
         idx = {
             r[0]
