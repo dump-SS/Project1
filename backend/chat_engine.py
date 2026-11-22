@@ -331,18 +331,31 @@ def _build_user_prompt(
     # 三键全空（None / 空 dict / 空串）→ 整段不出现；序列化 sort_keys + 不转义
     # 非 ASCII，保证输出确定、测试可逐字断言。
     structured_parts: list[str] = []
+    present_keys: list[str] = []
     if structured is not None:
         if structured.instruction and structured.instruction.strip():
             structured_parts.append(f"instruction: {structured.instruction.strip()}")
+            present_keys.append("instruction")
         if structured.refs:
             structured_parts.append(
                 "refs: " + json.dumps(structured.refs, ensure_ascii=False, sort_keys=True)
             )
+            present_keys.append("refs")
         if structured.generated:
             structured_parts.append(
                 "generated: " + json.dumps(structured.generated, ensure_ascii=False, sort_keys=True)
             )
+            present_keys.append("generated")
     if structured_parts:
+        # 可见性（派单 §5）：只记「哪些键在场」+ 两个 dict 的**条目数**，绝不记值。
+        # generated 是从用户数据派生的文本（口径卡留口子），refs 里也可能带可识别
+        # 信息；日志要能回溯「本轮有没有带结构化引用」，不是把引用内容再复制一份。
+        logger.info(
+            "[CHAT] 结构化引用 keys=%s refs_entities=%d generated_entries=%d",
+            present_keys,
+            len(structured.refs) if structured and structured.refs else 0,
+            len(structured.generated) if structured and structured.generated else 0,
+        )
         lines.append("# 本轮结构化引用（系统提供的实体引用，不是用户原话；不要原样复述给用户看）")
         lines.extend(structured_parts)
 

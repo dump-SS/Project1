@@ -261,16 +261,57 @@ def test_ephemeral_with_structured_payload_rejected(client):
 
 
 def test_chat_message_request_contract_guard_extended():
-    """派单 §6-7：ChatMessageRequest 的 alias 也被钉死（此前只守 MediaJob）。"""
-    spec_props = {
-        "content", "intent", "ephemeral", "floatContext", "mediaKey", "structuredPayload",
-    }
-    model_props = set(
-        ChatMessageRequest.model_json_schema(by_alias=True)["properties"]
-    )
-    assert model_props == spec_props
+    """派单 §6-7：两个 Request 的字段名都必须与契约 properties 完全一致。
 
-    media_props = set(
-        ChatMediaJobRequest.model_json_schema(by_alias=True)["properties"]
+    ⚠️ 必须读 `openapi.yaml`，不能把期望集合硬编码在测试里——硬编码守的是
+    「v1.24.0 的形状」，契约一改测试不会跟着走，而我们要守的是「契约与实现一致」。
+    写法与 `test_chat_async.py::test_schema_field_names_match_contract_exactly` 对齐
+    （`by_alias=True` 才是真实上线的序列化口径）。
+    """
+    from pathlib import Path
+
+    import yaml
+
+    spec = yaml.safe_load(
+        (Path(__file__).resolve().parents[2] / "docs" / "openapi.yaml").read_text(
+            encoding="utf-8"
+        )
     )
-    assert "structuredPayload" in media_props
+    for name, model in (
+        ("ChatMessageRequest", ChatMessageRequest),
+        ("ChatMediaJobRequest", ChatMediaJobRequest),
+    ):
+        contract_props = set(spec["components"]["schemas"][name]["properties"])
+        model_props = set(model.model_json_schema(by_alias=True)["properties"])
+        assert model_props == contract_props, (
+            f"{name} 字段名与契约不一致\n"
+            f"  契约有 / 模型无: {sorted(contract_props - model_props)}\n"
+            f"  模型有 / 契约无: {sorted(model_props - contract_props)}"
+        )
+
+
+def test_structured_visibility_log_has_keys_not_values(caplog):
+    """派单 §5：日志看得出「本轮带了结构化引用」，但不能把内容复制进日志。
+
+    PR2 首轮回执称「可见性只记键名不打值」，实际一行日志都没有——把这条钉成
+    断言，防的是「实现了但没留痕」这种静默缺口（同 chat_ttl_cleanup 那个坑）。
+    """
+    import logging
+
+    from schemas.chat import ChatStructuredPayload
+
+    structured = ChatStructuredPayload(
+        refs={"planId": "secret-plan-id-123"},
+        generated={"结论": "派生文本-不该进日志"},
+        instruction="基于计划现状继续",
+    )
+    with caplog.at_level(logging.INFO, logger="chat_engine"):
+        chat_engine._build_user_prompt([], "题目内容", None, structured)
+
+    msgs = [r.getMessage() for r in caplog.records if "结构化引用" in r.getMessage()]
+    assert msgs, "本轮带了结构化引用，却没有可见性日志"
+    log_text = "\n".join(msgs)
+    assert "keys=" in log_text and "refs" in log_text and "generated" in log_text
+    assert "secret-plan-id-123" not in log_text   # refs 的值不进日志
+    assert "派生文本-不该进日志" not in log_text  # generated 的值不进日志
+    assert "基于计划现状继续" not in log_text     # instruction 的值不进日志
