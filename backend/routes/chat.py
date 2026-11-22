@@ -26,6 +26,7 @@ POST /chat —— 发一条消息，返回真实回复 + 意图 + 可选卡片 +
 """
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -114,7 +115,18 @@ def send_message(
         media = _load_media_for_chat(payload.media_key, _user.user_id)
 
     if payload.ephemeral:
-        # 随手问浮窗（受限 Chat 基础问答，D51）：floatContext 携带浮窗内前几轮
+        # 随手问浮窗（受限 Chat 基础问答，D51）：floatContext 携带浮窗内前几轮。
+        # 结构化引用显式 400：浮窗是受限基础问答、没有 chip UI——静默丢掉引用
+        # 正是本任务要消灭的「用户以为 AI 知道，其实不知道」（PR2 派单 §4）。
+        if payload.structured_payload is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "VALIDATION_FAILED",
+                    "message": "随手问浮窗暂不支持结构化引用，请在主对话发送",
+                    "field": "structuredPayload",
+                },
+            )
         return handle_ephemeral(
             db,
             _user.user_id,
@@ -128,6 +140,7 @@ def send_message(
         payload.intent,
         media_key=payload.media_key,
         media=media,
+        structured=payload.structured_payload,
     )
 
 
@@ -183,6 +196,14 @@ def send_media_message_async(
         status="queued",
         content=payload.content,
         media_key=payload.media_key,
+        structured_payload_json=(
+            json.dumps(
+                payload.structured_payload.model_dump(mode="json"),
+                ensure_ascii=False,
+            )
+            if payload.structured_payload is not None
+            else None
+        ),
     )
     db.add(job)
     db.commit()

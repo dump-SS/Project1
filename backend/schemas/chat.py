@@ -15,6 +15,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from .common import APIModel
 
 
+class ChatStructuredPayload(APIModel):
+    """D22 卡片点击注入的结构化 payload（PR1 契约 v1.24.0，口径卡三决策 ①）。
+
+    三键全部可选、宽松 dict（契约 additionalProperties: true，与 ChatCard.payload
+    同口径，不按 type 强约束）。三键全空时前端/后端都按「没有结构化引用」处理。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    refs: dict | None = Field(None, description="实体引用（planId / pointIds / subject / goalId / 维度分位等，随 chip 类型变化）")
+    generated: dict | None = Field(None, description="已生成摘要（建议摘要 / 依据等，从用户数据派生的文本）")
+    instruction: str | None = Field(None, description="给模型的任务指令（如「基于计划现状继续」）")
+
+
 class ChatMessageRequest(APIModel):
     """用户发送的一条消息。intent 为可选的显式意图（按钮通道）。"""
 
@@ -35,6 +49,15 @@ class ChatMessageRequest(APIModel):
         default_factory=list,
         alias="floatContext",
         description="随手问浮窗内前几轮输入输出（多轮追问用），role 为 user / assistant",
+    )
+    structured_payload: ChatStructuredPayload | None = Field(
+        None,
+        alias="structuredPayload",
+        description=(
+            "D22 卡片点击注入的结构化引用（refs/generated/instruction 三键，全可选）。"
+            "系统按独立段落注入 prompt，绝不塞回 content 字符串。"
+            "随手问（ephemeral）不支持本字段——显式 400，不做静默丢弃。"
+        ),
     )
     media_key: str | None = Field(
         None,
@@ -138,6 +161,11 @@ class ChatMediaJobRequest(APIModel):
     )
 
     content: str = Field(..., min_length=1, max_length=4000, description="用户消息正文")
+    structured_payload: ChatStructuredPayload | None = Field(
+        None,
+        alias="structuredPayload",
+        description="同 ChatMessageRequest：D22 卡片点击注入的结构化引用（可选）",
+    )
     media_key: str = Field(
         ...,
         alias="mediaKey",
