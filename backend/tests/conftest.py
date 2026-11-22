@@ -55,6 +55,34 @@ os.environ["KB_VECTOR_DIR"] = ""
 os.environ["ALLOW_INSECURE_USER_HEADER"] = "true"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_schema_current():
+    """一次性「模型列 ⊆ 物理库列」对账，缺任何列就 drop_all 让 _reset_db 重建。
+
+    上面 _reset_db 里那一串探针是历史案例的逐个补丁；`create_all` 是
+    IF NOT EXISTS、**不会 ALTER**，所以只要 ORM 新增任意一列而物理 test.db 还是
+    老文件，运行期就会报 `no such column`。2026-11-22 实锤：结构化 refs PR2 给
+    chat_jobs 加了 structured_payload_json，干净 worktree 上后端全量 856 全绿，
+    而 main 工作区（老 test.db）同一套代码 17 红——差异只在物理库文件。
+
+    这里按 metadata 全表做子集检查，**整个 pytest 会话只跑一次**（不给每个用例
+    加几十次 PRAGMA），覆盖以后所有加列；探针们保留作历史背景，不必再逐列补。
+    """
+    from sqlalchemy import inspect
+
+    from database import engine
+    from models import Base  # noqa: F401（触发 ORM 注册）
+
+    insp = inspect(engine)
+    for table in Base.metadata.tables.values():
+        if not insp.has_table(table.name):
+            continue
+        db_cols = {c["name"] for c in insp.get_columns(table.name)}
+        if not {c.name for c in table.columns}.issubset(db_cols):
+            Base.metadata.drop_all(bind=engine)
+            return
+
+
 @pytest.fixture(autouse=True)
 def _reset_db():
     """每个测试用例前清空所有业务表，保证用例间数据隔离。
