@@ -10,6 +10,7 @@
  */
 
 import type { ApiErrorBody, Pagination } from '@/types/api';
+import { EGRESS_CONFIRM_REQUIRED, requestEgressConfirm } from './egressConfirm';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
@@ -77,6 +78,36 @@ async function throwIfNotOk(response: Response): Promise<void> {
   throw new ApiError(response.status, code, message, field);
 }
 
+/**
+ * 带图出域的一次性确认（A1，2026-11-27 Skyer 复核）。
+ *
+ * `knowledgeAiEgressEnabled` 关闭时，后端对带图入口返回 **428
+ * `EGRESS_CONFIRM_REQUIRED`**。这里捕获后交给全局弹窗
+ * （`services/egressConfirm.ts` + `<EgressConfirmDialog />`）；用户点「继续」
+ * 则带 `X-Egress-Confirm: 1` 重试**一次**——只重试一次，避免 428 循环。
+ *
+ * 只有 `apiPost` / `apiPostBinary` 用它：428 只可能由带图请求触发，
+ * GET / PATCH / DELETE 不该被卷进来。
+ */
+async function fetchWithEgressConfirm(url: string, init: RequestInit): Promise<Response> {
+  const first = await fetch(url, init);
+  if (first.status !== 428) return first;
+
+  const body = (await first.clone().json().catch(() => null)) as
+    | { error?: { code?: string } }
+    | null;
+  if (body?.error?.code !== EGRESS_CONFIRM_REQUIRED) return first;
+
+  const ok = await requestEgressConfirm();
+  if (!ok) {
+    throw new ApiError(428, EGRESS_CONFIRM_REQUIRED, '已取消');
+  }
+
+  const retryHeaders = new Headers(init.headers);
+  retryHeaders.set('X-Egress-Confirm', '1');
+  return fetch(url, { ...init, headers: retryHeaders });
+}
+
 type QueryValue = string | number | boolean | undefined | null;
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
@@ -99,7 +130,7 @@ export async function apiPost<T>(
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithEgressConfirm(buildUrl(path), {
     method: 'POST',
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -280,7 +311,7 @@ export async function apiPostBinary<T>(
   // Content-Type 用**真实类型**：后端会拿它和文件魔数交叉校验，不一致直接 400。
   const headers: HeadersInit = { 'Content-Type': contentType, Accept: 'application/json' };
 
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithEgressConfirm(buildUrl(path), {
     method: 'POST',
     headers,
     body,

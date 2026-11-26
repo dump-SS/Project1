@@ -26,7 +26,9 @@ OTHER = "u_99999"
 
 
 def _hdr(user_id: str = U) -> dict:
-    return {"X-User-ID": user_id}
+    # A1（2026-11-27）：带图入口在开关关时要求一次性确认。本文件测的是入队/轮询/
+    # 并发/终态语义，按"用户已确认"的正常路径跑；428 分支见 test_egress_gate_media.py。
+    return {"X-User-ID": user_id, "X-Egress-Confirm": "1"}
 
 
 class _FakeProvider:

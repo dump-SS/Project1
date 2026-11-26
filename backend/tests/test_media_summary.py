@@ -80,7 +80,7 @@ def test_summary_sanitized_before_return(client, fake_llm, r2_get):
         "SX",
         "- 练习册 P32 共 8 题\n- 联系张同学：13812345678\n- 抄送邮箱 sili@example.com",
     )
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 200
     summary = resp.json()["summary"]
     assert "13812345678" not in summary, "手机号未脱敏——M5 合规门失守"
@@ -92,7 +92,7 @@ def test_summary_id_card_sanitized(client, fake_llm, r2_get):
     fake_llm["text"] = _summary_json(
         "other", "- 登记表上有身份证 110101200801011234 需要抄写"
     )
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 200
     assert "110101200801011234" not in resp.json()["summary"]
 
@@ -101,7 +101,7 @@ def test_summary_clean_text_untouched(client, fake_llm, r2_get):
     """无敏感信息的正常摘要原样通过（脱敏不该误伤学习内容）。"""
     clean = "- 练习册 P32 共 8 题\n- 考查二次函数图像"
     fake_llm["text"] = _summary_json("SX", clean)
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 200
     assert resp.json()["summary"] == clean
 
@@ -111,7 +111,7 @@ def test_summary_clean_text_untouched(client, fake_llm, r2_get):
 
 def test_summary_happy_path(client, fake_llm, r2_get):
     fake_llm["text"] = _summary_json("sx", "- 口算 20 题\n- 应用题 3 道")
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["subject"] == "SX"  # 大小写归一
@@ -124,7 +124,7 @@ def test_summary_happy_path(client, fake_llm, r2_get):
 
 def test_summary_unknown_subject_fallback(client, fake_llm, r2_get):
     fake_llm["text"] = _summary_json("mystery", "- 看不懂的照片")
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 200
     assert resp.json()["subject"] == "other"
 
@@ -132,7 +132,7 @@ def test_summary_unknown_subject_fallback(client, fake_llm, r2_get):
 def test_summary_unrecognizable_photo_fallback(client, fake_llm, r2_get):
     """模型按 prompt 返回兜底文案 → 原样透传。"""
     fake_llm["text"] = _summary_json("other", "照片内容无法辨认")
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 200
     assert resp.json()["summary"] == "照片内容无法辨认"
 
@@ -142,14 +142,14 @@ def test_summary_unrecognizable_photo_fallback(client, fake_llm, r2_get):
 
 def test_summary_llm_none_502(client, fake_llm, r2_get):
     fake_llm["text"] = None
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "SUMMARY_FAILED"
 
 
 def test_summary_llm_garbage_502(client, fake_llm, r2_get):
     fake_llm["text"] = "这张照片光线不错。"
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "SUMMARY_FAILED"
 
@@ -175,7 +175,7 @@ def test_summary_other_users_key_403_no_side_effect(client, monkeypatch):
     monkeypatch.setattr(r2_storage, "get_object", fake_get)
 
     resp = client.post(
-        "/api/v1/f/media/user/u_other/x.png/summary", headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/media/user/u_other/x.png/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 403
     assert llm_called["n"] == 0 and r2_called["n"] == 0
@@ -186,7 +186,7 @@ def test_summary_traversal_key_403(client):
     # 客户端不会归一化它，请求能到达 _assert_owner 的二次防线
     resp = client.post(
         "/api/v1/f/media/user/u_test1/../../embeddings.index/summary",
-        headers={"X-User-ID": "u_test1"},
+        headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"},
     )
     assert resp.status_code == 403
 
@@ -196,7 +196,7 @@ def test_summary_media_missing_404(client, monkeypatch):
         raise r2_storage.R2Error("R2 GET 失败：HTTP 404", status=404)
 
     monkeypatch.setattr(r2_storage, "get_object", boom)
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 404
 
 
@@ -205,5 +205,5 @@ def test_summary_r2_offline_503(client, monkeypatch):
         raise r2_storage.R2NotConfigured("no creds")
 
     monkeypatch.setattr(r2_storage, "get_object", boom)
-    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1"})
+    resp = client.post(f"/api/v1/f/media/{MY_KEY}/summary", headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert resp.status_code == 503

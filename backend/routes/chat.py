@@ -19,17 +19,19 @@ POST /chat —— 发一条消息，返回真实回复 + 意图 + 可选卡片 +
 3. **取图失败降级**：R2 挂了或对象已被删，**不让整轮问答失败**——降级为纯文本，
    并把「图片没读到」这个事实交给 chat_engine，由它要求模型照实告知用户。
 
-⚠️ 合规：本路由会把用户图片字节经 provider 送去第三方 LLM，属于用户内容出域。
-判断与依据见 ``docs/openapi.yaml`` info.description 的 v1.12.0 段（lead-1 判断，
-**待 Skyer 复核**）。本轮按该判断**不挂** ``knowledge_ai_egress_enabled`` 门控，
-与 ``routes/search.py`` 的同类路径口径不同——该不一致已在契约里显式记录。
+⚠️ 合规（2026-11-27 Skyer 复核，按 A1 对齐）：本路由会把用户图片字节经 provider
+送去第三方 LLM，属于用户内容出域。``data_class`` 已由 chat_engine 对齐
+``user_error_content``；带图请求统一过 ``egress_gate.require_egress_consent``——
+开关开 → 持久授权直接放行，开关关 → 要求 ``X-Egress-Confirm: 1`` 一次性确认
+（否则 428 ``EGRESS_CONFIRM_REQUIRED``）。v1.12.0 那段「不挂门控」的临时判断已作废，
+依据见 ``docs/openapi.yaml`` info.description 的 v1.12.0 段与 v1.25.0 沿革。
 """
 from __future__ import annotations
 
 import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 import r2_storage
@@ -43,6 +45,7 @@ from chat_jobs import (
     to_schema,
 )
 from database import get_db
+from egress_gate import EGRESS_CONFIRM_HEADER, is_confirmed, require_egress_consent
 from models.chat import ChatJob
 from schemas.chat import (
     ChatGreeting,
@@ -96,6 +99,7 @@ def send_message(
     payload: ChatMessageRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
+    x_egress_confirm: str | None = Header(None, alias=EGRESS_CONFIRM_HEADER),
 ) -> ChatReply:
     media = None
     if payload.media_key:
@@ -112,6 +116,13 @@ def send_message(
                     "field": "mediaKey",
                 },
             )
+        # 合规门控（A1）：没确认就既不该触达 R2，也不该触达 LLM。
+        require_egress_consent(
+            db,
+            _user.user_id,
+            confirmed=is_confirmed(x_egress_confirm),
+            scene="chat_media",
+        )
         media = _load_media_for_chat(payload.media_key, _user.user_id)
 
     if payload.ephemeral:
@@ -165,6 +176,7 @@ def send_media_message_async(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _user: User = Depends(current_user),
+    x_egress_confirm: str | None = Header(None, alias=EGRESS_CONFIRM_HEADER),
 ) -> ChatMediaJobAccepted:
     """入队一个带图任务，**立即返回 202**；结果用 ``GET /chat/jobs/{jobId}`` 轮询。
 
@@ -175,7 +187,16 @@ def send_media_message_async(
     #    「谁能用自己的图」的判定，迟早漂移。
     _assert_owner(payload.media_key, _user.user_id)
 
-    # 2) 并发上限：带图任务每跑一个就占住一个 worker 线程 + 一条 100~250 秒的
+    # 2) 合规门控（A1）：必须在**入队前**确认。worker 没有请求上下文，
+    #    确认了也没法把已入队的任务重新带上授权——重试只能在入队前完成。
+    require_egress_consent(
+        db,
+        _user.user_id,
+        confirmed=is_confirmed(x_egress_confirm),
+        scene="chat_media_async",
+    )
+
+    # 3) 并发上限：带图任务每跑一个就占住一个 worker 线程 + 一条 100~250 秒的
     #    LLM 长连接。不设上限的话，一个连发 20 张图的用户就能占满槽位，
     #    把**别的用户**的带图提问全堵在后面。宁可明确 429，也不要静默吞掉
     #    他刚拍的照片（详见 chat_jobs.MAX_ACTIVE_JOBS_PER_USER 的注释）。
@@ -188,7 +209,7 @@ def send_media_message_async(
             },
         )
 
-    # 3) 落库再入队。**顺序不能反**：状态行先提交，BackgroundTasks 才会执行。
+    # 4) 落库再入队。**顺序不能反**：状态行先提交，BackgroundTasks 才会执行。
     #    若先入队后提交，worker 可能在提交前就去 get(job_id) 拿到 None。
     job = ChatJob(
         id=new_job_id(),

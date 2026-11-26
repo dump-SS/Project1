@@ -966,10 +966,13 @@ def handle_message(
             # 要求 context 是字面量 dict 且含 data_class 的常量值；把 context
             # 提成变量会让它判成 <dynamic> 并要求登记豁免（实测会红）。
             # 所以增量字段走 `**image_ctx` 追加，而不是先拼好再传。
-            # ⚠️ 另：带图时出域的是**用户图片**，但data_class 仍为 state_plan——
-            #    这是一处**已知口径妥协**（真正的用户内容类目是 user_error_content），
-            #    改它要动出域口径与 CI 豁免表，超出本次范围，已在回执里flag。
-            "data_class": "state_plan",
+            # data_class 按有无图取字面量分支（CI 的 AST 扫描要求字面量）：
+            # - 纯文本 → state_plan（板块一沿用，**不能被带图改造动到**，
+            #   由 test_chat.py::test_chat_without_media_unchanged_behaviour 守）；
+            # - 带图 → user_error_content（用户自己的题面、主动上传求识别，
+            #   不是 knowledge_raw 的教材/题库素材）。
+            # 门控在路由层（egress_gate.require_egress_consent），这里只声明类目。
+            "data_class": "user_error_content" if media is not None else "state_plan",
             # 🔴 传 user_id：没有它 usage_ledger.record_usage 会直接 return（no-op），
             #    导致 usage_ledger 里只剩 len//4 的**估算**，既违反铁律 5
             #    「按用户记录数值成本」，也让「是否撞 max_tokens」永远无法事后定位

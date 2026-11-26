@@ -70,10 +70,14 @@ def _onboarding_completed(db: Session, user_id: str, birth_year: int | None) -> 
     return _guardian_status(db, user_id) == "active"
 
 
-def _ensure_guardian_active_for_user_content_embedding(
-    db: Session, user_id: str, birth_year: int | None
+def _ensure_guardian_active_for_user_content_egress(
+    db: Session, user_id: str, birth_year: int | None, *, action_label: str
 ) -> None:
-    """D41：未成年账号**开启**「用户内容 embedding 出域」前必须监护人授权已生效。
+    """D41：未成年账号**开启**「用户内容出域」前必须监护人授权已生效。
+
+    覆盖两条路径（共用同一套判定，避免出现第二份年龄/授权口径）：
+    - 用户内容 embedding 出域（``knowledge_ai_egress_enabled`` 之外的独立开关）；
+    - 题图识别出域（``knowledge_ai_egress_enabled``，2026-11-27 A1 起）。
 
     - **非未成年**（含 birth_year 为 None 的存量账号，沿用 _is_under_14 的既有约定）→ 直接放行；
     - 未成年：``active`` → 放行；无记录 / ``pending`` → 403 ``GUARDIAN_AUTHORIZATION_REQUIRED``；
@@ -104,8 +108,17 @@ def _ensure_guardian_active_for_user_content_embedding(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={
             "code": "GUARDIAN_AUTHORIZATION_REQUIRED",
-            "message": "开启用户内容向量检索需要先完成监护人授权，请前往「设置 → 授权与隐私」",
+            "message": f"开启{action_label}需要先完成监护人授权，请前往「设置 → 授权与隐私」",
         },
+    )
+
+
+def _ensure_guardian_active_for_user_content_embedding(
+    db: Session, user_id: str, birth_year: int | None
+) -> None:
+    """兼容名：embedding 路径沿用旧函数名与旧文案，行为委托给 egress 版。"""
+    _ensure_guardian_active_for_user_content_egress(
+        db, user_id, birth_year, action_label="用户内容向量检索"
     )
 
 
@@ -235,6 +248,12 @@ def patch_settings(
     if body.send_text_to_ai is not None:
         settings.send_text_to_ai = body.send_text_to_ai
     if body.knowledge_ai_egress_enabled is not None:
+        # 2026-11-27 Skyer 复核（A1）：开启需监护人授权；撤回不设门槛，
+        # 否则授权一失效用户连「关掉出域」都做不到。
+        if body.knowledge_ai_egress_enabled:
+            _ensure_guardian_active_for_user_content_egress(
+                db, user.user_id, user.birth_year, action_label="题图识别出域"
+            )
         settings.knowledge_ai_egress_enabled = body.knowledge_ai_egress_enabled
     if body.user_content_embedding_api_enabled is not None:
         # D41：**只在开启时**校验监护人授权；撤回（置 false）是用户权利，不设门槛。

@@ -30,9 +30,9 @@ const SWITCH_ITEMS = [
   },
   {
     key: 'knowledgeAiEgressEnabled',
-    title: '知识复盘 AI 出域',
+    title: '知识复盘与拍照识别用云端 AI',
     description:
-      '开启后，学科知识复盘可调用云端 AI 生成（仅发送经过 EgressGuard 白名单校验的结构化特征，错题原文/作答/答案永不上传）。关闭后知识复盘使用本地规则模板（PRD 12.6）。',
+      '开启后，知识复盘可用云端 AI 生成，拍题 / 作业单识别也不再逐次询问。关闭时不会自动把已保存的题面发出去；你每次主动拍照识别会先确认一次，确认后才发送本次。未满 14 岁需监护人授权后才能开启。',
   },
   {
     key: 'userContentEmbeddingApiEnabled',

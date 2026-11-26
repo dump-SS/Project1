@@ -27,6 +27,7 @@ import CollectionPage from './pages/Collection/index.tsx'
 import ChatPage from './pages/Chat/index.tsx'
 import CommunityUploadPage from './pages/Community/Upload.tsx'
 import CommunityComparePage from './pages/Community/Compare.tsx'
+import EgressConfirmDialog from './components/EgressConfirmDialog/index.tsx'
 
 // 官网落地页：路由级代码分割（dev-spec §2.3），不套 AppShell / RequireAuth。
 const LandingPage = lazy(() => import('./pages/Landing/index.tsx'))
@@ -117,6 +118,10 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
+          {/* 带图出域一次性确认（A1，契约 v1.25.0）：监听 428
+              EGRESS_CONFIRM_REQUIRED，任何页面的带图上传都能触发。
+              挂在 Routes 外层，避免每个带图入口各写一遍。 */}
+          <EgressConfirmDialog />
         </AuthProvider>
       </ThemeProvider>
     </div>

@@ -92,7 +92,7 @@ def test_extract_other_users_key_403_and_no_side_effect(client, monkeypatch):
     resp = client.post(
         "/api/v1/f/worksheet/extract",
         json={"mediaKey": "user/u_other/x.png"},
-        headers={"X-User-ID": "u_test1"},
+        headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"},
     )
     assert resp.status_code == 403
     assert llm_called["n"] == 0
@@ -102,7 +102,7 @@ def test_extract_traversal_key_403(client):
     resp = client.post(
         "/api/v1/f/worksheet/extract",
         json={"mediaKey": "../embeddings.index"},
-        headers={"X-User-ID": "u_test1"},
+        headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"},
     )
     assert resp.status_code == 403
 
@@ -118,7 +118,7 @@ def test_extract_happy_path_normalizes(client, fake_llm, r2_get):
         {"subject": "YW", "topic": "背课文", "estimatedMinutes": 25},
     ])
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 200
     items = resp.json()["items"]
@@ -138,7 +138,7 @@ def test_extract_fenced_json_tolerated(client, fake_llm, r2_get):
         {"subject": "SX", "topic": "口算 20 题", "estimatedMinutes": 20},
     ]) + "\n```\n以上就是全部作业。"
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 200
     assert resp.json()["items"][0]["topic"] == "口算 20 题"
@@ -149,7 +149,7 @@ def test_extract_more_than_20_items_capped(client, fake_llm, r2_get):
         [{"subject": "SX", "topic": f"第 {i} 题", "estimatedMinutes": 10} for i in range(35)]
     )
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 200
     assert len(resp.json()["items"]) == 20
@@ -161,7 +161,7 @@ def test_extract_fallback_item(client, fake_llm, r2_get):
         {"subject": "other", "topic": "未识别到作业项", "estimatedMinutes": 20},
     ])
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 200
     assert resp.json()["items"] == [
@@ -175,7 +175,7 @@ def test_extract_fallback_item(client, fake_llm, r2_get):
 def test_extract_llm_none_502(client, fake_llm, r2_get):
     fake_llm["text"] = None
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "EXTRACT_FAILED"
@@ -184,7 +184,7 @@ def test_extract_llm_none_502(client, fake_llm, r2_get):
 def test_extract_llm_garbage_502(client, fake_llm, r2_get):
     fake_llm["text"] = "我觉得这张照片拍得不错，但没有作业。"
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "EXTRACT_FAILED"
@@ -199,7 +199,7 @@ def test_extract_media_missing_404(client, monkeypatch):
 
     monkeypatch.setattr(r2_storage, "get_object", boom)
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 404
     assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
@@ -211,7 +211,7 @@ def test_extract_r2_offline_503(client, monkeypatch):
 
     monkeypatch.setattr(r2_storage, "get_object", boom)
     resp = client.post(
-        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1"}
+        "/api/v1/f/worksheet/extract", json=_extract_body(), headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert resp.status_code == 503
 
@@ -231,7 +231,7 @@ def test_create_plan_with_tasks_override(client):
                 {"subject": "YY", "topic": "背 Unit 3 单词", "estimatedMinutes": 20},
             ],
         },
-        headers={"X-User-ID": "u_test1"},
+        headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"},
     )
     assert resp.status_code == 201
     plan = resp.json()
@@ -252,7 +252,7 @@ def test_create_plan_tasks_ignore_goal_ids(client):
             "goalIds": ["g_nonexistent"],
             "tasks": [{"subject": "SX", "topic": "口算 20 题", "estimatedMinutes": 30}],
         },
-        headers={"X-User-ID": "u_test1"},
+        headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"},
     )
     assert resp.status_code == 201
     assert resp.json()["tasks"][0]["topic"] == "口算 20 题"
@@ -265,12 +265,12 @@ def test_create_plan_tasks_conflict_still_409(client):
         "availableMinutes": 30,
         "tasks": [{"subject": "SX", "topic": "口算", "estimatedMinutes": 30}],
     }
-    first = client.post("/api/v1/plans", json=body, headers={"X-User-ID": "u_test1"})
+    first = client.post("/api/v1/plans", json=body, headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert first.status_code == 201
-    second = client.post("/api/v1/plans", json=body, headers={"X-User-ID": "u_test1"})
+    second = client.post("/api/v1/plans", json=body, headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"})
     assert second.status_code == 409
     regen = client.post(
-        "/api/v1/plans", json={**body, "regenerate": True}, headers={"X-User-ID": "u_test1"}
+        "/api/v1/plans", json={**body, "regenerate": True}, headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}
     )
     assert regen.status_code == 201
 
@@ -286,7 +286,7 @@ def test_create_plan_tasks_validation_400(client):
         ],
     }
     assert (
-        client.post("/api/v1/plans", json=too_many, headers={"X-User-ID": "u_test1"}).status_code
+        client.post("/api/v1/plans", json=too_many, headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}).status_code
         == 400
     )
     bad_minutes = {
@@ -295,7 +295,7 @@ def test_create_plan_tasks_validation_400(client):
         "tasks": [{"subject": "SX", "topic": "口算", "estimatedMinutes": 1}],
     }
     assert (
-        client.post("/api/v1/plans", json=bad_minutes, headers={"X-User-ID": "u_test1"}).status_code
+        client.post("/api/v1/plans", json=bad_minutes, headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"}).status_code
         == 400
     )
 
@@ -305,7 +305,7 @@ def test_create_plan_without_tasks_unchanged(client):
     resp = client.post(
         "/api/v1/plans",
         json={"planDate": "2026-11-02", "availableMinutes": 60},
-        headers={"X-User-ID": "u_test1"},
+        headers={"X-User-ID": "u_test1", "X-Egress-Confirm": "1"},
     )
     assert resp.status_code == 201
     plan = resp.json()

@@ -45,9 +45,12 @@ import asyncio
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session
 
+from database import get_db
+from egress_gate import EGRESS_CONFIRM_HEADER, is_confirmed, require_egress_consent
 import r2_storage
 from r2_sigv4 import SigV4Error
 from schemas.common import APIModel
@@ -335,6 +338,8 @@ def _load_media_bytes_or_raise(key: str) -> tuple[bytes, str]:
 def summarize_media_endpoint(
     key: str,
     user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+    x_egress_confirm: str | None = Header(None, alias=EGRESS_CONFIRM_HEADER),
 ) -> MediaSummary:
     """#47（design 第 974 行 D55 欠账）：要点摘要可进收藏（走 privacy_filter）。
 
@@ -343,6 +348,15 @@ def summarize_media_endpoint(
     摘要本身不落库；是否收藏由用户决定。
     """
     _assert_owner(key, user.user_id)
+
+    # 合规门控（A1，2026-11-27 Skyer 复核）：开关关时要求一次性确认，
+    # 确认后才取图送模型。见 docs/openapi.yaml v1.12.0 段与 v1.25.0 沿革。
+    require_egress_consent(
+        db,
+        user.user_id,
+        confirmed=is_confirmed(x_egress_confirm),
+        scene="media_summary",
+    )
     data, mime = _load_media_bytes_or_raise(key)
     try:
         summary, subject = summarize_media(data, mime, user.user_id)

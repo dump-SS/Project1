@@ -667,9 +667,15 @@ def _stub_r2(monkeypatch, *, ok: bool):
 
 def _post_with_media(user_id: str, key: str | None, content: str = "这道题怎么做"):
     payload = {"content": content}
+    headers = {"X-User-ID": user_id}
     if key is not None:
         payload["mediaKey"] = key
-    return client.post("/api/v1/chat", json=payload, headers={"X-User-ID": user_id})
+        # A1（2026-11-27）：带图入口在开关关时要求一次性确认。本文件测的是带图
+        # 链路本身（取图 / 降级 / 不落字节），按"用户已确认"的正常路径跑；
+        # 428 分支由 test_egress_gate_media.py 覆盖。无图路径刻意不带该头，
+        # 用来守"纯文本不经过门控"。
+        headers["X-Egress-Confirm"] = "1"
+    return client.post("/api/v1/chat", json=payload, headers=headers)
 
 
 def test_chat_without_media_unchanged_behaviour(monkeypatch):

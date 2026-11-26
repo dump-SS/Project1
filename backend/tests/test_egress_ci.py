@@ -162,6 +162,12 @@ _DYNAMIC_DECLARE_OK: dict[str, str] = {
         "user_error_content 或 knowledge_aggregated 两者之一；取值集合本身由 "
         "test_search_egress.py 的开关用例覆盖（关→聚合、开→user_error_content）"
     ),
+    "chat_engine.py": (
+        "主 Chat 的 data_class 由 media 是否存在决定：纯文本 state_plan（板块一沿用）、"
+        "带图 user_error_content（用户自己的题面）。两个分支均为字面量，分别由 "
+        "test_chat.py::test_chat_without_media_unchanged_behaviour 与 "
+        "test_chat.py::test_chat_with_media_sends_image_to_provider 覆盖"
+    ),
 }
 
 

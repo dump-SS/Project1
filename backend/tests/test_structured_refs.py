@@ -175,7 +175,8 @@ def test_async_structured_payload_lands_column_and_prompt(client, capturing_prov
     r = client.post(
         "/api/v1/chat/media",
         json={"content": "带图继续计划", "structuredPayload": STRUCT, "mediaKey": "user/u_struct1/x.png"},
-        headers={"X-User-ID": U},
+        # A1：带图入口在开关关时要求一次性确认（428 分支见 test_egress_gate_media.py）
+        headers={"X-User-ID": U, "X-Egress-Confirm": "1"},
     )
     assert r.status_code == 202, r.text
     job_id = r.json()["jobId"]
@@ -230,7 +231,7 @@ def test_async_without_structured_column_is_none(client):
     r = client.post(
         "/api/v1/chat/media",
         json={"content": "无结构化引用", "mediaKey": "user/u_struct1/plain.png"},
-        headers={"X-User-ID": U},
+        headers={"X-User-ID": U, "X-Egress-Confirm": "1"},
     )
     assert r.status_code == 202
     row = _last_job_row()

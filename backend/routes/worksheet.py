@@ -7,17 +7,20 @@
    图读不到就直接 404 / 503 / 502（契约里这三档就是这么分的）。
 3. **调 LLM 抽取**：失败映射 502 ``EXTRACT_FAILED``，message 可直接展示给用户。
 
-⚠️ 合规：本路由会把用户作业单照片字节送第三方 LLM（用户内容出域），与带图 Chat
-同一口径妥协（data_class=state_plan，见 docs/openapi.yaml v1.12.0 段）。
+⚠️ 合规（2026-11-27 Skyer 复核，按 A1 对齐）：本路由会把用户作业单照片字节送第三方
+LLM（用户内容出域）。``data_class`` 已对齐 ``user_error_content``；开关关时要求
+``X-Egress-Confirm: 1`` 一次性确认（428 ``EGRESS_CONFIRM_REQUIRED``），
+见 docs/openapi.yaml v1.12.0 段与 v1.25.0 沿革。
 """
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
+from egress_gate import EGRESS_CONFIRM_HEADER, is_confirmed, require_egress_consent
 import r2_storage
 from r2_storage import R2Error, R2NotConfigured
 from routes.deps import current_user
@@ -40,8 +43,17 @@ def extract_worksheet(
     body: WorksheetExtractRequest,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
+    x_egress_confirm: str | None = Header(None, alias=EGRESS_CONFIRM_HEADER),
 ) -> WorksheetExtraction:
     _assert_owner(body.media_key, user.user_id)
+
+    # 合规门控（A1）：放在取图之前——没确认就既不该触达 R2，也不该触达 LLM。
+    require_egress_consent(
+        db,
+        user.user_id,
+        confirmed=is_confirmed(x_egress_confirm),
+        scene="worksheet_extract",
+    )
 
     # 取回字节：与 chat 的降级不同，抽取没有降级态，按契约分档报错
     try:

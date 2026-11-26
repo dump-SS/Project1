@@ -6,9 +6,9 @@ design 第 974 行「作业单直接生成计划」的抽取一步。职责边�
 - 调用方（routes/worksheet.py）负责归属校验与 R2 取回，本模块拿到的必是已通过
   校验的图片字节。
 
-出域口径：作业单照片属用户内容，随本轮送第三方模型——与带图 Chat 同一口径
-妥协（data_class=state_plan），见 docs/openapi.yaml info.description v1.12.0 段
-（lead-1 判断、待 Skyer 复核的已知不一致）。
+出域口径（2026-11-27 Skyer 复核，按 A1 对齐）：作业单照片属用户内容，
+``data_class=user_error_content``；开关关时由 ``routes/worksheet.py`` 要求
+``X-Egress-Confirm: 1`` 一次性确认。见 docs/openapi.yaml v1.12.0 段与 v1.25.0 沿革。
 
 ⚠️ context 必须是**字面量 dict** 且含 data_class 常量：test_egress_ci 用 AST 扫
 每个 .generate( 调用点（见 chat_engine.py 同款注释），提成变量会被判 <dynamic>。
@@ -122,8 +122,9 @@ def extract_worksheet_items(image_bytes: bytes, mime: str, user_id: str) -> Work
             "system": system,
             "scene": "worksheet",
             # ⚠️ data_class 必须是本 dict 里的**字面量**（AST 扫描约定，见模块 docstring）。
-            #    与带图 Chat 同一口径妥协：真正类目是 user_error_content，改它要动出域口径。
-            "data_class": "state_plan",
+            #    2026-11-27 Skyer 复核按 A1 对齐：归 user_error_content
+            #    （用户自己的作业单照片），门控在 routes/worksheet.py。
+            "data_class": "user_error_content",
             "user_id": user_id,
             "feature_tier": "multimodal",
             **image_ctx,

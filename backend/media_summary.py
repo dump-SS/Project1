@@ -88,8 +88,9 @@ def summarize_media(image_bytes: bytes, mime: str, user_id: str) -> tuple[str, S
         context={
             "system": system,
             "scene": "media_summary",
-            # ⚠️ data_class 必须是字面量（AST 扫描约定）；与带图 Chat 同一口径妥协。
-            "data_class": "state_plan",
+            # ⚠️ data_class 必须是字面量（AST 扫描约定）；2026-11-27 Skyer 复核
+            #    按 A1 对齐为 user_error_content（用户自己的照片），门控在 routes/f_media.py。
+            "data_class": "user_error_content",
             "user_id": user_id,
             "feature_tier": "multimodal",
             **image_ctx,
